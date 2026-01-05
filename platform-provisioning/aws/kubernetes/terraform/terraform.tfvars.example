@@ -1,0 +1,48 @@
+# AWS Region
+aws_region = "us-east-1"
+
+# VPC Configuration
+vpc_name = "kubernetes-platform-vpc"
+
+# EKS Cluster
+cluster_name = "kubernetes-platform"
+
+# S3 Buckets
+s3_buckets = [
+  {
+    name           = "platform-metrics"
+    purpose        = "Prometheus long-term metrics"
+    lifecycle_days = 90
+  },
+  {
+    name           = "platform-logs"
+    purpose        = "Loki long-term logs"
+    lifecycle_days = 30
+  },
+  {
+    name           = "platform-traces"
+    purpose        = "Tempo traces"
+    lifecycle_days = 7
+  },
+  {
+    name           = "platform-backups"
+    purpose        = "Velero cluster backups"
+    lifecycle_days = 30
+  }
+]
+
+# Kubernetes Namespaces (for IRSA roles)
+kubernetes_namespaces = [
+  "observability-dev",
+  "observability-hml",
+  "observability-prd",
+  "platform-core-dev",
+  "platform-core-hml",
+  "platform-core-prd",
+  "cicd-platform",
+  "data-services-dev",
+  "data-services-hml",
+  "data-services-prd",
+  "secrets-management",
+  "security"
+]

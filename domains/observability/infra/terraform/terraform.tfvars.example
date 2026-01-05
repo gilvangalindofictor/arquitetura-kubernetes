@@ -1,0 +1,56 @@
+# Example terraform.tfvars for Observability Domain
+# Copy to terraform.tfvars and edit with your values
+
+# =============================================================================
+# INPUTS FROM PLATFORM PROVISIONING
+# =============================================================================
+# Obter via: cd /platform-provisioning/aws/kubernetes/terraform && terraform output
+
+cluster_endpoint       = "https://XXXXX.eks.us-east-1.amazonaws.com"  # terraform output cluster_endpoint
+cluster_ca_certificate = "LS0tLS1CRUdJTi..."                           # terraform output -raw cluster_ca_certificate
+cluster_name           = "kubernetes-platform"                         # terraform output cluster_name
+
+# =============================================================================
+# STORAGE (From platform-provisioning outputs)
+# =============================================================================
+
+storage_class_name = "gp3"  # terraform output storage_class_name
+
+# =============================================================================
+# OBJECT STORAGE (S3-Compatible)
+# =============================================================================
+
+object_storage_endpoint = "https://s3.us-east-1.amazonaws.com"  # terraform output object_storage_endpoint
+s3_bucket_metrics       = "platform-metrics"                     # terraform output object_storage_buckets
+s3_bucket_logs          = "platform-logs"
+s3_bucket_traces        = "platform-traces"
+s3_bucket_backups       = "platform-backups"
+
+# =============================================================================
+# DOMAIN CONFIGURATION
+# =============================================================================
+
+environments = ["dev", "hml", "prd"]
+domain_name  = "observability.internal.example.com"  # Opcional
+
+# =============================================================================
+# RETENTION POLICIES
+# =============================================================================
+
+prometheus_retention_days = 15
+loki_retention_days       = 7
+tempo_retention_days      = 3
+
+# =============================================================================
+# STORAGE SIZES
+# =============================================================================
+
+prometheus_storage_size = "50Gi"
+loki_storage_size       = "20Gi"
+tempo_storage_size      = "10Gi"
+
+# =============================================================================
+# SECRETS (Use Vault/External Secrets)
+# =============================================================================
+
+# grafana_admin_password = "CHANGE_ME"  # ⚠️ Nunca commitar! Usar Vault

@@ -1,0 +1,84 @@
+# kube-prometheus-stack values
+# Deploys Prometheus, Grafana, and Alertmanager
+
+grafana:
+  enabled: true
+  adminPassword: "changeme-in-production" # Use a secret in production
+  persistence:
+    enabled: true
+    type: pvc
+    size: 10Gi
+    storageClassName: "gp2"
+  
+  # Pre-configure Loki and Tempo datasources
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.observability.svc.cluster.local
+      access: proxy
+      isDefault: false
+    - name: Tempo
+      type: tempo
+      url: http://tempo.observability.svc.cluster.local:3200
+      access: proxy
+      isDefault: false
+  serviceAccount:
+    create: true
+    name: "grafana"
+
+prometheus:
+  prometheusSpec:
+    # Automatically discover PrometheusRule CRDs
+    ruleSelector:
+      matchLabels:
+        prometheus: prometheus-stack-prometheus
+        role: alert-rules
+    # Set retention to 15 days as per ADR-002
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    
+    # Remote write configuration for long-term storage (Phase 2)
+    # remoteWrite:
+    #   - url: "http://your-thanos-receiver-or-cortex/api/v1/write"
+  serviceAccount:
+    create: true
+    name: "prometheus"
+    # annotations:
+    #   eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/your-prometheus-s3-role"
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+  
+  # Example config - replace with your actual receivers
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['job']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'slack-notifications' # Default receiver
+    receivers:
+      - name: 'null'
+      - name: 'slack-notifications'
+        slack_configs:
+          - api_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+            channel: '#alerts'
+            send_resolved: true
+

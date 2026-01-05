@@ -1,0 +1,32 @@
+# Environment files
+.env
+
+# Docker volumes (dados persistentes)
+volumes/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Build artifacts
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Example app specific
+examples/*/venv/
+examples/*/.venv/
+examples/*/node_modules/

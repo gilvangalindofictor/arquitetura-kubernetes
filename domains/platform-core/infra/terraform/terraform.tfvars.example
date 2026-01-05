@@ -1,0 +1,50 @@
+# Platform Core Domain - Terraform Configuration Example
+# Copy this file to terraform.tfvars and fill with your values
+
+# ===== CLUSTER INPUTS (from platform-provisioning) =====
+# Get these values from: cd /platform-provisioning/{cloud}/kubernetes/terraform && terraform output
+
+cluster_endpoint       = "https://YOUR-CLUSTER-ENDPOINT"  # terraform output cluster_endpoint
+cluster_ca_certificate = "YOUR-BASE64-CA-CERT"            # terraform output cluster_ca_certificate
+storage_class_name     = "gp3"                            # terraform output storage_class_name
+                                                          # AWS: gp3, Azure: managed-premium, GCP: pd-ssd
+
+# ===== KEYCLOAK CONFIGURATION =====
+
+keycloak_domain          = "keycloak.example.com"
+keycloak_admin_user      = "admin"
+keycloak_admin_password  = "CHANGE-ME-STRONG-PASSWORD"  # Produção: usar External Secrets
+keycloak_db_password     = "CHANGE-ME-DB-PASSWORD"      # Produção: usar External Secrets
+
+# ===== KONG CONFIGURATION =====
+
+kong_db_password = "CHANGE-ME-KONG-DB-PASSWORD"  # Produção: usar External Secrets
+
+# ===== CERT-MANAGER CONFIGURATION =====
+
+letsencrypt_email = "admin@example.com"
+
+# ===== LINKERD CONFIGURATION =====
+# Generate trust anchor:
+# step certificate create root.linkerd.cluster.local ca.crt ca.key \
+#   --profile root-ca --no-password --insecure
+# cat ca.crt
+
+linkerd_trust_anchor_pem = <<-EOT
+-----BEGIN CERTIFICATE-----
+YOUR-LINKERD-TRUST-ANCHOR-CERTIFICATE-HERE
+-----END CERTIFICATE-----
+EOT
+
+# ===== MONITORING =====
+
+enable_monitoring = true  # Integração com domínio observability
+
+# ===== COMPONENT VERSIONS (Optional - defaults will be used) =====
+
+# cert_manager_version   = "v1.13.3"
+# ingress_nginx_version  = "4.9.0"
+# linkerd_version        = "1.16.11"
+# linkerd_viz_version    = "30.12.11"
+# keycloak_version       = "18.4.0"
+# kong_version           = "2.35.0"

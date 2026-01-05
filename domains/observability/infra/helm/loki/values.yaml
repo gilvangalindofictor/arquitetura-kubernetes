@@ -1,0 +1,46 @@
+# Loki values configuration
+# Deploys Loki for log aggregation
+
+# Use the simple scalable deployment mode for PoC
+# In production, consider the "distributed" mode
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage:
+  type: s3
+  s3:
+    # These values should be replaced with the actual bucket names from Terraform output
+    bucketnames: "observability-logs-ACCOUNT_ID,observability-ruler-ACCOUNT_ID"
+    region: "us-east-1"
+    # endpoint: "s3.us-east-1.amazonaws.com" # Not needed if using default AWS endpoint
+    insecure: false
+    sse:
+      enabled: true
+
+# Use IRSA to grant S3 permissions
+serviceAccount:
+  create: true
+  name: "loki"
+  annotations:
+    # Replace ACCOUNT_ID with your actual AWS account ID
+    # The role name should match the one created by the IAM Terraform module
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/observability-observability-prd-sa-role"
+
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClassName: "gp2"
+
+# Gateway component for a single entry point
+gateway:
+  enabled: true
+  replicas: 2
+  service:
+    type: ClusterIP

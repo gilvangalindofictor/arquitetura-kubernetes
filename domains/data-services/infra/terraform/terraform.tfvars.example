@@ -1,0 +1,100 @@
+# =============================================================================
+# DATA SERVICES DOMAIN - Terraform Variables Example
+# =============================================================================
+# Copie este arquivo para terraform.tfvars e preencha com valores reais
+
+# -----------------------------------------------------------------------------
+# CLUSTER INPUTS (obter de /platform-provisioning/outputs.tf)
+# -----------------------------------------------------------------------------
+
+# Exemplo AWS EKS:
+# cluster_endpoint = "https://A1B2C3D4E5F6G7H8I9J0.gr7.us-east-1.eks.amazonaws.com"
+# cluster_ca_certificate = "<BASE64_ENCODED_CA_CERT>"
+# storage_class_name = "gp3"
+
+# Exemplo Azure AKS:
+# cluster_endpoint = "https://myaks-dns-12345678.hcp.eastus.azmk8s.io"
+# cluster_ca_certificate = "<BASE64_ENCODED_CA_CERT>"
+# storage_class_name = "managed-premium"
+
+# Exemplo GCP GKE:
+# cluster_endpoint = "https://34.123.45.67"
+# cluster_ca_certificate = "<BASE64_ENCODED_CA_CERT>"
+# storage_class_name = "pd-ssd"
+
+cluster_endpoint       = "https://YOUR_CLUSTER_API_ENDPOINT"
+cluster_ca_certificate = "BASE64_ENCODED_CA_CERTIFICATE"
+storage_class_name     = "gp3" # ou managed-premium, pd-ssd
+
+environment = "production"
+
+# -----------------------------------------------------------------------------
+# COMPONENT VERSIONS
+# -----------------------------------------------------------------------------
+
+postgres_operator_version  = "1.10.1"
+redis_operator_version     = "0.15.1"
+rabbitmq_operator_version  = "3.12.0"
+velero_version             = "5.2.0"
+
+# -----------------------------------------------------------------------------
+# VELERO BACKUP CONFIGURATION
+# -----------------------------------------------------------------------------
+
+# Opção 1: AWS S3
+# velero_backup_bucket = "k8s-backups-production"
+# velero_region        = "us-east-1"
+# velero_s3_url        = "https://s3.amazonaws.com"
+
+# Opção 2: Azure Blob (via S3 API compatible - Minio gateway)
+# velero_backup_bucket = "k8s-backups-production"
+# velero_region        = "eastus" # Ignored by Minio
+# velero_s3_url        = "https://minio.azure.example.com"
+
+# Opção 3: GCP GCS (via S3 API compatible - Minio gateway)
+# velero_backup_bucket = "k8s-backups-production"
+# velero_region        = "us-central1" # Ignored by Minio
+# velero_s3_url        = "https://minio.gcp.example.com"
+
+# Opção 4: Minio self-hosted
+velero_backup_bucket = "k8s-backups"
+velero_region        = "us-east-1"
+velero_s3_url        = "https://minio.example.com"
+
+# Credentials (obter de secrets-management domain ou criar manualmente)
+velero_s3_access_key = "AKIAIOSFODNN7EXAMPLE" # MUDE ISTO
+velero_s3_secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" # MUDE ISTO
+
+# -----------------------------------------------------------------------------
+# MONITORING
+# -----------------------------------------------------------------------------
+
+enable_monitoring = true
+
+# =============================================================================
+# NOTAS DE CONFIGURAÇÃO
+# =============================================================================
+#
+# 1. VELERO BACKUP STORAGE:
+#    - AWS S3: Criar bucket com versionamento habilitado
+#    - Azure Blob: Criar storage account + container (via Minio gateway)
+#    - GCP GCS: Criar bucket com lifecycle policies
+#    - Minio: Deploy via data-services domain ou external
+#
+# 2. CREDENTIALS:
+#    - Temporário: Variáveis terraform (INSEGURO - apenas dev/test)
+#    - Produção: Migrar para secrets-management domain (Vault/ESO)
+#
+# 3. STORAGE CLASS:
+#    - Verificar disponibilidade: kubectl get storageclass
+#    - AWS EKS: gp3, gp2, io1 (SSD), st1 (HDD)
+#    - Azure AKS: managed-premium (SSD), managed-standard (HDD)
+#    - GCP GKE: pd-ssd (SSD), pd-standard (HDD), pd-balanced
+#
+# 4. OPERATORS INSTALADOS (não instances):
+#    - PostgreSQL: Criar clusters via CRD acid.zalan.do/v1/postgresql
+#    - Redis: Criar clusters via CRD redis.redis.opstreelabs.in/v1beta1/RedisCluster
+#    - RabbitMQ: Criar clusters via CRD rabbitmq.com/v1beta1/RabbitmqCluster
+#    - Velero: Configurar backups via `velero` CLI
+#
+# =============================================================================

@@ -1,0 +1,23 @@
+# CI/CD Platform - Example Configuration
+
+# ===== CLUSTER INPUTS (from platform-provisioning) =====
+cluster_endpoint       = "https://YOUR-CLUSTER-ENDPOINT"
+cluster_ca_certificate = "YOUR-CA-CERT"
+storage_class_name     = "gp3"  # AWS: gp3, Azure: managed-premium, GCP: pd-ssd
+
+# ===== DOMAINS =====
+gitlab_domain     = "gitlab.example.com"
+sonarqube_domain  = "sonarqube.example.com"
+harbor_domain     = "harbor.example.com"
+argocd_domain     = "argocd.example.com"
+backstage_domain  = "backstage.example.com"
+
+keycloak_url = "https://keycloak.example.com"  # From platform-core
+
+# ===== SECRETS (Produção: usar External Secrets) =====
+harbor_admin_password  = "CHANGE-ME-STRONG-PASSWORD"
+backstage_db_password  = "CHANGE-ME-DB-PASSWORD"
+gitlab_token           = "YOUR-GITLAB-TOKEN"  # Create after GitLab deploy
+
+# ===== MONITORING =====
+enable_monitoring = true

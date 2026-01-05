@@ -1,0 +1,26 @@
+# This file contains the specific overrides for running Tempo with LocalStack S3
+
+# Use the same base configuration
+tempo:
+  # Disable IRSA, as it's not needed for LocalStack
+  serviceAccount:
+    create: true
+    name: "tempo"
+    annotations: {}
+
+  # Configure storage to use LocalStack's S3 service
+  storage:
+    trace:
+      backend: s3
+      s3:
+        # The endpoint for LocalStack S3. 'http://localstack:4566' is the address
+        # of the LocalStack container from within the Docker network.
+        endpoint: "http://localstack:4566"
+        bucket: "observabilidade-tempo-data"
+        
+        # Use dummy credentials. LocalStack doesn't validate them by default.
+        access_key_id: "test"
+        secret_access_key: "test"
+
+        # Required for LocalStack S3
+        insecure: true
