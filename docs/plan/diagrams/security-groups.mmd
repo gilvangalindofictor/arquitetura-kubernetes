@@ -1,0 +1,43 @@
+graph LR
+    subgraph "Security Groups Architecture"
+        subgraph "Internet Facing"
+            ALB["ALB Security Group<br/>alb-sg"]
+        end
+
+        subgraph "EKS Cluster"
+            EKSCP["EKS Control Plane SG<br/>eks-control-plane-sg"]
+            EKSNODE["EKS Nodes SG<br/>eks-nodes-sg"]
+        end
+
+        subgraph "Data Layer"
+            RDSSG["RDS Security Group<br/>rds-sg"]
+        end
+
+        subgraph "External"
+            Internet["Internet<br/>0.0.0.0/0"]
+            Corporate["Corporate IPs<br/>Allowlist"]
+        end
+    end
+
+    Internet -->|"HTTP/HTTPS<br/>WAF Filtered"| ALB
+    Corporate -->|"HTTPS 443<br/>Allowlist Only"| ALB
+
+    ALB -->|"HTTP 30000-32767<br/>NodePort Range"| EKSNODE
+
+    EKSCP <-->|"443, 10250<br/>API & Kubelet"| EKSNODE
+
+    EKSNODE -->|"5432<br/>PostgreSQL"| RDSSG
+
+    EKSNODE -->|"HTTPS 443<br/>S3 Gateway"| S3GW["S3 Gateway<br/>Endpoint"]
+
+    classDef internet fill:#F44336,stroke:#C62828,color:#fff
+    classDef alb fill:#4CAF50,stroke:#2E7D32,color:#fff
+    classDef eks fill:#2196F3,stroke:#1565C0,color:#fff
+    classDef data fill:#FF9800,stroke:#E65100,color:#fff
+    classDef endpoint fill:#9C27B0,stroke:#6A1B9A,color:#fff
+
+    class Internet,Corporate internet
+    class ALB alb
+    class EKSCP,EKSNODE eks
+    class RDSSG data
+    class S3GW endpoint

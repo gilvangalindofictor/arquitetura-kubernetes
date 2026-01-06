@@ -1,0 +1,50 @@
+graph TB
+  Internet[Internet / Users] --> Route53[Route53 DNS]
+  Route53 --> ALB[ALB + WAF<br/>IP Allowlist]
+  ALB -->|HTTPS| EKS[EKS Cluster]
+
+  subgraph EKS[" "]
+    subgraph gitlab[namespace: gitlab]
+      GitLabCE[GitLab CE<br/>Webservice, Sidekiq, Gitaly]
+      Runners[GitLab Runners<br/>K8s Executor]
+      Registry[GitLab Registry<br/>S3 Backend]
+    end
+
+    subgraph dataservices[namespace: data-services]
+      Redis[Redis HA<br/>Helm: bitnami/redis<br/>Master-Replica + Sentinel]
+      RabbitMQ[RabbitMQ<br/>Helm: bitnami/rabbitmq<br/>Management UI]
+    end
+
+    subgraph observability[namespace: observability]
+      OTEL[OpenTelemetry Collector<br/>DaemonSet + Gateway]
+      Prom[Prometheus + Alertmanager]
+      Graf[Grafana]
+      Loki[Loki<br/>S3 Backend]
+      Tempo[Tempo<br/>S3 Backend]
+    end
+
+    subgraph system[namespace: kube-system]
+      ALBController[AWS Load Balancer Controller]
+      EBSDriver[EBS CSI Driver]
+      CertManager[cert-manager]
+    end
+  end
+
+  GitLabCE -->|PostgreSQL:5432| RDS[(RDS PostgreSQL<br/>Multi-AZ)]
+  GitLabCE -.->|cache| Redis
+  GitLabCE -.->|messaging| RabbitMQ
+
+  Registry -->|backups| S3[S3 Buckets]
+  Loki -->|logs storage| S3
+  Tempo -->|traces storage| S3
+
+  Redis -->|PVC| EBS[EBS gp3 Volumes]
+  RabbitMQ -->|PVC| EBS
+  Prom -->|TSDB| EBS
+
+  OTEL -->|metrics| Prom
+  OTEL -->|logs| Loki
+  OTEL -->|traces| Tempo
+  Prom --> Graf
+  Loki --> Graf
+  Tempo --> Graf
