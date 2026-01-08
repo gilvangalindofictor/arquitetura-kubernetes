@@ -1,0 +1,70 @@
+graph TB
+  Internet[Internet / Users] --> Route53[Route53 DNS]
+  Route53 --> ALB[ALB + WAF<br/>IP Allowlist]
+  ALB -->|HTTPS| EKS[EKS Cluster - 2 Ambientes]
+
+  subgraph EKS[" "]
+    subgraph staging[namespace: staging]
+      GitLabStg[GitLab Staging<br/>Testes + Homologação<br/>Webservice, Sidekiq, Gitaly]
+      RunnersStg[GitLab Runners STG<br/>K8s Executor]
+      RegistryStg[GitLab Registry STG<br/>S3 Backend]
+      RedisStg[Redis STG<br/>Helm: bitnami/redis]
+      RabbitMQStg[RabbitMQ STG<br/>Helm: bitnami/rabbitmq]
+    end
+
+    subgraph prod[namespace: prod]
+      GitLabProd[GitLab Production<br/>Produção<br/>Webservice, Sidekiq, Gitaly]
+      RunnersProd[GitLab Runners PROD<br/>K8s Executor<br/>Dedicated]
+      RegistryProd[GitLab Registry PROD<br/>S3 Backend]
+      RedisProd[Redis PROD HA<br/>Master-Replica + Sentinel]
+      RabbitMQProd[RabbitMQ PROD<br/>Cluster Mode]
+    end
+
+    subgraph observability[namespace: observability - Compartilhado]
+      OTEL[OpenTelemetry Collector<br/>DaemonSet + Gateway]
+      Prom[Prometheus + Alertmanager<br/>Multi-Tenant]
+      Graf[Grafana<br/>Dashboards STG e PROD]
+      Loki[Loki<br/>S3 Backend]
+      Tempo[Tempo<br/>S3 Backend]
+    end
+
+    subgraph system[namespace: kube-system]
+      ALBController[AWS Load Balancer Controller]
+      EBSDriver[EBS CSI Driver]
+      CertManager[cert-manager]
+    end
+  end
+
+  GitLabStg -->|PostgreSQL:5432| RDSStg[(RDS PostgreSQL STG<br/>Multi-AZ<br/>db.t3.small)]
+  GitLabStg -.->|cache| RedisStg
+  GitLabStg -.->|messaging| RabbitMQStg
+  GitLabStg -->|telemetry| OTEL
+
+  GitLabProd -->|PostgreSQL:5432| RDSProd[(RDS PostgreSQL PROD<br/>Multi-AZ<br/>db.t3.medium)]
+  GitLabProd -.->|cache| RedisProd
+  GitLabProd -.->|messaging| RabbitMQProd
+  GitLabProd -->|telemetry| OTEL
+
+  RegistryStg -->|backups| S3[S3 Buckets<br/>Staging + Prod<br/>Segregated]
+  RegistryProd -->|backups| S3
+  Loki -->|logs storage| S3
+  Tempo -->|traces storage| S3
+
+  RedisStg -->|PVC| EBSStg[EBS gp3 Volumes<br/>Staging]
+  RabbitMQStg -->|PVC| EBSStg
+
+  RedisProd -->|PVC| EBSProd[EBS gp3 Volumes<br/>Prod]
+  RabbitMQProd -->|PVC| EBSProd
+  Prom -->|TSDB| EBSProd
+
+  OTEL -->|metrics<br/>label: env=staging/prod| Prom
+  OTEL -->|logs<br/>label: env=staging/prod| Loki
+  OTEL -->|traces<br/>label: env=staging/prod| Tempo
+  Prom --> Graf
+  Loki --> Graf
+  Tempo --> Graf
+
+  style staging fill:#81c784,stroke:#388e3c,color:#000
+  style prod fill:#ef5350,stroke:#c62828,color:#fff
+  style observability fill:#64b5f6,stroke:#1976d2,color:#000
+  style system fill:#ffd54f,stroke:#f57f17,color:#000

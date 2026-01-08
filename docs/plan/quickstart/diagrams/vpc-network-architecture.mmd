@@ -1,0 +1,95 @@
+graph TB
+    subgraph "AWS Region us-east-1"
+        subgraph "VPC 10.0.0.0/16"
+            subgraph "AZ us-east-1a"
+                PubSub1["Public Subnet<br/>10.0.1.0/24"]
+                PrivSub1["Private Subnet<br/>10.0.11.0/24"]
+                DataSub1["Data Subnet<br/>10.0.21.0/24"]
+            end
+
+            subgraph "AZ us-east-1b"
+                PubSub2["Public Subnet<br/>10.0.2.0/24"]
+                PrivSub2["Private Subnet<br/>10.0.12.0/24"]
+                DataSub2["Data Subnet<br/>10.0.22.0/24"]
+            end
+
+            subgraph "AZ us-east-1c"
+                PubSub3["Public Subnet<br/>10.0.3.0/24"]
+                PrivSub3["Private Subnet<br/>10.0.13.0/24"]
+                DataSub3["Data Subnet<br/>10.0.23.0/24"]
+            end
+
+            IGW["Internet Gateway"]
+            NAT1["NAT Gateway<br/>AZ-1a"]
+            NAT2["NAT Gateway<br/>AZ-1b"]
+            NAT3["NAT Gateway<br/>AZ-1c"]
+
+            subgraph "EKS Control Plane"
+                EKSCP["EKS Control Plane<br/>AWS Managed"]
+            end
+
+            subgraph "Node Groups"
+                NG1["System Nodes<br/>t3.medium"]
+                NG2["Workloads Nodes<br/>t3.large"]
+                NG3["Critical Nodes<br/>t3.xlarge"]
+            end
+        end
+
+        subgraph "Managed Services"
+            RDS["RDS PostgreSQL<br/>Multi-AZ<br/>db.t3.medium"]
+        end
+
+        S3["S3 Buckets<br/>Backups/Artifacts"]
+        R53["Route53<br/>DNS"]
+    end
+
+    Internet["Internet"]
+    Users["Corporate Users<br/>IP Allowlist"]
+
+    Internet --> IGW
+    Users --> IGW
+    IGW --> PubSub1
+    IGW --> PubSub2
+    IGW --> PubSub3
+
+    PubSub1 --> NAT1
+    PubSub2 --> NAT2
+    PubSub3 --> NAT3
+
+    NAT1 --> PrivSub1
+    NAT2 --> PrivSub2
+    NAT3 --> PrivSub3
+
+    PrivSub1 --> NG1
+    PrivSub2 --> NG2
+    PrivSub3 --> NG3
+
+    NG1 -.-> EKSCP
+    NG2 -.-> EKSCP
+    NG3 -.-> EKSCP
+
+    PrivSub1 --> DataSub1
+    PrivSub2 --> DataSub2
+    PrivSub3 --> DataSub3
+
+    DataSub1 --> RDS
+    DataSub2 --> RDS
+    DataSub3 --> RDS
+
+    NG1 --> S3
+    NG2 --> S3
+    NG3 --> S3
+
+    R53 -.-> IGW
+
+    classDef public fill:#4CAF50,stroke:#2E7D32,color:#fff
+    classDef private fill:#2196F3,stroke:#1565C0,color:#fff
+    classDef data fill:#FF9800,stroke:#E65100,color:#fff
+    classDef managed fill:#9C27B0,stroke:#6A1B9A,color:#fff
+    classDef eks fill:#00BCD4,stroke:#00838F,color:#fff
+
+    class PubSub1,PubSub2,PubSub3,NAT1,NAT2,NAT3,IGW public
+    class PrivSub1,PrivSub2,PrivSub3,NG1,NG2,NG3 private
+    class DataSub1,DataSub2,DataSub3 data
+    class RDS,S3 managed
+    class EKSCP,R53 eks

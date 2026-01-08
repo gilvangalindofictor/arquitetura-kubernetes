@@ -1,0 +1,126 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#1e88e5','primaryTextColor':'#fff','primaryBorderColor':'#0d47a1','lineColor':'#43a047','secondaryColor':'#ffc107','tertiaryColor':'#f44336'}}}%%
+graph TB
+    subgraph "Fase 0: Quickstart (3 Sprints)"
+        P0[Ambiente Único]
+        P0 --> P0A[GitLab + CI Básico]
+        P0 --> P0B[Observability Baseline]
+        P0 --> P0C[RBAC Mínimo]
+        P0 --> P0D[Network Policies Básicas]
+        P0 --> P0E[Backups + DR Básico]
+
+        style P0 fill:#1e88e5,stroke:#0d47a1,color:#fff
+        style P0A fill:#64b5f6,stroke:#1976d2,color:#000
+        style P0B fill:#64b5f6,stroke:#1976d2,color:#000
+        style P0C fill:#64b5f6,stroke:#1976d2,color:#000
+        style P0D fill:#64b5f6,stroke:#1976d2,color:#000
+        style P0E fill:#64b5f6,stroke:#1976d2,color:#000
+    end
+
+    subgraph "Fase 1: Segregação (+ 2 Sprints)"
+        P1[Multi-Ambiente]
+        P1 --> P1A[Dev/Staging/Prod NS]
+        P1 --> P1B[Resource Quotas]
+        P1 --> P1C[RBAC Granular]
+        P1 --> P1D[RDS Segregado]
+        P1 --> P1E[Helm Overlays]
+
+        style P1 fill:#43a047,stroke:#2e7d32,color:#fff
+        style P1A fill:#81c784,stroke:#388e3c,color:#000
+        style P1B fill:#81c784,stroke:#388e3c,color:#000
+        style P1C fill:#81c784,stroke:#388e3c,color:#000
+        style P1D fill:#81c784,stroke:#388e3c,color:#000
+        style P1E fill:#81c784,stroke:#388e3c,color:#000
+    end
+
+    subgraph "Fase 2: GitOps (+ 2 Sprints)"
+        P2[Automação CD]
+        P2 --> P2A[ArgoCD Multi-Env]
+        P2 --> P2B[Auto-Sync Dev]
+        P2 --> P2C[Manual Approval Prod]
+        P2 --> P2D[Image Updater]
+        P2 --> P2E[Rollback Automático]
+
+        style P2 fill:#fbc02d,stroke:#f57f17,color:#000
+        style P2A fill:#fff176,stroke:#fbc02d,color:#000
+        style P2B fill:#fff176,stroke:#fbc02d,color:#000
+        style P2C fill:#fff176,stroke:#fbc02d,color:#000
+        style P2D fill:#fff176,stroke:#fbc02d,color:#000
+        style P2E fill:#fff176,stroke:#fbc02d,color:#000
+    end
+
+    subgraph "Fase 3: Service Mesh (+ 3 Sprints)"
+        P3[Zero-Trust]
+        P3 --> P3A[Linkerd mTLS]
+        P3 --> P3B[Kyverno Policies]
+        P3 --> P3C[Falco Runtime Security]
+        P3 --> P3D[External Secrets]
+        P3 --> P3E[Canary Deployments]
+
+        style P3 fill:#fb8c00,stroke:#e65100,color:#fff
+        style P3A fill:#ffb74d,stroke:#f57c00,color:#000
+        style P3B fill:#ffb74d,stroke:#f57c00,color:#000
+        style P3C fill:#ffb74d,stroke:#f57c00,color:#000
+        style P3D fill:#ffb74d,stroke:#f57c00,color:#000
+        style P3E fill:#ffb74d,stroke:#f57c00,color:#000
+    end
+
+    subgraph "Fase 4: Multi-Cluster (+ 4 Sprints)"
+        P4[HA Enterprise]
+        P4 --> P4A[Cluster Prod Dedicado]
+        P4 --> P4B[Aurora Global DB]
+        P4 --> P4C[Observability Federada]
+        P4 --> P4D[HashiCorp Vault]
+        P4 --> P4E[Cross-Region DR]
+
+        style P4 fill:#8e24aa,stroke:#6a1b9a,color:#fff
+        style P4A fill:#ba68c8,stroke:#7b1fa2,color:#fff
+        style P4B fill:#ba68c8,stroke:#7b1fa2,color:#fff
+        style P4C fill:#ba68c8,stroke:#7b1fa2,color:#fff
+        style P4D fill:#ba68c8,stroke:#7b1fa2,color:#fff
+        style P4E fill:#ba68c8,stroke:#7b1fa2,color:#fff
+    end
+
+    subgraph "Fase 5: Platform Engineering (Contínuo)"
+        P5[Self-Service]
+        P5 --> P5A[Backstage Portal]
+        P5 --> P5B[Crossplane IaC]
+        P5 --> P5C[K8s Operators]
+        P5 --> P5D[FinOps Automation]
+        P5 --> P5E[Compliance as Code]
+
+        style P5 fill:#d32f2f,stroke:#b71c1c,color:#fff
+        style P5A fill:#ef5350,stroke:#c62828,color:#fff
+        style P5B fill:#ef5350,stroke:#c62828,color:#fff
+        style P5C fill:#ef5350,stroke:#c62828,color:#fff
+        style P5D fill:#ef5350,stroke:#c62828,color:#fff
+        style P5E fill:#ef5350,stroke:#c62828,color:#fff
+    end
+
+    P0 -->|"Gate: 10+ pipelines OK<br/>Backup testado"| P1
+    P1 -->|"Gate: 3 env estáveis 2+ semanas<br/>5+ promoções OK"| P2
+    P2 -->|"Gate: ArgoCD 100% por 1+ mês<br/>Zero rollbacks manuais"| P3
+    P3 -->|"Gate: Prod 3+ meses stable<br/>DR Drill OK"| P4
+    P4 -->|"Gate: 6+ meses multi-cluster<br/>10+ apps prod"| P5
+
+    classDef gateStyle fill:#546e7a,stroke:#37474f,color:#fff,stroke-width:2px,stroke-dasharray: 5 5
+
+    note1[📊 ADR Compliance: 45%]
+    note2[📊 ADR Compliance: 65%]
+    note3[📊 ADR Compliance: 75%]
+    note4[📊 ADR Compliance: 90%]
+    note5[📊 ADR Compliance: 98%]
+    note6[📊 ADR Compliance: 100%]
+
+    P0 -.-> note1
+    P1 -.-> note2
+    P2 -.-> note3
+    P3 -.-> note4
+    P4 -.-> note5
+    P5 -.-> note6
+
+    style note1 fill:#eceff1,stroke:#78909c,color:#000
+    style note2 fill:#eceff1,stroke:#78909c,color:#000
+    style note3 fill:#eceff1,stroke:#78909c,color:#000
+    style note4 fill:#eceff1,stroke:#78909c,color:#000
+    style note5 fill:#eceff1,stroke:#78909c,color:#000
+    style note6 fill:#eceff1,stroke:#78909c,color:#000
