@@ -360,16 +360,31 @@ Nota: estimativas em person-hours para um time pequeno (1-2 engenheiros plenos).
 
 ## Estimativa de Custos (2 Ambientes: Staging + Prod)
 
-### Staging (Testes + Homologação) - Uso Intermitente
+**⚠️ Nota sobre custos:** Valores baseados em cotação USD→BRL R$ 6,00 (jan/2026), região us-east-1, modelo on-demand. Variação esperada: ±10-15% devido a flutuação cambial e ajustes de preços AWS. Detalhes completos em [cost-assumptions.md](cost-assumptions.md).
 
-**Uso durante testes (8h/dia útil - segunda a sexta):**
+---
+
+### Estratégia Adotada: Staging com Automação Start/Stop
+
+**Contexto:** Como o time de desenvolvimento trabalha em **horário comercial** (seg-sex, 8h-18h, conforme estimativas de 262 person-hours), o ambiente Staging será configurado para **desligar automaticamente fora desse período**, gerando economia significativa sem impactar a produtividade.
+
+---
+
+### Staging (Testes + Homologação) - 50h/semana
+
+**Schedule:** Segunda a sexta, 8h-18h (desliga automaticamente à noite e finais de semana)
+
 - EKS Control Plane (compartilhado): $73/mês ÷ 2 = ~$37/mês (rateio)
-- 2 EC2 nodes t3.medium (8h/dia): ~$40/mês
-- RDS db.t3.small Multi-AZ (ligado sob demanda): ~$60/mês
-- Redis (bitnami/redis) - t3.small equivalent: ~$15/mês
-- RabbitMQ (bitnami/rabbitmq) - t3.small equivalent: ~$15/mês
-- EBS volumes (50GB) + S3 backups: ~$20/mês
-- **SUBTOTAL STAGING**: ~$187/mês USD (~R$ 1.122/mês)
+- 2 EC2 nodes t3.medium (50h/semana): ~$18/mês
+- RDS db.t3.small Multi-AZ (auto-pause): ~$30/mês
+- Redis (bitnami/redis) - scaled to 0 fora horário: ~$8/mês
+- RabbitMQ (bitnami/rabbitmq) - scaled to 0 fora horário: ~$7/mês
+- EBS volumes (50GB) + S3 backups: ~$12/mês
+- **SUBTOTAL STAGING**: ~$112/mês USD (~**R$ 672/mês**)
+
+**Economia vs Staging 24/7:** R$ 450/mês (R$ 5.400/ano)
+
+---
 
 ### Prod (Produção) - 24/7 Alta Disponibilidade
 
@@ -381,51 +396,77 @@ Nota: estimativas em person-hours para um time pequeno (1-2 engenheiros plenos).
 - RabbitMQ (bitnami/rabbitmq) cluster: ~$30/mês
 - EBS volumes (100GB) + S3 backups + replication: ~$40/mês
 - ALB + WAF: ~$30/mês
-- **SUBTOTAL PROD**: ~$467/mês USD (~R$ 2.802/mês)
+- **SUBTOTAL PROD**: ~$467/mês USD (~**R$ 2.802/mês**)
+
+---
 
 ### Observability (Compartilhada entre Staging e Prod)
 
 - Prometheus + Grafana + Loki + Tempo: Roda nos nodes existentes
 - Storage adicional (métricas/logs): ~$25/mês
-- **SUBTOTAL OBSERVABILITY**: ~$25/mês USD (~R$ 150/mês)
+- **SUBTOTAL OBSERVABILITY**: ~$25/mês USD (~**R$ 150/mês**)
 
-### Total Consolidado (2 Ambientes)
+---
 
-| Componente | Staging | Prod | Observability | **TOTAL** |
-|------------|---------|------|---------------|-----------|
-| **Custo Mensal (USD)** | $187 | $467 | $25 | **$679** |
-| **Custo Mensal (BRL)** | R$ 1.122 | R$ 2.802 | R$ 150 | **R$ 4.074** |
-| **Custo Anual (BRL)** | R$ 13.464 | R$ 33.624 | R$ 1.800 | **R$ 48.888** |
+### Total Consolidado (Estratégia Adotada)
 
-### Comparativo: 2 Ambientes vs 3 Ambientes
+| Componente | Staging (scheduled) | Prod (24/7) | Observability | **TOTAL** |
+|------------|---------------------|-------------|---------------|-----------|
+| **Custo Mensal (USD)** | $112 | $467 | $25 | **$604** |
+| **Custo Mensal (BRL)** | R$ 672 | R$ 2.802 | R$ 150 | **R$ 3.624** |
+| **Custo Anual (BRL)** | R$ 8.064 | R$ 33.624 | R$ 1.800 | **R$ 43.488** |
+
+---
+
+### Comparativo: Estratégias de Custo
 
 | Cenário | Custo Mensal | Custo Anual | Economia |
 |---------|--------------|-------------|----------|
-| **3 Ambientes (Dev + Staging + Prod)** | R$ 5.100 | R$ 61.200 | - |
-| **2 Ambientes (Staging + Prod)** | R$ 4.074 | R$ 48.888 | **-20%** |
-| **Economia Anual** | R$ 1.026/mês | **R$ 12.312/ano** | ✅ |
+| **3 Ambientes (Dev + Staging + Prod, todos 24/7)** | R$ 5.100 | R$ 61.200 | Baseline |
+| **2 Ambientes sem otimização (Staging 24/7 + Prod)** | R$ 4.074 | R$ 48.888 | -20% (-R$ 12.312/ano) |
+| **2 Ambientes ADOTADO (Staging scheduled + Prod)** | **R$ 3.624** | **R$ 43.488** | **-29% (-R$ 17.712/ano)** |
 
-### Otimizações Possíveis (Ambiente Staging)
+**Decisões arquiteturais:**
+1. **2 ambientes vs 3:** Staging assume papel dual (dev + homologação), eliminando ambiente Dev dedicado
+2. **Automação de custo:** Staging desliga automaticamente fora do horário comercial (compatível com modelo de trabalho do time interno)
 
-💡 **Economia Adicional** - Automação de start/stop:
+---
 
-```bash
-# Script para desligar Staging fora do horário (18h-8h + finais de semana)
-# Economia: ~40% em nodes EC2 + ~30% em RDS
+### Implementação da Automação Start/Stop
 
-Staging com automação:
-- Nodes rodando apenas 40h/semana (vs 168h): -76% tempo
-- RDS com auto-pause: -50% custo
-- Economia estimada: ~R$ 450/mês (R$ 5.400/ano)
+**Ferramenta:** AWS EventBridge + Lambda functions
+**Esforço:** ~2 horas (Sprint 3 ou posterior)
+**Schedule:**
+- **Start:** Segunda a sexta, 8h (BRT)
+- **Stop:** Segunda a sexta, 18h (BRT)
+- **Finais de semana:** Desligado
 
-Custo Staging otimizado: R$ 672/mês (vs R$ 1.122/mês)
-TOTAL com otimização: R$ 3.624/mês (R$ 43.488/ano)
-```
+**Recursos afetados:**
+- EC2 instances (stop/start)
+- RDS (stop-db-instance/start-db-instance)
+- Pods K8s (scale to 0 / scale up)
 
-**Obs:**
-- Conversão USD → BRL calculada com cotação aproximada de R$ 6,00 (referência jan/2026). Valores sujeitos a variação cambial.
-- Custos não incluem data transfer out (estimado em ~$15-20/mês adicional para prod).
-- Custos podem ser reduzidos com Savings Plans (1-year commitment: -20%, 3-year: -40%).
+**Dados preservados:** 100% dos dados mantidos em volumes persistentes (EBS, S3)
+
+**Tempo de inicialização:** ~10-15 minutos (cold start pela manhã)
+
+---
+
+### Notas Importantes
+
+**Variações esperadas:**
+- ±10-15% devido a flutuação cambial USD/BRL
+- ±2-5% anual por ajustes de preços AWS
+- Data transfer out não incluído (estimado +5-10% do custo total)
+
+**Gestão financeira:**
+- Configurar AWS Budgets com alerta em R$ 4.000/mês
+- Monitorar AWS Cost Explorer semanalmente (primeiros 2 meses)
+- Revisar custos reais vs projetados mensalmente
+
+**Otimizações futuras (Ano 2+):**
+- Savings Plans (1 ano): -20% EC2/RDS → economia adicional ~R$ 5.000/ano
+- Reserved Instances (3 anos): -40% EC2/RDS → economia adicional ~R$ 10.000/ano
 
 ## Observações
 
@@ -441,6 +482,12 @@ TOTAL com otimização: R$ 3.624/mês (R$ 43.488/ano)
 - Troubleshooting de bugs reportados em prod
 - Treinamento de novos membros do time
 - Smoke tests antes de promoção para prod
+
+**Schedule de Operação Staging:**
+- **Horário ativo:** Segunda a sexta, 8h-18h (horário comercial do time)
+- **Automação:** Desligamento automático às 18h, inicialização às 8h via AWS EventBridge + Lambda
+- **Tempo de cold start:** ~10-15 minutos pela manhã (aceitável para modelo de trabalho do time)
+- **Dados preservados:** 100% dos dados mantidos em volumes persistentes durante desligamento
 
 **Isolamento entre Ambientes:**
 - Namespaces Kubernetes segregados (`staging` e `prod`)
@@ -463,8 +510,10 @@ TOTAL com otimização: R$ 3.624/mês (R$ 43.488/ano)
 - Risco: exposição pública do GitLab → Mitigante: ALB + IP allowlist + WAF + forçar 2FA; adiar AD integration.
 - Risco: backups/restore não testados → Mitigante: testar restauração em staging antes do cutover.
 - Risco: performance de GitLab sob-resourced → Mitigante: usar node group `critical`, monitorar e ajustar recursos/scale.
+- **Risco: variação cambial (USD/BRL)** → Mitigante: AWS Budgets com alertas (R$ 4.000/mês), revisão mensal de custos, considerar hedge cambial se necessário.
+- **Risco: ajuste de preços AWS** → Mitigante: monitorar AWS Price List API, assinatura de notificações de mudanças de preço.
 
-## Entregáveis para o Time Terceirizado
+## Entregáveis
 
 Ao final dos 3 sprints, os seguintes entregáveis devem estar prontos:
 
