@@ -3,6 +3,9 @@
 > **Épico G** | Estimativa: 30 person-hours | Sprint 3
 > **Pré-requisitos**: Docs 01-04 concluídos
 
+> ⚠️ **Abordagem CLI-First:** Este documento prioriza kubectl e AWS CLI.
+> Seções de WAF e Security Groups agora incluem alternativas Terraform/CLI.
+
 ---
 
 ## Índice
@@ -1175,7 +1178,388 @@ spec:
 
 ## 6. AWS WAF
 
-### 6.1 Console AWS - Criar Web ACL
+### 6.1 Criar Web ACL
+
+#### Opção A: Terraform (Recomendado - IaC)
+
+```hcl
+# terraform/05-waf/main.tf
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+variable "project_name" {
+  default = "k8s-platform"
+}
+
+variable "allowed_ips" {
+  description = "IPs permitidos (escritório, VPN)"
+  type        = list(string)
+  default     = ["203.0.113.0/24", "198.51.100.0/24"]
+}
+
+# IP Set para allowlist
+resource "aws_wafv2_ip_set" "office_ips" {
+  name               = "${var.project_name}-office-ips"
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = var.allowed_ips
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+# Web ACL
+resource "aws_wafv2_web_acl" "main" {
+  name        = "${var.project_name}-waf"
+  description = "WAF para proteção da plataforma Kubernetes"
+  scope       = "REGIONAL"
+
+  default_action {
+    block {}
+  }
+
+  # Rule 1: Allow Office IPs
+  rule {
+    name     = "AllowOfficeIPs"
+    priority = 0
+
+    action {
+      allow {}
+    }
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.office_ips.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AllowOfficeIPs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Rule 2: Rate Limiting
+  rule {
+    name     = "RateLimit"
+    priority = 1
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = 2000
+        aggregate_key_type = "IP"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "RateLimit"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Rule 3: AWS Managed Rules - Common
+  rule {
+    name     = "AWSManagedRulesCommon"
+    priority = 2
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        vendor_name = "AWS"
+        name        = "AWSManagedRulesCommonRuleSet"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSManagedRulesCommon"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Rule 4: AWS Managed Rules - Known Bad Inputs
+  rule {
+    name     = "AWSManagedRulesBadInputs"
+    priority = 3
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        vendor_name = "AWS"
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSManagedRulesBadInputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Rule 5: AWS Managed Rules - SQL Injection
+  rule {
+    name     = "AWSManagedRulesSQLi"
+    priority = 4
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        vendor_name = "AWS"
+        name        = "AWSManagedRulesSQLiRuleSet"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSManagedRulesSQLi"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.project_name}-waf"
+    sampled_requests_enabled   = true
+  }
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+# Associar WAF ao ALB
+resource "aws_wafv2_web_acl_association" "alb" {
+  resource_arn = var.alb_arn
+  web_acl_arn  = aws_wafv2_web_acl.main.arn
+}
+
+# CloudWatch Log Group para WAF
+resource "aws_cloudwatch_log_group" "waf" {
+  name              = "aws-waf-logs-${var.project_name}"
+  retention_in_days = 30
+
+  tags = {
+    Project = var.project_name
+  }
+}
+
+# WAF Logging Configuration
+resource "aws_wafv2_web_acl_logging_configuration" "main" {
+  log_destination_configs = [aws_cloudwatch_log_group.waf.arn]
+  resource_arn            = aws_wafv2_web_acl.main.arn
+}
+
+output "web_acl_arn" {
+  value = aws_wafv2_web_acl.main.arn
+}
+```
+
+#### Opção B: AWS CLI (Completo)
+
+```bash
+#!/bin/bash
+# scripts/create-waf.sh
+
+set -euo pipefail
+
+PROJECT_NAME="k8s-platform"
+REGION="us-east-1"
+
+echo "🔒 Criando AWS WAF Web ACL..."
+
+# 1. Criar IP Set para allowlist
+echo "📝 Criando IP Set..."
+IP_SET_RESPONSE=$(aws wafv2 create-ip-set \
+  --name "${PROJECT_NAME}-office-ips" \
+  --scope REGIONAL \
+  --ip-address-version IPV4 \
+  --addresses "203.0.113.0/24" "198.51.100.0/24" \
+  --region $REGION \
+  --tags Key=Project,Value=$PROJECT_NAME)
+
+IP_SET_ARN=$(echo $IP_SET_RESPONSE | jq -r '.Summary.ARN')
+echo "✅ IP Set criado: $IP_SET_ARN"
+
+# 2. Criar Web ACL
+echo "🛡️ Criando Web ACL com regras..."
+
+cat > /tmp/waf-rules.json << EOF
+[
+  {
+    "Name": "AllowOfficeIPs",
+    "Priority": 0,
+    "Statement": {
+      "IPSetReferenceStatement": {
+        "ARN": "$IP_SET_ARN"
+      }
+    },
+    "Action": {"Allow": {}},
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AllowOfficeIPs"
+    }
+  },
+  {
+    "Name": "RateLimit",
+    "Priority": 1,
+    "Statement": {
+      "RateBasedStatement": {
+        "Limit": 2000,
+        "AggregateKeyType": "IP"
+      }
+    },
+    "Action": {"Block": {}},
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "RateLimit"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesCommon",
+    "Priority": 2,
+    "OverrideAction": {"None": {}},
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesCommonRuleSet"
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesCommon"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesBadInputs",
+    "Priority": 3,
+    "OverrideAction": {"None": {}},
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesKnownBadInputsRuleSet"
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesBadInputs"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesSQLi",
+    "Priority": 4,
+    "OverrideAction": {"None": {}},
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesSQLiRuleSet"
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesSQLi"
+    }
+  }
+]
+EOF
+
+WAF_RESPONSE=$(aws wafv2 create-web-acl \
+  --name "${PROJECT_NAME}-waf" \
+  --scope REGIONAL \
+  --default-action Block={} \
+  --visibility-config SampledRequestsEnabled=true,CloudWatchMetricsEnabled=true,MetricName=${PROJECT_NAME}-waf \
+  --rules file:///tmp/waf-rules.json \
+  --region $REGION \
+  --tags Key=Project,Value=$PROJECT_NAME)
+
+WAF_ARN=$(echo $WAF_RESPONSE | jq -r '.Summary.ARN')
+echo "✅ Web ACL criado: $WAF_ARN"
+
+# 3. Criar CloudWatch Log Group para WAF
+echo "📊 Criando Log Group..."
+aws logs create-log-group \
+  --log-group-name "aws-waf-logs-${PROJECT_NAME}" \
+  --region $REGION \
+  --tags Project=$PROJECT_NAME || true
+
+aws logs put-retention-policy \
+  --log-group-name "aws-waf-logs-${PROJECT_NAME}" \
+  --retention-in-days 30 \
+  --region $REGION
+
+# 4. Configurar logging do WAF
+echo "📝 Configurando WAF logging..."
+LOG_GROUP_ARN=$(aws logs describe-log-groups \
+  --log-group-name-prefix "aws-waf-logs-${PROJECT_NAME}" \
+  --query 'logGroups[0].arn' --output text --region $REGION)
+
+aws wafv2 put-logging-configuration \
+  --logging-configuration ResourceArn=$WAF_ARN,LogDestinationConfigs=[$LOG_GROUP_ARN] \
+  --region $REGION
+echo "✅ Logging configurado"
+
+# 5. Associar ao ALB (se existir)
+echo "🔗 Associando WAF ao ALB..."
+ALB_ARN=$(aws elbv2 describe-load-balancers \
+  --query "LoadBalancers[?contains(LoadBalancerName, 'k8s-gitlab')].LoadBalancerArn" \
+  --output text --region $REGION 2>/dev/null || echo "")
+
+if [[ -n "$ALB_ARN" && "$ALB_ARN" != "None" ]]; then
+  aws wafv2 associate-web-acl \
+    --web-acl-arn $WAF_ARN \
+    --resource-arn $ALB_ARN \
+    --region $REGION
+  echo "✅ WAF associado ao ALB: $ALB_ARN"
+else
+  echo "⚠️ ALB não encontrado. Associe manualmente após criar o Ingress:"
+  echo "   aws wafv2 associate-web-acl --web-acl-arn $WAF_ARN --resource-arn <ALB_ARN>"
+fi
+
+# 6. Verificar
+echo ""
+echo "📋 Resumo:"
+echo "  Web ACL ARN: $WAF_ARN"
+echo "  IP Set ARN: $IP_SET_ARN"
+echo "  Log Group: aws-waf-logs-${PROJECT_NAME}"
+echo ""
+echo "🎉 WAF criado com sucesso!"
+
+# Limpeza
+rm -f /tmp/waf-rules.json
+```
+
+#### Opção C: Console AWS (Referência Visual)
+
+> ⚠️ **Nota:** Prefira as opções A (Terraform) ou B (CLI) para ambientes de produção.
 
 1. **AWS Console** → **WAF & Shield** → **Web ACLs**
 
@@ -1290,7 +1674,116 @@ aws wafv2 get-sampled-requests \
 
 ## 7. Security Groups Review
 
-### 7.1 Revisão dos Security Groups
+### 7.1 Script de Auditoria e Hardening (CLI-First)
+
+```bash
+#!/bin/bash
+# scripts/audit-and-harden-security-groups.sh
+
+set -euo pipefail
+
+PROJECT_NAME="k8s-platform"
+REGION="us-east-1"
+
+echo "🔍 Auditoria de Security Groups..."
+
+# 1. Encontrar SGs com regras 0.0.0.0/0 (exceto ALB)
+echo ""
+echo "=== Security Groups com 0.0.0.0/0 (potencial risco) ==="
+aws ec2 describe-security-groups \
+  --filters "Name=ip-permission.cidr,Values=0.0.0.0/0" \
+  --query 'SecurityGroups[*].[GroupId,GroupName,Description]' \
+  --output table --region $REGION
+
+# 2. Detalhar regras problemáticas
+echo ""
+echo "=== Regras de entrada com 0.0.0.0/0 ==="
+aws ec2 describe-security-groups \
+  --filters "Name=ip-permission.cidr,Values=0.0.0.0/0" \
+  --query 'SecurityGroups[*].{ID:GroupId,Name:GroupName,Ingress:IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]}' \
+  --output json --region $REGION | jq -r '.[] | "\(.Name) (\(.ID)):" + (.Ingress | map("  - Port: \(.FromPort // "All") Protocol: \(.IpProtocol)") | join("\n"))'
+
+# 3. Verificar SG do RDS
+echo ""
+echo "=== Verificando Security Group do RDS ==="
+RDS_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=*rds*" "Name=tag:Project,Values=$PROJECT_NAME" \
+  --query 'SecurityGroups[0].GroupId' --output text --region $REGION)
+
+if [[ -n "$RDS_SG" && "$RDS_SG" != "None" ]]; then
+  RDS_RULES=$(aws ec2 describe-security-groups \
+    --group-ids $RDS_SG \
+    --query 'SecurityGroups[0].IpPermissions' --output json --region $REGION)
+
+  # Verificar se tem regra 0.0.0.0/0
+  if echo "$RDS_RULES" | jq -e '.[] | select(.IpRanges[].CidrIp == "0.0.0.0/0")' > /dev/null 2>&1; then
+    echo "❌ ALERTA: RDS Security Group tem regra 0.0.0.0/0!"
+    echo "   Recomendação: Restringir para apenas o Security Group dos nodes EKS"
+  else
+    echo "✅ RDS Security Group não tem regras 0.0.0.0/0"
+  fi
+fi
+
+# 4. Função para hardening
+harden_rds_sg() {
+  local RDS_SG=$1
+  local EKS_NODE_SG=$2
+
+  echo "🔧 Aplicando hardening no RDS Security Group..."
+
+  # Remover regras 0.0.0.0/0 se existirem
+  OPEN_RULES=$(aws ec2 describe-security-groups \
+    --group-ids $RDS_SG \
+    --query 'SecurityGroups[0].IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]' \
+    --output json --region $REGION)
+
+  if [[ $(echo "$OPEN_RULES" | jq length) -gt 0 ]]; then
+    echo "  Removendo regras abertas..."
+    aws ec2 revoke-security-group-ingress \
+      --group-id $RDS_SG \
+      --ip-permissions "$OPEN_RULES" \
+      --region $REGION
+    echo "  ✅ Regras abertas removidas"
+  fi
+
+  # Adicionar regra restrita para EKS nodes
+  echo "  Adicionando regra restrita para EKS nodes..."
+  aws ec2 authorize-security-group-ingress \
+    --group-id $RDS_SG \
+    --protocol tcp \
+    --port 5432 \
+    --source-group $EKS_NODE_SG \
+    --region $REGION 2>/dev/null || echo "  (Regra já existe)"
+
+  echo "✅ RDS Security Group hardened"
+}
+
+# 5. Verificar se deve aplicar hardening
+echo ""
+read -p "Deseja aplicar hardening nos Security Groups? (y/n): " APPLY_HARDENING
+
+if [[ "$APPLY_HARDENING" == "y" ]]; then
+  # Obter SG IDs
+  RDS_SG=$(aws ec2 describe-security-groups \
+    --filters "Name=group-name,Values=*rds*" "Name=tag:Project,Values=$PROJECT_NAME" \
+    --query 'SecurityGroups[0].GroupId' --output text --region $REGION)
+
+  EKS_NODE_SG=$(aws ec2 describe-security-groups \
+    --filters "Name=tag:aws:eks:cluster-name,Values=${PROJECT_NAME}-prod" \
+    --query 'SecurityGroups[?contains(GroupName, `node`)].GroupId' --output text --region $REGION | head -1)
+
+  if [[ -n "$RDS_SG" && -n "$EKS_NODE_SG" && "$RDS_SG" != "None" && "$EKS_NODE_SG" != "None" ]]; then
+    harden_rds_sg $RDS_SG $EKS_NODE_SG
+  else
+    echo "⚠️ Não foi possível encontrar os Security Groups necessários"
+  fi
+fi
+
+echo ""
+echo "🎉 Auditoria concluída!"
+```
+
+### 7.2 Revisão dos Security Groups
 
 | Security Group | Inbound | Outbound |
 |----------------|---------|----------|
