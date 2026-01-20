@@ -2,6 +2,9 @@
 
 **Épico C** | **Esforço: 20 person-hours** | **Sprint 1**
 
+> ⚠️ **Abordagem CLI-First:** Este documento oferece múltiplas opções de provisionamento.
+> **Recomendação:** Use Terraform ou AWS CLI para RDS. Redis e RabbitMQ já usam Helm (CLI).
+
 ---
 
 ## Sumário
@@ -90,7 +93,283 @@ Provisionar os serviços de dados necessários para a plataforma:
 
 ## 2. Task C.1: RDS PostgreSQL Multi-AZ (4h)
 
-### 2.1 Criar DB Subnet Group
+### 2.1 Criar RDS PostgreSQL
+
+#### Opção A: Terraform (Recomendado - IaC)
+
+```hcl
+# terraform/03-rds/main.tf
+
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# Gerar senha segura
+resource "random_password" "master" {
+  length  = 32
+  special = false
+}
+
+# DB Subnet Group
+resource "aws_db_subnet_group" "this" {
+  name       = "${var.project_name}-${var.environment}-db-subnet-group"
+  subnet_ids = var.database_subnet_ids
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-db-subnet-group"
+  }
+}
+
+# Parameter Group
+resource "aws_db_parameter_group" "postgres15" {
+  family = "postgres15"
+  name   = "${var.project_name}-${var.environment}-postgres15"
+
+  parameter {
+    name  = "max_connections"
+    value = "200"
+  }
+
+  parameter {
+    name  = "shared_buffers"
+    value = "{DBInstanceClassMemory/4}"
+  }
+
+  parameter {
+    name  = "work_mem"
+    value = "65536"  # 64MB em KB
+  }
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-postgres15"
+  }
+}
+
+# RDS Instance
+module "rds" {
+  source  = "terraform-aws-modules/rds/aws"
+  version = "~> 6.0"
+
+  identifier = "${var.project_name}-${var.environment}-postgresql"
+
+  engine               = "postgres"
+  engine_version       = "15.4"
+  family               = "postgres15"
+  major_engine_version = "15"
+  instance_class       = "db.t3.medium"
+
+  allocated_storage     = 100
+  max_allocated_storage = 500
+  storage_type          = "gp3"
+  storage_encrypted     = true
+  iops                  = 3000
+  storage_throughput    = 125
+
+  db_name  = "platform"
+  username = "postgres_admin"
+  password = random_password.master.result
+  port     = 5432
+
+  multi_az               = true
+  db_subnet_group_name   = aws_db_subnet_group.this.name
+  vpc_security_group_ids = [var.rds_security_group_id]
+  parameter_group_name   = aws_db_parameter_group.postgres15.name
+
+  maintenance_window      = "Sun:04:00-Sun:05:00"
+  backup_window           = "03:00-04:00"
+  backup_retention_period = 7
+
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  create_cloudwatch_log_group     = true
+
+  deletion_protection = true
+  skip_final_snapshot = false
+
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    CostCenter  = "infrastructure"
+  }
+}
+
+# Armazenar credenciais no Secrets Manager
+resource "aws_secretsmanager_secret" "rds_master" {
+  name = "${var.project_name}/${var.environment}/rds/master-credentials"
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "rds_master" {
+  secret_id = aws_secretsmanager_secret.rds_master.id
+  secret_string = jsonencode({
+    username = module.rds.db_instance_username
+    password = random_password.master.result
+    host     = module.rds.db_instance_address
+    port     = module.rds.db_instance_port
+    database = "platform"
+    engine   = "postgres"
+  })
+}
+
+# Outputs
+output "rds_endpoint" {
+  value = module.rds.db_instance_endpoint
+}
+
+output "rds_secret_arn" {
+  value = aws_secretsmanager_secret.rds_master.arn
+}
+```
+
+#### Opção B: AWS CLI (Completo)
+
+```bash
+#!/bin/bash
+# scripts/create-rds.sh
+
+set -euo pipefail
+
+PROJECT_NAME="k8s-platform"
+ENVIRONMENT="prod"
+REGION="us-east-1"
+
+echo "🗄️ Criando RDS PostgreSQL Multi-AZ..."
+
+# Obter IDs necessários
+VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=${PROJECT_NAME}-${ENVIRONMENT}-vpc" --query "Vpcs[0].VpcId" --output text)
+DB_SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*db*" --query "Subnets[*].SubnetId" --output text | tr '\t' ' ')
+RDS_SG=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${PROJECT_NAME}-${ENVIRONMENT}-rds-sg" --query "SecurityGroups[0].GroupId" --output text)
+
+# 1. Criar DB Subnet Group
+echo "📦 Criando DB Subnet Group..."
+aws rds create-db-subnet-group \
+  --db-subnet-group-name "${PROJECT_NAME}-${ENVIRONMENT}-db-subnet-group" \
+  --db-subnet-group-description "Subnet group para RDS da plataforma Kubernetes" \
+  --subnet-ids $DB_SUBNETS \
+  --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT
+echo "✅ DB Subnet Group criado"
+
+# 2. Criar Parameter Group
+echo "📝 Criando Parameter Group..."
+aws rds create-db-parameter-group \
+  --db-parameter-group-name "${PROJECT_NAME}-${ENVIRONMENT}-postgres15" \
+  --db-parameter-group-family postgres15 \
+  --description "Parâmetros otimizados para GitLab e plataforma K8s" \
+  --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT
+
+# Configurar parâmetros
+aws rds modify-db-parameter-group \
+  --db-parameter-group-name "${PROJECT_NAME}-${ENVIRONMENT}-postgres15" \
+  --parameters \
+    "ParameterName=max_connections,ParameterValue=200,ApplyMethod=pending-reboot" \
+    "ParameterName=log_min_duration_statement,ParameterValue=1000,ApplyMethod=immediate" \
+    "ParameterName=log_statement,ParameterValue=ddl,ApplyMethod=immediate"
+echo "✅ Parameter Group criado e configurado"
+
+# 3. Gerar senha segura
+MASTER_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 32)
+echo "🔐 Senha master gerada (guarde com segurança!)"
+
+# 4. Criar instância RDS
+echo "🚀 Criando instância RDS (isso leva ~15 minutos)..."
+aws rds create-db-instance \
+  --db-instance-identifier "${PROJECT_NAME}-${ENVIRONMENT}-postgresql" \
+  --db-instance-class db.t3.medium \
+  --engine postgres \
+  --engine-version 15.4 \
+  --master-username postgres_admin \
+  --master-user-password "$MASTER_PASSWORD" \
+  --allocated-storage 100 \
+  --max-allocated-storage 500 \
+  --storage-type gp3 \
+  --iops 3000 \
+  --storage-throughput 125 \
+  --storage-encrypted \
+  --db-subnet-group-name "${PROJECT_NAME}-${ENVIRONMENT}-db-subnet-group" \
+  --vpc-security-group-ids $RDS_SG \
+  --db-parameter-group-name "${PROJECT_NAME}-${ENVIRONMENT}-postgres15" \
+  --db-name platform \
+  --backup-retention-period 7 \
+  --preferred-backup-window "03:00-04:00" \
+  --preferred-maintenance-window "sun:04:00-sun:05:00" \
+  --multi-az \
+  --auto-minor-version-upgrade \
+  --deletion-protection \
+  --enable-cloudwatch-logs-exports postgresql upgrade \
+  --enable-performance-insights \
+  --performance-insights-retention-period 7 \
+  --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT Key=CostCenter,Value=infrastructure
+
+echo "⏳ Aguardando RDS ficar disponível..."
+aws rds wait db-instance-available --db-instance-identifier "${PROJECT_NAME}-${ENVIRONMENT}-postgresql"
+echo "✅ RDS disponível!"
+
+# 5. Obter endpoint
+RDS_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier "${PROJECT_NAME}-${ENVIRONMENT}-postgresql" \
+  --query "DBInstances[0].Endpoint.Address" --output text)
+echo "📍 RDS Endpoint: $RDS_ENDPOINT"
+
+# 6. Armazenar credenciais no Secrets Manager
+echo "🔒 Armazenando credenciais no Secrets Manager..."
+aws secretsmanager create-secret \
+  --name "${PROJECT_NAME}/${ENVIRONMENT}/rds/master-credentials" \
+  --description "Credenciais master do RDS PostgreSQL" \
+  --secret-string "{\"username\":\"postgres_admin\",\"password\":\"$MASTER_PASSWORD\",\"host\":\"$RDS_ENDPOINT\",\"port\":\"5432\",\"database\":\"platform\",\"engine\":\"postgres\"}" \
+  --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT
+
+echo "✅ Credenciais armazenadas no Secrets Manager"
+
+# 7. Criar secrets para cada aplicação
+for APP in gitlab keycloak sonarqube harbor; do
+  APP_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 32)
+  aws secretsmanager create-secret \
+    --name "${PROJECT_NAME}/${ENVIRONMENT}/${APP}/database" \
+    --description "Credenciais do database para ${APP}" \
+    --secret-string "{\"username\":\"${APP}_user\",\"password\":\"$APP_PASSWORD\",\"host\":\"$RDS_ENDPOINT\",\"port\":\"5432\",\"database\":\"${APP}_production\"}" \
+    --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT Key=Application,Value=$APP
+  echo "✅ Secret criado para $APP"
+done
+
+echo ""
+echo "📋 Resumo:"
+echo "  RDS Endpoint: $RDS_ENDPOINT"
+echo "  Secrets Manager: ${PROJECT_NAME}/${ENVIRONMENT}/rds/master-credentials"
+echo ""
+echo "🎉 RDS PostgreSQL criado com sucesso!"
+```
+
+#### Opção C: Console AWS (Referência Visual)
+
+> ⚠️ **Nota:** Prefira as opções A (Terraform) ou B (CLI) para ambientes de produção.
+
+### 2.1.1 Criar DB Subnet Group (Console)
 
 **Passo a passo no Console AWS:**
 
