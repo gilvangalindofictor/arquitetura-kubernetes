@@ -1,9 +1,16 @@
 # Plano de Execução AWS - Índice Geral
 
-**Versão:** 1.0
-**Data:** 2026-01-19
+**Versão:** 1.1
+**Data:** 2026-01-20
 **Baseado em:** [AWS EKS GitLab Quickstart](../quickstart/aws-eks-gitlab-quickstart.md)
-**Metodologia:** Passo a passo detalhado no Console AWS + Helm/kubectl
+**Metodologia:** CLI-First (Terraform/AWS CLI) + Helm/kubectl + Console AWS como referência
+
+> ⚠️ **Abordagem CLI-First:** Todos os documentos foram atualizados para oferecer:
+> 1. **Terraform** (IaC recomendado) para provisionamento reproduzível
+> 2. **AWS CLI** para execução via terminal
+> 3. **Console AWS** apenas como referência visual
+>
+> 📊 Veja a [Análise CLI-First](00-analise-cli-first.md) para detalhes das melhorias.
 
 ---
 
@@ -23,9 +30,10 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 
 ### Princípios
 
+- **CLI-First**: Terraform/AWS CLI para reprodutibilidade e automação (Console apenas como referência)
 - **Cloud-Agnostic onde possível**: Redis e RabbitMQ via Helm (bitnami), não serviços gerenciados
-- **Didático**: Cada clique, cada campo, cada configuração documentada
-- **Segurança desde o dia 1**: Network Policies, RBAC, WAF
+- **Security by Design**: Network Policies, RBAC, WAF, least-privilege desde o dia 1
+- **Testes e Validação**: Scripts de validação automatizados em cada fase
 - **FinOps integrado**: Budgets, alertas, automação start/stop
 
 ---
@@ -100,13 +108,19 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 
 ## Documentos Detalhados
 
+### Documento de Análise (CLI-First)
+
+| # | Documento | Descrição |
+|---|-----------|-----------|
+| 00 | [Análise CLI-First](00-analise-cli-first.md) | Avaliação dos documentos vs critérios CLI-first, Security by Design e Automação |
+
 ### Sprint 1 - Preparação e GitLab Mínimo (88h)
 
 | # | Documento | Épico | Horas | Conteúdo Principal |
 |---|-----------|-------|-------|-------------------|
-| 01 | [Infraestrutura Base AWS](01-infraestrutura-base-aws.md) | A | 20h | VPC, EKS, Node Groups, IAM, Storage |
+| 01 | [Infraestrutura Base AWS](01-infraestrutura-base-aws.md) | A | 20h | VPC, EKS, Node Groups, IAM, Storage (**CLI/Terraform**) |
 | 02 | [GitLab Helm Deploy](02-gitlab-helm-deploy.md) | B | 48h | GitLab CE, Runners, Route53, ALB, S3 |
-| 03 | [Data Services Helm](03-data-services-helm.md) | C | 20h | RDS PostgreSQL, Redis, RabbitMQ |
+| 03 | [Data Services Helm](03-data-services-helm.md) | C | 20h | RDS PostgreSQL, Redis, RabbitMQ (**CLI/Terraform**) |
 
 **Definition of Done Sprint 1:**
 - [ ] VPC com 3 AZs operacional
@@ -136,7 +150,7 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 
 | # | Documento | Épicos | Horas | Conteúdo Principal |
 |---|-----------|--------|-------|-------------------|
-| 05 | [Security Hardening](05-security-hardening.md) | G | 30h | Network Policies, WAF, RBAC, cert-manager |
+| 05 | [Security Hardening](05-security-hardening.md) | G | 30h | Network Policies, WAF, RBAC, cert-manager (**CLI/Terraform**) |
 | 06 | [Backup e DR](06-backup-disaster-recovery.md) | H, J | 34h | Velero, AWS Backup, DR Drill |
 | 07 | [FinOps e Automação](07-finops-automacao.md) | - | - | Budgets, Alertas, Start/Stop |
 | 08 | [Validação e Checklist](08-validacao-checklist.md) | I | 26h | Smoke Tests, DoD, Handoff |
