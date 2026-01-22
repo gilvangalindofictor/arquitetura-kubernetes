@@ -194,7 +194,7 @@ Kubernetes/
 
 Esta seção consolida a documentação dos scripts presentes em `platform-provisioning/aws/scripts` (Marco 0).
 
-Scripts para engenharia reversa e expansão incremental da VPC existente.
+Contém scripts para engenharia reversa e expansão incremental da VPC existente.
 
 ## 📋 Índice
 
@@ -333,10 +333,10 @@ make init
 # Visualizar mudanças (dry-run)
 make plan
 
-# Opção 1: Aplicar SEM NAT dedicado (economia, recomendado)
+# Opção 1: Aplicar SEM NAT dedicado (economia; recomendado)
 make apply-no-nat
 
-# Opção 2: Aplicar COM NAT dedicado (HA total, +$32/mês)
+# Opção 2: Aplicar COM NAT dedicado (HA total; +$32/mês)
 make apply-with-nat
 
 # Validar recursos criados
@@ -345,11 +345,11 @@ make validate
 
 **Recursos Criados:**
 
-| Recurso | CIDR | Propósito |
-|---------|------|-----------|
-| eks-public-1c | 10.0.42.0/24 | ALB, Ingress Controllers |
-| eks-private-1c | 10.0.54.0/24 | EKS Worker Nodes |
-| eks-db-1c | 10.0.55.0/24 | RDS, ElastiCache |
+| Recurso        | CIDR         | Propósito                |
+| -------------- | ------------ | ------------------------ |
+| eks-public-1c  | 10.0.42.0/24 | ALB, Ingress Controllers |
+| eks-private-1c | 10.0.54.0/24 | EKS Worker Nodes         |
+| eks-db-1c      | 10.0.55.0/24 | RDS, ElastiCache         |
 
 **Custo:**
 
