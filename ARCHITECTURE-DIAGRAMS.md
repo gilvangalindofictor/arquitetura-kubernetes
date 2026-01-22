@@ -1,6 +1,6 @@
 # 🏗️ Arquitetura Visual - Plataforma Kubernetes
 
-> **Última Atualização**: 2026-01-05  
+> **Última Atualização**: 2026-01-22  
 > **Status**: 4/6 domínios implementados  
 > **Conformidade SAD v1.2**: 89.6% média  
 > **Tipo**: Diagramas evolutivos (atualizar conforme implementação)
@@ -552,14 +552,14 @@ graph TB
     end
     
     %% Operator manages Instances
-    PG_OP -->|Watch CRD<br/>acid.zalan.do/v1/postgresql| PG_CLUSTER
-    REDIS_OP -->|Watch CRD<br/>redis.opstreelabs.in/v1beta1| REDIS_CLUSTER
-    RABBIT_OP -->|Watch CRD<br/>rabbitmq.com/v1beta1| RABBIT_CLUSTER
+    PG_OP -->|Watch CRD: acid.zalan.do/v1/postgresql| PG_CLUSTER
+    REDIS_OP -->|Watch CRD: redis.opstreelabs.in/v1beta1| REDIS_CLUSTER
+    RABBIT_OP -->|Watch CRD: rabbitmq.com/v1beta1| RABBIT_CLUSTER
     
     %% Backup
-    VELERO -.->|Schedule backup<br/>Daily 2AM| PG_CLUSTER
-    VELERO -.->|Schedule backup<br/>Daily 2AM| REDIS_CLUSTER
-    VELERO -.->|Schedule backup<br/>Daily 2AM| RABBIT_CLUSTER
+    VELERO -.->|Schedule backup: Daily 2AM| PG_CLUSTER
+    VELERO -.->|Schedule backup: Daily 2AM| REDIS_CLUSTER
+    VELERO -.->|Schedule backup: Daily 2AM| RABBIT_CLUSTER
     VELERO -->|Store snapshots| S3
     
     %% Contratos
@@ -569,9 +569,9 @@ graph TB
     VELERO --> CONTRACT_BACKUP
     
     %% Usage Example
-    APP[Application Pod<br/>myapp-deployment] -->|Connection String<br/>my-postgres.app.svc:5432| PG_CLUSTER
-    APP -->|Connection String<br/>my-redis.app.svc:6379| REDIS_CLUSTER
-    APP -->|Connection String<br/>my-rabbitmq.app.svc:5672| RABBIT_CLUSTER
+    APP[Application Pod<br/>myapp-deployment] -->|my-postgres.app.svc:5432| PG_CLUSTER
+    APP -->|my-redis.app.svc:6379| REDIS_CLUSTER
+    APP -->|my-rabbitmq.app.svc:5672| RABBIT_CLUSTER
     
     %% Estilos
     classDef operator fill:#4CAF50,stroke:#2E7D32,color:#fff
@@ -742,7 +742,7 @@ graph TB
     KYVERNO -->|Webhook| PODS
     
     %% OPA Option
-    OPA -.->|Validate (Rego)| POL_ADMISSION
+    OPA -.->|Validate: Rego| POL_ADMISSION
     OPA -.->|Webhook| PODS
     
     %% Falco Runtime
@@ -765,8 +765,8 @@ graph TB
     
     %% Decisão
     DECISION{ADR-002<br/>Kyverno vs OPA?}
-    DECISION -->|YAML policies<br/>+ Mutation/Generation| KYVERNO
-    DECISION -.->|Rego flexibility<br/>Validation only| OPA
+    DECISION -->|YAML policies + Mutation/Generation| KYVERNO
+    DECISION -.->|Rego flexibility: Validation only| OPA
     
     %% Estilos
     classDef kyverno fill:#4CAF50,stroke:#2E7D32,color:#fff
@@ -994,7 +994,7 @@ O hook `validate-architecture-diagrams.sh` **bloqueia commits** se estes arquivo
 
 1. **Modificar arquivo estratégico** (ex: terraform, ADR, SAD)
 2. **Atualizar diagrama(s) correspondente(s)** neste arquivo
-3. **Atualizar data**: `> **Última Atualização**: 2026-01-05`
+3. **Atualizar data**: `> **Última Atualização**: 2026-01-22`
 4. **Commit ambos**:
    ```bash
    git add ARCHITECTURE-DIAGRAMS.md domains/platform-core/infra/terraform/main.tf
