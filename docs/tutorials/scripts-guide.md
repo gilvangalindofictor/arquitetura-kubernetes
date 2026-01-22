@@ -48,6 +48,25 @@ bash scripts/configure-aliases.sh
 - Autocompleção para todos os comandos
 - Variáveis de ambiente úteis
 
+### 4. `install-vscode-extensions.sh` (Extensões VSCode)
+
+Script que instala todas as extensões recomendadas do VSCode.
+
+**Execute no terminal** (Windows ou WSL):
+
+```bash
+bash scripts/install-vscode-extensions.sh
+```
+
+**Extensões instaladas:**
+- Remote - WSL, Kubernetes, YAML, Terraform, Docker
+- GitLens, Better Comments, Error Lens
+- Python, Go, Markdown, ShellCheck
+- SonarLint, EditorConfig, Prettier
+- Helm Intellisense, REST Client, Todo Tree, Draw.io
+
+**📚 Documentação completa:** [VSCode Extensions Guide](./vscode-extensions-guide.md)
+
 ## 🚀 Uso Rápido (Instalação Completa)
 
 ```bash
