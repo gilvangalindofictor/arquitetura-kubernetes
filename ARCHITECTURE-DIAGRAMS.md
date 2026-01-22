@@ -545,10 +545,10 @@ graph TB
     end
     
     subgraph "CONTRATOS PROVIDOS"
-        CONTRACT_PG[PostgreSQL as a Service<br/>SLA: 99.9%<br/>HA via Patroni<br/>Auto-failover < 30s]
+        CONTRACT_PG[PostgreSQL as a Service<br/>SLA: 99.9%<br/>HA via Patroni<br/>Auto-failover &lt; 30s]
         CONTRACT_REDIS[Redis as a Service<br/>SLA: 99.9%<br/>Cluster mode<br/>Persistence AOF/RDB]
         CONTRACT_RABBIT[RabbitMQ as a Service<br/>SLA: 99.9%<br/>Quorum queues<br/>Management UI]
-        CONTRACT_BACKUP[Backup/Restore<br/>RPO: 24h (daily)<br/>RTO: < 1h<br/>PVC + CRD backup]
+        CONTRACT_BACKUP[Backup/Restore<br/>RPO: 24h daily<br/>RTO: &lt; 1h<br/>PVC + CRD backup]
     end
     
     %% Operator manages Instances
