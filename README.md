@@ -190,7 +190,223 @@ Kubernetes/
 - [Domain Creation](docs/prompts/domain-creation.md) - Criar novos domínios
 - [Automatic Audit](docs/prompts/automatic-audit.md) - Auditar consistência
 
-### Logs
+### Scripts AWS - Marco 0
+
+Esta seção consolida a documentação dos scripts presentes em `platform-provisioning/aws/scripts` (Marco 0).
+
+Scripts para engenharia reversa e expansão incremental da VPC existente.
+
+## 📋 Índice
+
+- [Visão Geral](#visão-geral)
+- [Pré-requisitos](#pré-requisitos)
+- [Scripts Disponíveis](#scripts-disponíveis)
+- [Workflow Recomendado](#workflow-recomendado)
+- [Segurança](#segurança)
+
+## Visão Geral
+
+Este diretório contém scripts para o **Marco 0** do projeto, que estabelece a baseline da infraestrutura AWS usando engenharia reversa da VPC existente.
+
+### Objetivos do Marco 0
+
+1. ✅ Documentar estado atual da VPC como código Terraform
+2. ✅ Permitir evolução incremental sem downtime
+3. ✅ Viabilizar testes locais antes de aplicar na AWS
+4. ✅ Expandir de 2 AZs (us-east-1a, us-east-1b) para 3 AZs (+ us-east-1c)
+
+## Pré-requisitos
+
+### Ferramentas Necessárias
+
+```bash
+# Verificar instalações
+aws --version       # AWS CLI v2.33.4+
+terraform --version # Terraform v1.14.3+
+jq --version       # jq 1.7+
+```
+
+### Credenciais AWS
+
+```bash
+# Configurar credenciais
+aws configure
+
+# Validar
+aws sts get-caller-identity
+```
+
+### Permissões AWS Necessárias
+
+- `ec2:Describe*` (leitura de VPC, subnets, NAT, IGW, route tables)
+- `ec2:CreateSubnet` (criação de subnets - apenas script incremental)
+- `ec2:CreateNatGateway` (criação de NAT - opcional)
+- `ec2:AllocateAddress` (alocação de EIP - opcional)
+- `ec2:CreateRouteTable` (criação de route tables)
+- `ec2:CreateTags` (tagging de recursos)
+
+## Scripts Disponíveis
+
+### 1. Engenharia Reversa (`00-marco0-reverse-engineer-vpc.sh`)
+
+**Propósito:** Extrair configuração atual da VPC e gerar Terraform equivalente.
+
+**Uso:**
+
+```bash
+cd platform-provisioning/aws/scripts
+./00-marco0-reverse-engineer-vpc.sh
+```
+
+**Output:**
+
+```
+vpc-reverse-engineered/
+├── terraform/              # Código Terraform modular
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── modules/
+│       ├── vpc/
+│       ├── subnets/
+│       ├── nat-gateways/
+│       ├── internet-gateway/
+│       └── route-tables/
+└── docs/                   # JSONs brutos + documentação
+    ├── vpc-raw.json
+    ├── subnets-raw.json
+    ├── nat-gateways-raw.json
+    ├── igw-raw.json
+    ├── route-tables-raw.json
+    ├── README.md
+    └── SUMMARY.md
+```
+
+**Validação:**
+
+```bash
+cd vpc-reverse-engineered/terraform
+terraform init
+terraform plan  # DEVE mostrar "No changes" (equivalência)
+```
+
+**⚠️ IMPORTANTE:** Este script é **READ-ONLY** - não modifica nada na AWS.
+
+---
+
+### 2. Incremental - Adicionar us-east-1c (`01-marco0-incremental-add-region.sh`)
+
+**Propósito:** Adicionar 3ª Availability Zone sem impactar recursos existentes.
+
+**Uso:**
+
+```bash
+cd platform-provisioning/aws/scripts
+./01-marco0-incremental-add-region.sh
+```
+
+**Output:**
+
+```
+marco0-incremental-1c/
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── modules/
+│       ├── subnets-1c/
+│       ├── nat-gateway-1c/
+│       └── route-tables-1c/
+├── Makefile
+├── README.md
+└── SUMMARY.md
+```
+
+**Validação e Deploy:**
+
+```bash
+cd marco0-incremental-1c
+
+# Inicializar
+make init
+
+# Visualizar mudanças (dry-run)
+make plan
+
+# Opção 1: Aplicar SEM NAT dedicado (economia, recomendado)
+make apply-no-nat
+
+# Opção 2: Aplicar COM NAT dedicado (HA total, +$32/mês)
+make apply-with-nat
+
+# Validar recursos criados
+make validate
+```
+
+**Recursos Criados:**
+
+| Recurso | CIDR | Propósito |
+|---------|------|-----------|
+| eks-public-1c | 10.0.42.0/24 | ALB, Ingress Controllers |
+| eks-private-1c | 10.0.54.0/24 | EKS Worker Nodes |
+| eks-db-1c | 10.0.55.0/24 | RDS, ElastiCache |
+
+**Custo:**
+
+- SEM NAT dedicado: **$0/mês** (usa NAT existente)
+- COM NAT dedicado: **+$32/mês** (~R$ 192/mês)
+
+---
+
+## Workflow Recomendado
+
+### Fase 1: Engenharia Reversa (WSL - Seguro)
+
+```bash
+# 1. Executar script de engenharia reversa
+./00-marco0-reverse-engineer-vpc.sh
+
+# 2. Validar Terraform gerado
+cd vpc-reverse-engineered/terraform
+terraform init
+terraform plan  # Revisar equivalência
+
+# 3. Estudar documentação
+cat ../docs/SUMMARY.md
+cat ../docs/README.md
+```
+
+**✅ Esta fase é 100% segura** - apenas leitura da AWS.
+
+---
+
+## Segurança
+
+### ✅ O que é SEGURO fazer no WSL
+
+- ✅ Executar `00-marco0-reverse-engineer-vpc.sh` (read-only)
+- ✅ Executar `01-marco0-incremental-add-region.sh` (gera código)
+- ✅ `terraform init` (inicializa providers)
+- ✅ `terraform plan` (visualiza mudanças planejadas)
+- ✅ `terraform validate` (valida sintaxe)
+- ✅ Comandos AWS CLI read-only (`describe-*`, `list-*`)
+
+### ❌ O que NÃO fazer no WSL (sem supervisão)
+
+- ❌ `terraform apply` (cria/modifica recursos - risco de duplicação)
+- ❌ `make apply-*` (executa terraform apply)
+- ❌ Comandos AWS CLI de modificação (`create-*`, `delete-*`, `modify-*`)
+
+---
+
+## Próximos Passos (relacionados ao Marco 0)
+
+1. ✅ Atualizar EKS Node Groups para usar 3 AZs
+2. ✅ Adicionar us-east-1c aos DB Subnet Groups (RDS, ElastiCache)
+3. ✅ Testar distribuição de pods em 3 AZs
+4. ✅ Documentar no [diário de bordo](docs/plan/aws-execution/00-diario-de-bordo.md)
+5. ⏳ Seguir para Sprint 1: Networking Foundation
+
 - [Log de Progresso](docs/logs/log-de-progresso.md) - Histórico completo
 
 ---
