@@ -1,0 +1,36 @@
+{
+  "recommendations": [
+    // Essenciais
+    "ms-vscode-remote.remote-wsl",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "redhat.vscode-yaml",
+    "hashicorp.terraform",
+    "ms-azuretools.vscode-docker",
+    "eamodio.gitlens",
+
+    // Produtividade
+    "aaron-bond.better-comments",
+    "christian-kohler.path-intellisense",
+    "usernamehw.errorlens",
+    "oderwat.indent-rainbow",
+
+    // Linguagens
+    "ms-python.python",
+    "golang.go",
+    "yzhang.markdown-all-in-one",
+    "timonwong.shellcheck",
+
+    // Qualidade
+    "sonarsource.sonarlint-vscode",
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+
+    // Opcionais
+    "johnpapa.vscode-peacock",
+    "gruntfuggly.todo-tree",
+    "humao.rest-client",
+    "tim-koehler.helm-intellisense",
+    "hediet.vscode-drawio",
+    "pkief.material-icon-theme"
+  ]
+}
