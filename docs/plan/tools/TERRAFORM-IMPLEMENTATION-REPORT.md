@@ -176,13 +176,13 @@
 
 ```mermaid
 graph TB
-    A[platform-provisioning<br/>Clusters AWS/Azure/GCP] -->|outputs| B[platform-core<br/>Kong, Keycloak, Linkerd, cert-manager]
-    B -->|OIDC Provider| C[secrets-management<br/>Vault HA Cluster]
-    C -->|Secrets| D[observability<br/>Prometheus, Grafana, Loki]
-    D -->|Metrics| E[cicd-platform<br/>GitLab, ArgoCD, Harbor]
-    D -->|Metrics| F[data-services<br/>PostgreSQL, Redis, RabbitMQ]
-    E -->|GitOps| G[security<br/>Kyverno, Falco, Trivy]
-    
+    A["platform-provisioning<br/>Clusters AWS/Azure/GCP"] -->|outputs| B["platform-core<br/>Kong, Keycloak, Linkerd, cert-manager"]
+    B -->|OIDC Provider| C["secrets-management<br/>Vault HA Cluster"]
+    C -->|Secrets| D["observability<br/>Prometheus, Grafana, Loki"]
+    D -->|Metrics| E["cicd-platform<br/>GitLab, ArgoCD, Harbor"]
+    D -->|Metrics| F["data-services<br/>PostgreSQL, Redis, RabbitMQ"]
+    E -->|GitOps| G["security<br/>Kyverno, Falco, Trivy"]
+
     style B fill:#4CAF50,stroke:#2E7D32,color:#fff
     style D fill:#4CAF50,stroke:#2E7D32,color:#fff
     style E fill:#4CAF50,stroke:#2E7D32,color:#fff

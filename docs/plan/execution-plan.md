@@ -1,10 +1,16 @@
 # Plano de Execução - Projeto Kubernetes
 
-## Fase Concluída
-- ✅ **Fase 0**: Setup do Sistema
+> **Última Atualização**: 2026-01-22
+> **SAD**: v1.2 🔒 CONGELADO (Freeze #3 - 2026-01-05)
+
+## Fases Concluídas
+
+- ✅ **Fase 0**: Setup do Sistema (2025-12-30)
+- ✅ **Fase 1**: Concepção do SAD (2026-01-05 - SAD v1.2 congelado)
 
 ## Fase Atual
-- 🔄 **Fase 1**: Concepção do SAD (Próxima)
+
+- 🔄 **Fase 2**: Criação dos Domínios (Em Progresso)
 
 ## Objetivo Principal
 Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** usando Kubernetes como base de articulação tecnológica do departamento, fornecendo:
@@ -35,51 +41,62 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ---
 
-## FASE 1 — CONCEPÇÃO DO SAD (Próxima)
+## FASE 1 — CONCEPÇÃO DO SAD ✅ (Concluída em 2026-01-05)
 
 ### Objetivo
 Criar o **SAD (Software Architecture Document)** com todas as decisões arquiteturais sistêmicas que regerão os domínios.
 
 ### Tasks
 
-#### 1.1 Criar SAD.md
-- [ ] Definir visão arquitetural sistêmica
-- [ ] Decisões sobre cloud-agnostic (Kubernetes como base)
-- [ ] Estratégia de IaC (Terraform + Helm)
-- [ ] Modelo de namespaces e isolamento
-- [ ] Estratégia de segurança (RBAC, Network Policies, secrets)
-- [ ] Estratégia de observabilidade transversal
-- [ ] Estratégia de CI/CD (GitOps)
+#### 1.1 Criar SAD.md ✅
 
-#### 1.2 Criar ADRs Sistêmicos
-- [ ] ADR-003: Cloud-Agnostic OBRIGATÓRIO (sem recursos nativos de cloud)
-- [ ] ADR-004: Infraestrutura como Código (Terraform cloud-agnostic + Helm)
-- [ ] ADR-005: Estratégia de Segurança Base (RBAC, Network Policies, Pod Security Standards)
-- [ ] ADR-006: Observabilidade Transversal (OpenTelemetry como padrão)
-- [ ] ADR-007: Service Mesh (Istio vs Linkerd com sidecar isolation)
-- [ ] ADR-008: API Gateway e Autenticação (Kong + Keycloak)
-- [ ] ADR-009: Secrets Management (Vault vs External Secrets Operator)
-- [ ] ADR-010: Data Services (PostgreSQL + Redis + RabbitMQ operators, HA, backup)
-- [ ] ADR-011: CI/CD e Governança (GitLab + SonarQube + ArgoCD + Backstage)
-- [ ] ADR-012: Isolamento de Ambientes (dev/hml/prd via namespaces + RBAC)
+- [x] Definir visão arquitetural sistêmica
+- [x] Decisões sobre cloud-agnostic (Kubernetes como base)
+- [x] Estratégia de IaC (Terraform + Helm)
+- [x] Modelo de namespaces e isolamento
+- [x] Estratégia de segurança (RBAC, Network Policies, secrets)
+- [x] Estratégia de observabilidade transversal
+- [x] Estratégia de CI/CD (GitOps)
 
-#### 1.3 Definir Regras de Herança
-- [ ] Criar `/SAD/docs/architecture/inheritance-rules.md`
-- [ ] Documentar o que domínios DEVEM herdar do SAD
-- [ ] Documentar o que domínios PODEM customizar
+#### 1.2 Criar ADRs Sistêmicos ✅
 
-#### 1.4 Definir Contratos Entre Domínios
-- [ ] Criar `/SAD/docs/architecture/domain-contracts.md`
-- [ ] Documentar interfaces permitidas entre domínios
-- [ ] Exemplos: Observability pode monitorar Networking via métricas Prometheus
+- [x] ADR-003: Cloud-Agnostic OBRIGATÓRIO (sem recursos nativos de cloud)
+- [x] ADR-004: Infraestrutura como Código (Terraform cloud-agnostic + Helm)
+- [x] ADR-005: Estratégia de Segurança Base (RBAC, Network Policies, Pod Security Standards)
+- [x] ADR-006: Observabilidade Transversal (OpenTelemetry como padrão)
+- [x] ADR-007: Service Mesh (Istio vs Linkerd com sidecar isolation)
+- [x] ADR-008: Escalabilidade e Performance
+- [x] ADR-009: Disaster Recovery
+- [x] ADR-010: Compliance Regulatória
+- [x] ADR-011: FinOps e Custo
+- [x] ADR-012: Isolamento de Ambientes (dev/hml/prd via namespaces + RBAC)
+- [x] ADR-013: Contratos entre Domínios
+- [x] ADR-020: Provisionamento de Clusters Kubernetes
+- [x] ADR-021: Escolha do Orquestrador (Kubernetes)
 
-#### 1.5 SAD FREEZE
-- [ ] Revisão completa do SAD
-- [ ] Validação com Architect Guardian
-- [ ] Aprovação explícita do usuário
-- [ ] Criar `/SAD/docs/sad-freeze-record.md`
+#### 1.3 Definir Regras de Herança ✅
 
-**Critério de Conclusão**: SAD congelado e aprovado.
+- [x] Criar `/SAD/docs/architecture/inheritance-rules.md`
+- [x] Documentar o que domínios DEVEM herdar do SAD
+- [x] Documentar o que domínios PODEM customizar
+
+#### 1.4 Definir Contratos Entre Domínios ✅
+
+- [x] Criar `/SAD/docs/architecture/domain-contracts.md`
+- [x] Documentar interfaces permitidas entre domínios
+- [x] Exemplos: Observability pode monitorar Networking via métricas Prometheus
+
+#### 1.5 SAD FREEZE ✅
+
+- [x] Revisão completa do SAD
+- [x] Validação com Architect Guardian
+- [x] Aprovação explícita do usuário
+- [x] Criar `/SAD/docs/sad-freeze-record.md`
+- [x] **Freeze #1**: SAD v1.0 (2025-12-30)
+- [x] **Freeze #2**: SAD v1.1 (2026-01-05) - ADR-020
+- [x] **Freeze #3**: SAD v1.2 (2026-01-05) - ADR-021
+
+**Critério de Conclusão**: ✅ SAD v1.2 congelado e aprovado.
 
 ---
 
@@ -108,64 +125,79 @@ Estruturar todos os 6 domínios da plataforma seguindo padrões do SAD.
 ### Tasks
 
 #### 2.1 Validar Domínio Observability ✅ (Concluída - 2026-01-05)
+
 - [x] Domínio já migrado do projeto Observabilidade
 - [x] Verificar aderência completa ao SAD (FASE 1)
 - [x] Atualizar contexto se necessário
 - [x] Documentar contratos com outros domínios
+- [x] Validação #1 contra SAD v1.0
+- [x] Validação #2 contra SAD v1.1
+- [x] Validação #3 contra SAD v1.2 + ADR-021
+- [x] Consolidação e remoção de artefatos desnecessários
 
-**Resultado**: 
+**Resultado**:
 - ✅ Stack técnico conforme (OpenTelemetry, Prometheus, Grafana, Loki, Tempo)
 - ✅ Contratos entre domínios alinhados com SAD
-- ❌ BLOQUEADOR: Terraform AWS-específico (violação ADR-003) - requer refatoração antes de produção
-- ⚠️ GAPS: RBAC, Network Policies, GitOps (melhorias obrigatórias)
-- **Status**: APROVADO CONDICIONALMENTE
+- ✅ Terraform refatorado para cloud-agnostic (ADR-006)
+- ✅ **Status**: APROVADO - Conformidade Total com SAD v1.2
 
 **Artefatos**:
 - [`/domains/observability/docs/adr/adr-003-validacao-sad.md`](../../domains/observability/docs/adr/adr-003-validacao-sad.md)
+- [`/domains/observability/docs/adr/adr-004-revalidacao-sad-v11.md`](../../domains/observability/docs/adr/adr-004-revalidacao-sad-v11.md)
+- [`/domains/observability/docs/adr/adr-005-revalidacao-sad-v12.md`](../../domains/observability/docs/adr/adr-005-revalidacao-sad-v12.md)
+- [`/domains/observability/docs/adr/adr-006-refatoracao-terraform-cloud-agnostic.md`](../../domains/observability/docs/adr/adr-006-refatoracao-terraform-cloud-agnostic.md)
 - [`/domains/observability/docs/VALIDATION-REPORT.md`](../../domains/observability/docs/VALIDATION-REPORT.md)
 
-#### 2.2 Criar Domínio platform-core
-- [ ] Criar estrutura base em `/domains/platform-core`
-- [ ] Criar contexto do domínio (Kong, Keycloak, Service Mesh, cert-manager)
-- [ ] Criar plano de execução
-- [ ] Criar ADR de criação (ADR-0XX: Criação do domínio platform-core)
-- [ ] Documentar integrações: auth com cicd-platform, service mesh com todos
+#### 2.2 Criar Domínio platform-core ✅ (Concluída - 2026-01-05)
 
-#### 2.3 Criar Domínio cicd-platform (🎯 Primeiro Objetivo)
-- [ ] Criar estrutura base em `/domains/cicd-platform`
-- [ ] Criar contexto do domínio (GitLab, SonarQube, ArgoCD, Backstage)
-- [ ] Criar plano de execução
-- [ ] Criar ADR de criação (ADR-0XX: Criação do domínio cicd-platform)
-- [ ] Documentar workflow: Backstage → GitLab → SonarQube → ArgoCD → K8s
-- [ ] Documentar integração com secrets-management (injeção de credenciais)
+- [x] Criar estrutura base em `/domains/platform-core`
+- [x] Criar contexto do domínio (Kong, Keycloak, Service Mesh, cert-manager)
+- [x] Criar plano de execução
+- [x] Criar ADR de criação (ADR-001: Estrutura Inicial)
+- [x] Documentar integrações: auth com cicd-platform, service mesh com todos
 
-#### 2.4 Criar Domínio data-services
-- [ ] Criar estrutura base em `/domains/data-services`
-- [ ] Criar contexto do domínio (PostgreSQL, Redis, RabbitMQ, Velero)
-- [ ] Criar plano de execução
-- [ ] Criar ADR de criação (ADR-0XX: Criação do domínio data-services)
-- [ ] Documentar estratégia HA + backup + alarmes
-- [ ] Documentar exportadores de métricas para observability
+#### 2.3 Criar Domínio cicd-platform ✅ (Concluída - 2026-01-05) 🎯
 
-#### 2.5 Criar Domínio secrets-management
-- [ ] Criar estrutura base em `/domains/secrets-management`
-- [ ] Criar contexto do domínio (Vault ou External Secrets Operator)
-- [ ] Criar plano de execução
-- [ ] Criar ADR de criação (ADR-0XX: Criação do domínio secrets-management)
-- [ ] Documentar integração com cicd-platform (injeção automática)
-- [ ] Documentar estratégia de rotação e auditoria
-- [ ] **Pendência**: Mesa técnica sobre secrets na imagem vs external
+- [x] Criar estrutura base em `/domains/cicd-platform`
+- [x] Criar contexto do domínio (GitLab, SonarQube, ArgoCD, Backstage)
+- [x] Criar plano de execução
+- [x] Criar ADR de criação (ADR-001: Estrutura Inicial)
+- [x] Documentar workflow: Backstage → GitLab → SonarQube → ArgoCD → K8s
+- [x] Documentar integração com secrets-management (injeção de credenciais)
 
-#### 2.6 Criar Domínio security
-- [ ] Criar estrutura base em `/domains/security`
-- [ ] Criar contexto do domínio (OPA/Kyverno, Falco, Trivy, RBAC, Network Policies)
-- [ ] Criar plano de execução
-- [ ] Criar ADR de criação (ADR-0XX: Criação do domínio security)
-- [ ] Documentar policies obrigatórias
-- [ ] Documentar integração Trivy com cicd-platform
-- [ ] Documentar runtime monitoring com Falco
+#### 2.4 Criar Domínio data-services ✅ (Concluída - 2026-01-05)
 
-**Critério de Conclusão**: Todos os 6 domínios estruturados com documentação básica.
+- [x] Criar estrutura base em `/domains/data-services`
+- [x] Criar contexto do domínio (PostgreSQL, Redis, RabbitMQ, Velero)
+- [x] Criar plano de execução
+- [x] Criar ADR de criação (ADR-001: Estrutura Inicial)
+- [x] Documentar estratégia HA + backup + alarmes
+- [x] Documentar exportadores de métricas para observability
+
+#### 2.5 Criar Domínio secrets-management ✅ (Concluída - 2026-01-05)
+
+- [x] Criar estrutura base em `/domains/secrets-management`
+- [x] Criar contexto do domínio (Vault ou External Secrets Operator)
+- [x] Criar plano de execução
+- [x] Criar ADR de criação (ADR-001: Estrutura Inicial)
+- [x] Documentar integração com cicd-platform (injeção automática)
+- [x] Documentar estratégia de rotação e auditoria
+- [ ] **Pendência**: ADR-002 - Mesa técnica sobre secrets na imagem vs external
+
+#### 2.6 Criar Domínio security ✅ (Concluída - 2026-01-05)
+
+- [x] Criar estrutura base em `/domains/security`
+- [x] Criar contexto do domínio (OPA/Kyverno, Falco, Trivy, RBAC, Network Policies)
+- [x] Criar plano de execução
+- [x] Criar ADR de criação (ADR-001: Estrutura Inicial)
+- [x] Documentar policies obrigatórias
+- [x] Documentar integração Trivy com cicd-platform
+- [x] Documentar runtime monitoring com Falco
+- [ ] **Pendência**: ADR-002 - Escolha Kyverno vs OPA
+
+**Critério de Conclusão**: ✅ Todos os 6 domínios estruturados com documentação básica (2026-01-05)
+
+**Status Fase 2**: 🔄 **Em Progresso** - Estruturação completa, aguardando provisionamento de cluster para implementação
 
 ---
 
@@ -373,5 +405,8 @@ Finalizar documentação e preparar para operação.
 
 ---
 
-## Atualizado em
-2025-12-30 (FASE 0 concluída)
+## Histórico de Atualizações
+
+- **2026-01-22**: Atualização pós-validação - Fase 1 marcada como concluída, Fase 2 em progresso
+- **2026-01-05**: Fase 1 concluída (SAD v1.2 congelado), Fase 2 iniciada (6 domínios estruturados)
+- **2025-12-30**: Fase 0 concluída (Setup do Sistema)
