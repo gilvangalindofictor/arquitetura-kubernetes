@@ -167,8 +167,6 @@ Kubernetes/
 
 **Status**: Aguardando FASE 4
 
-**Status**: Aguardando FASE 2
-
 ---
 
 ## 📚 Documentação Principal
