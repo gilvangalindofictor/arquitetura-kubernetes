@@ -1,7 +1,7 @@
 # Plano de Execução AWS - Plataforma Kubernetes Corporativa
 
-**Versão:** 1.0
-**Data:** 2026-01-19
+**Versão:** 1.1
+**Data:** 2026-01-22 (atualizado com novas práticas de autenticação AWS)
 **Projeto:** Arquitetura Multi-Domínio Kubernetes
 **Região Principal:** us-east-1 (N. Virginia)
 **Ambientes:** Homologação + Produção
@@ -209,7 +209,7 @@
 7. Clique em **Next**
 8. Preencha os campos:
    - **Policy name:** `k8s-platform-eks-policy`
-   - **Description:** `Política para gerenciamento do cluster EKS da plataforma Kubernetes`
+   - **Description:** `PolAtica-para-gerenciamento-do-cluster-EKS-da-plataforma-Kubernetes`
    - **Tags:**
      - `Project` = `k8s-platform`
      - `Environment` = `shared`
@@ -232,7 +232,7 @@
 7. Clique em **Next**
 8. Preencha:
    - **Role name:** `k8s-platform-eks-cluster-role`
-   - **Description:** `Role para o cluster EKS da plataforma Kubernetes corporativa`
+   - **Description:** `Role-para-o-cluster-EKS-da-plataforma-Kubernetes-corporativa`
    - **Tags:**
      - `Project` = `k8s-platform`
      - `Environment` = `prod`
@@ -256,19 +256,70 @@
 5. Clique em **Next**
 6. Preencha:
    - **Role name:** `k8s-platform-eks-node-role`
-   - **Description:** `Role para os Node Groups do EKS`
+   - **Description:** `Role-para-os-Node-Groups-do-EKS`
    - **Tags:** (mesmas tags anteriores)
 7. Clique em **Create role**
 
 ---
 
-#### 3.1.4 Criar Usuário para Terraform/CI
+#### 3.1.4 Configurar Autenticação AWS CLI
 
-**Passo a passo no console:**
+> **⚠️ ATUALIZAÇÃO IMPORTANTE (2026):** A AWS recomenda NÃO usar Access Keys para pessoas. Prefira sempre AWS CloudShell ou IAM Identity Center (SSO).
+
+**Escolha UMA das opções abaixo:**
+
+---
+
+**OPÇÃO 1: AWS CloudShell (RECOMENDADA para testes rápidos)**
+
+1. Acesse o Console AWS: https://console.aws.amazon.com/
+2. No **canto superior direito**, clique no ícone `>_` (CloudShell)
+3. Aguarde inicialização (10-30 segundos)
+4. Teste a conexão:
+
+```bash
+aws sts get-caller-identity
+```
+
+**Vantagens:**
+- ✅ Zero configuração
+- ✅ Credenciais automáticas do console
+- ✅ Sem risco de vazamento de Access Keys
+
+---
+
+**OPÇÃO 2: IAM Identity Center (SSO) - Para uso diário**
+
+1. Na barra de busca, digite `IAM Identity Center`
+2. Clique em **Enable** (primeira vez)
+3. Configure MFA como obrigatório
+4. Crie grupo `k8s-platform-admins`
+5. Adicione usuários ao grupo
+6. Crie permission set `K8sPlatformPowerUser`
+7. Configure AWS CLI V2 localmente:
+
+```bash
+aws configure sso
+# SSO start URL: https://sua-empresa.awsapps.com/start
+# SSO Region: us-east-1
+# CLI profile name: k8s-platform-prod
+```
+
+**Vantagens:**
+- ✅ Integração com Azure AD/Okta
+- ✅ MFA obrigatório
+- ✅ Credenciais temporárias
+
+---
+
+**OPÇÃO 3: Access Keys (APENAS para CI/CD ou Terraform)**
+
+> **⚠️ USE APENAS PARA:** Pipelines CI/CD (GitHub Actions, GitLab CI), Terraform automatizado
 
 1. Em **Users**, clique em **Create user**
 2. Preencha:
    - **User name:** `terraform-k8s-platform`
+   - **Provide user access to console:** ❌ NÃO marque
 3. Clique em **Next**
 4. Selecione **Attach policies directly**
 5. Busque e selecione:
@@ -279,7 +330,36 @@
 9. Selecione **Command Line Interface (CLI)**
 10. Marque o checkbox de confirmação
 11. Clique em **Next** → **Create access key**
-12. **IMPORTANTE:** Copie e salve as credenciais em local seguro (AWS Secrets Manager ou Vault)
+12. **ARMAZENE COM SEGURANÇA:**
+
+```bash
+# Opção A: AWS Secrets Manager (RECOMENDADO)
+aws secretsmanager create-secret \
+    --name k8s-platform/terraform/aws-credentials \
+    --secret-string '{
+        "access_key_id": "AKIAIOSFODNN7EXAMPLE",
+        "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }' \
+    --kms-key-id alias/k8s-platform-prod
+
+# Opção B: Arquivo local ~/.aws/credentials
+cat > ~/.aws/credentials <<EOF
+[k8s-platform-terraform]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+EOF
+chmod 600 ~/.aws/credentials
+```
+
+**⚠️ ROTAÇÃO OBRIGATÓRIA:** Rotacione Access Keys a cada 90 dias
+
+```bash
+# Criar nova key
+aws iam create-access-key --user-name terraform-k8s-platform
+
+# Deletar key antiga
+aws iam delete-access-key --user-name terraform-k8s-platform --access-key-id AKIAOLDKEY
+```
 
 ---
 
@@ -376,7 +456,7 @@
 3. Clique em **Create DB subnet group**
 4. Preencha:
    - **Name:** `k8s-platform-prod-db-subnet-group`
-   - **Description:** `Subnet group para RDS da plataforma Kubernetes`
+   - **Description:** `Subnet-group-para-RDS-da-plataforma-Kubernetes`
    - **VPC:** Selecione `k8s-platform-prod-vpc`
 
    **Add subnets:**
@@ -423,7 +503,7 @@
 2. Clique em **Create security group**
 3. Preencha:
    - **Security group name:** `k8s-platform-prod-eks-cluster-sg`
-   - **Description:** `Security Group para o EKS Control Plane`
+   - **Description:** `Security-Group-para-o-EKS-Control-Plane`
    - **VPC:** Selecione `k8s-platform-prod-vpc`
 
 4. **Inbound rules:** (deixe vazio por enquanto, será configurado automaticamente pelo EKS)
@@ -447,7 +527,7 @@
 1. Clique em **Create security group**
 2. Preencha:
    - **Security group name:** `k8s-platform-prod-rds-sg`
-   - **Description:** `Security Group para RDS PostgreSQL`
+   - **Description:** `Security-Group-para-RDS-PostgreSQL`
    - **VPC:** Selecione `k8s-platform-prod-vpc`
 
 3. **Inbound rules:**
@@ -455,7 +535,7 @@
    - **Type:** PostgreSQL
    - **Port:** 5432
    - **Source:** Custom → Selecione `k8s-platform-prod-eks-cluster-sg`
-   - **Description:** `Acesso do EKS ao RDS`
+   - **Description:** `Acesso-do-EKS-ao-RDS`
 
 4. **Outbound rules:**
    - **Type:** All traffic
@@ -476,14 +556,14 @@
 1. Clique em **Create security group**
 2. Preencha:
    - **Security group name:** `k8s-platform-prod-redis-sg`
-   - **Description:** `Security Group para ElastiCache Redis`
+   - **Description:** `Security-Group-para-ElastiCache-Redis`
    - **VPC:** Selecione `k8s-platform-prod-vpc`
 
 3. **Inbound rules:**
    - **Type:** Custom TCP
    - **Port:** 6379
    - **Source:** `k8s-platform-prod-eks-cluster-sg`
-   - **Description:** `Acesso do EKS ao Redis`
+   - **Description:** `Acesso-do-EKS-ao-Redis`
 
 4. Clique em **Create security group**
 
@@ -620,7 +700,7 @@
 
    **Add labels:**
    - **Alias:** `alias/k8s-platform-prod`
-   - **Description:** `Chave de criptografia para a plataforma Kubernetes`
+   - **Description:** `Chave-de-criptografia-para-a-plataforma-Kubernetes`
    - **Tags:**
      - `Project` = `k8s-platform`
      - `Environment` = `prod`
@@ -780,7 +860,7 @@ GRANT ALL PRIVILEGES ON DATABASE harbor TO harbor_user;
 
    **Cluster info:**
    - **Name:** `k8s-platform-prod-redis`
-   - **Description:** `Redis cache para plataforma Kubernetes`
+   - **Description:** `Redis-cache-para-plataforma-Kubernetes`
 
    **Location:**
    - Selecione **AWS Cloud**
@@ -1047,20 +1127,83 @@ GRANT ALL PRIVILEGES ON DATABASE harbor TO harbor_user;
 **Passo a passo via terminal:**
 
 ```bash
-# Instalar AWS CLI (se não tiver)
+# Instalar AWS CLI V2 (se não tiver)
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 sudo ./aws/install
 
-# Configurar credenciais
-aws configure
-# AWS Access Key ID: <sua-key>
-# AWS Secret Access Key: <sua-secret>
-# Default region name: us-east-1
-# Default output format: json
+# Verificar versão
+aws --version  # Deve ser >= 2.x
+```
+
+**Escolha o método de autenticação:**
+
+**MÉTODO 1: AWS CloudShell (sem configuração local)**
+
+```bash
+# Abra CloudShell no console AWS (ícone >_)
+# Já vem com kubectl instalado
 
 # Atualizar kubeconfig
 aws eks update-kubeconfig --region us-east-1 --name k8s-platform-prod
+
+# Verificar conexão
+kubectl get nodes
+```
+
+---
+
+**MÉTODO 2: SSO (IAM Identity Center) - Recomendado para desenvolvedores**
+
+```bash
+# Configurar SSO (uma vez)
+aws configure sso
+# SSO start URL: https://sua-empresa.awsapps.com/start
+# SSO Region: us-east-1
+# CLI profile name: k8s-platform-prod
+
+# Login (quando expirar)
+aws sso login --profile k8s-platform-prod
+
+# Atualizar kubeconfig com perfil SSO
+aws eks update-kubeconfig \
+    --region us-east-1 \
+    --name k8s-platform-prod \
+    --profile k8s-platform-prod
+
+# Verificar conexão
+kubectl get nodes
+```
+
+---
+
+**MÉTODO 3: Access Keys (CI/CD ou Terraform)**
+
+```bash
+# Configurar credenciais manualmente
+cat > ~/.aws/credentials <<EOF
+[k8s-platform-terraform]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+EOF
+chmod 600 ~/.aws/credentials
+
+cat > ~/.aws/config <<EOF
+[profile k8s-platform-terraform]
+region = us-east-1
+output = json
+EOF
+
+# OU usar variáveis de ambiente
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_DEFAULT_REGION="us-east-1"
+
+# Atualizar kubeconfig
+aws eks update-kubeconfig \
+    --region us-east-1 \
+    --name k8s-platform-prod \
+    --profile k8s-platform-terraform  # Omitir se usando variáveis de ambiente
 
 # Verificar conexão
 kubectl get nodes
@@ -1077,21 +1220,33 @@ kubectl get nodes
 **Passo a passo via terminal:**
 
 ```bash
+# ⚠️ IMPORTANTE: Use o mesmo perfil AWS configurado anteriormente
+# Se usando SSO: aws sso login --profile k8s-platform-prod
+# Se usando Access Keys: export AWS_PROFILE=k8s-platform-terraform
+
+# Obter Account ID
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo "Account ID: $ACCOUNT_ID"
+
 # Criar IAM Policy para o controller
 curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.0/docs/install/iam_policy.json
 
 aws iam create-policy \
     --policy-name AWSLoadBalancerControllerIAMPolicy \
-    --policy-document file://iam_policy.json
+    --policy-document file://iam_policy.json \
+    ${AWS_PROFILE:+--profile $AWS_PROFILE}
 
 # Criar IRSA (IAM Role for Service Accounts)
+# Adicione --profile se necessário
 eksctl create iamserviceaccount \
   --cluster=k8s-platform-prod \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
   --role-name AmazonEKSLoadBalancerControllerRole \
-  --attach-policy-arn=arn:aws:iam::<ACCOUNT_ID>:policy/AWSLoadBalancerControllerIAMPolicy \
-  --approve
+  --attach-policy-arn=arn:aws:iam::${ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve \
+  --region us-east-1 \
+  ${AWS_PROFILE:+--profile $AWS_PROFILE}
 
 # Instalar via Helm
 helm repo add eks https://aws.github.io/eks-charts
@@ -1102,6 +1257,9 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
   --set clusterName=k8s-platform-prod \
   --set serviceAccount.create=false \
   --set serviceAccount.name=aws-load-balancer-controller
+
+# Verificar instalação
+kubectl get pods -n kube-system | grep aws-load-balancer-controller
 ```
 
 ---
@@ -1118,7 +1276,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 2. Clique em **Hosted zones** → **Create hosted zone**
 3. Preencha:
    - **Domain name:** `k8s-platform.seudominio.com.br`
-   - **Description:** `DNS zone para plataforma Kubernetes`
+   - **Description:** `DNS-zone-para-plataforma-Kubernetes`
    - **Type:** Public hosted zone
 
 4. **Tags:**
@@ -1195,7 +1353,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 
    **Secret name and description:**
    - **Secret name:** `k8s-platform/prod/rds/master`
-   - **Description:** `Credenciais master do RDS PostgreSQL`
+   - **Description:** `Credenciais-master-do-RDS-PostgreSQL`
 
    **Tags:**
    - `Project` = `k8s-platform`
@@ -1295,7 +1453,7 @@ curl https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-i
    - **Resource type:** Regional resources (Application Load Balancer, API Gateway, etc.)
    - **Region:** US East (N. Virginia)
    - **Name:** `k8s-platform-prod-waf`
-   - **Description:** `WAF para proteção da plataforma Kubernetes`
+   - **Description:** `WAF-para-proteAAo-da-plataforma-Kubernetes`
    - **CloudWatch metric name:** `k8s-platform-prod-waf`
 
 4. Clique em **Next**
@@ -1458,8 +1616,99 @@ terraform {
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "terraform-state-lock"
+    # profile       = "k8s-platform-terraform"  # Se usando AWS CLI profile
   }
 }
+```
+
+**Autenticação Terraform:**
+
+**Opção 1: Variáveis de Ambiente (CI/CD)**
+
+```bash
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_DEFAULT_REGION="us-east-1"
+
+terraform init
+terraform plan
+terraform apply
+```
+
+**Opção 2: AWS Profile (Local)**
+
+```bash
+# Usar perfil do ~/.aws/credentials
+export AWS_PROFILE=k8s-platform-terraform
+
+terraform init
+terraform plan
+terraform apply
+```
+
+**Opção 3: SSO (Desenvolvedor)**
+
+```bash
+# Login SSO
+aws sso login --profile k8s-platform-prod
+
+# Usar perfil SSO
+export AWS_PROFILE=k8s-platform-prod
+
+terraform init
+terraform plan
+```
+
+**Opção 4: IAM Role (EC2/Lambda)**
+
+```hcl
+# provider.tf - Terraform assume automaticamente a role da instância
+provider "aws" {
+  region = "us-east-1"
+  # Sem credenciais explícitas - usa EC2 Instance Profile
+}
+```
+
+**GitHub Actions CI/CD:**
+
+```yaml
+# .github/workflows/terraform.yml
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: aws/environments/prod
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: aws/environments/prod
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        working-directory: aws/environments/prod
 ```
 
 ### 4.5 Logs e Monitoramento
@@ -1706,6 +1955,9 @@ def lambda_handler(event, context):
 
 - [ ] MFA habilitado para todas as contas IAM
 - [ ] IAM Roles com menor privilégio
+- [ ] **Autenticação AWS CLI configurada** (CloudShell, SSO ou Access Keys com rotação)
+- [ ] Access Keys armazenadas no AWS Secrets Manager (se aplicável)
+- [ ] Rotação de Access Keys a cada 90 dias validada (se aplicável)
 - [ ] VPC com subnets públicas/privadas separadas
 - [ ] Security Groups com regras mínimas
 - [ ] KMS encryption habilitada em RDS, S3, EBS, EKS secrets
@@ -1800,14 +2052,32 @@ aws eks list-nodegroups --cluster-name k8s-platform-prod
 
 ### B. Links Úteis
 
+**Documentação AWS:**
 - [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
 - [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
 - [EKS Workshop](https://www.eksworkshop.com/)
 - [AWS Pricing Calculator](https://calculator.aws/)
 
+**Autenticação e Segurança:**
+- [AWS CLI V2 - SSO Configuration](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
+- [AWS CloudShell User Guide](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html)
+- [IAM Identity Center (SSO) Best Practices](https://docs.aws.amazon.com/singlesignon/latest/userguide/best-practices.html)
+- [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+- [AWS Security Best Practices](https://aws.amazon.com/architecture/security-identity-compliance/)
+
 ---
 
 **Documento gerado em:** 2026-01-19
+**Última atualização:** 2026-01-22
 **Autor:** DevOps AWS Specialist
-**Versão:** 1.0
+**Versão:** 1.1
+**Alterações (v1.1):**
+- Atualizada seção 3.1.4 com recomendações AWS 2026 (CloudShell, SSO, Access Keys)
+- Atualizada seção 3.8.5 com múltiplos métodos de autenticação kubectl
+- Atualizada seção 3.9.1 com suporte a perfis AWS
+- Atualizada seção 4.4 com autenticação Terraform e CI/CD
+- Adicionados itens de checklist para validação de autenticação
 **Próxima revisão:** Após deploy inicial
+
+
+

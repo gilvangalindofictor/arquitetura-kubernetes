@@ -221,3 +221,4 @@ localstack/data/
 !*.template
 !**/examples/**
 !**/templates/**
+access/
