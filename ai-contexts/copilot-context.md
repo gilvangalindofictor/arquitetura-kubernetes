@@ -1,12 +1,14 @@
 # Copilot Context - Projeto Kubernetes
 
-> **Última Atualização**: 2026-01-05
+> **Última Atualização**: 2026-01-22
 > **Fase Atual**: 2 (Implementação de Domínios)
 > **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
-> **Governança**: AI-First com rastreabilidade obrigatória
+> **Governança**: AI-First com rastreabilidade obrigatória + **STRICT-RULES** ⚠️
 > **Orquestrador**: Kubernetes (ADR-021)
 
 > 📘 **NOTA**: Este arquivo mantém compatibilidade legado. Ver [/PROJECT-CONTEXT.md](../PROJECT-CONTEXT.md) para contexto consolidado completo.
+
+> 🚨 **REGRAS ANTI-ALUCINAÇÃO**: ANTES de criar QUALQUER documento `.md`, consulte [/docs/governance/STRICT-RULES.md](../docs/governance/STRICT-RULES.md) - Aprovação do usuário é **OBRIGATÓRIA**
 
 ---
 
@@ -356,6 +358,7 @@ Após mesa técnica com especialistas, foram identificadas as seguintes lacunas 
 10. **Governança de Mudanças**: Processo para mudanças manuais ou emergenciais.
 
 ## 11. ADRs Sugeridos
+
 - **ADR-007**: Service Mesh (Linkerd recomendado por custo e simplicidade).
 - **ADR-013**: Disaster Recovery (Velero + multi-region backup).
 - **ADR-014**: Compliance Regulatória (auditoria e zero-trust).
@@ -363,3 +366,125 @@ Após mesa técnica com especialistas, foram identificadas as seguintes lacunas 
 - **ADR-016**: Escalabilidade Vertical.
 - **ADR-017**: Integrações Externas (Jira, Slack).
 - **ADR-018**: Treinamento e Capacitação.
+
+---
+
+## 12. GOVERNANÇA DOCUMENTAL (2026-01-22) 🚨
+
+### Regras Rígidas Anti-Alucinação
+
+**Documento de Referência**: [/docs/governance/STRICT-RULES.md](../docs/governance/STRICT-RULES.md)
+
+#### ⚠️ OBRIGATÓRIO ANTES DE CRIAR QUALQUER ARQUIVO `.md`
+
+**Checklist de 6 Perguntas**:
+
+1. ❓ **Este documento JÁ EXISTE?** → SE SIM: **PARE! ATUALIZE O EXISTENTE**
+2. ❓ **Está na lista PROIBIDA?** → SE SIM: **PARE! NÃO CRIE**
+3. ❓ **Localização está APROVADA?** → SE NÃO: **PARE! PEÇA APROVAÇÃO**
+4. ❓ **Há documento SIMILAR?** → SE SIM: **PARE! ATUALIZE**
+5. ❓ **Nomenclatura CORRETA?** → SE NÃO: **PARE! CORRIJA**
+6. ❓ **Usuário APROVOU?** → SE NÃO: **PARE! PEÇA APROVAÇÃO**
+
+#### 🚫 NUNCA CRIAR (Lista de Proibições)
+
+```yaml
+ABSOLUTAMENTE PROIBIDO:
+  # Documentos duplicados
+  - README-v2.md, README-new.md, README-updated.md
+  - execution-plan-new.md, plan-v2.md
+  - sad-updated.md, sad-new.md
+
+  # Reports temporários
+  - report-*.md, REPORT-*.md
+  - analysis-*.md, summary-*.md
+  - validation-*.md (usar VALIDATION-REPORT.md)
+  - notes-*.md, draft-*.md
+
+  # Logs duplicados
+  - changelog.md, history.md
+  - activity-log.md
+
+  # Contextos duplicados
+  - claude-context.md, chatgpt-context.md
+  - (usar APENAS copilot-context.md)
+
+  # Diretórios temporários
+  - tmp/, temp/, drafts/, backup/, scratch/
+```
+
+#### ✅ Documentos ÚNICOS (Atualizar, NUNCA Duplicar)
+
+| Documento | Localização | Regra |
+|-----------|-------------|-------|
+| **README.md** | `/` | ✅ ÚNICO na raiz |
+| **README.md** | `/domains/{domain}/` | ✅ 1 por domínio |
+| **sad.md** | `/SAD/docs/` | ✅ ÚNICO global |
+| **sad-freeze-record.md** | `/SAD/docs/` | ✅ ÚNICO global |
+| **execution-plan.md** | `/docs/plan/` | ✅ ÚNICO global |
+| **log-de-progresso.md** | `/docs/logs/` | ✅ ÚNICO global |
+| **copilot-context.md** | `/ai-contexts/` | ✅ ÚNICO global (ESTE) |
+| **VALIDATION-REPORT.md** | `/domains/{domain}/docs/` | ✅ 1 por domínio |
+
+#### ✅ Documentos MÚLTIPLOS (Seguir Padrões)
+
+| Tipo | Padrão | Localização | Exemplo |
+|------|--------|-------------|---------|
+| **ADRs Sistêmicos** | `adr-XXX-*.md` | `/SAD/docs/adrs/` | `adr-022-banco-dados.md` |
+| **ADRs de Domínio** | `adr-XXX-*.md` | `/domains/{domain}/docs/adr/` | `adr-001-estrutura-inicial.md` |
+| **Agentes** | `{nome}.md` | `/docs/agents/` | `gestor.md` |
+| **Skills** | `{nome}.md` | `/docs/skills/` | `arquitetura.md` |
+| **Runbooks** | `{nome}.md` | `/domains/{domain}/docs/runbooks/` | `troubleshooting.md` |
+
+#### 📋 Workflow de Criação OBRIGATÓRIO
+
+```yaml
+1. IDENTIFICAR_NECESSIDADE:
+   - Por que criar este documento?
+
+2. VERIFICAR_EXISTENTE:
+   - Existe documento similar?
+   - Posso atualizar ao invés de criar?
+
+3. VALIDAR_LOCALIZAÇÃO:
+   - Diretório está na estrutura aprovada?
+   - Nomenclatura está correta?
+
+4. SOLICITAR_APROVAÇÃO: ⚠️ OBRIGATÓRIO
+   prompt: |
+     Identifico necessidade de criar:
+     - Arquivo: {caminho/completo}
+     - Motivo: {justificativa}
+     - Conteúdo: {resumo}
+
+     Posso prosseguir?
+
+5. AGUARDAR_CONFIRMAÇÃO:
+   - ✅ APROVADO → Prosseguir
+   - ❌ REJEITADO → Buscar alternativa
+
+6. CRIAR_DOCUMENTO:
+   - Seguir template apropriado
+   - Preencher metadados
+
+7. REGISTRAR_CRIAÇÃO:
+   - Adicionar entrada em log-de-progresso.md
+```
+
+#### 🛡️ Penalidades por Violação
+
+**Se criar SEM aprovação**:
+1. ❌ **REVERTER IMEDIATAMENTE**
+2. ❌ **DELETAR ARQUIVO**
+3. ❌ **DOCUMENTAR VIOLAÇÃO** no log
+
+#### 📚 Referências Obrigatórias
+
+- [STRICT-RULES.md](../docs/governance/STRICT-RULES.md) - Regras completas
+- [Post-Activity Hook](../docs/hooks/post-activity-validation.md) - Validação automática
+- [Log de Progresso](../docs/logs/log-de-progresso.md) - Registro de atividades
+
+---
+
+**Última Atualização Governança**: 2026-01-22
+**Status**: ✅ ATIVO - CUMPRIMENTO OBRIGATÓRIO
