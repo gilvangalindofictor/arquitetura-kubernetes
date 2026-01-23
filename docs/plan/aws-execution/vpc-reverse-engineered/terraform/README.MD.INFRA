@@ -1,0 +1,7 @@
+Leia o README raiz
+
+Este diretório agora referencia o README raiz do projeto. Para documentação consolidada do Marco 0 (engenharia reversa da VPC, bootstrap do backend e uso dos módulos), consulte a seção "Terraform: Engenharia Reversa da VPC (Marco 0)" no README raiz:
+
+- [README.md](../../../../README.md#terraform-engenharia-reversa-da-vpc-marco-0)
+
+Se precisar manter documentação local estendida, atualize o README raiz e depois remova este apontador.

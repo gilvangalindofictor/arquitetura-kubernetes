@@ -1,0 +1,209 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-0908c31ff45bb7f03",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-0908c31ff45bb7f03",
+            "OwnerId": "891377105802",
+            "GroupName": "default",
+            "Description": "default VPC security group",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [
+                        {
+                            "UserId": "891377105802",
+                            "GroupId": "sg-0df6a92a6851d7985"
+                        },
+                        {
+                            "UserId": "891377105802",
+                            "GroupId": "sg-09ef953a38622daf5"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        },
+        {
+            "GroupId": "sg-09ef953a38622daf5",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-tools"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-09ef953a38622daf5",
+            "OwnerId": "891377105802",
+            "GroupName": "fictor-tools",
+            "Description": "fictor-tools",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "Alan",
+                            "CidrIp": "170.244.254.233/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                },
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 6379,
+                    "ToPort": 6379,
+                    "UserIdGroupPairs": [
+                        {
+                            "Description": "Batch",
+                            "UserId": "891377105802",
+                            "GroupId": "sg-0df6a92a6851d7985"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        },
+        {
+            "GroupId": "sg-003acae4ef66ced94",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 6379,
+                    "ToPort": 6379,
+                    "UserIdGroupPairs": [
+                        {
+                            "UserId": "891377105802",
+                            "GroupId": "sg-05b7195d5c9f566e6"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-003acae4ef66ced94",
+            "OwnerId": "891377105802",
+            "GroupName": "elasticache-cloudshell-fictor-redis",
+            "Description": "Security group for CloudShell to securely connect to fictor-redis. Modification could lead to connection loss.",
+            "IpPermissions": []
+        },
+        {
+            "GroupId": "sg-0c70e9740de04cc97",
+            "IpPermissionsEgress": [],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-redis-sg"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-0c70e9740de04cc97",
+            "OwnerId": "891377105802",
+            "GroupName": "fictor-redis-sg",
+            "Description": "fictor-redis-sg",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 6379,
+                    "ToPort": 6379,
+                    "UserIdGroupPairs": [
+                        {
+                            "Description": "batch",
+                            "UserId": "891377105802",
+                            "GroupId": "sg-0df6a92a6851d7985"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        },
+        {
+            "GroupId": "sg-05b7195d5c9f566e6",
+            "IpPermissionsEgress": [],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-05b7195d5c9f566e6",
+            "OwnerId": "891377105802",
+            "GroupName": "cloudshell-elasticache-fictor-redis",
+            "Description": "Security group attached to fictor-redis to allow CloudShell to connect to the database. Modification could lead to connection loss.",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 6379,
+                    "ToPort": 6379,
+                    "UserIdGroupPairs": [
+                        {
+                            "UserId": "891377105802",
+                            "GroupId": "sg-003acae4ef66ced94"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        },
+        {
+            "GroupId": "sg-0df6a92a6851d7985",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-batch-sg"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:891377105802:security-group/sg-0df6a92a6851d7985",
+            "OwnerId": "891377105802",
+            "GroupName": "fictor-batch-sg",
+            "Description": "fictor-batch-sg",
+            "IpPermissions": []
+        }
+    ]
+}

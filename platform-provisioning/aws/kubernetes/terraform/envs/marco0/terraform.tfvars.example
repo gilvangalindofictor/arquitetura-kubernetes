@@ -1,0 +1,5 @@
+# terraform.tfvars para envs/marco0
+# Substitua <account-id> pelo ID da sua conta AWS
+
+tf_state_bucket = "k8s-platform-terraform-state-<account-id>"
+aws_region = "us-east-1"
