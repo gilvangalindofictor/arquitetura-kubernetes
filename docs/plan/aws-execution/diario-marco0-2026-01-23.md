@@ -1,6 +1,59 @@
 # Diário de Bordo - Marco 0
 
-## 2026-01-24 - Execução Completa Marco 0 (Backend + Validações)
+## 2026-01-24 - Sessão 3: Ajuste de Scripts e Documentação Completa
+
+- Ações realizadas:
+  - **Correção do script create-tf-backend.sh**:
+    - ❌ **BUG ENCONTRADO**: Script original falhava em us-east-1 com `InvalidLocationConstraint`
+    - ✅ **FIX APLICADO**: Adicionada verificação para us-east-1 (não usa LocationConstraint)
+    - ✅ Melhorado feedback com mensagens de recurso já existente
+    - ✅ Adicionado `aws dynamodb wait table-exists` para garantir tabela ativa
+  - **Criados scripts auxiliares para marco0**:
+    - ✅ `init-terraform.sh`: Carrega credenciais AWS automaticamente e executa terraform init
+    - ✅ `plan-terraform.sh`: Carrega credenciais e executa terraform plan
+    - ✅ Ambos scripts suportam credenciais do cache AWS CLI (SSO/login)
+  - **Documentação completa criada**:
+    - ✅ `COMANDOS-EXECUTADOS-MARCO0.md`: Documento detalhado com TODOS os comandos AWS CLI
+    - ✅ Explicações técnicas de cada parâmetro
+    - ✅ Diagrams de funcionamento do backend S3/DynamoDB
+    - ✅ Troubleshooting comum e soluções
+    - ✅ Análise de custos ($0.01/mês estimado)
+
+- Problemas encontrados e soluções:
+  1. **Problema**: InvalidLocationConstraint ao criar bucket em us-east-1
+     - **Causa**: us-east-1 é região especial, não aceita LocationConstraint
+     - **Solução**: Condicional no script para detectar us-east-1
+     - **Aprendizado**: Outras regiões REQUEREM LocationConstraint
+
+  2. **Problema**: Terraform init falhando com "No valid credential sources found"
+     - **Causa**: Terraform backend não conseguia acessar credenciais do AWS CLI
+     - **Solução**: Exportar AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+     - **Aprendizado**: Credenciais STS (ASIA...) requerem SESSION_TOKEN obrigatório
+
+  3. **Problema**: State lock persistente após Ctrl+C
+     - **Causa**: Terraform não conseguiu executar cleanup (DeleteItem no DynamoDB)
+     - **Solução**: `terraform force-unlock <LOCK_ID>`
+     - **Aprendizado**: Sempre verificar se há processos rodando antes de force-unlock
+
+  4. **Problema**: terraform plan mostra "will create" para recursos existentes
+     - **Causa**: Recursos existentes não foram importados para o state
+     - **Solução**: DECISÃO ARQUITETURAL - não importar, usar código como blueprint
+     - **Aprendizado**: Import é tedioso (1 comando por recurso), código serve melhor como template
+
+- Estado atual:
+  - Scripts corrigidos e testados
+  - Documentação técnica completa (20+ páginas)
+  - Backend funcional e validado
+  - Credenciais carregadas automaticamente via scripts
+
+- Próximas ações:
+  - Commitar scripts e documentação
+  - Atualizar README principal com link para COMANDOS-EXECUTADOS-MARCO0.md
+  - Marco 0 considerado COMPLETO
+
+---
+
+## 2026-01-24 - Sessão 2: Execução Completa Marco 0 (Backend + Validações)
 
 - Ações realizadas (sessão 2):
   - **Bootstrap do Backend Terraform executado com sucesso**:

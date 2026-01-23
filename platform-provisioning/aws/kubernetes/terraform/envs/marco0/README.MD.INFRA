@@ -1,7 +1,12 @@
-Leia o README raiz
+⚠️ DOCUMENTAÇÃO CONSOLIDADA
 
-Este README local foi consolidado para o README raiz do projeto. Para instruções de uso, bootstrap e validação do ambiente `marco0`, consulte:
+A documentação completa do Marco 0 está no README principal do repositório.
 
-- [README.md](../../../README.md#terraform-engenharia-reversa-da-vpc-marco-0)
+Acesse: /README.md → Seção "Terraform: Engenharia Reversa da VPC (Marco 0)"
 
-Se precisar de documentação específica nesta pasta, atualize o README raiz e sincronize depois.
+Este diretório contém:
+- Scripts auxiliares de inicialização (init-terraform.sh, plan-terraform.sh)
+- Configuração do ambiente marco0 (main.tf, backend.tf, variables.tf, outputs.tf)
+- terraform.tfvars (não versionado, criado localmente)
+
+Para documentação detalhada, consulte o README principal.
