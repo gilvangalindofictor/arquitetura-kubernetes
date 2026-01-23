@@ -39,8 +39,17 @@ if [ "$CONFIRM" = false ]; then
 fi
 
 echo "[STEP] Creating S3 bucket (if not exists)"
-aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null || \
-  aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$REGION" --create-bucket-configuration LocationConstraint=$REGION
+if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+  echo "  Bucket already exists: $BUCKET_NAME"
+else
+  if [ "$REGION" = "us-east-1" ]; then
+    # us-east-1 não aceita LocationConstraint
+    aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$REGION"
+  else
+    aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$REGION" --create-bucket-configuration LocationConstraint=$REGION
+  fi
+  echo "  Bucket created: $BUCKET_NAME"
+fi
 
 echo "[STEP] Enabling versioning and encryption"
 aws s3api put-bucket-versioning --bucket "$BUCKET_NAME" --versioning-configuration Status=Enabled
@@ -50,8 +59,20 @@ echo "[STEP] Blocking public access"
 aws s3api put-public-access-block --bucket "$BUCKET_NAME" --public-access-block-configuration '{"BlockPublicAcls":true,"IgnorePublicAcls":true,"BlockPublicPolicy":true,"RestrictPublicBuckets":true}'
 
 echo "[STEP] Creating DynamoDB table for state locking (if not exists)"
-aws dynamodb describe-table --table-name "$DYNAMO_TABLE" --region "$REGION" 2>/dev/null || \
-  aws dynamodb create-table --table-name "$DYNAMO_TABLE" --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST --region "$REGION"
+if aws dynamodb describe-table --table-name "$DYNAMO_TABLE" --region "$REGION" 2>/dev/null >/dev/null; then
+  echo "  Table already exists: $DYNAMO_TABLE"
+else
+  aws dynamodb create-table \
+    --table-name "$DYNAMO_TABLE" \
+    --attribute-definitions AttributeName=LockID,AttributeType=S \
+    --key-schema AttributeName=LockID,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST \
+    --region "$REGION"
+  echo "  Table created: $DYNAMO_TABLE"
+  echo "  Waiting for table to become ACTIVE..."
+  aws dynamodb wait table-exists --table-name "$DYNAMO_TABLE" --region "$REGION"
+  echo "  Table is now ACTIVE"
+fi
 
 echo "[DONE] Backend prepared. Configure your Terraform backend as:
 
