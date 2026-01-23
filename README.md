@@ -399,35 +399,327 @@ cat ../docs/README.md
 
 ## Próximos Passos (relacionados ao Marco 0)
 
-## Terraform: Engenharia Reversa da VPC (Marco 0)
+## Terraform: Engenharia Reversa da VPC (Marco 0) ✅
 
-Esta seção consolida a documentação específica do Marco 0 (engenharia reversa da VPC) que antes estava em READMEs distribuídos.
+### 📋 Visão Geral
 
-- VPC analisada: `vpc-0b1396a59c417c1f0` (10.0.0.0/16)
-- Subnets mapeadas: public/private across AZs (ex.: 10.0.0.0/20, 10.0.16.0/20, 10.0.128.0/20, 10.0.144.0/20)
+Marco 0 estabelece a baseline da infraestrutura AWS usando engenharia reversa da VPC existente, criando um backend Terraform profissional e módulos reutilizáveis.
+
+**Status:** ✅ COMPLETO (2026-01-24)
+
+**Infraestrutura Analisada:**
+- VPC: `vpc-0b1396a59c417c1f0` (10.0.0.0/16)
+- Subnets: 4 (2 públicas, 2 privadas) em us-east-1a e us-east-1b
 - NAT Gateways: 2 (um por AZ)
 - Internet Gateway: 1
-- Route Tables: public + private
+- Route Tables: 4 (2 públicas, 2 privadas)
+- Security Groups: Mapeados
+- Account ID: 891377105802
 
-Uso rápido (validação local / leitura):
+---
 
-```bash
-# Inicializar (local, sem aplicar mudanças)
-terraform init
-terraform validate
-terraform plan  # idealmente em ambiente com backend configurado
+### 🏗️ Arquitetura do Backend Terraform
+
+```
+┌─────────────────────────────────────────┐
+│   S3 Bucket (State Storage)             │
+│   terraform-state-marco0-891377105802   │
+│   ├─ Versioning: ON                     │
+│   ├─ Encryption: AES256                 │
+│   ├─ Public Access: BLOCKED             │
+│   └─ State: marco0/terraform.tfstate    │
+└──────────────┬──────────────────────────┘
+               │
+               │ State Read/Write
+               ▼
+┌─────────────────────────────────────────┐
+│   DynamoDB Table (State Locking)        │
+│   terraform-state-lock                  │
+│   ├─ Key: LockID (String)               │
+│   ├─ Billing: PAY_PER_REQUEST           │
+│   └─ Status: ACTIVE                     │
+└─────────────────────────────────────────┘
 ```
 
-Bootstrap do backend Terraform (S3 + DynamoDB): use o script em
-`platform-provisioning/aws/kubernetes/terraform-backend/create-tf-backend.sh` para criar o bucket e a tabela de lock, depois preencha `platform-provisioning/aws/kubernetes/terraform/envs/marco0/backend.tf`.
+**Custo Estimado:** ~$0.01/mês (praticamente gratuito)
 
-Padrão de uso:
+---
 
-- Eng. reversa: `docs/plan/aws-execution/vpc-reverse-engineered/terraform/` (JSONs + código gerado)
-- Módulos base: `platform-provisioning/aws/kubernetes/terraform/modules/`
-- Ambiente de validação: `platform-provisioning/aws/kubernetes/terraform/envs/marco0/`
+### 📂 Estrutura de Diretórios
 
-Seções específicas detalhadas (anteriormente em READMEs locais) foram consolidadas aqui. Para referências rápidas nas pastas, os READMEs locais agora apontam para esta seção do README raiz.
+```
+platform-provisioning/aws/kubernetes/
+│
+├── terraform-backend/                    # Bootstrap do backend
+│   ├── create-tf-backend.sh              # ✅ Cria S3 + DynamoDB
+│   └── README.md
+│
+├── terraform/
+│   ├── modules/                          # ✅ Módulos reutilizáveis
+│   │   ├── vpc/
+│   │   ├── subnets/
+│   │   ├── nat-gateways/
+│   │   ├── internet-gateway/
+│   │   ├── route-tables/
+│   │   ├── security-groups/
+│   │   └── kms/
+│   │
+│   └── envs/
+│       └── marco0/                       # ✅ Ambiente de validação
+│           ├── main.tf                   # Orquestra módulos
+│           ├── backend.tf                # S3 + DynamoDB config
+│           ├── variables.tf              # Variáveis do ambiente
+│           ├── outputs.tf                # Outputs importantes
+│           ├── terraform.tfvars.example  # Template de valores
+│           ├── init-terraform.sh         # ✅ Script de inicialização
+│           └── plan-terraform.sh         # ✅ Script de planejamento
+│
+└── scripts/
+    └── setup-terraform-backend.sh
+
+docs/plan/aws-execution/
+├── COMANDOS-EXECUTADOS-MARCO0.md         # ✅ Guia completo (20+ páginas)
+├── diario-marco0-2026-01-23.md           # ✅ Diário de bordo
+└── vpc-reverse-output/                   # JSONs da engenharia reversa
+    ├── vpc.json
+    ├── subnets.json
+    ├── nat-gateways.json
+    ├── route-tables.json
+    ├── igw.json
+    └── security-groups.json
+```
+
+---
+
+### 🚀 Guia de Uso
+
+#### 1. Bootstrap do Backend (Executar UMA VEZ)
+
+```bash
+cd platform-provisioning/aws/kubernetes/terraform-backend/
+
+# Criar bucket S3 e tabela DynamoDB
+./create-tf-backend.sh \
+  --bucket terraform-state-marco0-891377105802 \
+  --region us-east-1 \
+  --yes
+```
+
+**O que faz:**
+- ✅ Cria bucket S3 com versionamento + criptografia AES256
+- ✅ Bloqueia acesso público ao bucket
+- ✅ Cria tabela DynamoDB para locking (PAY_PER_REQUEST)
+- ✅ Aguarda recursos ficarem prontos
+
+**Output esperado:**
+```
+[STEP] Creating S3 bucket (if not exists)
+  Bucket created: terraform-state-marco0-891377105802
+[STEP] Enabling versioning and encryption
+[STEP] Blocking public access
+[STEP] Creating DynamoDB table for state locking
+  Table created: terraform-state-lock
+  Waiting for table to become ACTIVE...
+  Table is now ACTIVE
+[DONE] Backend prepared.
+```
+
+---
+
+#### 2. Inicializar Terraform
+
+```bash
+cd platform-provisioning/aws/kubernetes/terraform/envs/marco0/
+
+# Opção A: Script automatizado (recomendado)
+./init-terraform.sh
+
+# Opção B: Manual
+terraform init
+```
+
+**O que faz:**
+- Carrega credenciais AWS automaticamente
+- Verifica identidade (aws sts get-caller-identity)
+- Conecta ao backend S3
+- Instala providers
+- Inicializa módulos
+
+---
+
+#### 3. Validar Configuração
+
+```bash
+# Opção A: Script automatizado
+./plan-terraform.sh
+
+# Opção B: Manual
+terraform plan
+```
+
+**Comportamento Esperado:**
+- **Plan mostra "will create"** (recursos não foram importados)
+- **DECISÃO ARQUITETURAL:** Código serve como blueprint para novos ambientes
+- Para gerenciar infra existente, seria necessário importar cada recurso:
+  ```bash
+  terraform import module.vpc.aws_vpc.vpc vpc-0b1396a59c417c1f0
+  terraform import 'module.subnets.aws_subnet.subnets["public-1a"]' subnet-xxx
+  # ... (tedioso, 1 comando por recurso)
+  ```
+
+---
+
+### 🛠️ Scripts Disponíveis
+
+#### create-tf-backend.sh
+**Correções aplicadas:**
+- ✅ Fix para us-east-1 (não usa LocationConstraint)
+- ✅ Verificação de recursos existentes
+- ✅ Aguarda tabela DynamoDB ficar ACTIVE
+
+#### init-terraform.sh (Novo)
+**Funcionalidades:**
+- Carrega credenciais do cache AWS CLI (`~/.aws/login/cache/*.json`)
+- Suporta credenciais SSO/STS temporárias
+- Verifica identidade antes de executar
+- Executa terraform init
+
+#### plan-terraform.sh (Novo)
+**Funcionalidades:**
+- Carrega credenciais automaticamente
+- Executa terraform plan
+- Suporta argumentos: `./plan-terraform.sh -out=tfplan`
+
+---
+
+### 📖 Documentação Detalhada
+
+**Guia Completo (20+ páginas):**
+[docs/plan/aws-execution/COMANDOS-EXECUTADOS-MARCO0.md](docs/plan/aws-execution/COMANDOS-EXECUTADOS-MARCO0.md)
+
+**Conteúdo:**
+- ✅ Todos os comandos AWS CLI explicados em detalhes
+- ✅ Parâmetros de cada comando (o que faz, por que é importante)
+- ✅ Diagrams de funcionamento do backend S3/DynamoDB
+- ✅ Análise de custos detalhada ($0.01/mês)
+- ✅ Troubleshooting completo com soluções
+- ✅ Tipos de credenciais AWS (IAM vs STS vs SSO)
+- ✅ Lock mechanism explicado
+- ✅ Problemas encontrados e correções aplicadas
+
+**Diário de Bordo:**
+[docs/plan/aws-execution/diario-marco0-2026-01-23.md](docs/plan/aws-execution/diario-marco0-2026-01-23.md)
+
+---
+
+### ⚠️ Problemas Comuns e Soluções
+
+#### 1. InvalidLocationConstraint (us-east-1)
+**Erro:**
+```
+InvalidLocationConstraint: The specified location-constraint is not valid
+```
+
+**Causa:** us-east-1 não aceita `LocationConstraint`
+
+**Solução:** Script corrigido com condicional para us-east-1
+
+---
+
+#### 2. No valid credential sources found
+**Erro:**
+```
+Error: No valid credential sources found
+```
+
+**Solução:**
+```bash
+# Exportar credenciais manualmente
+export AWS_ACCESS_KEY_ID="ASIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."  # Obrigatório para STS (ASIA...)
+
+# Ou usar scripts automatizados
+./init-terraform.sh
+```
+
+---
+
+#### 3. State Lock Timeout
+**Erro:**
+```
+Error acquiring the state lock
+Lock Info: ID: xxxxx-xxxx-xxxx
+```
+
+**Solução:**
+```bash
+# Verificar quem está com lock
+aws dynamodb get-item \
+  --table-name terraform-state-lock \
+  --key '{"LockID":{"S":"terraform-state-marco0-891377105802/marco0/terraform.tfstate-md5"}}'
+
+# Force unlock (CUIDADO! Só use se tiver certeza que nenhum processo está rodando)
+terraform force-unlock <LOCK_ID>
+```
+
+---
+
+### 📊 Recursos AWS Criados
+
+| Recurso | Nome | Configuração | Custo/Mês |
+|---------|------|--------------|-----------|
+| S3 Bucket | terraform-state-marco0-891377105802 | Versioning + AES256 + Public Block | ~$0.00002 |
+| DynamoDB Table | terraform-state-lock | LockID (String), PAY_PER_REQUEST | ~$0.0000125 |
+| **TOTAL** | | | **~$0.01** |
+
+---
+
+### ✅ Validações Executadas
+
+- ✅ Bucket S3 criado com versionamento
+- ✅ Criptografia AES256 habilitada
+- ✅ Public access bloqueado
+- ✅ Tabela DynamoDB criada e ACTIVE
+- ✅ Terraform init com backend remoto funcional
+- ✅ State file criado no S3
+- ✅ Lock mechanism testado (force-unlock executado)
+- ✅ Scripts corrigidos e funcionais
+- ✅ Documentação completa (20+ páginas)
+
+---
+
+### 🎯 Próximos Passos
+
+#### Opção 1: Importar Infraestrutura Existente
+```bash
+# Importar recursos para gerenciá-los via Terraform
+terraform import module.vpc.aws_vpc.vpc vpc-0b1396a59c417c1f0
+# ... (repetir para todos os recursos)
+```
+
+#### Opção 2: Usar como Blueprint (Recomendado)
+```bash
+# Criar novo ambiente usando os módulos
+cp -r envs/marco0 envs/staging
+# Ajustar terraform.tfvars e criar nova infraestrutura
+```
+
+#### Opção 3: Adicionar Módulo EKS
+```bash
+# Criar módulos para EKS cluster
+modules/eks-cluster/
+modules/eks-node-groups/
+```
+
+---
+
+### 📝 Commits Relacionados
+
+1. **420b043** - feat: add Marco 0 VPC reverse engineering and Terraform infrastructure
+2. **d5e4c95** - docs: update Marco 0 diary with commit and governance consolidation
+3. **df4c1ea** - feat: bootstrap Terraform backend and configure Marco 0 environment
+4. **4c8fba7** - docs: add comprehensive Marco 0 documentation and fix scripts
 
 1. ✅ Atualizar EKS Node Groups para usar 3 AZs
 2. ✅ Adicionar us-east-1c aos DB Subnet Groups (RDS, ElastiCache)

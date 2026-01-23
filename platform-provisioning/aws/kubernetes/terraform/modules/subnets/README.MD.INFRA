@@ -1,5 +1,0 @@
-Leia o README raiz
-
-Documentação de uso e exemplos de variáveis/outputs para módulos (incluindo `subnets`) foi consolidada no README raiz do projeto. Consulte a seção "Terraform: Engenharia Reversa da VPC (Marco 0)" para referências e padrões.
-
-- [README.md](../../../../README.md#terraform-engenharia-reversa-da-vpc-marco-0)
