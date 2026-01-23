@@ -1,0 +1,20 @@
+{
+    "InternetGateways": [
+        {
+            "Attachments": [
+                {
+                    "State": "available",
+                    "VpcId": "vpc-0b1396a59c417c1f0"
+                }
+            ],
+            "InternetGatewayId": "igw-0a8a1ad9cfddd037e",
+            "OwnerId": "891377105802",
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-igw"
+                }
+            ]
+        }
+    ]
+}

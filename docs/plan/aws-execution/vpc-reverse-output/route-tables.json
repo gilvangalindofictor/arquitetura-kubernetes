@@ -1,0 +1,149 @@
+{
+    "RouteTables": [
+        {
+            "Associations": [
+                {
+                    "Main": false,
+                    "RouteTableAssociationId": "rtbassoc-0d9e448d87c5f4f44",
+                    "RouteTableId": "rtb-08be102870fb64de7",
+                    "SubnetId": "subnet-07dca8ceb9882ba66",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                },
+                {
+                    "Main": false,
+                    "RouteTableAssociationId": "rtbassoc-0abca76ad0a268021",
+                    "RouteTableId": "rtb-08be102870fb64de7",
+                    "SubnetId": "subnet-0b5e0cae5658ea993",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "PropagatingVgws": [],
+            "RouteTableId": "rtb-08be102870fb64de7",
+            "Routes": [
+                {
+                    "DestinationCidrBlock": "10.0.0.0/16",
+                    "GatewayId": "local",
+                    "Origin": "CreateRouteTable",
+                    "State": "active"
+                },
+                {
+                    "DestinationCidrBlock": "0.0.0.0/0",
+                    "GatewayId": "igw-0a8a1ad9cfddd037e",
+                    "Origin": "CreateRoute",
+                    "State": "active"
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-rtb-public"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "OwnerId": "891377105802"
+        },
+        {
+            "Associations": [
+                {
+                    "Main": true,
+                    "RouteTableAssociationId": "rtbassoc-05e67829f42ddf4b2",
+                    "RouteTableId": "rtb-0e8f3e31c8360f2ef",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "PropagatingVgws": [],
+            "RouteTableId": "rtb-0e8f3e31c8360f2ef",
+            "Routes": [
+                {
+                    "DestinationCidrBlock": "10.0.0.0/16",
+                    "GatewayId": "local",
+                    "Origin": "CreateRouteTable",
+                    "State": "active"
+                }
+            ],
+            "Tags": [],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "OwnerId": "891377105802"
+        },
+        {
+            "Associations": [
+                {
+                    "Main": false,
+                    "RouteTableAssociationId": "rtbassoc-06b7e63e4a61aee17",
+                    "RouteTableId": "rtb-00c7af803ee93ac2c",
+                    "SubnetId": "subnet-0288a67cd352effa7",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "PropagatingVgws": [],
+            "RouteTableId": "rtb-00c7af803ee93ac2c",
+            "Routes": [
+                {
+                    "DestinationCidrBlock": "10.0.0.0/16",
+                    "GatewayId": "local",
+                    "Origin": "CreateRouteTable",
+                    "State": "active"
+                },
+                {
+                    "DestinationCidrBlock": "0.0.0.0/0",
+                    "NatGatewayId": "nat-0be570edfb2eff63e",
+                    "Origin": "CreateRoute",
+                    "State": "active"
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-rtb-private2-us-east-1b"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "OwnerId": "891377105802"
+        },
+        {
+            "Associations": [
+                {
+                    "Main": false,
+                    "RouteTableAssociationId": "rtbassoc-0eec0dd9ef7048acc",
+                    "RouteTableId": "rtb-09656e8e3e2f44c62",
+                    "SubnetId": "subnet-0472ab28726cdf745",
+                    "AssociationState": {
+                        "State": "associated"
+                    }
+                }
+            ],
+            "PropagatingVgws": [],
+            "RouteTableId": "rtb-09656e8e3e2f44c62",
+            "Routes": [
+                {
+                    "DestinationCidrBlock": "10.0.0.0/16",
+                    "GatewayId": "local",
+                    "Origin": "CreateRouteTable",
+                    "State": "active"
+                },
+                {
+                    "DestinationCidrBlock": "0.0.0.0/0",
+                    "NatGatewayId": "nat-03512e5ee0642dcf2",
+                    "Origin": "CreateRoute",
+                    "State": "active"
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-rtb-private1-us-east-1a"
+                }
+            ],
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "OwnerId": "891377105802"
+        }
+    ]
+}

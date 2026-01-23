@@ -1,0 +1,7 @@
+Leia o README raiz
+
+Este README local foi consolidado para o README raiz do projeto. Para instruções de uso, bootstrap e validação do ambiente `marco0`, consulte:
+
+- [README.md](../../../README.md#terraform-engenharia-reversa-da-vpc-marco-0)
+
+Se precisar de documentação específica nesta pasta, atualize o README raiz e sincronize depois.

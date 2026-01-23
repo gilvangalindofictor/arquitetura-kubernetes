@@ -730,9 +730,10 @@ kms_key_id                # alias/k8s-platform-prod
 - [x] Criação de documento de contexto (este arquivo)
 - [x] Scripts de Marco 0 (engenharia reversa + incremental)
 - [x] Validação de ambiente WSL para testes locais
+- [x] Estruturação de módulos Terraform
 
 ### 🔄 Em Progresso
-- [ ] Estruturação de módulos Terraform
+- [ ] Configuração do Terraform Backend (S3 + DynamoDB)
 - [ ] Execução do script de engenharia reversa
 
 ### 📅 Planejado
@@ -978,6 +979,437 @@ make validate      # Verificar recursos criados
 
 ---
 
+### Decisão #005: Configuração do Terraform Backend S3 + DynamoDB
+
+**Data:** 2026-01-23
+**Decisores:** DevOps Team + Especialista Terraform
+**Status:** 🟡 **EM CONFIGURAÇÃO**
+
+**Decisão:**
+Criar bucket S3 dedicado e tabela DynamoDB para armazenamento do Terraform state com lock distribuído, seguindo boas práticas de segurança e nomenclatura AWS.
+
+**Contexto:**
+Ao executar `terraform init` no diretório [envs/marco0](../../platform-provisioning/aws/kubernetes/terraform/envs/marco0), o Terraform solicita configuração do backend S3. Precisamos definir os valores corretos baseados na conta AWS atual e boas práticas.
+
+#### 📊 Informações da Conta AWS
+
+**Account ID:** `891377105802`
+
+**Região:** `us-east-1` (N. Virginia)
+
+**Credenciais configuradas:** ✅ AWS CLI autenticado
+
+#### 🗂️ Nomenclatura de Recursos (Boas Práticas AWS)
+
+Seguindo o padrão estabelecido no [plano de execução](aws-console-execution-plan.md#341-criar-bucket-para-terraform-state), a nomenclatura deve incluir o Account ID para garantir unicidade global dos buckets S3:
+
+**Padrão:**
+```
+{projeto}-{propósito}-{ambiente}-{account-id}
+```
+
+#### 📦 Configuração do Backend S3
+
+**1. Nome do Bucket S3:**
+```
+k8s-platform-terraform-state-891377105802
+```
+
+**Justificativa:**
+- ✅ Prefixo `k8s-platform`: Identifica o projeto
+- ✅ `terraform-state`: Propósito claro
+- ✅ Account ID como sufixo: Garante unicidade global do bucket S3
+- ✅ Sem referência a ambiente específico (o bucket armazena states de todos os ambientes)
+
+**2. Key (caminho do state file):**
+```
+marco0/terraform.tfstate
+```
+
+**Estrutura de keys para múltiplos ambientes:**
+```
+k8s-platform-terraform-state-891377105802/
+├── marco0/terraform.tfstate           # State do baseline (VPC atual)
+├── prod/terraform.tfstate             # State do ambiente produção (futuro)
+└── staging/terraform.tfstate          # State do ambiente staging (futuro)
+```
+
+**Justificativa:**
+- ✅ Isolamento por ambiente via prefixo de key
+- ✅ Único bucket para todos os ambientes (economia)
+- ✅ Facilita gestão centralizada de estados
+
+**3. Região:**
+```
+us-east-1
+```
+
+**4. Tabela DynamoDB (state locking):**
+```
+k8s-platform-terraform-locks
+```
+
+**Justificativa:**
+- ✅ Nome descritivo do propósito (locks)
+- ✅ Tabela única para todos os ambientes (economia)
+- ✅ Partition key: `LockID` (string) - padrão Terraform
+
+**5. Encryption:**
+- ✅ `encrypt = true` (obrigatório)
+- ✅ KMS Key: `alias/k8s-platform-prod` (criada posteriormente)
+- ✅ Por enquanto: SSE-S3 (criptografia padrão)
+
+#### 🛠️ Passo a Passo: Criação do Backend
+
+**OPÇÃO 1: Via AWS Console (Recomendado para primeira vez)**
+
+##### Passo 1.1: Criar Bucket S3
+
+```bash
+# Via AWS CLI (alternativa)
+aws s3api create-bucket \
+    --bucket k8s-platform-terraform-state-891377105802 \
+    --region us-east-1 \
+    --acl private
+
+# Habilitar versionamento (OBRIGATÓRIO para rollback)
+aws s3api put-bucket-versioning \
+    --bucket k8s-platform-terraform-state-891377105802 \
+    --versioning-configuration Status=Enabled
+
+# Habilitar criptografia padrão
+aws s3api put-bucket-encryption \
+    --bucket k8s-platform-terraform-state-891377105802 \
+    --server-side-encryption-configuration '{
+      "Rules": [{
+        "ApplyServerSideEncryptionByDefault": {
+          "SSEAlgorithm": "AES256"
+        },
+        "BucketKeyEnabled": true
+      }]
+    }'
+
+# Bloquear acesso público (OBRIGATÓRIO)
+aws s3api put-public-access-block \
+    --bucket k8s-platform-terraform-state-891377105802 \
+    --public-access-block-configuration \
+        BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+# Adicionar tags
+aws s3api put-bucket-tagging \
+    --bucket k8s-platform-terraform-state-891377105802 \
+    --tagging 'TagSet=[
+        {Key=Project,Value=k8s-platform},
+        {Key=Environment,Value=shared},
+        {Key=Purpose,Value=terraform-state},
+        {Key=ManagedBy,Value=terraform}
+    ]'
+```
+
+**Via Console AWS:**
+1. Acesse: https://console.aws.amazon.com/s3
+2. Clique em **Create bucket**
+3. Preencha:
+   - **Bucket name:** `k8s-platform-terraform-state-891377105802`
+   - **AWS Region:** `us-east-1`
+   - **Block all public access:** ✅ **Marcar**
+   - **Bucket Versioning:** Enable
+   - **Default encryption:** Enable (SSE-S3)
+   - **Tags:**
+     - `Project` = `k8s-platform`
+     - `Environment` = `shared`
+     - `Purpose` = `terraform-state`
+4. Clique em **Create bucket**
+
+##### Passo 1.2: Criar Tabela DynamoDB
+
+```bash
+# Via AWS CLI
+aws dynamodb create-table \
+    --table-name k8s-platform-terraform-locks \
+    --attribute-definitions AttributeName=LockID,AttributeType=S \
+    --key-schema AttributeName=LockID,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST \
+    --region us-east-1 \
+    --tags Key=Project,Value=k8s-platform \
+           Key=Environment,Value=shared \
+           Key=Purpose,Value=terraform-locks \
+           Key=ManagedBy,Value=terraform
+
+# Verificar criação
+aws dynamodb describe-table \
+    --table-name k8s-platform-terraform-locks \
+    --query 'Table.[TableName,TableStatus,BillingModeSummary.BillingMode]' \
+    --output table
+```
+
+**Via Console AWS:**
+1. Acesse: https://console.aws.amazon.com/dynamodb
+2. Clique em **Create table**
+3. Preencha:
+   - **Table name:** `k8s-platform-terraform-locks`
+   - **Partition key:** `LockID` (String)
+   - **Table settings:** Customize settings
+   - **Capacity mode:** On-demand (economia, sem provisionamento)
+   - **Tags:**
+     - `Project` = `k8s-platform`
+     - `Environment` = `shared`
+     - `Purpose` = `terraform-locks`
+4. Clique em **Create table**
+
+**OPÇÃO 2: Script Automatizado**
+
+Criar arquivo: `platform-provisioning/aws/scripts/setup-terraform-backend.sh`
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Configurações
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION="us-east-1"
+BUCKET_NAME="k8s-platform-terraform-state-${ACCOUNT_ID}"
+DYNAMODB_TABLE="k8s-platform-terraform-locks"
+
+echo "🚀 Configurando Terraform Backend"
+echo "Account ID: ${ACCOUNT_ID}"
+echo "Região: ${REGION}"
+echo "Bucket: ${BUCKET_NAME}"
+echo "DynamoDB Table: ${DYNAMODB_TABLE}"
+echo ""
+
+# 1. Criar bucket S3
+echo "📦 Criando bucket S3..."
+if aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
+    echo "✅ Bucket já existe: ${BUCKET_NAME}"
+else
+    aws s3api create-bucket \
+        --bucket "${BUCKET_NAME}" \
+        --region "${REGION}" \
+        --acl private
+    echo "✅ Bucket criado: ${BUCKET_NAME}"
+fi
+
+# 2. Configurar versionamento
+echo "🔄 Habilitando versionamento..."
+aws s3api put-bucket-versioning \
+    --bucket "${BUCKET_NAME}" \
+    --versioning-configuration Status=Enabled
+echo "✅ Versionamento habilitado"
+
+# 3. Configurar criptografia
+echo "🔒 Habilitando criptografia..."
+aws s3api put-bucket-encryption \
+    --bucket "${BUCKET_NAME}" \
+    --server-side-encryption-configuration '{
+      "Rules": [{
+        "ApplyServerSideEncryptionByDefault": {
+          "SSEAlgorithm": "AES256"
+        },
+        "BucketKeyEnabled": true
+      }]
+    }'
+echo "✅ Criptografia habilitada"
+
+# 4. Bloquear acesso público
+echo "🚫 Bloqueando acesso público..."
+aws s3api put-public-access-block \
+    --bucket "${BUCKET_NAME}" \
+    --public-access-block-configuration \
+        BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+echo "✅ Acesso público bloqueado"
+
+# 5. Adicionar tags
+echo "🏷️  Adicionando tags..."
+aws s3api put-bucket-tagging \
+    --bucket "${BUCKET_NAME}" \
+    --tagging 'TagSet=[
+        {Key=Project,Value=k8s-platform},
+        {Key=Environment,Value=shared},
+        {Key=Purpose,Value=terraform-state},
+        {Key=ManagedBy,Value=terraform}
+    ]'
+echo "✅ Tags adicionadas"
+
+# 6. Criar tabela DynamoDB
+echo "🗄️  Criando tabela DynamoDB..."
+if aws dynamodb describe-table --table-name "${DYNAMODB_TABLE}" --region "${REGION}" 2>/dev/null; then
+    echo "✅ Tabela já existe: ${DYNAMODB_TABLE}"
+else
+    aws dynamodb create-table \
+        --table-name "${DYNAMODB_TABLE}" \
+        --attribute-definitions AttributeName=LockID,AttributeType=S \
+        --key-schema AttributeName=LockID,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST \
+        --region "${REGION}" \
+        --tags Key=Project,Value=k8s-platform \
+               Key=Environment,Value=shared \
+               Key=Purpose,Value=terraform-locks \
+               Key=ManagedBy,Value=terraform
+
+    echo "⏳ Aguardando tabela ficar ativa..."
+    aws dynamodb wait table-exists --table-name "${DYNAMODB_TABLE}" --region "${REGION}"
+    echo "✅ Tabela criada: ${DYNAMODB_TABLE}"
+fi
+
+echo ""
+echo "✅ Backend Terraform configurado com sucesso!"
+echo ""
+echo "📝 Valores para terraform init:"
+echo "   bucket         = \"${BUCKET_NAME}\""
+echo "   key            = \"marco0/terraform.tfstate\""
+echo "   region         = \"${REGION}\""
+echo "   dynamodb_table = \"${DYNAMODB_TABLE}\""
+echo "   encrypt        = true"
+```
+
+**Uso do script:**
+```bash
+cd platform-provisioning/aws/scripts
+chmod +x setup-terraform-backend.sh
+./setup-terraform-backend.sh
+```
+
+#### 🔧 Configuração do Terraform Init
+
+Após criar os recursos, executar `terraform init` com os valores:
+
+**Método 1: Interativo (valores solicitados)**
+
+```bash
+cd /home/gilvangalindo/projects/Arquitetura/Kubernetes/platform-provisioning/aws/kubernetes/terraform/envs/marco0
+terraform init
+
+# Quando solicitado:
+# bucket: k8s-platform-terraform-state-891377105802
+# key: marco0/terraform.tfstate
+# region: us-east-1
+# dynamodb_table: k8s-platform-terraform-locks
+# encrypt: true
+```
+
+**Método 2: Backend Config File (Recomendado)**
+
+Criar arquivo: `envs/marco0/backend-config.hcl`
+
+```hcl
+bucket         = "k8s-platform-terraform-state-891377105802"
+key            = "marco0/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "k8s-platform-terraform-locks"
+encrypt        = true
+```
+
+**Executar:**
+```bash
+terraform init -backend-config=backend-config.hcl
+```
+
+**Método 3: Variáveis de Ambiente**
+
+```bash
+export TF_CLI_ARGS_init="-backend-config='bucket=k8s-platform-terraform-state-891377105802' \
+  -backend-config='key=marco0/terraform.tfstate' \
+  -backend-config='region=us-east-1' \
+  -backend-config='dynamodb_table=k8s-platform-terraform-locks' \
+  -backend-config='encrypt=true'"
+
+terraform init
+```
+
+#### 📋 Checklist de Validação
+
+Após configuração do backend:
+
+```bash
+# 1. Verificar bucket S3
+aws s3 ls s3://k8s-platform-terraform-state-891377105802/
+# Esperado: (vazio inicialmente, após terraform apply terá o state)
+
+# 2. Verificar versionamento
+aws s3api get-bucket-versioning \
+    --bucket k8s-platform-terraform-state-891377105802
+# Esperado: Status: Enabled
+
+# 3. Verificar criptografia
+aws s3api get-bucket-encryption \
+    --bucket k8s-platform-terraform-state-891377105802
+# Esperado: SSEAlgorithm: AES256
+
+# 4. Verificar bloqueio público
+aws s3api get-public-access-block \
+    --bucket k8s-platform-terraform-state-891377105802
+# Esperado: BlockPublicAcls: true (todos)
+
+# 5. Verificar tabela DynamoDB
+aws dynamodb describe-table \
+    --table-name k8s-platform-terraform-locks \
+    --query 'Table.[TableName,TableStatus]' \
+    --output table
+# Esperado: TableStatus: ACTIVE
+
+# 6. Testar Terraform
+cd envs/marco0
+terraform init -backend-config=backend-config.hcl
+# Esperado: Successfully configured the backend "s3"!
+
+terraform workspace list
+# Esperado: * default
+```
+
+#### 💰 Custos Estimados
+
+| Recurso | Custo Mensal | Observação |
+|---------|--------------|------------|
+| **S3 Bucket** | ~$0.02 | State files < 1 MB, negligível |
+| **S3 Versionamento** | ~$0.05 | ~10 versões antigas |
+| **DynamoDB Table** | ~$0.00 | On-demand, <100 requisições/mês |
+| **Total** | **~$0.07/mês** | **Custo desprezível** |
+
+**Economia vs alternativas:**
+- ✅ 100x mais barato que Terraform Cloud Free (gratuito até 500 resources)
+- ✅ Nativo AWS, sem dependências externas
+- ✅ Controle total sobre segurança e acesso
+
+#### 🔒 Segurança e Boas Práticas
+
+**Implementadas:**
+- ✅ Versionamento habilitado (rollback de states)
+- ✅ Criptografia em repouso (SSE-S3)
+- ✅ Bloqueio de acesso público (100%)
+- ✅ DynamoDB locking (previne corrupção)
+- ✅ Tags de rastreabilidade
+
+**A implementar (futuro):**
+- [ ] KMS Customer Managed Key (ao invés de SSE-S3)
+- [ ] Lifecycle policy (mover versões antigas para Glacier após 90 dias)
+- [ ] CloudTrail logging (auditoria de acesso ao state)
+- [ ] S3 Bucket Policy (restringir acesso apenas a roles específicas)
+- [ ] Replicação cross-region (DR)
+
+#### 🎯 Resumo Executivo
+
+**Valores para `terraform init`:**
+
+```
+bucket         = k8s-platform-terraform-state-891377105802
+key            = marco0/terraform.tfstate
+region         = us-east-1
+dynamodb_table = k8s-platform-terraform-locks
+encrypt        = true
+```
+
+**Próximos passos:**
+1. [ ] Executar script `setup-terraform-backend.sh` **OU** criar recursos via Console
+2. [ ] Criar arquivo `backend-config.hcl` no diretório `envs/marco0`
+3. [ ] Executar `terraform init -backend-config=backend-config.hcl`
+4. [ ] Validar backend com checklist acima
+5. [ ] Prosseguir com `terraform plan` e `terraform apply`
+
+**Status:** ⏳ **AGUARDANDO CRIAÇÃO DOS RECURSOS**
+
+---
+
 ## 📚 Referências
 
 ### Documentos do Projeto
@@ -1002,9 +1434,10 @@ make validate      # Verificar recursos criados
 | Data | Versão | Alterações | Autor |
 |------|--------|------------|-------|
 | 2026-01-22 | 1.0 | Criação do diário de bordo, análise de VPC existente | DevOps Team |
+| 2026-01-23 | 1.1 | Decisão #005: Configuração Terraform Backend S3+DynamoDB, script setup automatizado | DevOps Team |
 
 ---
 
-**Última atualização:** 2026-01-22
-**Próxima revisão:** Após criação das subnets EKS
+**Última atualização:** 2026-01-23
+**Próxima revisão:** Após inicialização do Terraform backend
 **Mantenedor:** DevOps Team

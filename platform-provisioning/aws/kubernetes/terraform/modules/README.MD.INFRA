@@ -1,0 +1,7 @@
+Leia o README raiz
+
+Este README local foi resumido. A documentação consolidada sobre módulos e padrões de módulos está no README raiz, seção "Terraform: Engenharia Reversa da VPC (Marco 0)".
+
+- [README.md](../../../../README.md#terraform-engenharia-reversa-da-vpc-marco-0)
+
+Mantenha módulos revisados e sigam as políticas de commit antes de enviar para `main`.

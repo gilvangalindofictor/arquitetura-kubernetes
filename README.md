@@ -399,6 +399,36 @@ cat ../docs/README.md
 
 ## Próximos Passos (relacionados ao Marco 0)
 
+## Terraform: Engenharia Reversa da VPC (Marco 0)
+
+Esta seção consolida a documentação específica do Marco 0 (engenharia reversa da VPC) que antes estava em READMEs distribuídos.
+
+- VPC analisada: `vpc-0b1396a59c417c1f0` (10.0.0.0/16)
+- Subnets mapeadas: public/private across AZs (ex.: 10.0.0.0/20, 10.0.16.0/20, 10.0.128.0/20, 10.0.144.0/20)
+- NAT Gateways: 2 (um por AZ)
+- Internet Gateway: 1
+- Route Tables: public + private
+
+Uso rápido (validação local / leitura):
+
+```bash
+# Inicializar (local, sem aplicar mudanças)
+terraform init
+terraform validate
+terraform plan  # idealmente em ambiente com backend configurado
+```
+
+Bootstrap do backend Terraform (S3 + DynamoDB): use o script em
+`platform-provisioning/aws/kubernetes/terraform-backend/create-tf-backend.sh` para criar o bucket e a tabela de lock, depois preencha `platform-provisioning/aws/kubernetes/terraform/envs/marco0/backend.tf`.
+
+Padrão de uso:
+
+- Eng. reversa: `docs/plan/aws-execution/vpc-reverse-engineered/terraform/` (JSONs + código gerado)
+- Módulos base: `platform-provisioning/aws/kubernetes/terraform/modules/`
+- Ambiente de validação: `platform-provisioning/aws/kubernetes/terraform/envs/marco0/`
+
+Seções específicas detalhadas (anteriormente em READMEs locais) foram consolidadas aqui. Para referências rápidas nas pastas, os READMEs locais agora apontam para esta seção do README raiz.
+
 1. ✅ Atualizar EKS Node Groups para usar 3 AZs
 2. ✅ Adicionar us-east-1c aos DB Subnet Groups (RDS, ElastiCache)
 3. ✅ Testar distribuição de pods em 3 AZs
