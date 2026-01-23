@@ -1,3 +1,48 @@
+# Diário de Bordo - Marco 0
+
+## 2026-01-24 - Execução Completa Marco 0 (Backend + Validações)
+
+- Ações realizadas (sessão 2):
+  - **Bootstrap do Backend Terraform executado com sucesso**:
+    - Bucket S3 criado: `terraform-state-marco0-891377105802`
+    - Versionamento habilitado
+    - Criptografia AES256 configurada
+    - Public access bloqueado
+    - Tabela DynamoDB criada: `terraform-state-lock`
+    - Billing mode: PAY_PER_REQUEST
+  - **Backend.tf configurado** com valores do bucket e tabela
+  - **terraform.tfvars criado** com valores reais da infraestrutura
+  - **Terraform init executado com sucesso** com backend remoto S3
+  - **State file criado** no S3 (marco0/terraform.tfstate)
+  - **Lock mechanism testado** via DynamoDB (force-unlock executado)
+
+- Observações técnicas importantes:
+  - Terraform plan mostra criação de recursos (expected) porque os recursos existentes NÃO foram importados para o state
+  - Para obter "No changes" seria necessário executar `terraform import` para cada recurso:
+
+    ```bash
+    terraform import module.vpc.aws_vpc.vpc vpc-0b1396a59c417c1f0
+    terraform import module.subnets.aws_subnet.subnets["subnet-xyz"] subnet-xyz
+    # ... para cada recurso
+    ```
+
+  - **Decisão arquitetural**: Manter código como "blueprint" para novas regiões/ambientes ao invés de importar infraestrutura existente
+  - Código validado localmente (terraform validate) e estrutura está correta
+
+- Estado atual:
+  - Backend Terraform funcional (S3 + DynamoDB)
+  - Código Terraform modular e reutilizável
+  - State file versionado e criptografado
+  - Pronto para criar novas infraestruturas (novos ambientes, regiões)
+
+- Próximas ações (opcional):
+  1. Se necessário gerenciar infra existente via Terraform: executar imports
+  2. OU usar o código como template para novos ambientes (marco1, marco2, etc.)
+  3. Adicionar EKS cluster provisioning aos módulos
+  4. Criar ambientes adicionais (staging, production)
+
+---
+
 ## 2026-01-24 - Commit e Consolidação Marco 0
 
 - Ações realizadas:
