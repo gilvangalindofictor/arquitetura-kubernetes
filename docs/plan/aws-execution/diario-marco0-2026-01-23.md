@@ -556,3 +556,321 @@ Inclui:
 
 Arquivo gerado automaticamente em: 2026-01-23
 Autor: DevOps Team
+
+---
+
+## 2026-01-26 - Sessão 6: Marco 2 - Platform Services (AWS Load Balancer Controller)
+
+### 📋 Resumo Executivo
+- ✅ **MARCO 2 - FASE 1 COMPLETO**: AWS Load Balancer Controller instalado e validado
+- ✅ **6 recursos criados com sucesso** (OIDC Provider, IAM Policy/Role, Service Account, Helm Release)
+- ✅ **100% Conformidade IaC**: Todos os recursos criados via Terraform
+- ✅ **Ingress Controller funcional**: ALB criado automaticamente, targets healthy, HTTP 200 OK
+- ⏱️ **Tempo total de instalação**: ~3 minutos (OIDC + IAM) + ~40 segundos (Helm)
+
+### 🎯 Contexto Inicial
+- Marco 1 completo: Cluster EKS com 7 nodes operacionais
+- Objetivo: Instalar AWS Load Balancer Controller para habilitar Ingress/ALB
+- Necessidade: OIDC Provider não existia (pré-requisito para IRSA)
+- Estratégia: Terraform modular + Helm para instalação cloud-agnostic
+
+### 🔧 Ações Realizadas
+
+#### 1. Estrutura Marco 2 Criada
+**Diretórios:**
+```
+platform-provisioning/aws/kubernetes/terraform/envs/marco2/
+├── modules/
+│   └── aws-load-balancer-controller/
+│       ├── main.tf              # IRSA + Helm chart
+│       ├── variables.tf         # Variáveis do módulo
+│       ├── outputs.tf           # ARNs e nomes
+│       ├── versions.tf          # Provider requirements
+│       └── iam-policy.json      # Policy oficial AWS v2.11.0
+├── main.tf                      # OIDC Provider + módulo ALB
+├── providers.tf                 # AWS + Kubernetes + Helm + TLS providers
+├── backend.tf                   # S3 state (marco2/terraform.tfstate)
+├── variables.tf                 # VPC ID, cluster name, region
+├── outputs.tf                   # Outputs do Marco 2
+├── terraform.tfvars             # Valores do ambiente
+└── scripts/
+    ├── init-terraform.sh        # Inicialização com credenciais
+    ├── plan-terraform.sh        # Terraform plan
+    └── apply-terraform.sh       # Apply com confirmação
+```
+
+#### 2. OIDC Provider para EKS
+**Problema identificado:**
+- Data source tentava buscar OIDC provider inexistente
+- Erro: `finding IAM OIDC Provider by url (...): not found`
+
+**Solução implementada:**
+- Criação do OIDC Provider via Terraform no `main.tf`
+- Uso do provider `hashicorp/tls` para obter thumbprint do certificado
+- Provider configurado com:
+  - URL: `https://oidc.eks.us-east-1.amazonaws.com/id/5C0C8E8002CF20AB8918B1752442BF79`
+  - Client ID: `sts.amazonaws.com`
+  - Thumbprint: `06b25927c42a721631c1efd9431e648fa62e1e39`
+
+**Resultado:**
+```
+aws_iam_openid_connect_provider.eks: Created
+ARN: arn:aws:iam::891377105802:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/5C0C8E8002CF20AB8918B1752442BF79
+```
+
+#### 3. AWS Load Balancer Controller - Módulo Terraform
+**Recursos criados pelo módulo:**
+
+1. **IAM Policy** - Permissões para gerenciar ALB/NLB
+   - Nome: `AWSLoadBalancerControllerIAMPolicy-k8s-platform-prod`
+   - ARN: `arn:aws:iam::891377105802:policy/AWSLoadBalancerControllerIAMPolicy-k8s-platform-prod`
+   - Source: [AWS oficial v2.11.0](https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.11.0/docs/install/iam_policy.json)
+
+2. **IAM Role** - IRSA (IAM Roles for Service Accounts)
+   - Nome: `AWSLoadBalancerControllerRole-k8s-platform-prod`
+   - ARN: `arn:aws:iam::891377105802:role/AWSLoadBalancerControllerRole-k8s-platform-prod`
+   - Trust policy: Service Account `kube-system/aws-load-balancer-controller`
+
+3. **Kubernetes Service Account**
+   - Nome: `aws-load-balancer-controller`
+   - Namespace: `kube-system`
+   - Annotation: `eks.amazonaws.com/role-arn` com ARN da IAM Role
+
+4. **Helm Release** - AWS Load Balancer Controller
+   - Chart: `aws-load-balancer-controller` v1.11.0
+   - Repository: `https://aws.github.io/eks-charts`
+   - Namespace: `kube-system`
+   - Replicas: 2 (default)
+   - Node Selector: `node-type=system`
+   - Tolerations: `node-type=system:NoSchedule`
+
+**Configurações do Helm:**
+- `clusterName`: k8s-platform-prod
+- `region`: us-east-1
+- `vpcId`: vpc-0b1396a59c417c1f0
+- `serviceAccount.create`: false (usamos SA criada pelo Terraform)
+- Features desabilitadas (custo): Shield, WAF, WAFv2
+
+#### 4. Validação Completa
+
+**a) Status do Deployment:**
+```bash
+$ kubectl get deployment -n kube-system aws-load-balancer-controller
+NAME                           READY   UP-TO-DATE   AVAILABLE   AGE
+aws-load-balancer-controller   2/2     2            2           25s
+```
+
+**b) Pods Running:**
+```bash
+$ kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+NAME                                            READY   STATUS    RESTARTS   AGE
+aws-load-balancer-controller-67555dfd56-5vmxw   1/1     Running   0          26s
+aws-load-balancer-controller-67555dfd56-sf5rc   1/1     Running   0          26s
+```
+
+**c) Teste com Ingress:**
+Criado namespace `test-alb` com:
+- Deployment nginx (2 replicas) em nodes workloads
+- Service ClusterIP na porta 80
+- Ingress com annotations para ALB internet-facing
+
+**Recursos AWS criados automaticamente pelo controller:**
+```
+✅ Security Group: k8s-testalb-nginxtes-16dfe0f4c5
+✅ Target Group: k8s-testalb-nginxtes-e62941bc69
+   - ARN: arn:aws:elasticloadbalancing:us-east-1:891377105802:targetgroup/k8s-testalb-nginxtes-e62941bc69/49185039e4473ba8
+   - Targets: 2/2 healthy (10.0.132.244:80, 10.0.157.147:80)
+✅ Application Load Balancer: k8s-testalb-nginxtes-ce8b024b2a
+   - ARN: arn:aws:elasticloadbalancing:us-east-1:891377105802:loadbalancer/app/k8s-testalb-nginxtes-ce8b024b2a/0ee3d2e0e231dd18
+   - DNS: k8s-testalb-nginxtes-ce8b024b2a-340076399.us-east-1.elb.amazonaws.com
+   - State: active (após ~20 segundos de provisioning)
+   - Subnets: public1-us-east-1a, public2-us-east-1b
+✅ Listener: porta 80 HTTP
+✅ Listener Rule: rota /* → target group
+✅ Target Group Binding: Service nginx-test:80
+```
+
+**d) Teste HTTP:**
+```bash
+$ curl -v http://k8s-testalb-nginxtes-ce8b024b2a-340076399.us-east-1.elb.amazonaws.com/
+* Connected to (...) (44.196.19.124) port 80
+< HTTP/1.1 200 OK
+< Server: nginx/1.27.5
+< Content-Type: text/html
+< Content-Length: 615
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+...
+```
+
+✅ **Resultado:** HTTP 200 OK, nginx respondendo corretamente através do ALB
+
+**e) Logs do Controller:**
+```json
+{"level":"info","msg":"successfully built model","model":"test-alb/nginx-test"}
+{"level":"info","msg":"creating targetGroup","stackID":"test-alb/nginx-test"}
+{"level":"info","msg":"created targetGroup","arn":"..."}
+{"level":"info","msg":"creating loadBalancer","stackID":"test-alb/nginx-test"}
+{"level":"info","msg":"created loadBalancer","arn":"..."}
+{"level":"info","msg":"creating listener","stackID":"test-alb/nginx-test"}
+{"level":"info","msg":"created listener","arn":"..."}
+{"level":"info","msg":"creating listener rule"}
+{"level":"info","msg":"created listener rule"}
+{"level":"info","msg":"successfully deployed model","ingressGroup":"test-alb/nginx-test"}
+```
+
+#### 5. Limpeza de Recursos de Teste
+```bash
+$ kubectl delete namespace test-alb
+namespace "test-alb" deleted
+```
+✅ ALB e recursos AWS removidos automaticamente pelo controller (cleanup completo)
+
+### 📊 Recursos Terraform Criados (Marco 2)
+
+| Recurso | Nome | ARN/ID | Status |
+|---------|------|--------|--------|
+| OIDC Provider | eks-oidc-provider-k8s-platform-prod | arn:aws:iam::891377105802:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/5C0C8E8002CF20AB8918B1752442BF79 | ✅ Created |
+| IAM Policy | AWSLoadBalancerControllerIAMPolicy-k8s-platform-prod | arn:aws:iam::891377105802:policy/AWSLoadBalancerControllerIAMPolicy-k8s-platform-prod | ✅ Created |
+| IAM Role | AWSLoadBalancerControllerRole-k8s-platform-prod | arn:aws:iam::891377105802:role/AWSLoadBalancerControllerRole-k8s-platform-prod | ✅ Created |
+| IAM Role Policy Attachment | - | AWSLoadBalancerControllerRole-k8s-platform-prod-20260126170417502600000001 | ✅ Created |
+| K8s Service Account | aws-load-balancer-controller | kube-system/aws-load-balancer-controller | ✅ Created |
+| Helm Release | aws-load-balancer-controller | aws-load-balancer-controller (v1.11.0) | ✅ Created |
+
+**Total:** 6 recursos
+
+### 💰 Impacto em Custos
+
+**Recursos permanentes (sem custo):**
+- OIDC Provider: gratuito
+- IAM Policy/Role: gratuito
+- Service Account: gratuito
+- Pods do controller: rodando em nodes existentes (sem custo adicional)
+
+**Recursos sob demanda (pagos quando criados):**
+- Application Load Balancer: ~$0.0225/hora (~$16.20/mês) quando Ingress é criado
+- Target Groups: incluído no custo do ALB
+- Security Groups: gratuito
+
+**Observação importante:**
+- ALBs são criados APENAS quando um Ingress é provisionado
+- Quando o Ingress é deletado, o ALB é removido automaticamente
+- **Nenhum custo adicional permanente**, apenas custos sob demanda por aplicação
+
+### 🎯 Decisões Arquiteturais
+
+1. **OIDC Provider criado via Terraform:**
+   - Rationale: Necessário para IRSA (IAM Roles for Service Accounts)
+   - Benefício: Permite que pods assumam IAM roles sem AWS credentials estáticas
+   - Segurança: Least privilege, rotação automática de tokens
+
+2. **Módulo reutilizável para ALB Controller:**
+   - Localização: `envs/marco2/modules/aws-load-balancer-controller/`
+   - Benefício: Pode ser reutilizado em outros ambientes (staging, dev)
+   - Versionamento: Chart version parametrizado (1.11.0)
+
+3. **Node Selector + Tolerations para system nodes:**
+   - Controller roda APENAS em nodes do tipo `system`
+   - Evita usar nodes `workloads` ou `critical`
+   - Alinhado com strategy de Marco 1
+
+4. **Backend state separado:**
+   - State path: `marco2/terraform.tfstate`
+   - Benefício: Isolamento entre Marcos
+   - Permite rollback independente de cada Marco
+
+5. **Features AWS desabilitadas por padrão:**
+   - Shield, WAF, WAFv2 = false
+   - Rationale: Economia de custos em ambiente de desenvolvimento
+   - Possibilidade de habilitar em produção via variável
+
+### 📝 Arquivos Importantes
+
+**Terraform:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/main.tf`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/aws-load-balancer-controller/main.tf`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/aws-load-balancer-controller/iam-policy.json`
+
+**Scripts:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/init-terraform.sh`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/plan-terraform.sh`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/apply-terraform.sh`
+
+**Testes:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/test-ingress/test-app.yaml`
+
+**Logs:**
+- `/tmp/terraform-marco2-apply-20260126_140404.log`
+
+### ✅ Validações Executadas
+
+- ✅ Terraform init com 4 providers (AWS, Kubernetes, Helm, TLS)
+- ✅ Terraform plan mostrando 6 recursos a criar
+- ✅ Terraform apply bem-sucedido (~3 minutos)
+- ✅ OIDC Provider criado e validado via AWS CLI
+- ✅ IAM Policy/Role criados com permissões corretas
+- ✅ Service Account criada com annotation IRSA
+- ✅ Helm chart instalado (v1.11.0)
+- ✅ 2 pods do controller Running
+- ✅ Deployment 2/2 Ready
+- ✅ Ingress de teste criado com sucesso
+- ✅ ALB provisionado automaticamente
+- ✅ Target Group com 2 targets healthy
+- ✅ HTTP 200 OK através do ALB
+- ✅ Cleanup automático ao deletar namespace
+
+### 🎓 Aprendizados e Observações
+
+1. **OIDC Provider é pré-requisito crítico:**
+   - Sem ele, IRSA não funciona
+   - Deve ser criado antes do módulo ALB Controller
+   - Provider TLS necessário para thumbprint
+
+2. **Helm provider precisa de cluster ativo:**
+   - Não pode ser usado em `terraform plan` se cluster não existe
+   - Neste caso, cluster já existia (Marco 1)
+
+3. **ALB provisioning leva 1-2 minutos:**
+   - Target registration: ~10 segundos
+   - ALB state "provisioning" → "active": ~20 segundos
+   - DNS propagation: pode levar até 60 segundos
+   - Sempre validar target health antes de testar HTTP
+
+4. **Controller é event-driven:**
+   - Monitora Ingress resources via Kubernetes API
+   - Cria/atualiza/deleta ALBs automaticamente
+   - Logs muito claros (JSON structured logging)
+
+5. **Terraform state locking funciona perfeitamente:**
+   - DynamoDB table do Marco 0 é compartilhada
+   - Cada Marco tem seu próprio state file
+   - Sem conflitos de lock
+
+### 🚀 Próximos Passos (Marco 2 - Fases Seguintes)
+
+Conforme documentado no [README.md](../../../README.md), as próximas etapas do Marco 2 são:
+
+2. **Cert-Manager** - Certificados TLS automatizados
+3. **Prometheus + Grafana** - Monitoramento de métricas
+4. **Fluent Bit + CloudWatch** - Logging centralizado
+5. **Network Policies** - Isolamento de rede
+6. **Cluster Autoscaler/Karpenter** - Auto scaling de nodes
+7. **Aplicações de teste** - Validação end-to-end
+
+### 📌 Estado Atual do Projeto
+
+**Marcos concluídos:**
+- ✅ Marco 0: Backend Terraform + VPC reverse engineering
+- ✅ Marco 1: Cluster EKS com 7 nodes e 4 add-ons
+- 🟡 Marco 2: AWS Load Balancer Controller (Fase 1 de 7)
+
+**Próxima ação:**
+- Implementar Cert-Manager (Marco 2 - Fase 2)
+
+---
+
+Sessão concluída em: 2026-01-26 14:10 UTC
+Tempo total da sessão: ~35 minutos
