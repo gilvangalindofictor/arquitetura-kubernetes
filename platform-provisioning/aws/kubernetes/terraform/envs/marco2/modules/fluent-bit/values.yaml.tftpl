@@ -1,0 +1,166 @@
+# -----------------------------------------------------------------------------
+# Fluent Bit Helm Chart Values
+# Managed by Terraform - Do not edit manually
+# -----------------------------------------------------------------------------
+
+# Image configuration
+image:
+  repository: fluent/fluent-bit
+  tag: ${image_tag}
+
+# Deploy as DaemonSet (runs on all nodes)
+kind: DaemonSet
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ${service_account_name}
+
+# RBAC (required to read pod metadata)
+rbac:
+  create: true
+  nodeAccess: true
+
+# Resources
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Tolerations (to run on all nodes including system nodes)
+tolerations:
+  - operator: Exists
+
+# Pod Annotations (Prometheus scraping)
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "2020"
+  prometheus.io/path: "/api/v1/metrics/prometheus"
+
+# Pod Labels
+podLabels:
+  app: fluent-bit
+  component: logging
+
+# Volume Mounts
+volumeMounts:
+  - name: varlog
+    mountPath: /var/log
+  - name: varlibdockercontainers
+    mountPath: /var/lib/docker/containers
+    readOnly: true
+  - name: etcmachineid
+    mountPath: /etc/machine-id
+    readOnly: true
+
+# DaemonSet Volumes
+daemonSetVolumes:
+  - name: varlog
+    hostPath:
+      path: /var/log
+  - name: varlibdockercontainers
+    hostPath:
+      path: /var/lib/docker/containers
+  - name: etcmachineid
+    hostPath:
+      path: /etc/machine-id
+      type: File
+
+# -----------------------------------------------------------------------------
+# Fluent Bit Configuration
+# -----------------------------------------------------------------------------
+
+config:
+  service: |
+    [SERVICE]
+        Daemon Off
+        Flush 5
+        Log_Level info
+        Parsers_File /fluent-bit/etc/parsers.conf
+        Parsers_File /fluent-bit/etc/custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port 2020
+        Health_Check On
+
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+        Refresh_Interval 10
+
+  filters: |
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Kube_URL https://kubernetes.default.svc:443
+        Kube_CA_File /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix kube.var.log.containers.
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        Labels On
+        Annotations Off
+
+    [FILTER]
+        Name nest
+        Match kube.*
+        Operation lift
+        Nested_under kubernetes
+        Add_prefix k8s_
+
+    [FILTER]
+        Name modify
+        Match kube.*
+        Remove k8s_annotations
+        Remove k8s_pod_id
+        Remove stream
+        Remove time
+
+    [FILTER]
+        Name grep
+        Match kube.*
+        Exclude k8s_namespace_name ${exclude_namespaces_regex}
+
+  outputs: |
+    [OUTPUT]
+        Name loki
+        Match kube.*
+        Host ${loki_host}
+        Port ${loki_port}
+        Labels job=fluentbit, cluster=${cluster_name}
+        Label_keys k8s_namespace_name,k8s_pod_name,k8s_container_name,k8s_node_name
+        auto_kubernetes_labels on
+        drop_single_key off
+        line_format json
+
+  customParsers: |
+    [PARSER]
+        Name docker
+        Format json
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ
+        Time_Keep On
+
+    [PARSER]
+        Name cri
+        Format regex
+        Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep On
+
+    [MULTILINE_PARSER]
+        name multiline-regex-test
+        type regex
+        flush_timeout 1000
+        rule "start_state" "/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/" "cont"
+        rule "cont" "/^(?!\d{4}-\d{2}-\d{2}T)/" "cont"
