@@ -21,11 +21,12 @@ variable "vpc_id" {
 variable "letsencrypt_email" {
   description = "Email para registro no Let's Encrypt (usado para notificações de expiração)"
   type        = string
+  sensitive   = true
 }
 
 variable "grafana_admin_password" {
   description = "Senha do admin do Grafana"
   type        = string
   sensitive   = true
-  default     = "admin123"  # ALTERAR em produção
+  default     = "admin123" # ALTERAR em produção
 }
