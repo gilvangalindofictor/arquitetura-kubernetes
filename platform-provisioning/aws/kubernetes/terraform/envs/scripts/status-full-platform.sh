@@ -115,7 +115,49 @@ if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
         echo "   ❌ Nenhum ClusterIssuer encontrado"
         echo "   Execute: kubectl apply -f $TERRAFORM_DIR/marco2/cluster-issuers/"
     else
-        kubectl get clusterissuer 2>/dev/null | grep -E "NAME|READY"
+        kubectl get clusterissuer 2>/dev/null
+    fi
+
+    echo ""
+
+    # Monitoring Stack (Prometheus + Grafana)
+    echo "🔍 Monitoring Stack (Prometheus + Grafana):"
+    MON_PODS=$(kubectl get pods -n monitoring --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+    if [ "$MON_PODS" -gt 0 ]; then
+        echo "   ✅ Running ($MON_PODS pods)"
+
+        # Prometheus
+        PROM_STATUS=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        if [ "$PROM_STATUS" -gt 0 ]; then
+            echo "   ✅ Prometheus: Running"
+        else
+            echo "   ⚠️  Prometheus: Not Running"
+        fi
+
+        # Grafana
+        GRAF_STATUS=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        if [ "$GRAF_STATUS" -gt 0 ]; then
+            echo "   ✅ Grafana: Running"
+        else
+            echo "   ⚠️  Grafana: Not Running"
+        fi
+
+        # Alertmanager
+        AM_STATUS=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=alertmanager --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        if [ "$AM_STATUS" -gt 0 ]; then
+            echo "   ✅ Alertmanager: Running"
+        else
+            echo "   ⚠️  Alertmanager: Not Running"
+        fi
+
+        # PVCs
+        echo ""
+        echo "   📊 Persistent Volumes:"
+        kubectl get pvc -n monitoring 2>/dev/null | tail -n +2 | awk '{printf "      %s: %s (%s)\n", $1, $4, $2}'
+
+    else
+        echo "   ❌ Não instalado ou não Running"
+        echo "   Execute: cd $TERRAFORM_DIR/marco2 && terraform apply"
     fi
 
     echo ""
@@ -129,19 +171,32 @@ echo ""
 if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
     echo "✅ Marco 1: Cluster LIGADO"
 
-    if [ "$ALB_PODS" -gt 0 ] && [ "$CM_PODS" -gt 0 ]; then
+    if [ "$ALB_PODS" -gt 0 ] && [ "$CM_PODS" -gt 0 ] && [ "$MON_PODS" -gt 0 ]; then
         echo "✅ Marco 2: Platform Services OPERACIONAL"
+        echo "   - AWS Load Balancer Controller: ✅"
+        echo "   - Cert-Manager: ✅"
+        echo "   - Prometheus + Grafana: ✅"
     else
         echo "⚠️  Marco 2: Platform Services PARCIALMENTE INSTALADO"
+        [ "$ALB_PODS" -eq 0 ] && echo "   - AWS Load Balancer Controller: ❌"
+        [ "$CM_PODS" -eq 0 ] && echo "   - Cert-Manager: ❌"
+        [ "$MON_PODS" -eq 0 ] && echo "   - Prometheus + Grafana: ❌"
     fi
+
+    echo ""
+    echo "💰 Custo atual: ~\$0.76/hora (~\$547/mês)"
+    echo "   (Cluster \$0.10/h + Nodes 7×\$0.0928/h + NAT 2×\$0.045/h + Volumes \$2.16/mês)"
 
     echo ""
     echo "🛑 Para desligar ao fim do dia:"
     echo "   cd $SCRIPT_DIR"
     echo "   ./shutdown-full-platform.sh"
+    echo "   💡 Economia: ~\$18/dia mantendo apenas NAT + Volumes"
 else
     echo "🛑 Marco 1: Cluster DESLIGADO"
     echo "💤 Marco 2: Platform Services INATIVOS"
+    echo ""
+    echo "💰 Custo atual: ~\$68/mês (NAT Gateways + Volumes EBS)"
     echo ""
     echo "🚀 Para ligar:"
     echo "   cd $SCRIPT_DIR"

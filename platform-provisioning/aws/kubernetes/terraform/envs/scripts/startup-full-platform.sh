@@ -132,10 +132,15 @@ echo ""
 echo "🔍 Platform Services:"
 kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
 kubectl get pods -n cert-manager
+kubectl get pods -n monitoring
 
 echo ""
 echo "🔍 ClusterIssuers:"
-kubectl get clusterissuer
+kubectl get clusterissuer 2>/dev/null || echo "   ⚠️  Nenhum ClusterIssuer encontrado"
+
+echo ""
+echo "🔍 Persistent Volumes:"
+kubectl get pvc -n monitoring
 
 echo ""
 echo "=============================================="
@@ -145,9 +150,16 @@ echo ""
 echo "✅ Marco 1: Cluster EKS com 7 nodes"
 echo "✅ Marco 2: AWS Load Balancer Controller"
 echo "✅ Marco 2: Cert-Manager"
+echo "✅ Marco 2: Prometheus + Grafana + Alertmanager"
 echo "✅ ClusterIssuers: Let's Encrypt Staging/Production/Self-Signed"
+echo "✅ Volumes: 27Gi provisionados (Grafana 5Gi, Prometheus 20Gi, Alertmanager 2Gi)"
 echo ""
 echo "🎉 Plataforma pronta para uso!"
+echo ""
+echo "📊 Acesso ao Grafana:"
+echo "   kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+echo "   URL: http://localhost:3000"
+echo "   Usuário: admin | Senha: (configurada no terraform.tfvars)"
 echo ""
 echo "💡 Para desligar ao fim do dia:"
 echo "   cd $SCRIPT_DIR"
