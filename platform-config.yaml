@@ -1,0 +1,169 @@
+# -----------------------------------------------------------------------------
+# Configurações Centralizadas - Projeto Kubernetes Platform
+# Arquivo: platform-config.yaml
+# Descrição: Configurações compartilhadas entre todos os ambientes e marcos
+# -----------------------------------------------------------------------------
+
+# Informações do Projeto
+project:
+  name: "k8s-platform"
+  owner: "Gilvan Galindo"
+  email: "gilvan.galindo@fctconsig.com.br"
+  organization: "FCT Consig"
+  environment: "production"
+
+# AWS Configuration
+aws:
+  region: "us-east-1"
+  account_id: "891377105802"
+  profile: "k8s-platform-prod"
+
+  # VPC Configuration
+  vpc:
+    id: "vpc-0b1396a59c417c1f0"
+    name: "fictor-vpc"
+    cidr: "10.0.0.0/16"
+
+    # Subnets
+    subnets:
+      public:
+        - id: "subnet-0b5e0cae5658ea993"
+          name: "public1-us-east-1a"
+          cidr: "10.0.0.0/20"
+          az: "us-east-1a"
+        - id: "subnet-07dca8ceb9882ba66"
+          name: "public2-us-east-1b"
+          cidr: "10.0.16.0/20"
+          az: "us-east-1b"
+
+      private:
+        - id: "subnet-0472ab28726cdf745"
+          name: "private1-us-east-1a"
+          cidr: "10.0.128.0/20"
+          az: "us-east-1a"
+        - id: "subnet-0288a67cd352effa7"
+          name: "private2-us-east-1b"
+          cidr: "10.0.144.0/20"
+          az: "us-east-1b"
+
+  # IAM Roles
+  iam_roles:
+    eks_cluster: "arn:aws:iam::891377105802:role/k8s-platform-eks-cluster-role"
+    eks_node: "arn:aws:iam::891377105802:role/k8s-platform-eks-node-role"
+
+# Kubernetes Cluster Configuration
+kubernetes:
+  cluster_name: "k8s-platform-prod"
+  version: "1.31"
+
+  # Node Groups
+  node_groups:
+    system:
+      instance_type: "t3.medium"
+      min_size: 2
+      max_size: 4
+      desired_size: 2
+      labels:
+        node-type: "system"
+        workload: "platform"
+
+    workloads:
+      instance_type: "t3.large"
+      min_size: 2
+      max_size: 6
+      desired_size: 3
+      labels:
+        node-type: "workloads"
+        workload: "applications"
+
+    critical:
+      instance_type: "t3.xlarge"
+      min_size: 2
+      max_size: 4
+      desired_size: 2
+      labels:
+        node-type: "critical"
+        workload: "databases"
+      taints:
+        - key: "workload"
+          value: "database"
+          effect: "NoSchedule"
+
+# Platform Services (Marco 2)
+platform_services:
+  # AWS Load Balancer Controller
+  alb_controller:
+    chart_version: "1.11.0"
+    namespace: "kube-system"
+
+  # Cert-Manager
+  cert_manager:
+    chart_version: "v1.16.3"
+    namespace: "cert-manager"
+    letsencrypt_email: "gilvan.galindo@fctconsig.com.br"
+
+    # ClusterIssuers
+    issuers:
+      staging:
+        name: "letsencrypt-staging"
+        server: "https://acme-staging-v02.api.letsencrypt.org/directory"
+      production:
+        name: "letsencrypt-production"
+        server: "https://acme-v02.api.letsencrypt.org/directory"
+      selfsigned:
+        name: "selfsigned-issuer"
+
+# Terraform Backend
+terraform:
+  backend:
+    bucket: "terraform-state-marco0-891377105802"
+    region: "us-east-1"
+    dynamodb_table: "terraform-state-lock"
+    encrypt: true
+
+  state_paths:
+    marco0: "marco0/terraform.tfstate"
+    marco1: "marco1/terraform.tfstate"
+    marco2: "marco2/terraform.tfstate"
+
+# Tags Padrão
+default_tags:
+  Project: "k8s-platform"
+  ManagedBy: "terraform"
+  Owner: "Gilvan Galindo"
+  Environment: "production"
+
+# Custos Estimados (para referência)
+costs:
+  cluster_on:
+    eks_control_plane: 0.10  # USD/hora
+    nodes_ec2: 0.66          # USD/hora (7 nodes)
+    nat_gateways: 0.09       # USD/hora (2 NAT Gateways)
+    total_hourly: 0.85       # USD/hora
+    total_monthly: 625       # USD/mês
+
+  cluster_off:
+    nat_gateways: 0.09       # USD/hora (permanecem)
+    total_hourly: 0.09       # USD/hora
+    total_monthly: 66        # USD/mês
+
+  savings_per_shutdown: 0.76  # USD/hora (~$547/mês)
+
+# Scripts Locations
+scripts:
+  marco1:
+    status: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/status-cluster.sh"
+    startup: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/startup-cluster.sh"
+    shutdown: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/shutdown-cluster.sh"
+
+  marco2:
+    init: "platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/init-terraform.sh"
+    plan: "platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/plan-terraform.sh"
+    apply: "platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/apply-terraform.sh"
+
+# Notas de Documentação
+documentation:
+  main_readme: "README.md"
+  diary: "docs/plan/aws-execution/diario-marco0-2026-01-23.md"
+  execution_plan: "docs/plan/execution-plan.md"
+  adr_directory: "docs/adr/"

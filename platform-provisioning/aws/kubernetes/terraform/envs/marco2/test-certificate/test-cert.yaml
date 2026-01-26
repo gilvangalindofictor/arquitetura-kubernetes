@@ -1,0 +1,36 @@
+---
+# Namespace para teste
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-test
+  labels:
+    name: cert-test
+    purpose: testing
+
+---
+# Certificado de teste usando self-signed issuer
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: test-certificate
+  namespace: cert-test
+spec:
+  secretName: test-certificate-tls
+  duration: 2160h # 90 dias
+  renewBefore: 360h # renovar 15 dias antes
+
+  subject:
+    organizations:
+    - k8s-platform
+
+  commonName: test.k8s-platform.local
+
+  dnsNames:
+  - test.k8s-platform.local
+  - "*.test.k8s-platform.local"
+
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

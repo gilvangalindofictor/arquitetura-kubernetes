@@ -17,3 +17,8 @@ variable "vpc_id" {
   description = "ID da VPC"
   type        = string
 }
+
+variable "letsencrypt_email" {
+  description = "Email para registro no Let's Encrypt (usado para notificações de expiração)"
+  type        = string
+}

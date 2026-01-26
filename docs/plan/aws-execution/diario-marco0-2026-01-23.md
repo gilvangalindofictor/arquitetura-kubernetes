@@ -874,3 +874,370 @@ Conforme documentado no [README.md](../../../README.md), as próximas etapas do 
 
 Sessão concluída em: 2026-01-26 14:10 UTC
 Tempo total da sessão: ~35 minutos
+
+---
+
+## 2026-01-26 - Sessão 7: Marco 2 - Fase 2 - Cert-Manager (Gerenciamento de Certificados TLS)
+
+### 📋 Resumo Executivo
+- ✅ **MARCO 2 - FASE 2 COMPLETO**: Cert-Manager instalado e validado
+- ✅ **2 recursos Terraform criados** (Namespace + Helm Release)
+- ✅ **3 ClusterIssuers configurados** (Let's Encrypt Staging, Production, Self-Signed)
+- ✅ **Certificado de teste emitido com sucesso** via self-signed issuer
+- ✅ **Arquivo de configurações centralizadas criado** (platform-config.yaml)
+- ⏱️ **Tempo total de instalação**: ~1min18s (Helm)
+
+### 🎯 Contexto Inicial
+- Marco 2 - Fase 1 completo: AWS Load Balancer Controller operacional
+- Objetivo: Instalar Cert-Manager para automatizar emissão de certificados TLS
+- Necessidade: Suportar HTTPS em Ingress com renovação automática via Let's Encrypt
+- Estratégia: Terraform modular + ClusterIssuers via kubectl
+
+### 🔧 Ações Realizadas
+
+#### 1. Módulo Terraform Cert-Manager
+**Estrutura criada:**
+```
+platform-provisioning/aws/kubernetes/terraform/envs/marco2/
+├── modules/cert-manager/
+│   ├── main.tf              # Namespace + Helm + ClusterIssuers (desabilitados)
+│   ├── variables.tf         # Configurações do módulo
+│   ├── outputs.tf           # Namespace e issuers criados
+│   └── versions.tf          # Provider requirements
+├── cluster-issuers/
+│   ├── letsencrypt-staging.yaml      # ACME staging
+│   ├── letsencrypt-production.yaml   # ACME production
+│   └── selfsigned-issuer.yaml        # Self-signed para testes
+└── test-certificate/
+    └── test-cert.yaml        # Certificado de validação
+```
+
+**Recursos do módulo:**
+- Namespace `cert-manager` com labels apropriadas
+- Helm chart `cert-manager` v1.16.3 do repositório jetstack.io
+- CRDs instalados via `installCRDs: true`
+- Resource limits conservadores (CPU: 10m-100m, Mem: 32Mi-128Mi)
+- Node Selector para nodes `system`
+- Tolerations para taints `node-type=system:NoSchedule`
+
+**Componentes instalados:**
+1. **cert-manager**: Controller principal
+2. **cert-manager-cainjector**: Injeta CA bundles em objetos
+3. **cert-manager-webhook**: Validação de recursos via webhook
+
+#### 2. Problema: ClusterIssuers requerem CRDs
+**Erro inicial:**
+```
+Error: API did not recognize GroupVersionKind from manifest (CRD may not be installed)
+no matches for kind "ClusterIssuer" in group "cert-manager.io"
+```
+
+**Causa:**
+- Terraform tentava criar `kubernetes_manifest` para ClusterIssuer
+- CRDs do Cert-Manager só existem APÓS Helm chart ser instalado
+- Chicken-and-egg problem
+
+**Solução implementada:**
+1. Desabilitar ClusterIssuers no módulo Terraform (`create_cluster_issuers = false`)
+2. Aplicar Terraform para instalar namespace + Helm chart
+3. Criar ClusterIssuers via `kubectl apply` APÓS CRDs estarem disponíveis
+
+#### 3. ClusterIssuers Configurados
+
+**a) Let's Encrypt Staging** (`letsencrypt-staging`)
+```yaml
+server: https://acme-staging-v02.api.letsencrypt.org/directory
+email: gilvan.galindo@fctconsig.com.br
+solver: http01 via Ingress class 'alb'
+```
+- **Uso**: Testes de certificados (rate limits mais altos)
+- **Certificados**: Não confiáveis por browsers
+- **Status**: ✅ READY = True
+
+**b) Let's Encrypt Production** (`letsencrypt-production`)
+```yaml
+server: https://acme-v02.api.letsencrypt.org/directory
+email: gilvan.galindo@fctconsig.com.br
+solver: http01 via Ingress class 'alb'
+```
+- **Uso**: Produção (certificados válidos)
+- **Rate limits**: 50 certificados/semana por domínio
+- **Status**: ✅ READY = True
+
+**c) Self-Signed Issuer** (`selfsigned-issuer`)
+```yaml
+spec:
+  selfSigned: {}
+```
+- **Uso**: Testes internos sem domínio público
+- **Certificados**: Auto-assinados (não confiáveis externamente)
+- **Status**: ✅ READY = True
+
+#### 4. Validação Completa
+
+**a) Pods Cert-Manager:**
+```bash
+$ kubectl get pods -n cert-manager
+NAME                                       READY   STATUS    RESTARTS   AGE
+cert-manager-795d7b8f85-w5c5s              1/1     Running   0          3m
+cert-manager-cainjector-55868d45b9-tb4p9   1/1     Running   0          3m
+cert-manager-webhook-59764f8957-4bppj      1/1     Running   0          3m
+```
+✅ Todos os 3 pods Running
+
+**b) CRDs Instalados:**
+```bash
+$ kubectl get crd | grep cert-manager
+certificaterequests.cert-manager.io
+certificates.cert-manager.io
+challenges.acme.cert-manager.io
+clusterissuers.cert-manager.io
+issuers.cert-manager.io
+orders.acme.cert-manager.io
+```
+✅ 6 CRDs instalados com sucesso
+
+**c) ClusterIssuers:**
+```bash
+$ kubectl get clusterissuer
+NAME                     READY   AGE
+letsencrypt-production   True    5m
+letsencrypt-staging      True    5m
+selfsigned-issuer        True    3m
+```
+✅ Todos READY = True
+
+**d) Teste de Emissão de Certificado:**
+Criado certificado de teste em namespace `cert-test`:
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: test-certificate
+spec:
+  secretName: test-certificate-tls
+  commonName: test.k8s-platform.local
+  dnsNames:
+  - test.k8s-platform.local
+  - "*.test.k8s-platform.local"
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+```
+
+**Resultado:**
+```bash
+$ kubectl get certificate -n cert-test
+NAME               READY   SECRET                 AGE
+test-certificate   True    test-certificate-tls   12s
+
+$ kubectl get secret -n cert-test test-certificate-tls
+NAME                   TYPE                DATA   AGE
+test-certificate-tls   kubernetes.io/tls   3      17s
+```
+
+**Detalhes do certificado:**
+```
+Subject: O = k8s-platform, CN = test.k8s-platform.local
+Not Before: 2026-01-26 17:21:54 UTC
+Not After:  2026-04-26 17:21:54 UTC (90 dias)
+Renewal Time: 2026-04-11 17:21:54 UTC (15 dias antes)
+```
+
+✅ **Certificado emitido e armazenado em Secret TLS com sucesso**
+
+#### 5. Problema: Email inválido no Let's Encrypt
+**Erro inicial:**
+```
+Failed to register ACME account: 400 urn:ietf:params:acme:error:invalidContact:
+Error validating contact(s) :: contact email has forbidden domain "example.com"
+```
+
+**Causa:**
+- Let's Encrypt não aceita emails com domínios genéricos (`example.com`, `test.com`, etc.)
+- Email `devops@example.com` era placeholder
+
+**Solução:**
+- Atualizado para email real: `gilvan.galindo@fctconsig.com.br`
+- ClusterIssuers reconfigured via `kubectl apply`
+- Status mudou para READY = True imediatamente
+
+#### 6. Arquivo de Configurações Centralizadas
+**Criado:** `platform-config.yaml` na raiz do projeto
+
+**Conteúdo:**
+- Informações do projeto (owner, email, organização)
+- Configurações AWS (account, region, VPC, subnets, IAM roles)
+- Configurações Kubernetes (cluster, node groups)
+- Platform Services (ALB Controller, Cert-Manager)
+- Backend Terraform (bucket, state paths)
+- Tags padrão
+- Custos estimados
+- Localização de scripts
+
+**Benefícios:**
+- Single source of truth para configurações
+- Reutilizável entre ambientes
+- Facilita manutenção e auditoria
+- Documentação viva da infraestrutura
+
+### 📊 Recursos Criados (Marco 2 - Fase 2)
+
+| Recurso | Nome | Namespace | Status |
+|---------|------|-----------|--------|
+| Namespace | cert-manager | - | ✅ Created |
+| Helm Release | cert-manager | cert-manager | ✅ Deployed (v1.16.3) |
+| Deployment | cert-manager | cert-manager | ✅ 1/1 Running |
+| Deployment | cert-manager-cainjector | cert-manager | ✅ 1/1 Running |
+| Deployment | cert-manager-webhook | cert-manager | ✅ 1/1 Running |
+| ClusterIssuer | letsencrypt-staging | - | ✅ READY |
+| ClusterIssuer | letsencrypt-production | - | ✅ READY |
+| ClusterIssuer | selfsigned-issuer | - | ✅ READY |
+
+**Total Terraform:** 2 recursos (namespace + helm release)  
+**Total Kubernetes:** 3 deployments + 6 CRDs + 3 ClusterIssuers
+
+### 💰 Impacto em Custos
+
+**Nenhum custo adicional:**
+- Pods do Cert-Manager rodam em nodes existentes (system)
+- ClusterIssuers são recursos Kubernetes (sem custo)
+- Let's Encrypt é gratuito
+- Apenas custos de tráfego HTTPS (negligível)
+
+### 🎯 Casos de Uso
+
+**1. Ingress com TLS automático (Staging):**
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+spec:
+  tls:
+  - hosts:
+    - app.example.com
+    secretName: app-tls
+```
+→ Cert-Manager emite certificado automaticamente
+
+**2. Ingress com TLS automático (Production):**
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+spec:
+  tls:
+  - hosts:
+    - app.domain.com
+    secretName: app-prod-tls
+```
+→ Certificado válido emitido e renovado automaticamente
+
+**3. Certificado standalone:**
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-app-cert
+spec:
+  secretName: my-app-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+  - api.mydomain.com
+```
+
+### 🎓 Aprendizados e Observações
+
+1. **CRDs devem existir antes de Custom Resources:**
+   - `kubernetes_manifest` no Terraform requer CRDs pré-existentes
+   - Solução: Instalar CRDs via Helm, depois criar manifests via kubectl
+   - Alternativa futura: usar `null_resource` + `local-exec` para kubectl apply
+
+2. **Let's Encrypt validations:**
+   - Emails com domínios proibidos causam erro 400
+   - Email deve ser válido e monitorado (notificações de expiração)
+   - Staging server para testes evita rate limits
+
+3. **HTTP01 challenge via ALB:**
+   - Requer ALB já criado e acessível publicamente
+   - Ingress class `alb` deve estar configurada
+   - DNS deve apontar para ALB antes de solicitar certificado
+
+4. **Self-signed útil para testes:**
+   - Não requer DNS ou domínio público
+   - Valida funcionamento do Cert-Manager
+   - Não deve ser usado em produção
+
+5. **Renovação automática:**
+   - Cert-Manager renova certificados automaticamente
+   - Default: 15 dias antes da expiração (configurável via `renewBefore`)
+   - Logs mostram tentativas de renovação
+
+### ✅ Validações Executadas
+
+- ✅ Terraform apply bem-sucedido (2 recursos)
+- ✅ 3 pods do Cert-Manager Running
+- ✅ 6 CRDs instalados corretamente
+- ✅ 3 ClusterIssuers com status READY
+- ✅ Certificado de teste emitido (READY = True)
+- ✅ Secret TLS criado com certificate + private key
+- ✅ Email Let's Encrypt validado e aceito
+- ✅ Renovação automática configurada (renewBefore: 360h)
+
+### 📝 Arquivos Importantes
+
+**Terraform:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/cert-manager/main.tf`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/cert-manager/variables.tf`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/main.tf` (módulo cert_manager)
+
+**ClusterIssuers:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/cluster-issuers/letsencrypt-staging.yaml`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/cluster-issuers/letsencrypt-production.yaml`
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/cluster-issuers/selfsigned-issuer.yaml`
+
+**Testes:**
+- `platform-provisioning/aws/kubernetes/terraform/envs/marco2/test-certificate/test-cert.yaml`
+
+**Configurações:**
+- `platform-config.yaml` (raiz do projeto)
+
+### 🚀 Próximos Passos (Marco 2 - Fase 3)
+
+Conforme [README.md](../../../README.md), a próxima fase é:
+
+**3. Prometheus + Grafana** - Monitoramento de métricas
+- Prometheus Operator
+- Grafana dashboards
+- Alertmanager
+- ServiceMonitors
+
+**Fases restantes:**
+4. Fluent Bit + CloudWatch - Logging centralizado
+5. Network Policies - Isolamento de rede
+6. Cluster Autoscaler/Karpenter - Auto scaling
+7. Aplicações de teste - Validação end-to-end
+
+### 📌 Estado Atual do Projeto
+
+**Marcos concluídos:**
+- ✅ Marco 0: Backend Terraform + VPC
+- ✅ Marco 1: Cluster EKS com 7 nodes
+- 🟡 Marco 2: Platform Services
+  - ✅ Fase 1: AWS Load Balancer Controller
+  - ✅ Fase 2: Cert-Manager
+  - ⏸️ Fase 3-7: Pendentes
+
+**Próxima ação:**
+- Implementar Prometheus + Grafana (Marco 2 - Fase 3)
+
+---
+
+Sessão concluída em: 2026-01-26 14:35 UTC
+Tempo total da sessão: ~25 minutos
