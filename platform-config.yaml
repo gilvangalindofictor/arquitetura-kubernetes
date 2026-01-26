@@ -151,11 +151,20 @@ costs:
 
 # Scripts Locations
 scripts:
+  # Scripts recomendados (gerenciam Marco 1 + Marco 2)
+  full_platform:
+    status: "platform-provisioning/aws/kubernetes/terraform/envs/scripts/status-full-platform.sh"
+    startup: "platform-provisioning/aws/kubernetes/terraform/envs/scripts/startup-full-platform.sh"
+    shutdown: "platform-provisioning/aws/kubernetes/terraform/envs/scripts/shutdown-full-platform.sh"
+    readme: "platform-provisioning/aws/kubernetes/terraform/envs/scripts/README.md"
+
+  # Scripts Marco 1 (apenas cluster EKS)
   marco1:
     status: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/status-cluster.sh"
     startup: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/startup-cluster.sh"
     shutdown: "platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/shutdown-cluster.sh"
 
+  # Scripts Marco 2 (apenas platform services)
   marco2:
     init: "platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/init-terraform.sh"
     plan: "platform-provisioning/aws/kubernetes/terraform/envs/marco2/scripts/plan-terraform.sh"

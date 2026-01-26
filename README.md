@@ -1100,3 +1100,15 @@ Para questões sobre:
 **Projeto iniciado em**: 2025-12-30
 **Metodologia**: AI-First (iPaaS)
 **Mantenedor**: gilvangalindo
+
+## 🧩 Scripts — Plataforma Completa (envs/scripts)
+
+Este diretório contém scripts para gerenciar o ciclo completo da plataforma Kubernetes (Marco 1 + Marco 2).
+
+Principais scripts:
+
+- `status-full-platform.sh`: status completo (EKS, ALB Controller, Cert-Manager, ClusterIssuers, custos)
+- `startup-full-platform.sh`: liga cluster + platform services (~20 min)
+- `shutdown-full-platform.sh`: desliga cluster mantendo states (~6 min)
+
+Use os scripts em `envs/scripts/` para o workflow diário (ligar/desligar plataforma completa). Use os scripts em `marco1/scripts/` apenas para operações específicas do cluster EKS.
