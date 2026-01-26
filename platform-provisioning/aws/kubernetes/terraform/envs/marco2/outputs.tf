@@ -54,3 +54,41 @@ output "alertmanager_service" {
   description = "Nome do serviço do Alertmanager"
   value       = module.kube_prometheus_stack.alertmanager_service
 }
+
+# -----------------------------------------------------------------------------
+# Loki Outputs
+# -----------------------------------------------------------------------------
+
+output "loki_s3_bucket" {
+  description = "Nome do S3 bucket do Loki"
+  value       = module.loki.s3_bucket_name
+}
+
+output "loki_iam_role_arn" {
+  description = "ARN da IAM Role do Loki (IRSA)"
+  value       = module.loki.iam_role_arn
+}
+
+output "loki_gateway_endpoint" {
+  description = "Endpoint do Loki Gateway"
+  value       = module.loki.loki_gateway_endpoint
+}
+
+output "loki_push_endpoint" {
+  description = "Endpoint para push de logs (usado pelo Fluent Bit)"
+  value       = module.loki.loki_push_endpoint
+}
+
+# -----------------------------------------------------------------------------
+# Fluent Bit Outputs
+# -----------------------------------------------------------------------------
+
+output "fluent_bit_daemonset" {
+  description = "Nome do DaemonSet do Fluent Bit"
+  value       = module.fluent_bit.daemonset_name
+}
+
+output "fluent_bit_namespace" {
+  description = "Namespace do Fluent Bit"
+  value       = module.fluent_bit.namespace
+}

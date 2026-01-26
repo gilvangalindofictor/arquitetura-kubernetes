@@ -105,3 +105,67 @@ module "kube_prometheus_stack" {
 
   depends_on = [module.cert_manager]
 }
+
+# -----------------------------------------------------------------------------
+# Loki (Logging)
+# -----------------------------------------------------------------------------
+
+module "loki" {
+  source = "./modules/loki"
+
+  cluster_name         = var.cluster_name
+  region               = var.region
+  namespace            = "monitoring"
+  service_account_name = "loki"
+  chart_version        = "5.42.0"
+
+  # Storage configuration
+  retention_days    = 30
+  enable_versioning = false # Desabilitar para economia
+  storage_class     = "gp3"
+  write_pvc_size    = "10Gi"
+  backend_pvc_size  = "10Gi"
+
+  # Replication and scaling
+  replication_factor = 2
+  read_replicas      = 2
+  write_replicas     = 2
+  backend_replicas   = 2
+
+  tags = {
+    Environment = "production"
+    Project     = "k8s-platform"
+    Marco       = "marco2"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [module.kube_prometheus_stack]
+}
+
+# -----------------------------------------------------------------------------
+# Fluent Bit (Log Collector)
+# -----------------------------------------------------------------------------
+
+module "fluent_bit" {
+  source = "./modules/fluent-bit"
+
+  cluster_name         = var.cluster_name
+  namespace            = "monitoring"
+  service_account_name = "fluent-bit"
+  chart_version        = "0.43.0"
+  image_tag            = "3.0.0"
+
+  # Loki configuration
+  loki_endpoint = module.loki.loki_push_endpoint
+  loki_host     = "loki-gateway.monitoring"
+  loki_port     = 3100
+
+  # Filtering (exclude noisy namespaces)
+  exclude_namespaces = [
+    "kube-system",
+    "kube-node-lease",
+    "kube-public"
+  ]
+
+  depends_on = [module.loki]
+}
