@@ -833,6 +833,254 @@ Este projeto foi desenvolvido usando a metodologia **AI-First** do projeto iPaaS
 
 ---
 
+## 🧾 Scripts AWS — Marco 1
+
+### Scripts de Gerenciamento do Cluster EKS - Marco 1
+
+Scripts para ligar/desligar o cluster EKS e gerenciar custos da infraestrutura AWS.
+
+## 📋 Scripts Disponíveis
+
+### 1. `status-cluster.sh` - Verificar Status e Custos
+
+Verifica o status atual do cluster e calcula custos estimados.
+
+```bash
+./status-cluster.sh
+```
+
+**Saída:**
+- Status do cluster (ACTIVE, DESLIGADO, etc.)
+- Informações dos node groups
+- Total de nodes
+- Custos estimados (hora/dia/mês)
+- Status do kubectl
+
+### 2. `shutdown-cluster.sh` - Desligar Cluster
+
+Destrói completamente o cluster EKS para economia de custos.
+
+```bash
+./shutdown-cluster.sh
+```
+
+**O que destrói:**
+- ✅ Cluster EKS k8s-platform-prod
+- ✅ 7 nodes EC2 (2 system + 3 workloads + 2 critical)
+- ✅ 4 add-ons (CoreDNS, VPC CNI, Kube-proxy, EBS CSI Driver)
+- ✅ Security Groups e KMS Key
+
+**O que NÃO destrói:**
+- ❌ VPC fictor-vpc e subnets
+- ❌ NAT Gateways (2) e Internet Gateway
+- ❌ IAM Roles
+
+**Economia:** ~$0.76/hora (~$547/mês)
+
+**Tempo:** ~3-5 minutos
+
+**Backup:** Cria backup automático do state em `~/.terraform-backups/marco1/`
+
+### 3. `startup-cluster.sh` - Ligar Cluster
+
+Recria o cluster EKS via Terraform (100% conformidade IaC).
+
+```bash
+./startup-cluster.sh
+```
+
+**O que cria:**
+- ✅ Cluster EKS k8s-platform-prod (Kubernetes 1.31)
+- ✅ 7 nodes EC2 (2 system + 3 workloads + 2 critical)
+- ✅ 4 add-ons (CoreDNS, VPC CNI, Kube-proxy, EBS CSI Driver)
+- ✅ Security Groups e KMS Key
+- ✅ Configura kubectl automaticamente
+
+**Tempo:** ~15 minutos
+
+**Custo:** ~$0.76/hora (~$547/mês) enquanto ligado
+
+## 💰 Gestão de Custos
+
+### Custos Estimados (com cluster ligado)
+
+| Recurso | Custo/hora | Custo/dia | Custo/mês |
+|---------|------------|-----------|-----------|
+| Cluster EKS | $0.10 | $2.40 | $73.00 |
+| Nodes EC2 (7) | $0.66 | $15.84 | $475.20 |
+| NAT Gateways (2) | $0.09 | $2.16 | $65.70 |
+| **TOTAL** | **$0.85** | **$20.40** | **$613.90** |
+
+### Custos Estimados (com cluster desligado)
+
+| Recurso | Custo/hora | Custo/dia | Custo/mês |
+|---------|------------|-----------|-----------|
+| NAT Gateways (2) | $0.09 | $2.16 | $65.70 |
+| **TOTAL** | **$0.09** | **$2.16** | **$65.70** |
+
+**Economia com shutdown:** ~$0.76/hora (~$18.24/dia, ~$548.20/mês)
+
+### Estratégia Recomendada
+
+1. **Desenvolvimento Ativo (dias úteis):**
+  - Ligar cluster pela manhã: `./startup-cluster.sh`
+  - Desligar cluster à noite: `./shutdown-cluster.sh`
+  - Economia: ~50% (~$300/mês)
+
+2. **Desenvolvimento Intermitente:**
+  - Ligar apenas quando necessário
+  - Desligar após uso
+  - Economia: ~70-80% (~$400-450/mês)
+
+3. **Produção 24/7:**
+  - Manter cluster ligado
+  - Implementar Auto Scaling para otimizar custos
+  - Considerar Reserved Instances ou Savings Plans
+
+## 🔧 Uso Diário Recomendado
+
+### Início do Dia de Trabalho
+
+```bash
+# 1. Verificar status atual
+./status-cluster.sh
+
+# 2. Se desligado, ligar cluster
+./startup-cluster.sh
+
+# 3. Aguardar ~15 minutos
+# 4. Cluster estará pronto para uso
+```
+
+### Fim do Dia de Trabalho
+
+```bash
+# 1. Salvar todo trabalho importante
+# 2. Fazer commit de código no Git
+# 3. Desligar cluster
+./shutdown-cluster.sh
+
+# 4. Aguardar ~3-5 minutos
+# 5. Confirmar destruição
+./status-cluster.sh
+```
+
+## 🔐 Pré-requisitos
+
+### AWS CLI e Credenciais
+
+```bash
+# Verificar se credenciais estão válidas
+aws sts get-caller-identity --profile k8s-platform-prod
+
+# Se expirado, fazer login novamente
+aws sso login --profile k8s-platform-prod
+```
+
+### Terraform
+
+```bash
+# Terraform deve estar instalado
+terraform version
+
+# Deve mostrar: Terraform v1.14.3 ou superior
+```
+
+### kubectl (opcional, mas recomendado)
+
+```bash
+# kubectl deve estar instalado para validações
+kubectl version --client
+
+# Deve mostrar: Client Version: v1.34.1 ou superior
+```
+
+## 📊 Logs e Troubleshooting
+
+### Localização dos Logs
+
+- **Shutdown:** `/tmp/terraform-shutdown-YYYYMMDD_HHMMSS.log`
+- **Startup:** `/tmp/terraform-startup-YYYYMMDD_HHMMSS.log`
+- **Backups State:** `~/.terraform-backups/marco1/terraform.tfstate.backup.YYYYMMDD_HHMMSS`
+
+### Problemas Comuns
+
+#### 1. Erro: "Lock already exists"
+
+```bash
+# Identificar Lock ID no erro
+# Desbloquear manualmente
+cd ../
+terraform force-unlock <LOCK_ID>
+```
+
+#### 2. Erro: "Credenciais expiradas"
+
+```bash
+# Renovar credenciais AWS
+aws sso login --profile k8s-platform-prod
+```
+
+#### 3. Erro: "Timeout during shutdown"
+
+```bash
+# Verificar recursos manualmente no Console AWS
+# Ou tentar novamente
+./shutdown-cluster.sh
+```
+
+#### 4. Erro: "kubectl não conecta"
+
+```bash
+# Reconfigurar kubectl
+aws eks update-kubeconfig --region us-east-1 --name k8s-platform-prod --profile k8s-platform-prod
+```
+
+## 🎯 Conformidade IaC
+
+Todos os scripts seguem 100% conformidade com Infrastructure as Code:
+
+- ✅ Usa exclusivamente Terraform para criar/destruir recursos
+- ✅ State gerenciado remotamente no S3 com locking DynamoDB
+- ✅ Backups automáticos do state antes de operações destrutivas
+- ✅ Logs completos de todas as operações
+- ✅ Idempotente: pode executar múltiplas vezes com segurança
+
+## 📝 Notas Importantes
+
+1. **NAT Gateways** continuam gerando custos (~$65/mês) mesmo com cluster desligado
+  - Para economia total, seria necessário destruir a VPC também
+  - Não recomendado pois perde a infraestrutura de rede
+
+2. **IAM Roles** não geram custos, são mantidos entre shutdowns/startups
+
+3. **Terraform State** é mantido no S3, garantindo rastreabilidade completa
+
+4. **Tempo de startup** pode variar:
+  - Mínimo: 12-13 minutos (cluster + nodes + add-ons)
+  - Máximo: 18-20 minutos (se houver contenção de recursos AWS)
+
+5. **Dados persistentes**: Qualquer dado armazenado em PVCs será perdido no shutdown
+  - Fazer backup de dados importantes antes de desligar
+
+## 🚀 Próximos Passos
+
+Para otimização adicional de custos:
+
+1. Implementar Spot Instances para node groups não-críticos
+2. Configurar Cluster Autoscaler para dimensionamento automático
+3. Implementar Karpenter para otimização avançada de nodes
+4. Configurar AWS Instance Scheduler para automação de start/stop
+5. Considerar Reserved Instances para workloads 24/7
+
+## 📖 Referências
+
+- [AWS EKS Pricing](https://aws.amazon.com/eks/pricing/)
+- [EC2 On-Demand Pricing](https://aws.amazon.com/ec2/pricing/on-demand/)
+- [NAT Gateway Pricing](https://aws.amazon.com/vpc/pricing/)
+- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+
+
 ## 📞 Suporte
 
 Para questões sobre:

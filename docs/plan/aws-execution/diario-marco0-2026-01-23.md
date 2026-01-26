@@ -1,5 +1,397 @@
 # Diário de Bordo - Marco 0
 
+## 2026-01-26 - Sessão 5: Marco 1 COMPLETO - Cluster EKS Provisionado com Sucesso
+
+### 📋 Resumo Executivo
+- ✅ **MARCO 1 COMPLETO**: Cluster EKS k8s-platform-prod criado e validado
+- ✅ **16 recursos Terraform criados com sucesso**
+- ✅ **100% Conformidade IaC**: Todos os recursos criados via Terraform
+- ✅ **7 nodes operacionais** (2 system + 3 workloads + 2 critical)
+- ✅ **4 add-ons instalados e funcionando**
+- ⏱️ **Tempo total de provisionamento**: ~15 minutos
+
+### 🎯 Contexto Inicial
+- Marco 0 completo: Backend Terraform funcional, módulos criados, documentação completa
+- Objetivo: Provisionar cluster EKS completo com 3 node groups e add-ons
+- Estratégia: CLI-First com 100% conformidade IaC via Terraform
+- Decisão crítica: Usuário priorizou conformidade IaC sobre velocidade
+
+### 🔧 Ações Realizadas
+
+#### 1. Preparação e Estrutura Terraform (Sessão 4)
+- ✅ **Tags Kubernetes adicionadas às subnets existentes**:
+  - Public subnets: `kubernetes.io/role/elb=1`
+  - Private subnets: `kubernetes.io/role/internal-elb=1`
+  - All subnets: `kubernetes.io/cluster/k8s-platform-prod=shared`
+
+- ✅ **IAM Roles validados** (já existentes):
+  - Cluster role: `k8s-platform-eks-cluster-role` com AmazonEKSClusterPolicy
+  - Node role: `k8s-platform-eks-node-role` com 4 políticas necessárias
+
+- ✅ **Código Terraform completo criado**:
+  - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/main.tf`
+  - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/variables.tf`
+  - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/outputs.tf`
+  - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/terraform.tfvars`
+  - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/backend.tf`
+
+#### 2. Resolução de Problemas de State
+
+**Problema 1: Cluster EKS já existia parcialmente**
+- Causa: Tentativas anteriores de criação via AWS CLI
+- Solução: Tentativa de import para o state do Terraform
+- Resultado: Import criou drift e inconsistências
+
+**Problema 2: Múltiplos locks do DynamoDB**
+- Causa: Interrupções durante operações do Terraform
+- Locks encontrados: 4 diferentes lock IDs
+- Solução: `terraform force-unlock -force <LOCK_ID>` para cada lock
+
+**Problema 3: Terraform queria destruir e recriar cluster**
+- Causa: State drift após tentativa de import
+- Opções apresentadas:
+  - A) AWS CLI (mais rápido, menos conformidade IaC)
+  - B) Destruir via Terraform e recriar (mais lento, 100% conformidade IaC)
+- **Decisão do usuário**: OPÇÃO B
+- Justificativa: "eu prefiro perder esse tempo agora, mas criar com 100% de conformidade com o IaC que estamos montando com o Terraform"
+
+#### 3. Destruição Limpa da Infraestrutura Parcial
+
+```bash
+terraform destroy -auto-approve
+```
+
+- ⏱️ **Tempo de destruição**: 3m47s
+- 🗑️ **Recursos destruídos**: 9 recursos
+  - aws_eks_cluster.main
+  - aws_kms_key.eks
+  - aws_kms_alias.eks
+  - aws_security_group.eks_cluster
+  - aws_security_group.eks_nodes
+  - 4 aws_security_group_rule
+- ✅ **State limpo** e pronto para rebuild
+
+#### 4. Provisionamento Completo via Terraform
+
+```bash
+cd /home/gilvangalindo/projects/Arquitetura/Kubernetes/platform-provisioning/aws/kubernetes/terraform/envs/marco1
+export AWS_PROFILE=k8s-platform-prod
+terraform apply -auto-approve 2>&1 | tee /tmp/terraform-apply-complete.log
+```
+
+**Timeline de Criação:**
+
+**Fase 1: Segurança e Criptografia (0-15s)**
+- ✅ Security Group eks_cluster: 3s (sg-05403c6b017e5ce9a)
+- ✅ Security Group eks_nodes: 4s (sg-0a7c2357394844472)
+- ✅ 4 Security Group Rules: 1s cada
+- ✅ KMS Key: 11s (3e1f7e71-1a23-4de8-88a8-5b01f2606b25)
+- ✅ KMS Alias: 0s (alias/k8s-platform-prod-eks-secrets)
+
+**Fase 2: EKS Cluster (0-11m7s)**
+- 🔄 Cluster creation: 11m7s
+- ✅ Cluster criado: k8s-platform-prod
+- ✅ Endpoint: https://9A2B4E51419C283EC7FC49A826EB2E7D.sk1.us-east-1.eks.amazonaws.com
+- ✅ Version: 1.31
+- ✅ Encryption: KMS habilitado
+- ✅ Logs: 5 tipos de logs habilitados (api, audit, authenticator, controllerManager, scheduler)
+
+**Fase 3: Node Groups (11m7s - 13m8s)**
+- ✅ Node Group workloads: 1m39s (k8s-platform-prod:workloads)
+  - Instance type: t3.large
+  - Desired/Min/Max: 3/2/6
+  - Labels: node-type=workloads, workload=applications
+- ✅ Node Group critical: 2m0s (k8s-platform-prod:critical)
+  - Instance type: t3.xlarge
+  - Desired/Min/Max: 2/2/4
+  - Labels: node-type=critical, workload=databases
+  - Taint: workload=critical:NO_SCHEDULE
+- ✅ Node Group system: 2m1s (k8s-platform-prod:system)
+  - Instance type: t3.medium
+  - Desired/Min/Max: 2/2/4
+  - Labels: node-type=system, workload=platform
+
+**Fase 4: Add-ons EKS (13m8s - 14m36s)**
+- ✅ coredns: 16s (v1.11.3-eksbuild.2)
+- ✅ kube-proxy: 47s (v1.31.2-eksbuild.3)
+- ✅ ebs-csi-driver: 48s (v1.37.0-eksbuild.1)
+- ✅ vpc-cni: 1m28s (v1.18.5-eksbuild.1)
+
+**📊 Resultado Final:**
+```
+Apply complete! Resources: 16 added, 0 changed, 0 destroyed.
+```
+
+#### 5. Validação do Cluster
+
+**Configuração kubectl:**
+```bash
+aws eks update-kubeconfig --region us-east-1 --name k8s-platform-prod --profile k8s-platform-prod
+```
+✅ Contexto adicionado: `arn:aws:eks:us-east-1:891377105802:cluster/k8s-platform-prod`
+
+**Validação de Nodes:**
+```bash
+kubectl get nodes -L node-type,workload,eks.amazonaws.com/nodegroup
+```
+
+| Node | Status | Node-Type | Workload | Node Group | Instance Type |
+|------|--------|-----------|----------|------------|---------------|
+| ip-10-0-128-205 | Ready | critical | databases | critical | t3.xlarge |
+| ip-10-0-129-26 | Ready | workloads | applications | workloads | t3.large |
+| ip-10-0-135-121 | Ready | workloads | applications | workloads | t3.large |
+| ip-10-0-139-209 | Ready | system | platform | system | t3.medium |
+| ip-10-0-147-141 | Ready | workloads | applications | workloads | t3.large |
+| ip-10-0-151-187 | Ready | system | platform | system | t3.medium |
+| ip-10-0-155-78 | Ready | critical | databases | critical | t3.xlarge |
+
+**Validação de Pods do Sistema:**
+```bash
+kubectl get pods -n kube-system
+```
+
+✅ **Todos os pods em estado Running:**
+- CoreDNS: 2 pods Running
+- VPC CNI (aws-node): 7 pods Running (1 por node)
+- Kube-proxy: 7 pods Running (1 por node)
+- EBS CSI Controller: 2 pods Running
+- EBS CSI Node: 7 pods Running (1 por node)
+
+### 📈 Métricas de Sucesso
+
+| Métrica | Valor | Status |
+|---------|-------|--------|
+| Recursos Terraform | 16 | ✅ 100% |
+| Nodes provisionados | 7 | ✅ 100% |
+| Nodes Ready | 7/7 | ✅ 100% |
+| Add-ons instalados | 4/4 | ✅ 100% |
+| Pods sistema Running | 25/25 | ✅ 100% |
+| Conformidade IaC | 100% | ✅ Objetivo alcançado |
+| Tempo total | ~15min | ✅ Dentro do esperado |
+
+### 🎓 Lições Aprendidas
+
+1. **Priorizar conformidade IaC desde o início**
+   - Tentativas de criar recursos via AWS CLI causaram problemas de state
+   - Reconstruir via Terraform garantiu documentação completa e rastreabilidade
+
+2. **State management é crítico**
+   - Múltiplos locks indicam necessidade de melhor controle de processos
+   - Import de recursos deve ser evitado quando possível
+   - Destruição limpa + recriação é preferível a tentar corrigir drift
+
+3. **Transparência durante provisionamento**
+   - Updates frequentes (a cada 30-90s) mantêm usuário informado
+   - Provisionamento de EKS leva ~11 minutos (esperado)
+   - Node groups são rápidos (~2 minutos) mas nodes levam mais tempo para ficar Ready
+
+4. **Validação completa é essencial**
+   - Não basta criar recursos, é preciso validar pods, nodes, add-ons
+   - Labels e taints devem ser verificados
+   - Cluster info deve ser documentado para troubleshooting futuro
+
+### 📁 Artefatos Criados
+
+1. **Código Terraform**:
+   - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/main.tf` (370 linhas)
+   - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/variables.tf` (55 linhas)
+   - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/outputs.tf` (98 linhas)
+   - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/terraform.tfvars` (29 linhas)
+   - `platform-provisioning/aws/kubernetes/terraform/envs/marco1/backend.tf` (11 linhas)
+
+2. **Logs de Execução**:
+   - `/tmp/terraform-destroy.log` (log da destruição limpa)
+   - `/tmp/terraform-apply-complete.log` (log completo do apply)
+
+3. **Configuração kubectl**:
+   - Context adicionado em `~/.kube/config`
+
+### 🎯 Estado Atual
+
+- ✅ **Cluster EKS**: k8s-platform-prod ATIVO
+- ✅ **Nodes**: 7 nodes Ready (2 system, 3 workloads, 2 critical)
+- ✅ **Add-ons**: 4 add-ons instalados e funcionando
+- ✅ **Networking**: VPC CNI configurado, CoreDNS operacional
+- ✅ **Storage**: EBS CSI Driver pronto para PVCs
+- ✅ **Security**: KMS encryption habilitado, Security Groups configurados
+- ✅ **State**: Terraform state limpo e sincronizado com infraestrutura real
+
+### 💰 Gerenciamento de Custos
+
+**Problema identificado:** Cluster EKS gera custos significativos 24/7 (~$625/mês)
+
+**Solução implementada:** Scripts de gestão de custos para ligar/desligar cluster
+
+#### Scripts Criados
+
+1. **`status-cluster.sh`** - Verifica status e custos
+   - Mostra estado do cluster (ACTIVE/DESLIGADO)
+   - Lista node groups e instâncias
+   - Calcula custos por hora/dia/mês
+   - Valida kubectl e conectividade
+
+2. **`shutdown-cluster.sh`** - Desliga cluster
+   - Destrói cluster EKS, nodes, add-ons, security groups, KMS
+   - Mantém VPC, subnets, NAT gateways, IAM roles
+   - Cria backup automático do Terraform state
+   - Tempo: ~3-5 minutos
+   - Economia: ~$0.76/hora (~$547/mês)
+
+3. **`startup-cluster.sh`** - Liga cluster
+   - Recria toda infraestrutura via Terraform (100% IaC)
+   - Configura kubectl automaticamente
+   - Valida nodes e pods
+   - Tempo: ~15 minutos
+
+#### Custos Detalhados
+
+**Com cluster LIGADO:**
+- Cluster EKS: $0.10/hora ($73/mês)
+- 7 Nodes EC2: $0.66/hora ($475/mês)
+- 2 NAT Gateways: $0.09/hora ($66/mês)
+- **Total: $0.86/hora (~$625/mês)**
+
+**Com cluster DESLIGADO:**
+- 2 NAT Gateways: $0.09/hora ($66/mês)
+- **Total: $0.09/hora (~$66/mês)**
+- **Economia: $0.76/hora (~$547/mês)**
+
+#### Estratégia Recomendada
+
+**Desenvolvimento diário (segunda a sexta):**
+```bash
+# Manhã: ligar cluster
+./startup-cluster.sh  # ~15 minutos
+
+# Trabalho durante o dia (~10 horas)
+
+# Noite: desligar cluster
+./shutdown-cluster.sh  # ~5 minutos
+```
+
+**Economia mensal:** ~50% (~$300/mês)
+- Ligado: 10h/dia × 5 dias = 50h/semana = 220h/mês
+- Custo: 220h × $0.86 = ~$189/mês + $66 (NAT) = $255/mês
+- vs. 24/7: $625/mês
+
+#### Localização dos Scripts
+
+```
+platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/
+├── status-cluster.sh      # Verificar status e custos
+├── shutdown-cluster.sh    # Desligar cluster
+├── startup-cluster.sh     # Ligar cluster
+└── README.md             # Documentação completa
+```
+
+#### Documentação
+
+Documentação completa em:
+- [scripts/README.md](../../../platform-provisioning/aws/kubernetes/terraform/envs/marco1/scripts/README.md)
+
+Inclui:
+- Guia de uso de cada script
+- Tabelas de custos detalhadas
+- Estratégias de economia
+- Troubleshooting comum
+- Conformidade IaC
+
+### 🚀 Próximos Passos (Marco 2)
+
+1. Instalar Ingress Controller (AWS Load Balancer Controller)
+2. Configurar Cert-Manager para certificados TLS
+3. Implementar monitoramento (Prometheus + Grafana)
+4. Configurar logging centralizado (Fluent Bit + CloudWatch)
+5. Implementar políticas de rede (Network Policies)
+6. Configurar Auto Scaling (Cluster Autoscaler ou Karpenter)
+7. Deploy de aplicações de teste
+
+### 💡 Observações Técnicas
+
+- **VPC**: Utilizando VPC existente `fictor-vpc` (10.0.0.0/16)
+- **Subnets**: 2 AZs (us-east-1a, us-east-1b) com 2 private + 2 public subnets
+- **Kubernetes Version**: 1.31 (versão mais recente suportada)
+- **Container Runtime**: containerd 2.1.5
+- **OS**: Amazon Linux 2023.10.20260105
+- **Kernel**: 6.1.159-181.297.amzn2023.x86_64
+
+### 🔐 Recursos de Segurança
+
+- ✅ KMS encryption para secrets do EKS
+- ✅ Security Groups isolando cluster e nodes
+- ✅ Private subnets para nodes
+- ✅ Public endpoint com restrição de CIDR (VPC CIDR only)
+- ✅ IAM roles com políticas específicas (least privilege)
+- ✅ Logs de auditoria habilitados (5 tipos)
+
+---
+
+## 2026-01-26 - Sessão 4: Preparação para Marco 1 - Provisionamento EKS Cluster
+
+- Contexto inicial:
+  - Marco 0 COMPLETO: Backend Terraform funcional, módulos criados, documentação completa
+  - Objetivo: Avançar para Marco 1 (Provisionamento EKS Cluster)
+  - Estratégia: CLI-First (Terraform/AWS CLI) com documentação contínua no diário
+
+- Verificações de ambiente:
+  - ✅ Terraform instalado: v1.14.3
+  - ✅ kubectl instalado: v1.34.1
+  - ⚠️ **Credenciais AWS expiradas**: Necessário renovar via `aws login`
+  - ✅ Diretório de trabalho: `/home/gilvangalindo/projects/Arquitetura/Kubernetes`
+
+- Ações realizadas:
+  - ✅ **Credenciais AWS validadas com sucesso**:
+    - Profile: `k8s-platform-prod`
+    - Account: `891377105802`
+    - User: `gilvan.galindo`
+    - Role: `AWSReservedSSO_AdministratorAccess`
+
+  - ✅ **Análise da infraestrutura AWS atual**:
+    - **Clusters EKS**: Nenhum cluster EKS existente
+    - **VPC existente**: `vpc-0b1396a59c417c1f0` (10.0.0.0/16) - Nome: `fictor-vpc`
+    - **Subnets existentes**:
+      - `subnet-0b5e0cae5658ea993` (10.0.0.0/20) - public1-us-east-1a
+      - `subnet-07dca8ceb9882ba66` (10.0.16.0/20) - public2-us-east-1b
+      - `subnet-0472ab28726cdf745` (10.0.128.0/20) - private1-us-east-1a
+      - `subnet-0288a67cd352effa7` (10.0.144.0/20) - private2-us-east-1b
+
+- Situação identificada:
+  - VPC já existe (reverse-engineered no Marco 0)
+  - Nenhum cluster EKS criado ainda
+  - Infraestrutura de rede básica pronta (2 AZs com subnets públicas e privadas)
+
+- Decisão estratégica necessária:
+  **OPÇÃO A**: Criar cluster EKS na VPC existente (`fictor-vpc`)
+  - Vantagens: Usa infraestrutura existente, alinhado com Marco 0
+  - Próximos passos: Criar EKS cluster + Node Groups via Terraform
+
+  **OPÇÃO B**: Criar nova VPC dedicada para plataforma Kubernetes
+  - Vantagens: Isolamento completo, configuração ideal desde o início
+  - Próximos passos: Provisionar nova VPC + EKS cluster
+
+- **DECISÃO TOMADA**: ✅ OPÇÃO A - Usar VPC existente (`fictor-vpc`)
+  - Justificativa: Alinhado com Marco 0, infraestrutura já validada, economia de recursos
+  - Estratégia incremental: Iniciar com 2 AZs, criar script para adicionar 3ª AZ quando necessário
+  - Abordagem: Tags Kubernetes + EKS Cluster + 3 Node Groups
+
+- Análise de recursos adicionais necessários:
+  - Verificando NAT Gateways, Internet Gateways, Route Tables
+  - Identificando necessidade de tags Kubernetes nas subnets
+  - Validando IAM roles necessárias
+
+- Próximas ações imediatas:
+  1. Analisar recursos de rede existentes (NAT, IGW, Route Tables)
+  2. Adicionar tags Kubernetes nas subnets existentes
+  3. Criar IAM roles para EKS cluster e node groups
+  4. Preparar código Terraform para EKS cluster (2 AZs inicialmente)
+  5. Criar script incremental para adicionar 3ª AZ (us-east-1c)
+  6. Executar `terraform plan` para review
+  7. Após aprovação, executar `terraform apply`
+  8. Validar cluster EKS criado
+  9. Documentar todos os passos
+
+---
+
 ## 2026-01-24 - Sessão 3: Ajuste de Scripts e Documentação Completa
 
 - Ações realizadas:
