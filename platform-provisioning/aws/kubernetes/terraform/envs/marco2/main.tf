@@ -65,3 +65,18 @@ module "aws_load_balancer_controller" {
 
   depends_on = [aws_iam_openid_connect_provider.eks]
 }
+
+# -----------------------------------------------------------------------------
+# Cert-Manager
+# -----------------------------------------------------------------------------
+
+module "cert_manager" {
+  source = "./modules/cert-manager"
+
+  namespace              = "cert-manager"
+  chart_version          = "v1.16.3"
+  create_cluster_issuers = false  # Criados separadamente após CRDs instalados
+  letsencrypt_email      = var.letsencrypt_email
+
+  depends_on = [module.aws_load_balancer_controller]
+}
