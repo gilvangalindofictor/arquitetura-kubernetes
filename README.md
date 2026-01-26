@@ -667,11 +667,11 @@ terraform force-unlock <LOCK_ID>
 
 ### 📊 Recursos AWS Criados
 
-| Recurso | Nome | Configuração | Custo/Mês |
-|---------|------|--------------|-----------|
-| S3 Bucket | terraform-state-marco0-891377105802 | Versioning + AES256 + Public Block | ~$0.00002 |
-| DynamoDB Table | terraform-state-lock | LockID (String), PAY_PER_REQUEST | ~$0.0000125 |
-| **TOTAL** | | | **~$0.01** |
+| Recurso        | Nome                                | Configuração                       | Custo/Mês   |
+| -------------- | ----------------------------------- | ---------------------------------- | ----------- |
+| S3 Bucket      | terraform-state-marco0-891377105802 | Versioning + AES256 + Public Block | ~$0.00002   |
+| DynamoDB Table | terraform-state-lock                | LockID (String), PAY_PER_REQUEST   | ~$0.0000125 |
+| **TOTAL**      |                                     |                                    | **~$0.01**  |
 
 ---
 
@@ -904,19 +904,19 @@ Recria o cluster EKS via Terraform (100% conformidade IaC).
 
 ### Custos Estimados (com cluster ligado)
 
-| Recurso | Custo/hora | Custo/dia | Custo/mês |
-|---------|------------|-----------|-----------|
-| Cluster EKS | $0.10 | $2.40 | $73.00 |
-| Nodes EC2 (7) | $0.66 | $15.84 | $475.20 |
-| NAT Gateways (2) | $0.09 | $2.16 | $65.70 |
-| **TOTAL** | **$0.85** | **$20.40** | **$613.90** |
+| Recurso          | Custo/hora | Custo/dia  | Custo/mês   |
+| ---------------- | ---------- | ---------- | ----------- |
+| Cluster EKS      | $0.10      | $2.40      | $73.00      |
+| Nodes EC2 (7)    | $0.66      | $15.84     | $475.20     |
+| NAT Gateways (2) | $0.09      | $2.16      | $65.70      |
+| **TOTAL**        | **$0.85**  | **$20.40** | **$613.90** |
 
 ### Custos Estimados (com cluster desligado)
 
-| Recurso | Custo/hora | Custo/dia | Custo/mês |
-|---------|------------|-----------|-----------|
-| NAT Gateways (2) | $0.09 | $2.16 | $65.70 |
-| **TOTAL** | **$0.09** | **$2.16** | **$65.70** |
+| Recurso          | Custo/hora | Custo/dia | Custo/mês  |
+| ---------------- | ---------- | --------- | ---------- |
+| NAT Gateways (2) | $0.09      | $2.16     | $65.70     |
+| **TOTAL**        | **$0.09**  | **$2.16** | **$65.70** |
 
 **Economia com shutdown:** ~$0.76/hora (~$18.24/dia, ~$548.20/mês)
 
