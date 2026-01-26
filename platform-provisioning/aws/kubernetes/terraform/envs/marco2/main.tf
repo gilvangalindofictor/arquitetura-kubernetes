@@ -11,7 +11,7 @@
 
 # Extrair informações do OIDC issuer
 locals {
-  oidc_issuer_url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  oidc_issuer_url   = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
   oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(local.oidc_issuer_url, "https://", "")}"
 }
 
@@ -75,7 +75,7 @@ module "cert_manager" {
 
   namespace              = "cert-manager"
   chart_version          = "v1.16.3"
-  create_cluster_issuers = false  # Criados separadamente após CRDs instalados
+  create_cluster_issuers = false # Criados separadamente após CRDs instalados
   letsencrypt_email      = var.letsencrypt_email
 
   depends_on = [module.aws_load_balancer_controller]
@@ -88,7 +88,7 @@ module "cert_manager" {
 module "kube_prometheus_stack" {
   source = "./modules/kube-prometheus-stack"
 
-  namespace   = "monitoring"
+  namespace     = "monitoring"
   chart_version = "69.4.0"
 
   # Prometheus
@@ -96,9 +96,9 @@ module "kube_prometheus_stack" {
   prometheus_retention    = "15d"
 
   # Grafana
-  grafana_admin_password  = var.grafana_admin_password
+  grafana_admin_password  = data.aws_secretsmanager_secret_version.grafana_admin_password.secret_string
   grafana_storage_size    = "5Gi"
-  grafana_ingress_enabled = false  # Acesso via port-forward por enquanto
+  grafana_ingress_enabled = false # Acesso via port-forward por enquanto
 
   # Alertmanager
   alertmanager_storage_size = "2Gi"

@@ -93,7 +93,7 @@ output "public_subnet_ids" {
 
 output "usage_instructions" {
   description = "How domains should consume these outputs"
-  value = <<-EOT
+  value       = <<-EOT
   
   # Domains should consume these outputs as variables:
   

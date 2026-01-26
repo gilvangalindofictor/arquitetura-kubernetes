@@ -13,9 +13,9 @@ resource "kubernetes_namespace" "cert_manager" {
     name = var.namespace
 
     labels = {
-      "name"                       = var.namespace
-      "app.kubernetes.io/name"     = "cert-manager"
-      "app.kubernetes.io/instance" = "cert-manager"
+      "name"                         = var.namespace
+      "app.kubernetes.io/name"       = "cert-manager"
+      "app.kubernetes.io/instance"   = "cert-manager"
       "app.kubernetes.io/managed-by" = "terraform"
     }
   }

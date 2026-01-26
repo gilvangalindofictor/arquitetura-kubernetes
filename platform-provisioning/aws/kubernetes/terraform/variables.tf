@@ -23,8 +23,8 @@ variable "cluster_name" {
 variable "s3_buckets" {
   description = "List of S3 buckets to create for platform storage"
   type = list(object({
-    name          = string
-    purpose       = string
+    name           = string
+    purpose        = string
     lifecycle_days = number
   }))
   default = [
