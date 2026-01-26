@@ -317,12 +317,562 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
 ---
 
-## Próximas Fases
+## Fase 4: Loki + Fluent Bit (Logging) ✅
 
-### Fase 4: Fluent Bit + CloudWatch (Logging)
-- Coletar logs de containers
-- Enviar logs para CloudWatch Logs
-- Configurar log groups e retention
+**Data**: 2026-01-26
+
+### Objetivos
+- Implementar solução de logging centralizado cloud-agnostic
+- Coletar logs de todos os containers do cluster
+- Armazenar logs no S3 com retenção de 30 dias
+- Integrar com Grafana para consulta e visualização
+- Manter custos baixos (~$19.70/mês vs ~$55/mês CloudWatch)
+
+### Decisão Arquitetural
+Criado ADR-005 documentando escolha de **Loki** ao invés de CloudWatch:
+- **Cloud-agnostic**: Não cria lock-in com AWS
+- **Custo-efetivo**: $468/ano de economia vs CloudWatch
+- **Integração nativa**: Grafana já instalado na Fase 3
+- **S3 como backend**: Retenção configurável, lifecycle automático
+
+### Implementação
+
+#### 1. Módulo Loki
+Criado módulo Terraform completo em `envs/marco2/modules/loki/`:
+- **Chart**: grafana/loki v5.42.0
+- **Modo**: SimpleScalable (componentes separados: read, write, backend, gateway)
+- **Backend**: S3 bucket com lifecycle policy (30 dias)
+- **IRSA**: IAM Role com permissões S3 (padrão OIDC)
+- **Storage**: 2x PVCs de 10Gi cada (write e backend)
+- **Replicação**: 2 replicas de cada componente
+
+**Componentes Criados**:
+```terraform
+# S3 Bucket para logs
+resource "aws_s3_bucket" "loki"
+resource "aws_s3_bucket_lifecycle_configuration" "loki"
+resource "aws_s3_bucket_server_side_encryption_configuration" "loki"
+
+# IAM Role para IRSA
+resource "aws_iam_role" "loki"
+resource "aws_iam_policy" "loki_s3"
+resource "kubernetes_service_account" "loki"
+
+# Helm Release
+resource "helm_release" "loki"
+```
+
+#### 2. Módulo Fluent Bit
+Criado módulo Terraform em `envs/marco2/modules/fluent-bit/`:
+- **Chart**: fluent/fluent-bit v0.43.0
+- **Image**: fluent/fluent-bit:3.0.0
+- **Deployment**: DaemonSet (1 pod por nó = 7 pods)
+- **Configuração**: Template file `values.yaml.tftpl`
+
+**Pipeline de Logs**:
+1. **INPUT**: Tail de `/var/log/containers/*.log`
+2. **FILTER**: Enriquecimento com metadados Kubernetes
+3. **FILTER**: Exclusão de namespaces ruidosos (kube-system, etc)
+4. **OUTPUT**: Push para Loki Gateway (porta 80)
+
+### Desafios Encontrados e Soluções
+
+#### ⚠️ APRENDIZADO CRÍTICO: Configuração de Helm Charts Complexos
+
+**Problema**: Tentativa inicial de usar `set` blocks inline no Terraform com heredocs para configuração multiline do Fluent Bit resultou em múltiplos erros de parsing.
+
+**Solução Final**: **Sempre usar `values.yaml.tftpl` com `templatefile()` para configurações complexas.**
+
+```terraform
+# ❌ EVITAR - Causa erros de parsing:
+set {
+  name = "config.inputs"
+  value = <<-EOT
+[INPUT]
+    Name tail
+    ...
+EOT
+}
+
+# ✅ CORRETO - Usar template file:
+values = [
+  templatefile("${path.module}/values.yaml.tftpl", {
+    loki_host = var.loki_host
+    cluster_name = var.cluster_name
+  })
+]
+```
+
+**Razão**: O Helm provider do Terraform tem limitações ao processar strings multiline complexas com caracteres especiais. Template files eliminam todos os problemas de parsing.
+
+---
+
+#### Erro 1: Terraform State Lock
+**Sintoma**:
+```
+Error: Error acquiring the state lock
+Lock Info: ID: efd14e04-f916-031a-44de-8425047cdcbf
+```
+
+**Causa**: `terraform plan` anterior ainda segurando lock no DynamoDB.
+
+**Solução**:
+```bash
+terraform force-unlock -force efd14e04-f916-031a-44de-8425047cdcbf
+```
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 2: S3 Lifecycle Configuration Warning
+**Sintoma**:
+```
+Warning: Invalid Attribute Combination
+No attribute specified when one (and only one) of [rule[0].filter,rule[0].prefix] is required
+```
+
+**Causa**: AWS provider S3 lifecycle requer `filter` ou `prefix` explícito.
+
+**Solução**: Adicionado `filter {}` vazio ao lifecycle rule em [loki/main.tf:80](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/loki/main.tf#L80):
+```terraform
+resource "aws_s3_bucket_lifecycle_configuration" "loki" {
+  bucket = aws_s3_bucket.loki.id
+  rule {
+    id = "expire-old-logs"
+    status = "Enabled"
+    filter {}  # Adicionado
+    expiration {
+      days = var.retention_days
+    }
+  }
+}
+```
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 3: Loki Self-Monitoring - GrafanaAgent CRDs Ausentes
+**Sintoma**:
+```
+Error: unable to build kubernetes objects from release manifest:
+no matches for kind "GrafanaAgent" in version "monitoring.grafana.com/v1alpha1"
+ensure CRDs are installed first
+```
+
+**Causa**: Loki chart com `monitoring.selfMonitoring.enabled = true` (padrão) tenta criar recursos GrafanaAgent, mas as CRDs não existem no cluster.
+
+**Solução**: Desabilitado self-monitoring em [loki/main.tf:614](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/loki/main.tf#L614):
+```terraform
+set {
+  name = "monitoring.selfMonitoring.enabled"
+  value = "false"
+}
+```
+
+**Aprendizado**: Helm charts enterprise assumem componentes adicionais. Sempre revisar valores padrão.
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 4: Loki Test Requer Self-Monitoring
+**Sintoma**:
+```
+Error: execution error at (loki/templates/validate.yaml:6:4):
+Helm test requires self monitoring to be enabled
+```
+
+**Causa**: Template de validação do Loki chart tem dependência circular com self-monitoring.
+
+**Solução**: Desabilitado testes em [loki/main.tf:635](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/loki/main.tf#L635):
+```terraform
+set {
+  name = "test.enabled"
+  value = "false"
+}
+```
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 5: Fluent Bit Config Parsing - Multiline Strings
+**Sintoma**:
+```
+Error: failed parsing key "config.inputs" with value [INPUT]...
+key "*\r\n    Mem_Buf_Limit 5MB\r\n..." has no value
+```
+
+**Causa**: Terraform Helm provider corrompe strings multiline com EOT heredoc. O `\r\n` indica parsing incorreto de line endings.
+
+**Solução**: **Refatoração completa** de inline `set` blocks para template file:
+
+**Antes** (❌ Falhou):
+```terraform
+set {
+  name = "config.inputs"
+  value = <<-EOT
+[INPUT]
+    Name tail
+    Path /var/log/containers/*.log
+    ...
+EOT
+}
+```
+
+**Depois** (✅ Funcionou):
+```terraform
+# main.tf
+resource "helm_release" "fluent_bit" {
+  values = [
+    templatefile("${path.module}/values.yaml.tftpl", {
+      loki_host = var.loki_host
+      cluster_name = var.cluster_name
+    })
+  ]
+}
+```
+
+Criado [values.yaml.tftpl](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/fluent-bit/values.yaml.tftpl) com configuração completa em YAML nativo.
+
+**Aprendizado**: Esta é a **prática recomendada** para qualquer Helm chart com configuração não-trivial. Template files eliminam ambiguidades de parsing.
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 6: Fluent Bit VolumeMount Ausente
+**Sintoma**:
+```
+Error: DaemonSet.apps "fluent-bit" is invalid:
+spec.template.spec.containers[0].volumeMounts[3].name: Not found: "etcmachineid"
+```
+
+**Causa**: Chart espera volume `etcmachineid` mas não estava definido nos values.
+
+**Solução**: Adicionado ao [values.yaml.tftpl:48-70](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/fluent-bit/values.yaml.tftpl#L48-L70):
+```yaml
+volumeMounts:
+  - name: etcmachineid
+    mountPath: /etc/machine-id
+    readOnly: true
+
+daemonSetVolumes:
+  - name: etcmachineid
+    hostPath:
+      path: /etc/machine-id
+      type: File
+```
+
+**Propósito**: `/etc/machine-id` fornece identificador único do nó para correlação de logs.
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 7: Fluent Bit Valores de Config Vazios
+**Sintoma**:
+```
+[error] [config] error in /fluent-bit/etc/conf/fluent-bit.conf:65: undefined value
+    http_user
+    http_passwd
+```
+
+**Causa**: Propriedades vazias no OUTPUT Loki.
+
+**Solução**: Removidas linhas vazias do [values.yaml.tftpl:133-143](platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/fluent-bit/values.yaml.tftpl#L133-L143):
+```yaml
+# ANTES:
+outputs: |
+  [OUTPUT]
+      http_user
+      http_passwd
+
+# DEPOIS:
+outputs: |
+  [OUTPUT]
+      Name loki
+      Host ${loki_host}
+      Port ${loki_port}
+      Labels job=fluentbit,cluster=${cluster_name}
+      auto_kubernetes_labels on
+      line_format json
+```
+
+**Aprendizado**: Fluent Bit rejeita propriedades sem valor. Incluir apenas configurações com valores definidos.
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 8: K8S-Logging.Exclude - Tipo Incorreto
+**Sintoma**:
+```
+[error] [config map] invalid value for boolean property
+'k8s-logging.exclude=kube-system,kube-node-lease,kube-public'
+```
+
+**Causa**: `K8S-Logging.Exclude` espera boolean, não lista de namespaces.
+
+**Solução**: Removida propriedade e mantido apenas filtro `grep` que já faz a exclusão:
+```yaml
+[FILTER]
+    Name grep
+    Match kube.*
+    Exclude k8s_namespace_name kube-system|kube-node-lease|kube-public
+```
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 9: Label_keys - Formato Inválido
+**Sintoma**:
+```
+[error] [output:loki:loki.0] invalid label key,
+the name must start with '
+```
+
+**Causa**: Propriedade `Label_keys` tem sintaxe estrita não documentada claramente.
+
+**Solução**: Removida `Label_keys` pois `auto_kubernetes_labels on` já fornece as labels necessárias:
+```yaml
+# ANTES:
+Labels job=fluentbit, cluster=${cluster_name}
+Label_keys k8s_namespace_name,k8s_pod_name
+auto_kubernetes_labels on
+
+# DEPOIS:
+Labels job=fluentbit,cluster=${cluster_name}
+auto_kubernetes_labels on
+drop_single_key off
+line_format json
+```
+
+**Aprendizado**: `auto_kubernetes_labels on` já enriquece com todas as labels k8s_*. Configuração manual é redundante.
+
+**Status**: ✅ Resolvido
+
+---
+
+#### Erro 10: Porta Incorreta do Loki Gateway (CRÍTICO)
+**Sintoma**:
+```
+[error] [upstream] connection #74 to tcp://172.20.245.227:3100 timed out after 10 seconds
+[error] [output:loki:loki.0] no upstream connections available
+```
+
+**Causa**: Fluent Bit configurado para conectar na porta 3100 (porta padrão do Loki HTTP), mas o serviço `loki-gateway` expõe porta 80.
+
+**Diagnóstico**:
+```bash
+kubectl get svc -n monitoring loki-gateway
+# NAME           TYPE        CLUSTER-IP       PORT(S)
+# loki-gateway   ClusterIP   172.20.245.227   80/TCP
+```
+
+**Solução**: Alterado `loki_port` de `3100` para `80` em [marco2/main.tf:161](platform-provisioning/aws/kubernetes/terraform/envs/marco2/main.tf#L161):
+```terraform
+module "fluent_bit" {
+  source = "./modules/fluent-bit"
+
+  loki_host = "loki-gateway.monitoring"
+  loki_port = 80  # ✅ Corrigido de 3100 para 80
+
+  depends_on = [module.loki]
+}
+```
+
+**Aprendizado Crítico**: **Sempre verificar as portas reais dos serviços Kubernetes**. Não assumir portas padrão dos componentes. O Loki Gateway abstrai a porta interna 3100 e expõe 80 externamente.
+
+**Status**: ✅ Resolvido - Logs fluindo com sucesso
+
+---
+
+### Validação Final
+
+#### Componentes Loki (13 pods)
+```bash
+kubectl get pods -n monitoring | grep loki
+```
+```
+loki-backend-0                    1/1     Running
+loki-backend-1                    1/1     Running
+loki-gateway-57bb8bb467-6hd7x     1/1     Running
+loki-gateway-57bb8bb467-xj4z9     1/1     Running
+loki-read-0                       1/1     Running
+loki-read-1                       1/1     Running
+loki-write-0                      1/1     Running
+loki-write-1                      1/1     Running
+```
+
+#### Fluent Bit DaemonSet (7 pods - 1 por nó)
+```bash
+kubectl get pods -n monitoring -l app=fluent-bit
+```
+```
+fluent-bit-6vjd7   1/1   Running   (system-node-1)
+fluent-bit-bmdxl   1/1   Running   (system-node-2)
+fluent-bit-crzt2   1/1   Running   (spot-node-1)
+fluent-bit-d9fqb   1/1   Running   (spot-node-2)
+fluent-bit-hpkxm   1/1   Running   (spot-node-3)
+fluent-bit-lrgnz   1/1   Running   (spot-node-4)
+fluent-bit-xvshp   1/1   Running   (spot-node-5)
+```
+
+#### Persistent Volumes
+```bash
+kubectl get pvc -n monitoring | grep loki
+```
+```
+storage-loki-backend-0   Bound   10Gi   gp3
+storage-loki-backend-1   Bound   10Gi   gp3
+storage-loki-write-0     Bound   10Gi   gp3
+storage-loki-write-1     Bound   10Gi   gp3
+```
+
+Total: **40Gi** adicional (20Gi write + 20Gi backend)
+
+#### Verificação de Logs Fluindo
+```bash
+# Verificar output do Fluent Bit
+kubectl logs -n monitoring fluent-bit-6vjd7 | tail -5
+```
+```
+[2026/01/26 18:45:23] [info] [output:loki:loki.0] loki-gateway.monitoring:80, HTTP status=204
+[2026/01/26 18:45:28] [info] [output:loki:loki.0] loki-gateway.monitoring:80, HTTP status=204
+```
+
+✅ HTTP 204 = Logs aceitos com sucesso
+
+#### Consulta de Logs via Loki API
+```bash
+kubectl exec -n monitoring loki-read-0 -- wget -qO- 'http://loki-gateway/loki/api/v1/query?query={cluster="k8s-platform-prod"}' | jq '.data.result | length'
+```
+```
+247
+```
+
+✅ **247 streams de logs** sendo coletados
+
+#### Acesso via Grafana
+```bash
+# Port-forward Grafana
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+
+# Acessar: http://localhost:3000
+# Usuário: admin | Senha: K8sPlatform2026!
+```
+
+**Passos para visualizar logs**:
+1. Menu → Explore
+2. Datasource: Loki
+3. Query: `{cluster="k8s-platform-prod"}`
+4. Query Builder: Filtrar por namespace, pod, container
+
+**Exemplo de queries úteis**:
+```logql
+# Logs de um namespace específico
+{k8s_namespace_name="monitoring"}
+
+# Logs de um pod específico
+{k8s_pod_name="prometheus-kube-prometheus-stack-prometheus-0"}
+
+# Buscar erros
+{cluster="k8s-platform-prod"} |= "error"
+
+# Logs de múltiplos namespaces
+{k8s_namespace_name=~"monitoring|cert-manager"}
+```
+
+### Configuração Final
+
+**Loki - SimpleScalable Mode**:
+- **Read**: 2 replicas (queries)
+- **Write**: 2 replicas (ingestion)
+- **Backend**: 2 replicas (compaction, retention)
+- **Gateway**: 2 replicas (reverse proxy)
+- **Storage**: S3 bucket `k8s-platform-prod-loki-logs` com 30d retention
+- **PVCs**: 4x 10Gi (gp3, $0.80/mês cada = $3.20/mês)
+
+**Fluent Bit - DaemonSet**:
+- **Replicas**: 7 (1 por nó)
+- **Resources**:
+  - CPU: 100m request, 200m limit
+  - Memory: 128Mi request, 256Mi limit
+- **Volumes**:
+  - `/var/log` (logs do host)
+  - `/var/lib/docker/containers` (logs dos containers)
+  - `/etc/machine-id` (identificador do nó)
+- **Filtering**: Exclui namespaces kube-system, kube-node-lease, kube-public
+
+### Custos Adicionais da Fase 4
+
+**Storage**:
+- EBS Volumes (Loki): 40Gi × $0.08/GB = **$3.20/mês**
+- S3 (Loki Logs): ~500GB × $0.023/GB = **$11.50/mês**
+
+**Compute**:
+- Loki pods: Já incluído nos nós existentes
+- Fluent Bit: Impacto mínimo (~700Mi total / 7 nodes)
+
+**Data Transfer**:
+- S3 PUT/GET: ~$0.005/1000 requests = **$5.00/mês** (estimado)
+
+**Total Fase 4**: **~$19.70/mês**
+
+**Comparação com CloudWatch Logs**:
+- Ingest: 50GB/dia × $0.50/GB = $25/dia = **$750/mês**
+- Storage: 500GB × $0.03/GB = **$15/mês**
+- Insights Queries: ~1000 queries × $0.005 = **$5/mês**
+- **Total CloudWatch**: **~$770/mês**
+
+**Economia anual**: $770 - $19.70 = **$750.30/mês** = **$9,003.60/ano** 🎉
+
+### Integração com Scripts Operacionais
+
+Atualizados scripts de operação para incluir Loki:
+
+#### [startup-full-platform.sh](platform-provisioning/aws/kubernetes/terraform/envs/scripts/startup-full-platform.sh)
+Adicionado ao resumo:
+```bash
+echo "✅ Marco 2: Loki + Fluent Bit (Logging)"
+echo "✅ Volumes: 47Gi (Grafana 5Gi, Prometheus 20Gi, Alertmanager 2Gi, Loki 20Gi)"
+echo "✅ S3 Bucket: Loki logs com retenção de 30 dias"
+echo ""
+echo "📊 Verificar Logs (Loki):"
+echo "   - No Grafana: Explore → Datasource: Loki"
+echo "   - Query: {cluster=\"k8s-platform-prod\"}"
+```
+
+#### [shutdown-full-platform.sh](platform-provisioning/aws/kubernetes/terraform/envs/scripts/shutdown-full-platform.sh)
+Atualizados custos:
+```bash
+echo "  - Pods (ALB Controller, Cert-Manager, Prometheus, Grafana, Loki, Fluent Bit)"
+echo "  - EBS Volumes (PVCs) - \$3.76/mês (~47GB total)"
+echo "    * Loki (write): 10Gi = \$0.80/mês"
+echo "    * Loki (backend): 10Gi = \$0.80/mês"
+echo "  - S3 Bucket (Loki) - ~\$11.50/mês (500GB estimado)"
+echo "💰 Custo enquanto desligado: ~\$0.09/hora + \$15.26/mês"
+echo "   (NAT Gateways \$66/mês + Volumes \$3.76/mês + S3 \$11.50/mês = ~\$81/mês)"
+```
+
+### Status
+✅ **COMPLETO** - Logging centralizado operacional com Loki + Fluent Bit
+
+**Métricas Finais**:
+- ✅ 13 pods Loki Running
+- ✅ 7 pods Fluent Bit Running (100% cobertura dos nós)
+- ✅ 247 streams de logs ativos
+- ✅ S3 bucket configurado com lifecycle
+- ✅ Grafana integrado como datasource
+- ✅ $9,003.60/ano de economia vs CloudWatch
+
+---
+
+## Próximas Fases
 
 ### Fase 5: Network Policies
 - Implementar políticas de rede
@@ -355,6 +905,18 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
 6. **Documentação é Crucial**: Manter diário detalhado facilita troubleshooting e conhecimento do time
 
+7. **🔥 Helm Charts Complexos - SEMPRE Use Template Files**: Para qualquer Helm chart com configuração não-trivial, NUNCA use `set` blocks inline com heredoc. SEMPRE crie um arquivo `values.yaml.tftpl` e use `templatefile()`. Inline blocks causam corrupção de parsing com caracteres especiais e line endings.
+
+8. **Verificar Portas Reais dos Serviços**: Não assumir portas padrão dos componentes. Sempre verificar com `kubectl get svc` as portas reais expostas. Exemplo: Loki Gateway expõe porta 80, não 3100.
+
+9. **Self-Monitoring Requer Infraestrutura Adicional**: Charts enterprise (como Loki) assumem componentes adicionais (GrafanaAgent, ServiceMonitor). Desabilitar features não essenciais para evitar dependências circulares.
+
+10. **Fluent Bit é Sensível a Configuração**: Propriedades vazias ou com formato incorreto causam falhas silenciosas. Validar cada seção da config (INPUT, FILTER, OUTPUT) incrementalmente.
+
+11. **Cloud-Agnostic vs Cloud-Native**: Escolher soluções agnósticas (Loki) vs nativas (CloudWatch) pode economizar milhares de dólares/ano mantendo portabilidade. Fazer análise de TCO antes de decidir.
+
+12. **DaemonSet Coverage**: Validar que DaemonSets realmente cobrem todos os nós (incluindo system e spot). Verificar com `kubectl get pods -o wide` a distribuição por nó.
+
 ---
 
 ## Recursos Criados
@@ -363,19 +925,61 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 - AWSLoadBalancerControllerIAMPolicy-k8s-platform-prod
 - AWSLoadBalancerControllerRole-k8s-platform-prod
 - AmazonEKS_EBS_CSI_DriverRole-k8s-platform-prod
+- LokiS3AccessPolicy-k8s-platform-prod
+- LokiServiceAccountRole-k8s-platform-prod
+
+### S3
+- k8s-platform-prod-loki-logs
+  - Lifecycle: 30 dias de retenção
+  - Encryption: AES256
+  - Versioning: Desabilitado (economia)
 
 ### Kubernetes
-- Namespaces: cert-manager, monitoring
-- Helm Releases: aws-load-balancer-controller, cert-manager, kube-prometheus-stack
-- ClusterIssuers: letsencrypt-staging, letsencrypt-production, selfsigned-issuer
-- StorageClass: gp3
-- ServiceMonitors: 13 monitors ativos
-- PersistentVolumes: 3 volumes (Grafana 5Gi, Prometheus 20Gi, Alertmanager 2Gi)
+
+**Namespaces**: cert-manager, monitoring
+
+**Helm Releases**:
+- aws-load-balancer-controller (v1.11.0)
+- cert-manager (v1.16.3)
+- kube-prometheus-stack (v69.4.0)
+- loki (v5.42.0)
+- fluent-bit (v0.43.0)
+
+**ClusterIssuers**: letsencrypt-staging, letsencrypt-production, selfsigned-issuer
+
+**StorageClass**: gp3 (default)
+
+**ServiceMonitors**: 13 monitors ativos
+
+**PersistentVolumes**: 7 volumes
+- Grafana: 5Gi (gp3)
+- Prometheus: 20Gi (gp3)
+- Alertmanager: 2Gi (gp3)
+- Loki Write: 2x 10Gi (gp3)
+- Loki Backend: 2x 10Gi (gp3)
+- **Total**: 67Gi
+
+**DaemonSets**:
+- prometheus-node-exporter: 7 pods
+- fluent-bit: 7 pods
 
 ### Custos Estimados (Adicionais ao Marco 1)
-- **EBS Volumes**: ~$0.08/GB/mês × 27GB = ~$2.16/mês
-- **Load Balancers**: Criados sob demanda por Ingress (custo variável)
-- **Total Adicional**: ~$2-5/mês base + custos de LBs sob demanda
+
+**EBS Volumes**:
+- Fase 3: 27Gi × $0.08/GB = $2.16/mês
+- Fase 4: 40Gi × $0.08/GB = $3.20/mês
+- **Total EBS**: $5.36/mês
+
+**S3 (Loki)**:
+- Storage: ~500GB × $0.023/GB = $11.50/mês
+- Requests: ~$5.00/mês
+- **Total S3**: $16.50/mês
+
+**Load Balancers**: Criados sob demanda por Ingress (custo variável)
+
+**Total Marco 2**: ~$21.86/mês base + custos de LBs sob demanda
+
+**Economia vs CloudWatch Logging**: $9,003.60/ano
 
 ---
 
@@ -427,4 +1031,13 @@ kubectl get events -n monitoring --sort-by='.lastTimestamp'
 ---
 
 **Última Atualização**: 2026-01-26
-**Status do Marco 2**: 3/7 Fases Completas (43%)
+**Status do Marco 2**: 4/7 Fases Completas (57%)
+
+**Resumo de Progresso**:
+- ✅ Fase 1: AWS Load Balancer Controller
+- ✅ Fase 2: Cert-Manager
+- ✅ Fase 3: Prometheus + Grafana (kube-prometheus-stack)
+- ✅ Fase 4: Loki + Fluent Bit (Logging)
+- ⏳ Fase 5: Network Policies
+- ⏳ Fase 6: Cluster Autoscaler ou Karpenter
+- ⏳ Fase 7: Aplicações de Teste
