@@ -80,3 +80,28 @@ module "cert_manager" {
 
   depends_on = [module.aws_load_balancer_controller]
 }
+
+# -----------------------------------------------------------------------------
+# Kube-Prometheus-Stack (Monitoring)
+# -----------------------------------------------------------------------------
+
+module "kube_prometheus_stack" {
+  source = "./modules/kube-prometheus-stack"
+
+  namespace   = "monitoring"
+  chart_version = "69.4.0"
+
+  # Prometheus
+  prometheus_storage_size = "20Gi"
+  prometheus_retention    = "15d"
+
+  # Grafana
+  grafana_admin_password  = var.grafana_admin_password
+  grafana_storage_size    = "5Gi"
+  grafana_ingress_enabled = false  # Acesso via port-forward por enquanto
+
+  # Alertmanager
+  alertmanager_storage_size = "2Gi"
+
+  depends_on = [module.cert_manager]
+}

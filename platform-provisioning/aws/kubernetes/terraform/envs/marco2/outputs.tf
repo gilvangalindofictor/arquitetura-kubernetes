@@ -30,3 +30,27 @@ output "cert_manager_cluster_issuers" {
   description = "ClusterIssuers criados pelo Cert-Manager"
   value       = module.cert_manager.cluster_issuers_created
 }
+
+# -----------------------------------------------------------------------------
+# Kube-Prometheus-Stack Outputs
+# -----------------------------------------------------------------------------
+
+output "monitoring_namespace" {
+  description = "Namespace do stack de monitoramento"
+  value       = module.kube_prometheus_stack.namespace
+}
+
+output "prometheus_service" {
+  description = "Nome do serviço do Prometheus"
+  value       = module.kube_prometheus_stack.prometheus_service
+}
+
+output "grafana_service" {
+  description = "Nome do serviço do Grafana"
+  value       = module.kube_prometheus_stack.grafana_service
+}
+
+output "alertmanager_service" {
+  description = "Nome do serviço do Alertmanager"
+  value       = module.kube_prometheus_stack.alertmanager_service
+}
