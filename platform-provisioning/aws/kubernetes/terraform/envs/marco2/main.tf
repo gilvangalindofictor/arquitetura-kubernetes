@@ -158,7 +158,7 @@ module "fluent_bit" {
   # Loki configuration
   loki_endpoint = module.loki.loki_push_endpoint
   loki_host     = "loki-gateway.monitoring"
-  loki_port     = 3100
+  loki_port     = 80
 
   # Filtering (exclude noisy namespaces)
   exclude_namespaces = [

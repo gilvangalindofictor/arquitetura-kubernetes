@@ -136,8 +136,7 @@ config:
         Match kube.*
         Host ${loki_host}
         Port ${loki_port}
-        Labels job=fluentbit, cluster=${cluster_name}
-        Label_keys k8s_namespace_name,k8s_pod_name,k8s_container_name,k8s_node_name
+        Labels job=fluentbit,cluster=${cluster_name}
         auto_kubernetes_labels on
         drop_single_key off
         line_format json
