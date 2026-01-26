@@ -44,24 +44,26 @@ CLUSTER_STATUS=$(aws eks describe-cluster --name k8s-platform-prod --region us-e
 
 if [ "$CLUSTER_STATUS" == "NOT_FOUND" ]; then
     echo "🛑 Status: DESLIGADO (cluster não existe)"
-    echo "💰 Custo atual: ~\$0.09/hora (apenas NAT Gateways)"
-    echo ""
-    echo "🚀 Para ligar:"
-    echo "   cd $SCRIPT_DIR"
-    echo "   ./startup-full-platform.sh"
-    echo ""
-    exit 0
+else
+    echo "✅ Status: $CLUSTER_STATUS"
 fi
 
-echo "✅ Status: $CLUSTER_STATUS"
-
-# Executar script de status do Marco 1
-cd "$TERRAFORM_DIR/marco1/scripts"
-./status-cluster.sh
+if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
+    # Executar script de status do Marco 1
+    cd "$TERRAFORM_DIR/marco1/scripts"
+    ./status-cluster.sh
+fi
 
 # -----------------------------------------------------------------------------
 # Marco 2: Platform Services
 # -----------------------------------------------------------------------------
+
+# Inicializar variáveis
+ALB_PODS=0
+CM_PODS=0
+MON_PODS=0
+LOKI_PODS=0
+FB_PODS=0
 
 if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
     echo ""
@@ -121,7 +123,7 @@ if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
     echo ""
 
     # Monitoring Stack (Prometheus + Grafana)
-    echo "🔍 Monitoring Stack (Prometheus + Grafana):"
+    echo "🔍 Monitoring Stack (Prometheus + Grafana + Alertmanager):"
     MON_PODS=$(kubectl get pods -n monitoring --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
     if [ "$MON_PODS" -gt 0 ]; then
         echo "   ✅ Running ($MON_PODS pods)"
@@ -150,15 +152,65 @@ if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
             echo "   ⚠️  Alertmanager: Not Running"
         fi
 
-        # PVCs
-        echo ""
-        echo "   📊 Persistent Volumes:"
-        kubectl get pvc -n monitoring 2>/dev/null | tail -n +2 | awk '{printf "      %s: %s (%s)\n", $1, $4, $2}'
-
     else
         echo "   ❌ Não instalado ou não Running"
         echo "   Execute: cd $TERRAFORM_DIR/marco2 && terraform apply"
     fi
+
+    echo ""
+
+    # Loki (Logging)
+    echo "🔍 Loki (Logging Backend):"
+    LOKI_PODS=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=loki --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+    if [ "$LOKI_PODS" -gt 0 ]; then
+        echo "   ✅ Running ($LOKI_PODS pods)"
+
+        # Loki components
+        LOKI_READ=$(kubectl get pods -n monitoring -l app.kubernetes.io/component=read --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        LOKI_WRITE=$(kubectl get pods -n monitoring -l app.kubernetes.io/component=write --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        LOKI_BACKEND=$(kubectl get pods -n monitoring -l app.kubernetes.io/component=backend --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+        LOKI_GATEWAY=$(kubectl get pods -n monitoring -l app.kubernetes.io/component=gateway --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+
+        echo "   ├─ Read: $LOKI_READ/2"
+        echo "   ├─ Write: $LOKI_WRITE/2"
+        echo "   ├─ Backend: $LOKI_BACKEND/2"
+        echo "   └─ Gateway: $LOKI_GATEWAY/2"
+
+        # S3 Bucket
+        S3_BUCKET=$(aws s3 ls --profile "$AWS_PROFILE" 2>/dev/null | grep "loki" | awk '{print $3}' || echo "")
+        if [ -n "$S3_BUCKET" ]; then
+            echo "   ✅ S3 Bucket: $S3_BUCKET"
+        else
+            echo "   ⚠️  S3 Bucket: Not found"
+        fi
+    else
+        echo "   ❌ Não instalado ou não Running"
+        echo "   Execute: cd $TERRAFORM_DIR/marco2 && terraform apply"
+    fi
+
+    echo ""
+
+    # Fluent Bit (Log Collector)
+    echo "🔍 Fluent Bit (Log Collector):"
+    FB_PODS=$(kubectl get pods -n monitoring -l app=fluent-bit --field-selector=status.phase=Running 2>/dev/null | grep -c "Running" || echo "0")
+    TOTAL_NODES=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+    if [ "$FB_PODS" -gt 0 ]; then
+        echo "   ✅ Running ($FB_PODS/$TOTAL_NODES pods - DaemonSet)"
+        if [ "$FB_PODS" -eq "$TOTAL_NODES" ]; then
+            echo "   ✅ 100% cobertura dos nós"
+        else
+            echo "   ⚠️  Cobertura parcial (esperado: $TOTAL_NODES pods)"
+        fi
+    else
+        echo "   ❌ Não instalado ou não Running"
+        echo "   Execute: cd $TERRAFORM_DIR/marco2 && terraform apply"
+    fi
+
+    echo ""
+
+    # PVCs consolidado
+    echo "📊 Persistent Volumes (monitoring namespace):"
+    kubectl get pvc -n monitoring 2>/dev/null | tail -n +2 | awk '{printf "   %s: %s (%s)\n", $1, $4, $2}'
 
     echo ""
 fi
@@ -171,36 +223,88 @@ echo ""
 if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
     echo "✅ Marco 1: Cluster LIGADO"
 
-    if [ "$ALB_PODS" -gt 0 ] && [ "$CM_PODS" -gt 0 ] && [ "$MON_PODS" -gt 0 ]; then
-        echo "✅ Marco 2: Platform Services OPERACIONAL"
-        echo "   - AWS Load Balancer Controller: ✅"
-        echo "   - Cert-Manager: ✅"
-        echo "   - Prometheus + Grafana: ✅"
+    if [ "$ALB_PODS" -gt 0 ] && [ "$CM_PODS" -gt 0 ] && [ "$MON_PODS" -gt 0 ] && [ "$LOKI_PODS" -gt 0 ] && [ "$FB_PODS" -gt 0 ]; then
+        echo "✅ Marco 2: Platform Services COMPLETO (4/4 fases)"
+        echo "   - Fase 1: AWS Load Balancer Controller ✅"
+        echo "   - Fase 2: Cert-Manager ✅"
+        echo "   - Fase 3: Prometheus + Grafana + Alertmanager ✅"
+        echo "   - Fase 4: Loki + Fluent Bit (Logging) ✅"
     else
         echo "⚠️  Marco 2: Platform Services PARCIALMENTE INSTALADO"
-        [ "$ALB_PODS" -eq 0 ] && echo "   - AWS Load Balancer Controller: ❌"
-        [ "$CM_PODS" -eq 0 ] && echo "   - Cert-Manager: ❌"
-        [ "$MON_PODS" -eq 0 ] && echo "   - Prometheus + Grafana: ❌"
+        [ "$ALB_PODS" -eq 0 ] && echo "   - Fase 1: AWS Load Balancer Controller ❌"
+        [ "$CM_PODS" -eq 0 ] && echo "   - Fase 2: Cert-Manager ❌"
+        [ "$MON_PODS" -eq 0 ] && echo "   - Fase 3: Prometheus + Grafana + Alertmanager ❌"
+        [ "$LOKI_PODS" -eq 0 ] && echo "   - Fase 4: Loki (Logging) ❌"
+        [ "$FB_PODS" -eq 0 ] && echo "   - Fase 4: Fluent Bit ❌"
     fi
 
     echo ""
-    echo "💰 Custo atual: ~\$0.76/hora (~\$547/mês)"
-    echo "   (Cluster \$0.10/h + Nodes 7×\$0.0928/h + NAT 2×\$0.045/h + Volumes \$2.16/mês)"
+    echo "💰 Custo atual LIGADO: ~\$0.76/hora (~\$547/mês)"
+    echo "   - Cluster EKS: \$0.10/hora (\$72/mês)"
+    echo "   - 7 Nodes EC2: 7×\$0.0928/h (\$466/mês)"
+    echo "   - 2 NAT Gateways: 2×\$0.045/h (\$66/mês)"
+    echo "   - EBS Volumes: \$5.36/mês (67Gi)"
+    echo "   - S3 (Loki): \$16.50/mês"
 
     echo ""
     echo "🛑 Para desligar ao fim do dia:"
     echo "   cd $SCRIPT_DIR"
     echo "   ./shutdown-full-platform.sh"
-    echo "   💡 Economia: ~\$18/dia mantendo apenas NAT + Volumes"
+    echo "   💡 Economia: ~\$466/mês (cluster + nodes removidos)"
 else
     echo "🛑 Marco 1: Cluster DESLIGADO"
     echo "💤 Marco 2: Platform Services INATIVOS"
     echo ""
-    echo "💰 Custo atual: ~\$68/mês (NAT Gateways + Volumes EBS)"
+
+    # Mostrar recursos preservados (volumes EBS)
+    echo "💾 Recursos PRESERVADOS (dados não perdidos):"
+    EBS_VOLUMES=$(aws ec2 describe-volumes \
+        --region us-east-1 \
+        --profile "$AWS_PROFILE" \
+        --filters "Name=tag:kubernetes.io/cluster/k8s-platform-prod,Values=owned" \
+        --query 'Volumes[*].[VolumeId,Size,State,Tags[?Key==`Name`].Value|[0]]' \
+        --output text 2>/dev/null | wc -l || echo "0")
+
+    if [ "$EBS_VOLUMES" -gt 0 ]; then
+        echo "   ✅ EBS Volumes: $EBS_VOLUMES volumes (~\$5.36/mês)"
+        aws ec2 describe-volumes \
+            --region us-east-1 \
+            --profile "$AWS_PROFILE" \
+            --filters "Name=tag:kubernetes.io/cluster/k8s-platform-prod,Values=owned" \
+            --query 'Volumes[*].[Tags[?Key==`Name`].Value|[0],Size,State]' \
+            --output text 2>/dev/null | while read name size state; do
+            echo "      - $name: ${size}Gi ($state)"
+        done
+    else
+        echo "   ⚠️  EBS Volumes: Nenhum volume encontrado"
+    fi
+
+    # Verificar S3 bucket Loki
+    S3_BUCKET=$(aws s3 ls --profile "$AWS_PROFILE" 2>/dev/null | grep "loki" | awk '{print $3}' || echo "")
+    if [ -n "$S3_BUCKET" ]; then
+        # Obter tamanho do bucket
+        S3_SIZE=$(aws s3 ls s3://$S3_BUCKET --recursive --summarize --profile "$AWS_PROFILE" 2>/dev/null | grep "Total Size" | awk '{print $3}' || echo "0")
+        S3_SIZE_GB=$((S3_SIZE / 1024 / 1024 / 1024))
+        echo "   ✅ S3 Bucket: $S3_BUCKET (~\$16.50/mês)"
+        echo "      - Tamanho: ${S3_SIZE_GB}GB"
+        echo "      - Retenção: 30 dias"
+        echo "      - Logs históricos preservados"
+    else
+        echo "   ⚠️  S3 Bucket: Não encontrado"
+    fi
+
     echo ""
-    echo "🚀 Para ligar:"
+    echo "💰 Custo atual DESLIGADO: ~\$81/mês"
+    echo "   - NAT Gateways: \$66/mês (2×\$0.045/h)"
+    echo "   - EBS Volumes: \$5.36/mês (67Gi preservados)"
+    echo "   - S3 (Loki): \$16.50/mês (logs históricos)"
+    echo "   ℹ️  Volumes mantidos para preservar métricas e logs"
+
+    echo ""
+    echo "🚀 Para religar a plataforma:"
     echo "   cd $SCRIPT_DIR"
     echo "   ./startup-full-platform.sh"
+    echo "   ℹ️  Todos os dados históricos serão restaurados"
 fi
 
 echo ""
