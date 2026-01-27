@@ -32,8 +32,9 @@ resource "helm_release" "kube_prometheus_stack" {
   version    = var.chart_version
   namespace  = kubernetes_namespace.monitoring.metadata[0].name
 
-  # Timeout aumentado devido ao número de CRDs
-  timeout = 600
+  # Timeout aumentado devido ao número de CRDs e tempo de inicialização dos pods
+  # 30 minutos para primeira instalação, suficiente para downloads de imagens e criação de CRDs
+  timeout = 1800
 
   # -----------------------------------------------------------------------------
   # Prometheus Operator
