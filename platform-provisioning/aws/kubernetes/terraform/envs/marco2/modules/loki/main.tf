@@ -35,6 +35,13 @@ data "aws_iam_openid_connect_provider" "eks" {
 resource "aws_s3_bucket" "loki" {
   bucket = local.s3_bucket_name
 
+  # IMPORTANTE: Proteger bucket contra deleção acidental
+  # Este bucket contém logs históricos que não devem ser perdidos
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [bucket]  # Prevenir recreate se o name for recalculado
+  }
+
   tags = merge(
     var.tags,
     {

@@ -146,6 +146,10 @@ resource "aws_eks_cluster" "main" {
   version  = var.cluster_version
   role_arn = var.eks_cluster_role_arn
 
+  # Importante: definir como false para coincidir com o comportamento padrão da AWS
+  # Evita replace desnecessário ao importar clusters existentes
+  bootstrap_self_managed_addons = false
+
   vpc_config {
     subnet_ids              = concat(var.private_subnet_ids, var.public_subnet_ids)
     endpoint_private_access = true
