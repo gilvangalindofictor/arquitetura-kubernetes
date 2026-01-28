@@ -92,3 +92,27 @@ output "fluent_bit_namespace" {
   description = "Namespace do Fluent Bit"
   value       = module.fluent_bit.namespace
 }
+
+# -----------------------------------------------------------------------------
+# Network Policies Outputs (Marco 2 Fase 5)
+# -----------------------------------------------------------------------------
+
+output "network_policies_applied" {
+  description = "Lista de Network Policies aplicadas"
+  value       = module.network_policies.policies_applied
+}
+
+output "network_policies_namespaces" {
+  description = "Namespaces com Network Policies configuradas"
+  value       = module.network_policies.namespaces_with_policies
+}
+
+output "network_policies_default_deny_enabled" {
+  description = "Se default deny-all está habilitado"
+  value       = module.network_policies.default_deny_enabled
+}
+
+output "network_policies_calico_version" {
+  description = "Versão do Calico instalada"
+  value       = module.network_policies.calico_version
+}
