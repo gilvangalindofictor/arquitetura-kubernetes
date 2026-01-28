@@ -122,7 +122,7 @@ module "loki" {
   # Storage configuration
   retention_days    = 30
   enable_versioning = false # Desabilitar para economia
-  storage_class     = "gp3"
+  storage_class     = "gp2"
   write_pvc_size    = "10Gi"
   backend_pvc_size  = "10Gi"
 

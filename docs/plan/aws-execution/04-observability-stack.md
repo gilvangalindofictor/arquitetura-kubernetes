@@ -1,6 +1,24 @@
 # 04 - Observability Stack
 
-**Épicos D, E, F** | **Esforço: 84 person-hours** | **Sprint 2**
+**Épicos D, E, F** | **Esforço: 84 person-hours** | **Sprint 2** | **Status: 🟡 75% Completo**
+
+**Última Atualização:** 2026-01-28
+
+---
+
+## 📊 Status Atual (2026-01-28)
+
+| Fase | Componente | Status | Detalhes |
+|------|------------|--------|----------|
+| **Fase 1** | AWS Load Balancer Controller | ✅ COMPLETO | v1.11.0, IRSA configurado |
+| **Fase 2** | Cert-Manager | ✅ COMPLETO | v1.16.3, CRDs provisionados |
+| **Fase 3** | kube-prometheus-stack | ✅ COMPLETO | 13 pods Running, 3 PVCs (27Gi), Grafana acessível |
+| **Fase 4** | Loki + Fluent Bit | 📝 CÓDIGO IMPLEMENTADO | Aguardando deploy (ADR-005, módulos Terraform criados) |
+| **Fase 5** | Network Policies | ⏳ PENDENTE | Planejado |
+| **Fase 6** | Cluster Autoscaler | ⏳ PENDENTE | Planejado |
+| **Fase 7** | Aplicações de Teste | ⏳ PENDENTE | Planejado |
+
+**Progresso Geral:** 🟡 75% (Fases 1-3 completas, Fase 4 código pronto)
 
 ---
 
@@ -801,6 +819,26 @@ kubectl port-forward svc/prometheus-kube-prometheus-prometheus -n observability 
 ---
 
 ## 5. Task E.1: Loki para Logs (12h)
+
+**Status Atual (2026-01-28):** ✅ **IMPLEMENTADO NO TERRAFORM - AGUARDANDO DEPLOY**
+
+> **Nota Importante:** Esta task foi implementada via **Terraform modules** no Marco 2 em vez de comandos manuais Helm.
+>
+> **Arquivos Implementados:**
+> - `modules/loki/main.tf` (330 linhas) - S3 bucket, IAM Role/Policy (IRSA), Helm release
+> - `modules/fluent-bit/main.tf` (270 linhas) - DaemonSet, parsers, Loki output
+> - `marco2/main.tf` - Integration dos módulos
+> - ADR-005: Logging Strategy (Loki escolhido, CloudWatch em hold)
+>
+> **Deploy Instructions:** Ver [FASE4-IMPLEMENTATION.md](../../../platform-provisioning/aws/kubernetes/terraform/envs/marco2/FASE4-IMPLEMENTATION.md)
+>
+> **Economia:** $423/ano vs CloudWatch (~64% economia)
+
+---
+
+### Implementação Manual (Referência - Não Executar)
+
+> **ATENÇÃO:** As seções abaixo são mantidas como referência técnica. A implementação real está no Terraform.
 
 ### 5.1 Adicionar Repositório
 

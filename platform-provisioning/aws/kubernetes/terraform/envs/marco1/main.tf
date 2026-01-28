@@ -235,7 +235,7 @@ resource "aws_eks_node_group" "system" {
     NodeGroup = "system"
   }
 
-  depends_on = [aws_eks_cluster.main]
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]
 
   lifecycle {
     ignore_changes = [scaling_config[0].desired_size]
@@ -277,7 +277,7 @@ resource "aws_eks_node_group" "workloads" {
     NodeGroup = "workloads"
   }
 
-  depends_on = [aws_eks_cluster.main]
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]
 
   lifecycle {
     ignore_changes = [scaling_config[0].desired_size]
@@ -325,11 +325,73 @@ resource "aws_eks_node_group" "critical" {
     NodeGroup = "critical"
   }
 
-  depends_on = [aws_eks_cluster.main]
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]
 
   lifecycle {
     ignore_changes = [scaling_config[0].desired_size]
   }
+}
+
+# -----------------------------------------------------------------------------
+# IRSA for EBS CSI Driver
+# -----------------------------------------------------------------------------
+
+# Get OIDC provider
+data "aws_iam_openid_connect_provider" "eks" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+# Extract OIDC provider URL (without https://)
+locals {
+  oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+}
+
+# IAM Policy for EBS CSI Driver (AWS managed policy)
+data "aws_iam_policy" "ebs_csi_driver" {
+  arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+# IAM Role for EBS CSI Driver Service Account
+data "aws_iam_policy_document" "ebs_csi_driver_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.oidc_provider_arn]
+    }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi_driver" {
+  name               = "AmazonEKS_EBS_CSI_DriverRole-${var.cluster_name}"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_driver_assume_role.json
+
+  tags = {
+    Name      = "AmazonEKS_EBS_CSI_DriverRole-${var.cluster_name}"
+    Component = "ebs-csi-driver"
+    Marco     = "marco1"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
+  role       = aws_iam_role.ebs_csi_driver.name
+  policy_arn = data.aws_iam_policy.ebs_csi_driver.arn
 }
 
 # -----------------------------------------------------------------------------
@@ -342,7 +404,7 @@ resource "aws_eks_addon" "vpc_cni" {
   addon_version               = "v1.18.5-eksbuild.1" # Use latest compatible version
   resolve_conflicts_on_update = "PRESERVE"
 
-  depends_on = [aws_eks_node_group.system]
+  depends_on = [aws_eks_cluster.main]
 }
 
 resource "aws_eks_addon" "coredns" {
@@ -351,7 +413,7 @@ resource "aws_eks_addon" "coredns" {
   addon_version               = "v1.11.3-eksbuild.2" # Use latest compatible version
   resolve_conflicts_on_update = "PRESERVE"
 
-  depends_on = [aws_eks_node_group.system]
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]
 }
 
 resource "aws_eks_addon" "kube_proxy" {
@@ -360,7 +422,7 @@ resource "aws_eks_addon" "kube_proxy" {
   addon_version               = "v1.31.2-eksbuild.3" # Use latest compatible version
   resolve_conflicts_on_update = "PRESERVE"
 
-  depends_on = [aws_eks_node_group.system]
+  depends_on = [aws_eks_cluster.main]
 }
 
 resource "aws_eks_addon" "ebs_csi_driver" {
@@ -368,6 +430,10 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   addon_name                  = "aws-ebs-csi-driver"
   addon_version               = "v1.37.0-eksbuild.1" # Use latest compatible version
   resolve_conflicts_on_update = "PRESERVE"
+  service_account_role_arn    = aws_iam_role.ebs_csi_driver.arn
 
-  depends_on = [aws_eks_node_group.system]
+  depends_on = [
+    aws_eks_node_group.system,
+    aws_iam_role_policy_attachment.ebs_csi_driver
+  ]
 }

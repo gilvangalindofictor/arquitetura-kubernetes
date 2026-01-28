@@ -133,16 +133,21 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 
 ### Sprint 2 - Observability Baseline (84h)
 
-| # | Documento | Épicos | Horas | Conteúdo Principal |
-|---|-----------|--------|-------|-------------------|
-| 04 | [Observability Stack](04-observability-stack.md) | D, E, F | 84h | OTEL, Prometheus, Loki, Tempo, Grafana |
+| # | Documento | Épicos | Horas | Conteúdo Principal | Status |
+|---|-----------|--------|-------|-------------------|--------|
+| 04 | [Observability Stack](04-observability-stack.md) | D, E, F | 84h | OTEL, Prometheus, Loki, Tempo, Grafana | 🟡 75% |
 
 **Definition of Done Sprint 2:**
-- [ ] Métricas de todos os pods no Prometheus
-- [ ] Logs centralizados no Loki
-- [ ] Traces no Tempo
-- [ ] Dashboards baseline no Grafana
-- [ ] Alertas críticos configurados
+- [x] Métricas de todos os pods no Prometheus ✅ (Fase 3: Prometheus Stack)
+- [ ] Logs centralizados no Loki ⏳ (Fase 4: Código pronto, aguardando deploy)
+- [ ] Traces no Tempo ⏳ (Pendente)
+- [x] Dashboards baseline no Grafana ✅ (Fase 3: 30+ dashboards)
+- [x] Alertas críticos configurados ✅ (Fase 3: Alertmanager)
+
+**Status Atual (2026-01-28):**
+- ✅ **Fase 3 (Prometheus Stack):** COMPLETO - 13 pods monitoring, 30+ dashboards
+- 📝 **Fase 4 (Loki + Fluent Bit):** CÓDIGO IMPLEMENTADO - Aguardando deploy
+- ⏳ **Fase 5 (Tempo):** PENDENTE
 
 ---
 
