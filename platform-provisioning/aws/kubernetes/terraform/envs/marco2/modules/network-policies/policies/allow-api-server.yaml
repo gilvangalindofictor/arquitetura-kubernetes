@@ -1,0 +1,31 @@
+# =============================================================================
+# Network Policy: Allow API Server Access
+# =============================================================================
+# Permite que pods acessem o Kubernetes API Server
+# Porta: 443 TCP
+# Destino: Kubernetes API (via Service CIDR)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-server
+  namespace: ${namespace}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow access to Kubernetes API Server
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTPS egress (for API server via service network)
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443

@@ -1,0 +1,31 @@
+# =============================================================================
+# Network Policy: Allow Cert-Manager Egress (cert-manager Namespace)
+# =============================================================================
+# Permite que Cert-Manager acesse:
+# - Let's Encrypt (porta 443) para ACME challenge
+# - Kubernetes API (porta 443) para criar/atualizar Certificates
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cert-manager-egress
+  namespace: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  policyTypes:
+    - Egress
+  egress:
+    # Allow HTTPS egress for Let's Encrypt ACME challenges
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP egress for ACME HTTP-01 challenges
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80

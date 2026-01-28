@@ -169,3 +169,44 @@ module "fluent_bit" {
 
   depends_on = [module.loki]
 }
+
+# -----------------------------------------------------------------------------
+# Network Policies (Security - Marco 2 Fase 5)
+# -----------------------------------------------------------------------------
+
+module "network_policies" {
+  source = "./modules/network-policies"
+
+  # Namespaces com Network Policies
+  namespaces = ["monitoring", "cert-manager", "kube-system"]
+
+  # Fase 5.2.1: Aplicar políticas básicas PRIMEIRO
+  enable_dns_policy        = true
+  enable_api_server_policy = true
+
+  # Fase 5.2.2: Aplicar políticas específicas de monitoring
+  enable_prometheus_scraping   = true
+  enable_loki_ingestion        = true
+  enable_grafana_datasources   = true
+  enable_cert_manager_egress   = true
+
+  # Fase 5.2.3: Default Deny - DESABILITADO por padrão
+  # ⚠️ IMPORTANTE: Habilitar APENAS após validar que allow policies funcionam
+  # Para habilitar: mudar para true e executar terraform apply
+  enable_default_deny = false
+
+  # Namespace configuration
+  prometheus_namespace   = "monitoring"
+  loki_namespace         = "monitoring"
+  grafana_namespace      = "monitoring"
+  cert_manager_namespace = "cert-manager"
+  kube_dns_namespace     = "kube-system"
+
+  # Dependências: aplicar APÓS todos os serviços estarem rodando
+  depends_on = [
+    module.kube_prometheus_stack,
+    module.loki,
+    module.fluent_bit,
+    module.cert_manager
+  ]
+}

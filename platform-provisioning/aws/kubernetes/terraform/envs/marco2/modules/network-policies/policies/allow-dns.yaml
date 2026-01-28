@@ -1,0 +1,30 @@
+# =============================================================================
+# Network Policy: Allow DNS to CoreDNS
+# =============================================================================
+# Permite que todos os pods consultem o CoreDNS para resolução de nomes
+# Porta: 53 UDP/TCP
+# Destino: kube-dns service (kube-system namespace)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: ${namespace}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS queries to CoreDNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

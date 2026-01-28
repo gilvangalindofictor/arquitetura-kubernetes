@@ -1,0 +1,29 @@
+# =============================================================================
+# Network Policy: Allow Fluent Bit to Loki (Monitoring Namespace)
+# =============================================================================
+# Permite que Fluent Bit (DaemonSet) envie logs para Loki Gateway
+# Porta: 80 TCP (loki-gateway service)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fluent-bit-to-loki
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+  policyTypes:
+    - Egress
+  egress:
+    # Allow Fluent Bit to send logs to Loki Gateway
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+              app.kubernetes.io/name: loki
+      ports:
+        - protocol: TCP
+          port: 80  # loki-gateway service port
+        - protocol: TCP
+          port: 3100  # loki direct port (backup)

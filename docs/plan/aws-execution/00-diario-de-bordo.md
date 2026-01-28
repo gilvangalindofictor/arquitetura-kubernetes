@@ -2204,6 +2204,329 @@ Marco 3: ⏳ PENDENTE - Applications
 
 ---
 
+### 2026-01-28 - Marco 2 Fase 5: Network Policies (Segurança L3/L4)
+
+#### 🎯 Contexto
+
+Com Marco 2 Fases 1-4 completas e observabilidade operacional, implementou-se **isolamento de rede entre namespaces** usando Network Policies para atender requisitos de segurança Zero Trust.
+
+#### 🔐 Objetivo da Fase 5
+
+**Implementar microsegmentação L3/L4 no cluster Kubernetes:**
+- Isolamento entre namespaces (monitoring, cert-manager, kube-system)
+- Política default deny-all + allow explícito (princípio Zero Trust)
+- Permitir apenas comunicação essencial
+- Prevenir lateral movement em caso de comprometimento
+
+#### 🛠️ Implementação
+
+**1. Instalação do Calico (Policy-Only Mode)**
+
+```bash
+# Calico v3.27.0 em modo policy-only (não substitui VPC CNI)
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico-policy-only.yaml
+
+# Resultado: 7 pods Calico Running (coexistindo com 7 pods aws-node)
+```
+
+**Justificativa:**
+- ✅ **Calico policy-only:** Não substitui VPC CNI, apenas adiciona Network Policies
+- ✅ **Mantém integração AWS:** ENI direto, Security Groups for Pods
+- ✅ **Custo zero:** Roda em nodes existentes
+- ❌ **Rejeitado Cilium:** Muito invasivo, quebra integrações AWS
+
+**2. Criação do Módulo Terraform**
+
+**Estrutura:**
+```
+modules/network-policies/
+├── main.tf                      # Recursos kubernetes_manifest
+├── variables.tf                 # Feature flags (enable_dns_policy, etc.)
+├── outputs.tf                   # Políticas aplicadas
+├── versions.tf                  # Provider kubernetes ~> 2.23
+└── policies/
+    ├── allow-dns.yaml
+    ├── allow-api-server.yaml
+    ├── allow-prometheus-scraping.yaml
+    ├── allow-fluent-bit-to-loki.yaml
+    ├── allow-grafana-datasources.yaml
+    ├── allow-monitoring-ingress.yaml
+    ├── allow-cert-manager-egress.yaml
+    └── default-deny-all.yaml    # ⚠️ Desabilitado inicialmente
+```
+
+**3. Network Policies Implementadas (11 total)**
+
+**Fase 1: Políticas Básicas (Aplicadas PRIMEIRO)**
+
+```yaml
+# allow-dns.yaml (3x - monitoring, cert-manager, kube-system)
+# Permite: Todos pods → CoreDNS (porta 53 UDP/TCP)
+# Essencial para: Resolução de nomes DNS
+
+# allow-api-server.yaml (3x - monitoring, cert-manager, kube-system)
+# Permite: Todos pods → Kubernetes API (porta 443 TCP)
+# Essencial para: Controllers, operators, service discovery
+```
+
+**Fase 2: Políticas Específicas (Observabilidade)**
+
+```yaml
+# allow-prometheus-scraping.yaml (namespace: monitoring)
+# Permite: Prometheus → targets (portas 9100, 8080, 9090, 3100, 9093)
+# Essencial para: Coleta de métricas de todos os namespaces
+
+# allow-fluent-bit-to-loki.yaml (namespace: monitoring)
+# Permite: Fluent Bit DaemonSet → Loki Gateway (porta 80 TCP)
+# Essencial para: Envio de logs para backend centralizado
+
+# allow-grafana-datasources.yaml (namespace: monitoring)
+# Permite: Grafana → Prometheus (9090) + Loki (80, 3100)
+# Essencial para: Queries de dashboards e explore
+
+# allow-monitoring-ingress.yaml (namespace: monitoring)
+# Permite: Ingress em portas de métricas (9100, 8080, 9090, 3100, 9093)
+# Essencial para: Comunicação interna do stack de monitoring
+
+# allow-cert-manager-egress.yaml (namespace: cert-manager)
+# Permite: Cert-Manager → Let's Encrypt (porta 443 HTTPS)
+# Essencial para: ACME challenge para renovação de certificados
+```
+
+**Fase 3: Default Deny (Desabilitada)**
+
+```yaml
+# default-deny-all.yaml (NOT APPLIED)
+# Bloqueia: TODO tráfego ingress e egress por padrão
+# Status: enable_default_deny = false
+# Motivo: Validar TODAS as allow policies funcionando antes
+# Para habilitar: Mudar variável no Terraform e executar apply
+```
+
+**4. Integração no Marco2**
+
+```terraform
+# marco2/main.tf (+42 linhas)
+module "network_policies" {
+  source = "./modules/network-policies"
+
+  namespaces = ["monitoring", "cert-manager", "kube-system"]
+
+  # Políticas básicas
+  enable_dns_policy        = true
+  enable_api_server_policy = true
+
+  # Políticas específicas
+  enable_prometheus_scraping   = true
+  enable_loki_ingestion        = true
+  enable_grafana_datasources   = true
+  enable_cert_manager_egress   = true
+
+  # Default deny - DESABILITADO
+  enable_default_deny = false  # ⚠️ Habilitar APÓS validação
+
+  depends_on = [
+    module.kube_prometheus_stack,
+    module.loki,
+    module.fluent_bit,
+    module.cert_manager
+  ]
+}
+```
+
+#### 🚀 Execução
+
+```bash
+# Terraform apply
+terraform init -upgrade
+terraform apply -auto-approve
+
+# Resultado: 11 Network Policies criadas em 19s
+# - 3x allow-dns (monitoring, cert-manager, kube-system)
+# - 3x allow-api-server (monitoring, cert-manager, kube-system)
+# - 1x allow-prometheus-scraping (monitoring)
+# - 1x allow-fluent-bit-to-loki (monitoring)
+# - 1x allow-grafana-datasources (monitoring)
+# - 1x allow-monitoring-ingress (monitoring)
+# - 1x allow-cert-manager-egress (cert-manager)
+```
+
+#### ✅ Validação Pós-Deploy
+
+**1. Network Policies Aplicadas:**
+```bash
+kubectl get networkpolicies -A
+# NAMESPACE      NAME                        POD-SELECTOR
+# cert-manager   allow-api-server            <none>
+# cert-manager   allow-cert-manager-egress   app.kubernetes.io/instance=cert-manager
+# cert-manager   allow-dns                   <none>
+# kube-system    allow-api-server            <none>
+# kube-system    allow-dns                   <none>
+# monitoring     allow-api-server            <none>
+# monitoring     allow-dns                   <none>
+# monitoring     allow-fluent-bit-to-loki    app.kubernetes.io/name=fluent-bit
+# monitoring     allow-grafana-datasources   app.kubernetes.io/name=grafana
+# monitoring     allow-metrics-ingress       <none>
+# monitoring     allow-prometheus-scraping   app.kubernetes.io/name=prometheus
+```
+
+**2. Pods Operacionais (Nenhum Impacto):**
+```bash
+kubectl get pods -n monitoring | grep Running | wc -l
+# 33 pods - TODOS Running (nenhum afetado)
+
+kubectl get pods -n cert-manager | grep Running
+# 3/3 pods Running (cert-manager operacional)
+```
+
+**3. Observabilidade Funcionando:**
+```bash
+# Prometheus scrapando todos os targets
+kubectl exec -n monitoring deployment/kube-prometheus-stack-grafana -- \
+  wget -qO- http://kube-prometheus-stack-prometheus:9090/api/v1/targets \
+  | grep -o '"health":"[^"]*"'
+# "health":"up" (10x - todos targets up)
+
+# Fluent Bit enviando logs para Loki
+kubectl logs -n monitoring loki-gateway-694d54db7c-5lsfz --tail=10 | grep "POST.*push.*204"
+# 10.0.153.191 - - [28/Jan/2026:19:46:16 +0000]  204 "POST /loki/api/v1/push HTTP/1.1"
+# 10.0.145.129 - - [28/Jan/2026:19:46:17 +0000]  204 "POST /loki/api/v1/push HTTP/1.1"
+# ✅ Logs fluindo normalmente
+```
+
+#### 📊 Resultado Final
+
+**Terraform Outputs:**
+```
+network_policies_applied = [
+  "allow-api-server",
+  "allow-cert-manager-egress",
+  "allow-dns",
+  "allow-fluent-bit-to-loki",
+  "allow-grafana-datasources",
+  "allow-monitoring-ingress",
+  "allow-prometheus-scraping",
+]
+network_policies_calico_version = "v3.27.0 (policy-only mode)"
+network_policies_default_deny_enabled = false
+network_policies_namespaces = ["monitoring", "cert-manager", "kube-system"]
+```
+
+#### 📚 Lições Aprendidas
+
+**1. Calico Policy-Only + VPC CNI = Coexistência Perfeita**
+- ✅ Calico adiciona Network Policies SEM substituir CNI
+- ✅ VPC CNI mantém integração AWS (ENI, Security Groups)
+- ✅ 7 pods calico-node + 7 pods aws-node rodando simultaneamente
+
+**2. Abordagem Incremental é Essencial**
+- ✅ **Fase 1:** Allow policies básicas (DNS + API Server) PRIMEIRO
+- ✅ **Fase 2:** Allow policies específicas (Prometheus, Loki, Grafana) DEPOIS
+- ⚠️ **Fase 3:** Default deny-all POR ÚLTIMO (após validação completa)
+- **Motivo:** Reduz risco de breaking changes, facilita troubleshooting
+
+**3. Terraform kubernetes_manifest > kubectl apply**
+- ✅ Permite `terraform plan` (ver diff antes de aplicar)
+- ✅ Rollback controlado (`terraform destroy -target`)
+- ✅ Versionamento de políticas no código
+- ✅ State tracking (saber exatamente o que está aplicado)
+
+**4. Network Policies são L3/L4, não L7**
+- ✅ Controla IP/Porta (blocking by pod selector + namespace selector)
+- ⚠️ NÃO controla HTTP headers, paths, métodos
+- 🔄 **Futuro:** Considerar Service Mesh (Istio/Linkerd) para mTLS + L7 policies
+
+**5. Validação Contínua é Crítica**
+- ✅ Validar IMEDIATAMENTE após apply
+- ✅ Verificar pods Still Running
+- ✅ Testar comunicação essencial (Prometheus scraping, logs fluindo)
+- ⚠️ Se algo quebrar: `kubectl delete networkpolicy <name>` (rollback imediato)
+
+#### 💰 Impacto de Custos
+
+**Custo Adicional:** $0/mês ✅
+
+**Justificativa:**
+- Network Policies são recursos Kubernetes nativos (sem custo AWS)
+- Calico policy-only roda em nodes existentes (sem novos nodes)
+- Não cria recursos AWS pagos (ELB, EBS, S3, etc.)
+
+**Benefício Indireto (Positivo):**
+- ✅ Reduz superfície de ataque → Menor risco de breach
+- ✅ Compliance (CIS Kubernetes Benchmark 5.3.2) facilitado
+- ✅ Auditoria mais barata (menos incidentes para investigar)
+
+#### 📋 Checklist de Validação Fase 5
+
+- [x] Calico instalado (7 pods Running, policy-only mode)
+- [x] VPC CNI coexistindo (7 pods aws-node Running)
+- [x] 11 Network Policies criadas via Terraform
+- [x] 33 pods monitoring Still Running (nenhum impactado)
+- [x] 3 pods cert-manager Still Running
+- [x] Prometheus scraping funcionando (todos targets "up")
+- [x] Fluent Bit enviando logs para Loki (HTTP 204)
+- [x] Grafana acessando datasources (Prometheus + Loki)
+- [x] DNS resolution funcionando (todos pods acessam CoreDNS)
+- [x] Kubernetes API acessível (controllers operacionais)
+- [x] ADR-006 criado (Network Policies Strategy)
+- [x] Documentação atualizada (diário de bordo)
+
+#### 🎯 Próximos Passos
+
+**Curto Prazo (1-2 semanas):**
+1. [ ] **Monitorar observabilidade por 7 dias** - Confirmar que não há breaking changes
+2. [ ] **Validar métricas contínuas** - Prometheus targets sempre "up"
+3. [ ] **Validar logs contínuos** - Loki recebendo logs de todos os namespaces
+
+**Médio Prazo (após Marco 3 GitLab):**
+4. [ ] **Criar Network Policies para GitLab** - Quando GitLab for deployado
+5. [ ] **Habilitar default-deny** - Após 100% de validação (`enable_default_deny = true`)
+6. [ ] **Pod Security Standards** - Implementar restricted policy
+
+**Longo Prazo (6+ meses):**
+7. [ ] **Avaliar Service Mesh** - Istio/Linkerd para mTLS + L7 policies
+8. [ ] **Zero Trust completo** - mTLS entre TODOS os pods
+
+#### 📄 Documentação Criada
+
+**1. ADR-006: Network Policies Strategy**
+- Arquivo: [docs/adr/adr-006-network-policies-strategy.md](../../adr/adr-006-network-policies-strategy.md)
+- Conteúdo: Decisão técnica, alternativas consideradas, políticas implementadas
+- Status: ✅ APROVADO
+
+**2. Módulo Terraform**
+- Diretório: `modules/network-policies/`
+- Arquivos: main.tf (170 linhas), variables.tf (70 linhas), outputs.tf (25 linhas)
+- Políticas: 8 arquivos YAML (allow-dns, allow-api-server, etc.)
+
+**3. Integração Marco2**
+- Arquivo: `marco2/main.tf` (+42 linhas)
+- Arquivo: `marco2/outputs.tf` (+30 linhas)
+
+#### 📊 Status Atualizado da Plataforma
+
+```
+Marco 0: ✅ COMPLETO - VPC + Backend Terraform
+
+Marco 1: ✅ COMPLETO - EKS Cluster
+├── 7 nodes Ready (Multi-AZ)
+├── 4 add-ons ACTIVE
+└── EBS CSI Driver com IRSA
+
+Marco 2: 🟡 80% COMPLETO - Platform Services
+├── Fase 1: AWS Load Balancer Controller ✅
+├── Fase 2: Cert-Manager ✅
+├── Fase 3: Kube-Prometheus-Stack ✅
+├── Fase 4: Loki + Fluent Bit ✅
+├── Fase 5: Network Policies ✅ **NOVO!**
+├── Fase 6: Cluster Autoscaler ⏳ PENDENTE
+└── Fase 7: Apps de Teste ⏳ PENDENTE
+
+Marco 3: ⏳ PENDENTE - Applications (GitLab, etc.)
+```
+
+---
+
 ## 🔄 Changelog
 
 | Data | Versão | Alterações | Autor |
@@ -2213,9 +2536,10 @@ Marco 3: ⏳ PENDENTE - Applications
 | 2026-01-28 | 1.2 | Status Marco 2 Fase 4: Loki + Fluent Bit código implementado (aguardando deploy) | DevOps Team + Claude Sonnet 4.5 |
 | 2026-01-28 | 1.3 | Marco 1: Correção crítica de deadlock em EKS add-ons - Cluster operacional com 7 nodes + 4 add-ons | DevOps Team + Claude Sonnet 4.5 |
 | 2026-01-28 | 1.4 | **Marco 2 COMPLETO**: Platform Services deployados (ALB Controller, Cert-Manager, Prometheus Stack, Loki, Fluent Bit) + Correção EBS CSI IRSA + Storage class gp2 | DevOps Team + Claude Sonnet 4.5 |
+| 2026-01-28 | 1.5 | **Marco 2 Fase 5 COMPLETO**: Network Policies implementadas com Calico policy-only + 11 políticas aplicadas (DNS, API Server, Prometheus, Loki, Grafana, Cert-Manager) + ADR-006 criado | DevOps Team + Claude Sonnet 4.5 |
 
 ---
 
-**Última atualização:** 2026-01-28 (Versão 1.4)
-**Próxima revisão:** Marco 2 Fases 5-7 (Network Policies, Autoscaler, Apps teste)
+**Última atualização:** 2026-01-28 (Versão 1.5)
+**Próxima revisão:** Marco 2 Fases 6-7 (Autoscaler, Apps teste)
 **Mantenedor:** DevOps Team

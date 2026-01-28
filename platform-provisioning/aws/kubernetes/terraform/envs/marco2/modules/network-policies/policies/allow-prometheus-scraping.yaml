@@ -1,0 +1,35 @@
+# =============================================================================
+# Network Policy: Allow Prometheus Scraping (Monitoring Namespace)
+# =============================================================================
+# Permite que Prometheus colete métricas de pods em qualquer namespace
+# Portas: 9100 (node-exporter), 8080 (kube-state-metrics), 9090, 3100, etc.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+    - Egress
+  egress:
+    # Allow scraping metrics from all pods
+    - to:
+        - namespaceSelector: {}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9100  # node-exporter
+        - protocol: TCP
+          port: 8080  # kube-state-metrics, generic metrics
+        - protocol: TCP
+          port: 9090  # prometheus itself
+        - protocol: TCP
+          port: 3100  # loki metrics
+        - protocol: TCP
+          port: 9093  # alertmanager
+        - protocol: TCP
+          port: 8081  # kube-prometheus-stack-operator
