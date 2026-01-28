@@ -210,3 +210,31 @@ module "network_policies" {
     module.cert_manager
   ]
 }
+
+# -----------------------------------------------------------------------------
+# Cluster Autoscaler (Auto-scaling - Marco 2 Fase 6)
+# -----------------------------------------------------------------------------
+
+module "cluster_autoscaler" {
+  source = "./modules/cluster-autoscaler"
+
+  cluster_name       = var.cluster_name
+  namespace          = "kube-system"
+  chart_version      = "9.37.0"
+  kubernetes_version = "1.31" # Match EKS version
+
+  # Autoscaling configuration
+  scale_down_enabled                = true
+  scale_down_delay_after_add        = "10m" # Wait 10 min after scale-up
+  scale_down_unneeded_time          = "10m" # Node unneeded for 10 min
+  scale_down_utilization_threshold  = "0.5" # 50% utilization threshold
+
+  tags = {
+    Environment = "production"
+    Project     = "k8s-platform"
+    Marco       = "marco2"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [module.network_policies]
+}

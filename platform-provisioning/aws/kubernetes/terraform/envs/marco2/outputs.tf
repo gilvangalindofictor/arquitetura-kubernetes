@@ -116,3 +116,27 @@ output "network_policies_calico_version" {
   description = "Versão do Calico instalada"
   value       = module.network_policies.calico_version
 }
+
+# -----------------------------------------------------------------------------
+# Cluster Autoscaler Outputs (Marco 2 Fase 6)
+# -----------------------------------------------------------------------------
+
+output "cluster_autoscaler_iam_role_arn" {
+  description = "ARN da IAM Role do Cluster Autoscaler"
+  value       = module.cluster_autoscaler.iam_role_arn
+}
+
+output "cluster_autoscaler_service_account" {
+  description = "Nome da Service Account do Cluster Autoscaler"
+  value       = module.cluster_autoscaler.service_account_name
+}
+
+output "cluster_autoscaler_namespace" {
+  description = "Namespace do Cluster Autoscaler"
+  value       = module.cluster_autoscaler.namespace
+}
+
+output "cluster_autoscaler_configuration" {
+  description = "Configuração do Cluster Autoscaler"
+  value       = module.cluster_autoscaler.configuration_summary
+}
