@@ -190,10 +190,10 @@ module "network_policies" {
   enable_grafana_datasources   = true
   enable_cert_manager_egress   = true
 
-  # Fase 5.2.3: Default Deny - DESABILITADO por padrão
-  # ⚠️ IMPORTANTE: Habilitar APENAS após validar que allow policies funcionam
-  # Para habilitar: mudar para true e executar terraform apply
-  enable_default_deny = false
+  # Fase 5.2.3: Default Deny - HABILITADO para teste de 7 dias
+  # ✅ MONITORAMENTO: Validar observabilidade por 7 dias
+  # Se algo quebrar: terraform apply com enable_default_deny = false
+  enable_default_deny = true
 
   # Namespace configuration
   prometheus_namespace   = "monitoring"
