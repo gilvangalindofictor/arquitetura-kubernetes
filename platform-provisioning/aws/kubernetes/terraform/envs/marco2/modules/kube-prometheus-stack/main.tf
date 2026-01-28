@@ -94,7 +94,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName"
-    value = "gp3"
+    value = "gp2"
   }
 
   # Retention
@@ -190,7 +190,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "grafana.persistence.storageClassName"
-    value = "gp3"
+    value = "gp2"
   }
 
   # Resources
@@ -294,7 +294,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName"
-    value = "gp3"
+    value = "gp2"
   }
 
   # Resources

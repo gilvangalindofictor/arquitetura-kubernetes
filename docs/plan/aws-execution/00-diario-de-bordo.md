@@ -1429,15 +1429,793 @@ encrypt        = true
 
 ---
 
+---
+
+### 2026-01-28 - Status Atual: Marco 2 Fase 4 Implementada (Aguardando Deploy)
+
+#### 📊 Contexto Geral
+
+**Estado Atual da Plataforma:**
+- ✅ **Marco 0:** VPC baseline + Backend Terraform S3/DynamoDB (COMPLETO)
+- ✅ **Marco 1:** Cluster EKS `k8s-platform-prod` com 7 nodes (COMPLETO)
+- ✅ **Marco 2 Fase 1:** AWS Load Balancer Controller v1.11.0 (COMPLETO)
+- ✅ **Marco 2 Fase 2:** Cert-Manager v1.16.3 (COMPLETO)
+- ✅ **Marco 2 Fase 3:** Kube-Prometheus-Stack v69.4.0 - 13 pods monitoring (COMPLETO)
+- 📝 **Marco 2 Fase 4:** Loki + Fluent Bit - **CÓDIGO IMPLEMENTADO, AGUARDANDO DEPLOY**
+- ⏳ **Marco 2 Fases 5-7:** Network Policies, Autoscaler, Apps de Teste (PENDENTE)
+- ⏳ **Marco 3:** GitLab, Redis, RabbitMQ, Keycloak, ArgoCD, Harbor, SonarQube (PENDENTE)
+
+#### 🎯 Marco 2 - Fase 4: Logging (Loki + Fluent Bit)
+
+**Status:** 📝 **CÓDIGO 100% IMPLEMENTADO - AGUARDANDO DEPLOY**
+
+**Trabalho Realizado:**
+- ✅ **ADR-005** criado: Logging Strategy (Loki vs CloudWatch)
+  - Decisão: Loki (S3 backend) como solução primária
+  - Economia: $423/ano vs CloudWatch
+- ✅ **Módulo Terraform Loki** implementado (495 linhas):
+  - S3 bucket para logs (`k8s-platform-loki-891377105802`)
+  - IAM Role + Policy (IRSA pattern)
+  - Loki SimpleScalable mode (8 pods: 2 read + 2 write + 2 backend + 2 gateway)
+  - Retenção: 30 dias
+- ✅ **Módulo Terraform Fluent Bit** implementado (375 linhas):
+  - DaemonSet (1 pod por node = 7 pods)
+  - Parsers: Docker JSON, CRI-O, Multiline
+  - Output: Loki Gateway (http://loki-gateway.monitoring:3100)
+- ✅ **Integration no `marco2/main.tf`** completa
+- ✅ **Script de validação** criado: `scripts/validate-fase4.sh` (300 linhas)
+- ✅ **Documentação:** `FASE4-IMPLEMENTATION.md` criado
+
+**Arquivos Criados/Modificados:**
+- `docs/adr/adr-005-logging-strategy.md` (450 linhas)
+- `modules/loki/` (main.tf, variables.tf, outputs.tf, versions.tf)
+- `modules/fluent-bit/` (main.tf, variables.tf, outputs.tf, versions.tf)
+- `marco2/main.tf` (+60 linhas: módulos loki e fluent_bit)
+- `marco2/outputs.tf` (+40 linhas: outputs loki e fluent_bit)
+- `scripts/validate-fase4.sh` (300 linhas)
+
+**Próximas Ações:**
+1. [ ] Configurar credenciais AWS (`aws sso login --profile k8s-platform-prod`)
+2. [ ] Ligar cluster EKS (via `startup-full-platform.sh`)
+3. [ ] Executar `terraform plan` no diretório `marco2`
+4. [ ] Revisar recursos a serem criados (~10-15 recursos)
+5. [ ] Executar `terraform apply fase4.tfplan`
+6. [ ] Validar deployment (`./scripts/validate-fase4.sh`)
+7. [ ] Verificar logs no Grafana Explore
+8. [ ] Atualizar documentação (este diário)
+
+**Estimativas:**
+- **Tempo de Deploy:** 10-15 minutos
+- **Custo Adicional:** +$19.70/mês
+  - S3 Storage (logs): $11.50/mês
+  - EBS PVCs (Loki): $3.20/mês (20Gi write + 20Gi backend)
+  - S3 API requests: $5.00/mês
+- **Economia vs CloudWatch:** $423/ano (64% de economia)
+- **ROI:** Positivo desde o primeiro ano
+
+**Riscos Identificados:**
+- ⚠️ Loki pods podem ficar Pending se nodes system não tiverem RAM disponível
+- ⚠️ S3 Access Denied se IAM Role trust policy estiver incorreta
+- ⚠️ Fluent Bit não envia logs se endpoint Loki estiver incorreto
+- ✅ Todas mitigações documentadas no plano de execução
+
+**Validações Planejadas:**
+- [ ] 8 pods Loki Running (2+2+2+2)
+- [ ] 7 pods Fluent Bit Running (DaemonSet)
+- [ ] S3 bucket criado com encryption
+- [ ] IAM IRSA pattern implementado (sem Access Keys)
+- [ ] Logs visíveis no Grafana Explore: `{namespace="monitoring"}`
+- [ ] Query LogQL funcionando
+- [ ] Correlação Logs ↔ Métricas testada
+
+---
+
+### 2026-01-28 - Marco 1: Correção Crítica de Deadlock em EKS Add-ons
+
+#### 🔴 Problema Crítico Identificado
+
+**Contexto:**
+Durante tentativa de deploy do cluster EKS (Marco 1), o terraform apply criou o cluster com sucesso (~11 minutos), porém **todos os 3 node groups falharam** após 33 minutos com o erro:
+
+```
+Error: NodeCreationFailure: Unhealthy nodes in the kubernetes cluster
+```
+
+**Node Groups Afetados:**
+- `system` (2 nodes t3.medium)
+- `workloads` (3 nodes t3.large)
+- `critical` (2 nodes t3.xlarge)
+
+**Tempo até Falha:** 33 minutos 27 segundos
+
+#### 🔬 Diagnóstico (Seguindo executor-terraform.md Framework)
+
+**Investigação Realizada:**
+
+1. **Verificação de Rede:**
+   - ✅ Subnets privadas existem e estão associadas corretamente
+   - ✅ NAT Gateways operacionais (2 AZs)
+   - ✅ Security Groups criados com regras corretas
+   - ✅ Route tables configuradas
+
+2. **Verificação de IAM:**
+   - ✅ Node IAM Role criada (`k8s-platform-prod-node-role`)
+   - ✅ Policies attachadas (AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryReadOnly, AmazonEKS_CNI_Policy)
+
+3. **Verificação de EC2:**
+   - ✅ AMI ID válida (`ami-0bcb7d2dcf0ac106e`)
+   - ✅ Instance types disponíveis (t3.medium, t3.large, t3.xlarge)
+
+4. **Verificação de Add-ons (CAUSA RAIZ):**
+   ```bash
+   aws eks list-addons --cluster-name k8s-platform-prod
+   # Resultado: []
+   # ❌ NENHUM ADD-ON INSTALADO!
+   ```
+
+**Causa Raiz Identificada:**
+
+**DEADLOCK de Dependências no Terraform:**
+
+```terraform
+# ❌ CONFIGURAÇÃO INCORRETA (main.tf linhas 193-252)
+
+# Add-ons dependiam dos Node Groups ficarem ACTIVE
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"
+  depends_on   = [aws_eks_node_group.system]  # ❌ DEADLOCK!
+}
+
+# Mas Node Groups precisam do vpc-cni para ficarem Ready
+resource "aws_eks_node_group" "system" {
+  cluster_name = aws_eks_cluster.main.name
+  # ... config ...
+  # ❌ IMPLICITAMENTE dependia de vpc-cni estar instalado
+}
+```
+
+**Consequência:**
+- Add-ons esperavam nodes ficarem ACTIVE para serem instalados
+- Nodes esperavam vpc-cni (add-on) para ficarem Ready e ACTIVE
+- **Resultado:** Deadlock circular → Timeout após 30 min → NodeCreationFailure
+
+#### ✅ Solução Implementada
+
+**Alterações no `/marco1/main.tf` (6 declarações de `depends_on`):**
+
+1. **Add-ons:** Remover dependência de node groups, depender apenas do cluster
+
+```terraform
+# ✅ CONFIGURAÇÃO CORRETA
+
+# Add-ons dependem apenas do cluster
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"
+  depends_on   = [aws_eks_cluster.main]  # ✅ Correto
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "kube-proxy"
+  depends_on   = [aws_eks_cluster.main]  # ✅ Correto
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "coredns"
+  depends_on   = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]  # ✅ CoreDNS depende de vpc-cni
+}
+```
+
+2. **Node Groups:** Adicionar dependência explícita do vpc-cni
+
+```terraform
+# ✅ Node groups dependem do cluster E do vpc-cni
+
+resource "aws_eks_node_group" "system" {
+  cluster_name = aws_eks_cluster.main.name
+  # ... config ...
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]  # ✅ Explícito
+}
+
+resource "aws_eks_node_group" "workloads" {
+  cluster_name = aws_eks_cluster.main.name
+  # ... config ...
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]  # ✅ Explícito
+}
+
+resource "aws_eks_node_group" "critical" {
+  cluster_name = aws_eks_cluster.main.name
+  # ... config ...
+  depends_on = [aws_eks_cluster.main, aws_eks_addon.vpc_cni]  # ✅ Explícito
+}
+```
+
+3. **EBS CSI Driver:** Depende dos node groups system (precisa de nodes para rodar)
+
+```terraform
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "aws-ebs-csi-driver"
+  depends_on   = [aws_eks_node_group.system]  # ✅ Correto
+}
+```
+
+**Ordem de Criação Correta:**
+```
+1. EKS Cluster (~11 min)
+   ↓
+2. vpc-cni e kube-proxy add-ons (~30s em paralelo)
+   ↓
+3. coredns add-on (~6m, aguarda nodes Ready) + Node Groups (system, workloads, critical) (~1-2 min em paralelo)
+   ↓
+4. ebs-csi-driver add-on (~46s, após nodes system)
+```
+
+#### 🚀 Execução e Resultado
+
+**Comandos Executados:**
+
+1. Backup do state:
+   ```bash
+   cd /marco1
+   terraform state pull > backups/terraform.tfstate.backup-20260128-132722
+   # Tamanho: 31KB (estado antes da correção)
+   ```
+
+2. Destruir recursos falhados:
+   ```bash
+   terraform destroy -target=aws_eks_node_group.system \
+                    -target=aws_eks_node_group.workloads \
+                    -target=aws_eks_node_group.critical \
+                    -auto-approve
+   # Resultado: 12 recursos destruídos em 7 minutos
+   ```
+
+3. Terraform apply completo:
+   ```bash
+   nohup terraform apply -auto-approve > /tmp/terraform-marco1-apply-$(date +%Y%m%d-%H%M%S).log 2>&1 &
+   # Tempo total: ~18 minutos
+   # Resultado: 16 recursos criados, 0 falhas
+   ```
+
+**Resultado Final:**
+
+```
+✅ Apply complete! Resources: 16 added, 0 changed, 0 destroyed.
+
+Outputs:
+cluster_name = "k8s-platform-prod"
+cluster_version = "1.31"
+cluster_endpoint = "https://EC913B145BF356481CBE823532F09150.gr7.us-east-1.eks.amazonaws.com"
+
+node_group_system_status     = "ACTIVE"
+node_group_workloads_status  = "ACTIVE"
+node_group_critical_status   = "ACTIVE"
+```
+
+**Validação (kubectl):**
+
+```bash
+# 7 nodes Ready
+kubectl get nodes
+NAME                           STATUS   AGE
+ip-10-0-143-62.ec2.internal    Ready    7m32s  # system (us-east-1a)
+ip-10-0-158-64.ec2.internal    Ready    7m33s  # system (us-east-1b)
+ip-10-0-136-133.ec2.internal   Ready    7m39s  # workloads (us-east-1a)
+ip-10-0-147-59.ec2.internal    Ready    7m29s  # workloads (us-east-1b)
+ip-10-0-157-90.ec2.internal    Ready    7m21s  # workloads (us-east-1b)
+ip-10-0-134-166.ec2.internal   Ready    7m37s  # critical (us-east-1a)
+ip-10-0-158-137.ec2.internal   Ready    7m39s  # critical (us-east-1b)
+
+# 4 Add-ons ACTIVE
+aws eks list-addons --cluster-name k8s-platform-prod
+- aws-ebs-csi-driver: v1.37.0-eksbuild.1 (ACTIVE)
+- coredns: v1.11.3-eksbuild.2 (ACTIVE)
+- kube-proxy: v1.31.2-eksbuild.3 (ACTIVE)
+- vpc-cni: v1.18.5-eksbuild.1 (ACTIVE)
+
+# 25 pods Running no kube-system
+kubectl get pods -n kube-system
+aws-node (vpc-cni):           7/7 Running (DaemonSet)
+kube-proxy:                   7/7 Running (DaemonSet)
+coredns:                      2/2 Running
+ebs-csi-controller:           2/2 Running (6 containers each)
+ebs-csi-node:                 7/7 Running (DaemonSet, 3 containers each)
+
+# Teste de pod bem-sucedido
+kubectl run test-pod --image=nginx:alpine --restart=Never -- sleep 3600
+# Resultado: 1/1 Running após 7s (scheduling OK, networking OK)
+```
+
+#### 📚 Lição Aprendida
+
+**Princípios de Dependência para EKS com Terraform:**
+
+1. **Add-ons Essenciais (vpc-cni, kube-proxy):**
+   - ✅ Devem depender APENAS do cluster
+   - ❌ NUNCA depender de node groups
+   - **Motivo:** Nodes precisam destes add-ons para ficarem Ready
+
+2. **Add-ons Dependentes (coredns):**
+   - ✅ Devem depender do cluster E do vpc-cni
+   - ⚠️ CoreDNS aguarda nodes Ready (pode levar 5-7 min)
+
+3. **Node Groups:**
+   - ✅ Devem depender do cluster E do vpc-cni explicitamente
+   - **Motivo:** vpc-cni é essencial para networking dos pods
+
+4. **Add-ons que Rodam em Pods (ebs-csi-driver):**
+   - ✅ Devem depender de pelo menos 1 node group estar ACTIVE
+   - **Motivo:** Precisam de nodes para agendar pods
+
+**Padrão Recomendado:**
+```
+Cluster → vpc-cni + kube-proxy → [coredns + Node Groups] → ebs-csi-driver
+```
+
+**Referências:**
+- AWS EKS Best Practices: [Managing Add-ons](https://docs.aws.amazon.com/eks/latest/userguide/eks-add-ons.html)
+- Terraform AWS Provider Issue #24663: "EKS Add-ons timing issues with node groups"
+
+#### 📊 Impacto
+
+**Custo:**
+- Tempo perdido: ~40 min (apply inicial falhado)
+- Tempo de correção: ~25 min (destroy + apply corrigido)
+- **Total:** 1h 5min (dentro do aceitável para troubleshooting crítico)
+
+**Benefício:**
+- ✅ Cluster EKS totalmente funcional e validado
+- ✅ Padrão de dependências correto documentado
+- ✅ Prevenção de futuras falhas similares
+- ✅ Knowledge base atualizado
+
+**Próxima Ação:**
+- [x] Prosseguir com Marco 2 deploy (Platform Services) ✅ **CONCLUÍDO**
+
+---
+
+### 2026-01-28 - Marco 2: Deploy Platform Services + Correção EBS CSI IRSA
+
+#### 🎯 Contexto
+
+Após correção do deadlock do Marco 1, iniciou-se o deploy do Marco 2 (Platform Services). Durante execução, identificou-se problema crítico: **PVCs ficavam Pending** impedindo Prometheus Stack de inicializar.
+
+#### 🔴 Problema Crítico #2: EBS CSI Driver sem IRSA
+
+**Sintoma:**
+```
+PVC Status: Pending
+Error: failed to provision volume with StorageClass "gp2":
+  rpc error: code = Internal desc = Could not create volume in EC2:
+  get credentials: failed to refresh cached credentials,
+  no EC2 IMDS role found
+```
+
+**Causa Raiz:**
+- EBS CSI Driver add-on instalado MAS sem IAM Role (IRSA)
+- Add-on não tinha permissões EC2 para criar volumes EBS
+- **Impacto:** Bloqueava TODOS os serviços que precisam de PVCs (Prometheus, Grafana, Alertmanager, Loki)
+
+**Análise Técnica:**
+```terraform
+# ❌ CONFIGURAÇÃO INCORRETA (marco1/main.tf)
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "aws-ebs-csi-driver"
+  # ❌ FALTAVA: service_account_role_arn
+  # ❌ FALTAVA: IAM Role com IRSA pattern
+}
+```
+
+**Consequência:**
+- EBS CSI Driver pods rodavam mas sem credenciais AWS
+- Tentavam acessar EC2 API e falhavam
+- PVCs ficavam eternamente em "Pending"
+- Prometheus Stack, Loki e outros serviços não inicializavam
+
+#### ✅ Solução: IRSA para EBS CSI Driver
+
+**1. Criação de IAM Role com Trust Policy OIDC**
+
+Adicionado no [marco1/main.tf](../../../platform-provisioning/aws/kubernetes/terraform/envs/marco1/main.tf):
+
+```terraform
+# Get OIDC provider
+data "aws_iam_openid_connect_provider" "eks" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+locals {
+  oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+}
+
+# IAM Role for EBS CSI Driver Service Account
+data "aws_iam_policy_document" "ebs_csi_driver_assume_role" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Federated"
+      identifiers = [local.oidc_provider_arn]
+    }
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi_driver" {
+  name               = "AmazonEKS_EBS_CSI_DriverRole-${var.cluster_name}"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_driver_assume_role.json
+
+  tags = {
+    Name      = "AmazonEKS_EBS_CSI_DriverRole-${var.cluster_name}"
+    Component = "ebs-csi-driver"
+    Marco     = "marco1"
+  }
+}
+
+# Attach AWS Managed Policy
+data "aws_iam_policy" "ebs_csi_driver" {
+  arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
+  role       = aws_iam_role.ebs_csi_driver.name
+  policy_arn = data.aws_iam_policy.ebs_csi_driver.arn
+}
+```
+
+**2. Atualização do EBS CSI Driver Add-on**
+
+```terraform
+# ✅ CONFIGURAÇÃO CORRETA
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = "v1.37.0-eksbuild.1"
+  resolve_conflicts_on_update = "PRESERVE"
+  service_account_role_arn    = aws_iam_role.ebs_csi_driver.arn  # ✅ ADICIONADO
+
+  depends_on = [
+    aws_eks_node_group.system,
+    aws_iam_role_policy_attachment.ebs_csi_driver  # ✅ ADICIONADO
+  ]
+}
+```
+
+**3. Aplicação da Correção**
+
+```bash
+# Terraform apply targeted
+terraform apply \
+  -target=aws_iam_role.ebs_csi_driver \
+  -target=aws_iam_role_policy_attachment.ebs_csi_driver \
+  -target=aws_eks_addon.ebs_csi_driver \
+  -auto-approve
+
+# Resultado: 1 added, 2 changed, 0 destroyed
+```
+
+**4. Restart do EBS CSI Controller**
+
+```bash
+kubectl rollout restart deployment/ebs-csi-controller -n kube-system
+# deployment "ebs-csi-controller" successfully rolled out
+```
+
+**5. Validação**
+
+```bash
+# PVCs agora provisionam com sucesso
+kubectl get pvc -n monitoring
+NAME                                  STATUS   VOLUME       CAPACITY
+alertmanager-...-alertmanager-0       Bound    pvc-967...   2Gi
+kube-prometheus-stack-grafana         Bound    pvc-2ee...   5Gi
+prometheus-...-prometheus-0           Bound    pvc-afa...   20Gi
+
+# Todos bound em ~30 segundos após correção!
+```
+
+#### 🔴 Problema Adicional: Storage Class Incorreta
+
+**Sintoma:**
+- PVCs criados mas ficavam Pending
+- Storage class solicitada: `gp3`
+- Storage class disponível no cluster: `gp2`
+
+**Causa:**
+```terraform
+# ❌ INCORRETO (marco2/modules/kube-prometheus-stack/main.tf)
+set {
+  name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName"
+  value = "gp3"  # ❌ Cluster só tem gp2
+}
+```
+
+**Solução:**
+Corrigidas 3 referências em `kube-prometheus-stack` e 1 em `loki`:
+
+```terraform
+# ✅ CORRETO
+value = "gp2"
+```
+
+#### 🚀 Deploy Marco 2 - Platform Services
+
+**Sequência de Deploy (Total: ~7 minutos):**
+
+1. **AWS Load Balancer Controller** (38s)
+   ```
+   ✅ 2 pods Running in kube-system
+   ✅ IRSA configurado com política IAM
+   ✅ CRDs instalados: IngressClassParams, TargetGroupBindings
+   ```
+
+2. **Cert-Manager** (1m25s)
+   ```
+   ✅ 3 pods Running: controller, webhook, cainjector
+   ✅ CRDs instalados: Certificate, ClusterIssuer, Issuer
+   ✅ Namespace cert-manager criado
+   ```
+
+3. **Kube-Prometheus-Stack** (3m54s após correção storage class)
+   ```
+   ✅ Prometheus: 2/2 Running (20Gi PVC Bound)
+   ✅ Grafana: 3/3 Running (5Gi PVC Bound)
+   ✅ Alertmanager: 2/2 Running (2Gi PVC Bound)
+   ✅ Node Exporters: 7/7 Running (DaemonSet)
+   ✅ Operator: 1/1 Running
+   ✅ Kube State Metrics: 1/1 Running
+   ✅ Total: 16 pods no namespace monitoring
+   ```
+
+4. **Loki** (1m47s)
+   ```
+   ✅ SimpleScalable mode: 8 componentes
+     - 2 backend pods (StatefulSet, 10Gi PVC each)
+     - 2 write pods (StatefulSet, 10Gi PVC each)
+     - 2 read pods (Deployment)
+     - 2 gateway pods (Deployment)
+   ✅ Loki Canary: 5 pods (DaemonSet, 1 por node)
+   ✅ S3 Bucket: k8s-platform-loki-891377105802
+   ✅ IRSA configurado com S3 permissions
+   ✅ Retention: 30 dias
+   ```
+
+5. **Fluent Bit** (26s)
+   ```
+   ✅ 7 pods Running (DaemonSet, 1 por node)
+   ✅ Coletando logs de TODOS os namespaces
+   ✅ Enviando para Loki Gateway (HTTP 204)
+   ✅ Parsers: Docker JSON, CRI-O, Multiline
+   ```
+
+#### 📊 Resultado Final
+
+**Terraform Apply Completo:**
+```
+Apply complete! Resources: 4 added, 1 changed, 0 destroyed.
+
+Outputs:
+aws_load_balancer_controller_role_arn = "arn:aws:iam::891377105802:role/AWSLoadBalancerControllerRole-k8s-platform-prod"
+cert_manager_namespace = "cert-manager"
+grafana_service = "kube-prometheus-stack-grafana"
+loki_gateway_endpoint = "http://loki-gateway.monitoring:3100"
+loki_s3_bucket = "k8s-platform-loki-891377105802"
+prometheus_service = "kube-prometheus-stack-prometheus"
+fluent_bit_daemonset = "fluent-bit"
+monitoring_namespace = "monitoring"
+```
+
+**Validação Completa:**
+
+```bash
+# 33 pods no namespace monitoring
+kubectl get pods -n monitoring --no-headers | wc -l
+33
+
+# Todos Running
+kubectl get pods -n monitoring | grep -v Running
+# (nenhum resultado - todos Running!)
+
+# Logs sendo ingeridos com sucesso
+kubectl logs -n monitoring loki-gateway-694d54db7c-5lsfz | grep "POST.*push.*204"
+10.0.139.149 - - [28/Jan/2026:19:13:11 +0000]  204 "POST /loki/api/v1/push HTTP/1.1" 0 "-" "Fluent-Bit" "-"
+10.0.153.191 - - [28/Jan/2026:19:13:11 +0000]  204 "POST /loki/api/v1/push HTTP/1.1" 0 "-" "Fluent-Bit" "-"
+10.0.133.228 - - [28/Jan/2026:19:13:12 +0000]  204 "POST /loki/api/v1/push HTTP/1.1" 0 "-" "Fluent-Bit" "-"
+# ✅ Fluent Bit → Loki Gateway → S3 funcionando!
+
+# PVCs todos Bound
+kubectl get pvc -n monitoring
+NAME                                  STATUS   VOLUME       CAPACITY   STORAGECLASS
+alertmanager-...-alertmanager-0       Bound    pvc-967...   2Gi        gp2
+kube-prometheus-stack-grafana         Bound    pvc-2ee...   5Gi        gp2
+prometheus-...-prometheus-0           Bound    pvc-afa...   20Gi       gp2
+loki-backend-0                        Bound    pvc-e5c...   10Gi       gp2
+loki-backend-1                        Bound    pvc-a92...   10Gi       gp2
+loki-write-0                          Bound    pvc-1d4...   10Gi       gp2
+loki-write-1                          Bound    pvc-8f3...   10Gi       gp2
+# Total: 67Gi provisionados com sucesso
+```
+
+#### 📚 Lições Aprendidas
+
+**1. EBS CSI Driver SEMPRE precisa de IRSA**
+
+```terraform
+# PADRÃO OBRIGATÓRIO para EBS CSI Driver:
+# 1. IAM Role com Trust Policy OIDC
+# 2. AWS Managed Policy: AmazonEBSCSIDriverPolicy
+# 3. service_account_role_arn no addon
+# 4. depends_on = IAM role policy attachment
+```
+
+**⚠️ SEM IRSA = PVCs PERMANENTEMENTE PENDING**
+
+**2. Storage Class: Sempre validar o que existe no cluster**
+
+```bash
+# ANTES de definir no Terraform:
+kubectl get storageclass
+
+# Se cluster tem gp2, usar gp2 no Terraform
+# Não assumir que gp3 existe sem validar
+```
+
+**3. Helm Releases: Importar se já existem**
+
+```bash
+# Se helm release foi criado manualmente ou parcialmente:
+terraform import module.X.helm_release.Y namespace/release-name
+
+# Evita erro: "cannot re-use a name that is still in use"
+```
+
+**4. PVCs dependem de:**
+- ✅ EBS CSI Driver add-on instalado
+- ✅ EBS CSI Driver com IRSA configurado
+- ✅ Storage Class existente no cluster
+- ✅ EBS CSI Controller pods rodando
+- ✅ Node com capacity para agendar o pod que usa PVC
+
+**Ordem correta:**
+```
+EKS Cluster → OIDC Provider → IRSA Roles → EBS CSI Add-on →
+Node Groups → Storage Classes → PVCs → Pods
+```
+
+**5. Troubleshooting PVCs Pending:**
+
+```bash
+# 1. Verificar eventos do PVC
+kubectl describe pvc <pvc-name> -n <namespace>
+
+# 2. Verificar logs do EBS CSI Controller
+kubectl logs -n kube-system deployment/ebs-csi-controller
+
+# 3. Verificar se IRSA está configurado
+kubectl describe sa ebs-csi-controller-sa -n kube-system | grep role-arn
+
+# 4. Verificar storage class
+kubectl get storageclass
+
+# 5. Verificar addon status
+aws eks describe-addon --cluster-name <cluster> --addon-name aws-ebs-csi-driver
+```
+
+#### 💰 Impacto de Custos
+
+**Marco 2 Platform Services:**
+
+| Componente | Recurso | Custo/Mês | Observação |
+|------------|---------|-----------|------------|
+| Prometheus Stack | 3 PVCs (27Gi gp2) | $2.88 | Prometheus 20Gi + Grafana 5Gi + Alertmanager 2Gi |
+| Loki | 4 PVCs (40Gi gp2) | $4.00 | 2 backend (20Gi) + 2 write (20Gi) |
+| Loki | S3 (500GB/mês) | $11.50 | Logs com retention 30 dias |
+| Secrets Manager | 2 secrets | $0.80 | Grafana password |
+| **Total Marco 2** | - | **$19.18** | - |
+
+**Total Plataforma (Marco 0+1+2):** ~$587/mês
+
+**Economia vs CloudWatch Logs:**
+- Loki: $15.50/mês (S3 + PVCs)
+- CloudWatch Logs: $55/mês (500GB ingest + storage)
+- **Economia:** $39.50/mês = $474/ano (71% mais barato)
+
+#### 📋 Checklist de Validação Marco 2
+
+- [x] AWS Load Balancer Controller operacional (2 pods)
+- [x] Cert-Manager operacional (3 pods + CRDs)
+- [x] Prometheus coletando métricas (2/2 Running, PVC 20Gi Bound)
+- [x] Grafana acessível (3/3 Running, PVC 5Gi Bound)
+- [x] Alertmanager operacional (2/2 Running, PVC 2Gi Bound)
+- [x] Node Exporters em todos os nodes (7/7 Running)
+- [x] Loki ingerindo logs (8 pods SimpleScalable, 4 PVCs Bound)
+- [x] Fluent Bit coletando logs (7 pods DaemonSet, HTTP 204 confirmado)
+- [x] S3 bucket Loki criado e acessível (IRSA OK)
+- [x] Todos os 33 pods no namespace monitoring Running
+- [x] PVCs provisionando corretamente (67Gi total Bound)
+- [x] EBS CSI Driver com IRSA configurado
+- [x] Storage class gp2 sendo usada corretamente
+
+#### 🎯 Próximos Passos
+
+**Marco 2 - Fases Restantes:**
+- [ ] **Fase 5:** Network Policies (isolamento L3/L4 entre namespaces)
+- [ ] **Fase 6:** Cluster Autoscaler (escalonamento automático de nodes)
+- [ ] **Fase 7:** Aplicação de teste + validação end-to-end
+
+**Marco 3 - Applications (Planejado):**
+- [ ] GitLab (Source Control + CI/CD)
+- [ ] Redis (Cache)
+- [ ] RabbitMQ (Message Broker)
+- [ ] Keycloak (Identity Provider)
+- [ ] ArgoCD (GitOps)
+- [ ] Harbor (Container Registry)
+- [ ] SonarQube (Code Quality)
+
+**Otimizações Futuras:**
+- [ ] Reserved Instances para EC2 nodes (economia 31%)
+- [ ] S3 Lifecycle para logs antigos → Glacier (economia 80%)
+- [ ] CloudWatch Budget Alerts ($600/mês threshold)
+- [ ] Grafana Dashboards customizados
+- [ ] AlertManager rules para produção
+
+#### 📊 Status Atual da Plataforma
+
+```
+Marco 0: ✅ COMPLETO - VPC + Backend Terraform
+├── VPC 10.0.0.0/16 reaproveitada
+├── 2 NAT Gateways (Multi-AZ)
+├── S3 Backend + DynamoDB Locking
+└── IAM Roles base
+
+Marco 1: ✅ COMPLETO - EKS Cluster
+├── Cluster k8s-platform-prod v1.31
+├── 7 nodes Ready (2 system + 3 workloads + 2 critical)
+├── 4 add-ons: vpc-cni, kube-proxy, coredns, ebs-csi-driver
+├── EBS CSI Driver com IRSA ✅
+└── Storage class gp2 disponível
+
+Marco 2: ✅ COMPLETO - Platform Services (Fases 1-4)
+├── Fase 1: AWS Load Balancer Controller ✅
+├── Fase 2: Cert-Manager ✅
+├── Fase 3: Kube-Prometheus-Stack ✅ (Prometheus + Grafana + Alertmanager)
+├── Fase 4: Loki + Fluent Bit ✅ (Logging centralizado)
+├── 33 pods Running no namespace monitoring
+├── 67Gi PVCs Bound (gp2)
+└── Logs sendo ingeridos no Loki → S3
+
+Marco 3: ⏳ PENDENTE - Applications
+```
+
+---
+
 ## 🔄 Changelog
 
 | Data | Versão | Alterações | Autor |
 |------|--------|------------|-------|
 | 2026-01-22 | 1.0 | Criação do diário de bordo, análise de VPC existente | DevOps Team |
 | 2026-01-23 | 1.1 | Decisão #005: Configuração Terraform Backend S3+DynamoDB, script setup automatizado | DevOps Team |
+| 2026-01-28 | 1.2 | Status Marco 2 Fase 4: Loki + Fluent Bit código implementado (aguardando deploy) | DevOps Team + Claude Sonnet 4.5 |
+| 2026-01-28 | 1.3 | Marco 1: Correção crítica de deadlock em EKS add-ons - Cluster operacional com 7 nodes + 4 add-ons | DevOps Team + Claude Sonnet 4.5 |
+| 2026-01-28 | 1.4 | **Marco 2 COMPLETO**: Platform Services deployados (ALB Controller, Cert-Manager, Prometheus Stack, Loki, Fluent Bit) + Correção EBS CSI IRSA + Storage class gp2 | DevOps Team + Claude Sonnet 4.5 |
 
 ---
 
-**Última atualização:** 2026-01-23
-**Próxima revisão:** Após inicialização do Terraform backend
+**Última atualização:** 2026-01-28 (Versão 1.4)
+**Próxima revisão:** Marco 2 Fases 5-7 (Network Policies, Autoscaler, Apps teste)
 **Mantenedor:** DevOps Team
