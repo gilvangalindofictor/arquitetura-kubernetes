@@ -1041,3 +1041,126 @@ kubectl get events -n monitoring --sort-by='.lastTimestamp'
 - ⏳ Fase 5: Network Policies
 - ⏳ Fase 6: Cluster Autoscaler ou Karpenter
 - ⏳ Fase 7: Aplicações de Teste
+
+---
+
+## 📅 2026-01-29 - Marco 2 COMPLETO (7/7 Fases)
+
+### Status
+✅ **TODAS AS FASES CONCLUÍDAS**
+
+### Progresso
+- ✅ Fase 1: AWS Load Balancer Controller
+- ✅ Fase 2: Cert-Manager
+- ✅ Fase 3: Prometheus + Grafana (kube-prometheus-stack)
+- ✅ Fase 4: Loki + Fluent Bit (Logging centralizado)
+- ✅ Fase 5: Network Policies (Calico policy-only + 11 políticas)
+- ✅ Fase 6: Cluster Autoscaler (IRSA configurado)
+- ✅ Fase 7: Test Applications (nginx-test + echo-server, 2 ALBs HTTP-only)
+
+### Deploy da Fase 7 - Correções e Finalização
+
+**Problema Crítico Resolvido:**
+- **Issue:** ACM certificates sendo criados forçadamente mesmo com `enable_tls = false`
+- **Causa:** Falta de parâmetro `count` nos recursos `aws_acm_certificate`
+- **Fix:** Adicionado `count = var.enable_tls ? 1 : 0` em todos recursos ACM
+- **Arquivos:** acm.tf, main.tf, outputs.tf (test-applications module)
+
+**Recursos Deployados:**
+```
+Namespace: test-apps
+├── Deployments: 2 (nginx-test: 2 replicas, echo-server: 2 replicas)
+├── Pods: 4 (Running)
+│   ├── nginx-test: 2 containers (nginx + nginx-prometheus-exporter)
+│   └── echo-server: 1 container
+├── Services: 2 (ClusterIP)
+├── Ingresses: 2 (ALB internet-facing HTTP-only)
+├── ALBs: 2 ativos
+│   ├── nginx-test: k8s-testapps-nginxtes-bf6521357f
+│   └── echo-server: k8s-testapps-echoserv-d5229efc2b
+├── ServiceMonitors: 2 (integração Prometheus)
+└── Network Policy: 1 (allow ALB + monitoring)
+```
+
+**Validações:**
+```bash
+# ALB Health Checks
+curl -I http://k8s-testapps-nginxtes-bf6521357f-267724084.us-east-1.elb.amazonaws.com
+# ✅ HTTP/1.1 200 OK
+
+curl http://k8s-testapps-echoserv-d5229efc2b-1385371797.us-east-1.elb.amazonaws.com
+# ✅ JSON response completo
+
+# Terraform State
+terraform plan
+# ✅ No changes. Your infrastructure matches the configuration.
+```
+
+**Scripts Atualizados:**
+- ✅ startup-full-platform.sh: Adicionado validação Test Applications
+- ✅ shutdown-full-platform.sh: Adicionado menção remoção 2 ALBs
+
+**Commit Git:**
+```
+4a1c3e2: fix(marco2): Fix ACM certificates conditional creation + Update scripts for Fase 7
+✅ Validação de governança documental: PASS
+```
+
+### Custos Marco 2 Completo
+
+| Componente | Custo/Mês | Observações |
+|------------|-----------|-------------|
+| ALB Controller | $0 | Usa nodes existentes |
+| Cert-Manager | $0 | Usa nodes existentes |
+| Prometheus Stack | $2.56 | EBS 27Gi + Secrets Manager |
+| Loki + Fluent Bit | $19.70 | S3 500GB + EBS 40Gi |
+| Network Policies | $0 | Calico policy-only |
+| Cluster Autoscaler | $0 | Usa nodes existentes |
+| Test Applications | $32.40 | 2 ALBs ($16.20 cada) |
+| **TOTAL Marco 2** | **$54.66/mês** | **$655.92/ano** |
+
+**Economia vs Alternativas:**
+- Loki vs CloudWatch: $423/ano saved
+- VPC reaproveitada: $1.152/ano saved
+- Total Economia: ~$1.575/ano
+
+### Próximos Passos
+
+**Imediato (Opcional - Fase 7.1):**
+1. Registrar domínio (ex: k8s-platform-test.com.br)
+2. Configurar `terraform.tfvars`:
+   ```hcl
+   test_apps_domain_name = "k8s-platform-test.com.br"
+   test_apps_enable_tls = true
+   test_apps_create_route53_zone = true
+   ```
+3. `terraform apply` para criar ACM certificates + Route53 DNS
+4. Validar HTTPS funcionando
+
+**Marco 3 (Workloads Produtivos):**
+1. **GitLab CE** - Priority HIGH
+   - Helm chart deployment
+   - RDS PostgreSQL
+   - Redis
+   - S3 artifacts
+   - TLS obrigatório
+   - Estimate: 8-12h
+
+2. **Keycloak** - Priority HIGH
+   - Identity platform
+   - OIDC integration com GitLab
+   - TLS obrigatório
+
+3. **ArgoCD** - Priority MEDIUM
+   - GitOps deployment
+   - Sync com GitLab repos
+
+4. **Harbor** - Priority MEDIUM
+   - Container registry
+   - TLS obrigatório
+
+---
+
+**Última Atualização**: 2026-01-29
+**Status do Marco 2**: **7/7 Fases Completas (100%)** ✅
+**Próximo Marco**: Marco 3 (Workloads Produtivos)
