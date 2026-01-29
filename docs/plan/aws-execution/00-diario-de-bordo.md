@@ -3619,3 +3619,4 @@ module "test_applications" {
 **Última atualização:** 2026-01-28 (Versão 1.9)
 **Próxima revisão:** Ativar TLS (registrar domínio + terraform apply), consolidação ALBs, Marco 3 planning
 **Mantenedor:** DevOps Team
+| 2026-01-29 | 1.10 | **Marco 2 Fase 7 DEPLOY FINALIZADO + FIX CRÍTICO**: Corrigido erro ACM conditional creation (count parameter faltante causava criação forçada de certificates com TLS disabled). 5 arquivos atualizados (acm.tf, main.tf, outputs.tf + scripts startup/shutdown). Deploy 100% completo: 4 pods Running, 2 ALBs ativos HTTP-only, terraform state sincronizado (no changes). Validação end-to-end OK: NGINX (200 OK) + Echo Server (JSON response). Scripts startup/shutdown atualizados para Fase 7. Commit: 4a1c3e2. Próximo: Fase 7.1 TLS (registrar domínio) ou Marco 3 (GitLab CE). | DevOps Team + Claude Sonnet 4.5 |
