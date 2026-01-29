@@ -93,11 +93,17 @@ metadata:
     # AWS Load Balancer Controller
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/listen-ports: '${LISTEN_PORTS}'
+%{ if ENABLE_TLS && SSL_REDIRECT != "" ~}
+    alb.ingress.kubernetes.io/ssl-redirect: "${SSL_REDIRECT}"
+%{ endif ~}
+%{ if ENABLE_TLS && ECHO_CERT_ARN != "" ~}
+    # ACM Certificate ARN (Fase 7.1 - TLS Implementation)
+    alb.ingress.kubernetes.io/certificate-arn: ${ECHO_CERT_ARN}
+%{ endif ~}
 
     # Health Checks
-    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
@@ -106,21 +112,19 @@ metadata:
     alb.ingress.kubernetes.io/success-codes: "200"
 
     # Tags
-    alb.ingress.kubernetes.io/tags: Environment=test,Project=k8s-platform,Marco=marco2,Fase=7,App=echo-server
-
-    # Cert-Manager (TLS automático)
-    cert-manager.io/cluster-issuer: selfsigned-issuer
+    alb.ingress.kubernetes.io/tags: Environment=test,Project=k8s-platform,Marco=marco2,Fase=7.1,App=echo-server,TLS=${ENABLE_TLS}
 
   labels:
     app: echo-server
 spec:
   ingressClassName: alb
-  tls:
-  - hosts:
-    - echo-server.test-apps.local
-    secretName: echo-server-tls
   rules:
+%{ if ENABLE_TLS && DOMAIN_NAME != "" ~}
+  - host: echo-server.${DOMAIN_NAME}
+    http:
+%{ else ~}
   - http:
+%{ endif ~}
       paths:
       - path: /
         pathType: Prefix
@@ -128,7 +132,7 @@ spec:
           service:
             name: echo-server
             port:
-              number: 80
+              number: 8080
 
 ---
 apiVersion: monitoring.coreos.com/v1

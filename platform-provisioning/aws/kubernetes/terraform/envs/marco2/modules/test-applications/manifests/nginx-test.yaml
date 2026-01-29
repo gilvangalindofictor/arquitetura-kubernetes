@@ -138,8 +138,14 @@ metadata:
     # AWS Load Balancer Controller
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/listen-ports: '${LISTEN_PORTS}'
+%{ if ENABLE_TLS && SSL_REDIRECT != "" ~}
+    alb.ingress.kubernetes.io/ssl-redirect: "${SSL_REDIRECT}"
+%{ endif ~}
+%{ if ENABLE_TLS && NGINX_CERT_ARN != "" ~}
+    # ACM Certificate ARN (Fase 7.1 - TLS Implementation)
+    alb.ingress.kubernetes.io/certificate-arn: ${NGINX_CERT_ARN}
+%{ endif ~}
 
     # Health Checks
     alb.ingress.kubernetes.io/healthcheck-path: /
@@ -151,21 +157,19 @@ metadata:
     alb.ingress.kubernetes.io/success-codes: "200"
 
     # Tags
-    alb.ingress.kubernetes.io/tags: Environment=test,Project=k8s-platform,Marco=marco2,Fase=7,App=nginx-test
-
-    # Cert-Manager (TLS automático)
-    cert-manager.io/cluster-issuer: selfsigned-issuer
+    alb.ingress.kubernetes.io/tags: Environment=test,Project=k8s-platform,Marco=marco2,Fase=7.1,App=nginx-test,TLS=${ENABLE_TLS}
 
   labels:
     app: nginx-test
 spec:
   ingressClassName: alb
-  tls:
-  - hosts:
-    - nginx-test.test-apps.local
-    secretName: nginx-test-tls
   rules:
+%{ if ENABLE_TLS && DOMAIN_NAME != "" ~}
+  - host: nginx-test.${DOMAIN_NAME}
+    http:
+%{ else ~}
   - http:
+%{ endif ~}
       paths:
       - path: /
         pathType: Prefix

@@ -249,11 +249,21 @@ module "test_applications" {
   cluster_name = var.cluster_name
   namespace    = "test-apps"
 
+  # Fase 7.1: TLS Configuration
+  # IMPORTANT: Set these variables to enable HTTPS
+  # 1. Register domain (e.g., k8s-platform-test.com.br)
+  # 2. Update domain_name below
+  # 3. Set enable_tls = true
+  # 4. Run: terraform apply
+  domain_name          = var.test_apps_domain_name
+  create_route53_zone  = var.test_apps_create_route53_zone
+  enable_tls           = var.test_apps_enable_tls
+
   tags = {
     Environment = "test"
     Project     = "k8s-platform"
     Marco       = "marco2"
-    Fase        = "7"
+    Fase        = var.test_apps_enable_tls ? "7.1" : "7"
     ManagedBy   = "terraform"
   }
 

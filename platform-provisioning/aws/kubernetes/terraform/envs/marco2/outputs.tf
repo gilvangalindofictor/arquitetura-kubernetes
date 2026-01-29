@@ -164,3 +164,22 @@ output "test_apps_validation_commands" {
   description = "Comandos para validação da Fase 7"
   value       = module.test_applications.validation_commands
 }
+
+# -----------------------------------------------------------------------------
+# Test Applications TLS Outputs (Marco 2 Fase 7.1)
+# -----------------------------------------------------------------------------
+
+output "test_apps_nginx_url" {
+  description = "URL completa para acesso ao nginx-test"
+  value       = module.test_applications.nginx_test_url
+}
+
+output "test_apps_echo_server_url" {
+  description = "URL completa para acesso ao echo-server"
+  value       = module.test_applications.echo_server_url
+}
+
+output "test_apps_tls_summary" {
+  description = "Resumo da configuração TLS das test applications"
+  value       = module.test_applications.tls_summary
+}
