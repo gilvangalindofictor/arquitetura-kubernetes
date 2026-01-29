@@ -30,3 +30,25 @@ variable "grafana_admin_password" {
   sensitive   = true
   default     = "admin123" # ALTERAR em produção
 }
+
+# -----------------------------------------------------------------------------
+# Test Applications TLS Configuration (Fase 7.1)
+# -----------------------------------------------------------------------------
+
+variable "test_apps_domain_name" {
+  description = "Base domain name for test applications (e.g., k8s-platform-test.com.br). Leave empty to disable TLS."
+  type        = string
+  default     = ""
+}
+
+variable "test_apps_create_route53_zone" {
+  description = "Whether to create Route53 hosted zone for test applications domain. Set to false if zone already exists."
+  type        = bool
+  default     = false
+}
+
+variable "test_apps_enable_tls" {
+  description = "Enable TLS/HTTPS for test applications ALB Ingresses. Requires test_apps_domain_name to be set."
+  type        = bool
+  default     = false
+}

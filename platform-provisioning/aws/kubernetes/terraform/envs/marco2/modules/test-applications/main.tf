@@ -14,27 +14,48 @@ resource "kubernetes_namespace" "test_apps" {
 }
 
 # Apply NGINX Test manifest
+# Usar templatefile para injetar variáveis (TLS certificate ARN, domain, etc.)
 data "kubectl_file_documents" "nginx_test" {
-  content = file("${path.module}/manifests/nginx-test.yaml")
+  content = templatefile("${path.module}/manifests/nginx-test.yaml", {
+    ENABLE_TLS             = var.enable_tls
+    DOMAIN_NAME            = var.domain_name
+    NGINX_CERT_ARN         = var.enable_tls ? aws_acm_certificate.nginx_test.arn : ""
+    NGINX_CERT_STATUS      = var.enable_tls ? aws_acm_certificate.nginx_test.status : "DISABLED"
+    LISTEN_PORTS           = var.enable_tls ? "[{\"HTTP\": 80}, {\"HTTPS\": 443}]" : "[{\"HTTP\": 80}]"
+    SSL_REDIRECT           = var.enable_tls ? "443" : ""
+  })
 }
 
 resource "kubectl_manifest" "nginx_test" {
   for_each  = data.kubectl_file_documents.nginx_test.manifests
   yaml_body = each.value
 
-  depends_on = [kubernetes_namespace.test_apps]
+  depends_on = [
+    kubernetes_namespace.test_apps,
+    aws_acm_certificate_validation.nginx_test
+  ]
 }
 
 # Apply Echo Server manifest
 data "kubectl_file_documents" "echo_server" {
-  content = file("${path.module}/manifests/echo-server.yaml")
+  content = templatefile("${path.module}/manifests/echo-server.yaml", {
+    ENABLE_TLS        = var.enable_tls
+    DOMAIN_NAME       = var.domain_name
+    ECHO_CERT_ARN     = var.enable_tls ? aws_acm_certificate.echo_server.arn : ""
+    ECHO_CERT_STATUS  = var.enable_tls ? aws_acm_certificate.echo_server.status : "DISABLED"
+    LISTEN_PORTS      = var.enable_tls ? "[{\"HTTP\": 80}, {\"HTTPS\": 443}]" : "[{\"HTTP\": 80}]"
+    SSL_REDIRECT      = var.enable_tls ? "443" : ""
+  })
 }
 
 resource "kubectl_manifest" "echo_server" {
   for_each  = data.kubectl_file_documents.echo_server.manifests
   yaml_body = each.value
 
-  depends_on = [kubernetes_namespace.test_apps]
+  depends_on = [
+    kubernetes_namespace.test_apps,
+    aws_acm_certificate_validation.echo_server
+  ]
 }
 
 # Network Policy para permitir tráfego do ALB e Prometheus
