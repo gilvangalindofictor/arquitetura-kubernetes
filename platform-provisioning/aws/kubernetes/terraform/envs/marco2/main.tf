@@ -238,3 +238,24 @@ module "cluster_autoscaler" {
 
   depends_on = [module.network_policies]
 }
+
+# -----------------------------------------------------------------------------
+# Test Applications (Validação End-to-End - Marco 2 Fase 7)
+# -----------------------------------------------------------------------------
+
+module "test_applications" {
+  source = "./modules/test-applications"
+
+  cluster_name = var.cluster_name
+  namespace    = "test-apps"
+
+  tags = {
+    Environment = "test"
+    Project     = "k8s-platform"
+    Marco       = "marco2"
+    Fase        = "7"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [module.cluster_autoscaler]
+}

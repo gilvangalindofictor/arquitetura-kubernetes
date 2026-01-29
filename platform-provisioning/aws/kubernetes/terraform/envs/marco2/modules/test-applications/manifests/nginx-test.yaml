@@ -1,0 +1,194 @@
+# NGINX Test Application with Prometheus Exporter
+# Marco 2 Fase 7 - Test Applications
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-stub-config
+  namespace: test-apps
+data:
+  stub_status.conf: |
+    server {
+      listen 8080;
+      location /stub_status {
+        stub_status on;
+        access_log off;
+        allow 127.0.0.1;
+        deny all;
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-test
+  namespace: test-apps
+  labels:
+    app: nginx-test
+    app.kubernetes.io/name: nginx-test
+    app.kubernetes.io/component: web-server
+    app.kubernetes.io/part-of: marco2-fase7
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-test
+  template:
+    metadata:
+      labels:
+        app: nginx-test
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/path: "/metrics"
+    spec:
+      nodeSelector:
+        node-type: workloads
+      containers:
+      # Container principal: NGINX
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 8080
+          name: stub-status
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d/stub_status.conf
+          subPath: stub_status.conf
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5
+
+      # Sidecar: NGINX Prometheus Exporter
+      - name: nginx-exporter
+        image: nginx/nginx-prometheus-exporter:1.4.0
+        args:
+        - -nginx.scrape-uri=http://localhost:8080/stub_status
+        ports:
+        - containerPort: 9113
+          name: metrics
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9113
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-stub-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-test
+  namespace: test-apps
+  labels:
+    app: nginx-test
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-test
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 9113
+    targetPort: 9113
+    protocol: TCP
+    name: metrics
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-test-ingress
+  namespace: test-apps
+  annotations:
+    # AWS Load Balancer Controller
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # Health Checks
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/success-codes: "200"
+
+    # Tags
+    alb.ingress.kubernetes.io/tags: Environment=test,Project=k8s-platform,Marco=marco2,Fase=7,App=nginx-test
+
+    # Cert-Manager (TLS automático)
+    cert-manager.io/cluster-issuer: selfsigned-issuer
+
+  labels:
+    app: nginx-test
+spec:
+  ingressClassName: alb
+  tls:
+  - hosts:
+    - nginx-test.test-apps.local
+    secretName: nginx-test-tls
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-test
+            port:
+              number: 80
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nginx-test
+  namespace: test-apps
+  labels:
+    app: nginx-test
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: nginx-test
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
