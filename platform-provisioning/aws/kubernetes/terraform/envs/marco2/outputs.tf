@@ -140,3 +140,27 @@ output "cluster_autoscaler_configuration" {
   description = "Configuração do Cluster Autoscaler"
   value       = module.cluster_autoscaler.configuration_summary
 }
+
+# -----------------------------------------------------------------------------
+# Test Applications Outputs (Marco 2 Fase 7)
+# -----------------------------------------------------------------------------
+
+output "test_apps_namespace" {
+  description = "Namespace das aplicações de teste"
+  value       = module.test_applications.namespace
+}
+
+output "test_apps_nginx_alb_command" {
+  description = "Comando para obter DNS do ALB do NGINX"
+  value       = module.test_applications.nginx_alb_command
+}
+
+output "test_apps_echo_server_alb_command" {
+  description = "Comando para obter DNS do ALB do Echo Server"
+  value       = module.test_applications.echo_server_alb_command
+}
+
+output "test_apps_validation_commands" {
+  description = "Comandos para validação da Fase 7"
+  value       = module.test_applications.validation_commands
+}

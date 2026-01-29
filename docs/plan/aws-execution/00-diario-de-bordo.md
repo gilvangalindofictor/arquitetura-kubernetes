@@ -2712,6 +2712,242 @@ terraform apply
 
 ---
 
+### 2026-01-28 - Marco 2 Fase 7 COMPLETO: Test Applications
+
+#### 📌 Contexto
+
+Validação end-to-end da plataforma Kubernetes através do deploy de aplicações de teste (nginx e echo-server) com exposição via AWS Application Load Balancer. Objetivo: Validar integração completa do stack: Ingress → ALB → Network Policies → Pods → Prometheus Metrics → Loki Logs.
+
+**Problema TLS Identificado:** Durante o deploy, ALBs não foram provisionados devido a configuração incorreta de TLS com domínios fake (.local) sem DNS real. Cert-Manager não conseguiu gerar certificados válidos para domínios não existentes, e ALB Controller bloqueou criação de HTTPS listeners por falta de certificados. **Solução temporária:** TLS removido, ALBs configurados para HTTP-only.
+
+#### 🔧 Execução
+
+**Preparação WSL2:**
+- **Issue:** DNS resolver do WSL2 (10.255.255.254) não respondia, impedindo resolução de AWS SSO/STS endpoints
+- **Fix:** Configurado Google DNS (8.8.8.8, 8.8.4.4) em /etc/resolv.conf e desabilitado auto-generation
+- Resultado: Terraform init/apply funcionando normalmente
+
+**Terraform Apply - Marco 2 (Test Applications Module):**
+```bash
+cd platform-provisioning/aws/kubernetes/terraform/envs/marco2
+terraform init -upgrade
+terraform apply
+```
+
+**Recursos Criados:**
+1. `kubernetes_namespace.test_apps` - Namespace "test-apps" com labels
+2. `kubectl_manifest.nginx_test` (for_each) - 4 manifests: Deployment, Service, ServiceMonitor, Ingress
+3. `kubectl_manifest.echo_server` (for_each) - 4 manifests: Deployment, Service, ServiceMonitor, Ingress
+4. `kubernetes_network_policy.allow_ingress_monitoring` - Policy permitindo tráfego ALB + Prometheus
+
+**Tempo Total:** ~3 minutos (incluindo troubleshooting TLS)
+
+**Correções Durante Deploy:**
+1. **ImagePullBackOff:** echo-server:0.9.4 não existia → Corrigido para `ealen/echo-server:latest`
+2. **TLS Blocker:** Removido TLS section dos Ingresses e alterado listen-ports para HTTP-only `[{"HTTP": 80}]`
+3. **Network Policy:** Já configurada previamente para permitir tráfego kube-system → test-apps
+
+#### ✅ Validação
+
+**Pods Status:**
+```
+NAMESPACE   NAME                           READY   STATUS
+test-apps   nginx-test-6d67d58545-bkbgz    2/2     Running (nginx + nginx-exporter sidecar)
+test-apps   nginx-test-6d67d58545-g6tvh    2/2     Running
+test-apps   echo-server-6987564-7mqfb      1/1     Running
+test-apps   echo-server-6987564-v9xpc      1/1     Running
+```
+
+**Services:**
+- `nginx-test`: ClusterIP, port 80 (nginx) + 9113 (metrics)
+- `echo-server`: ClusterIP, port 8080
+
+**Ingresses & ALBs:**
+- **nginx-test-ingress:**
+  - ALB: `k8s-testapps-nginxtes-bf6521357f-267724084.us-east-1.elb.amazonaws.com`
+  - Status: ✅ HTTP 200 (NGINX welcome page)
+  - Annotations: `scheme=internet-facing`, `target-type=ip`, `listen-ports=[{"HTTP": 80}]`
+- **echo-server-ingress:**
+  - ALB: `k8s-testapps-echoserv-d5229efc2b-1385371797.us-east-1.elb.amazonaws.com`
+  - Status: ✅ HTTP 200 (JSON response com request details)
+  - Annotations: Mesmas configurações do nginx
+
+**Prometheus Integration:**
+- ✅ 2 ServiceMonitors criados e descobertos pelo Prometheus
+- ✅ Métricas NGINX Exporter: `nginx_*` (e.g., `nginx_connections_active`, `nginx_http_requests_total`)
+- ✅ Targets ativos no Prometheus UI
+
+**Loki Integration:**
+- ✅ Logs de ambos apps visíveis no Grafana Explore
+- ✅ Query `{namespace="test-apps"}` retorna logs dos 4 pods
+- ✅ Fluent Bit coletando e enviando logs corretamente
+
+#### 🚨 Problema TLS - Análise Detalhada
+
+**Timeline do Problema:**
+1. Ingresses criados com TLS section (`hosts: [nginx-test.test-apps.local]`, `secretName: nginx-test-tls`)
+2. Annotation `cert-manager.io/cluster-issuer: selfsigned-issuer` presente
+3. ALB Controller detectou TLS configuration e aguardou certificados
+4. Cert-Manager tentou criar Certificate resources
+5. Certificates ficaram stuck em "Ready: False" (domínios .local sem DNS não podem ser validados)
+6. ALB Controller bloqueou criação de HTTPS listener com erro: "ValidationError: A certificate must be specified for HTTPS listeners"
+7. ALBs não foram provisionados (sem ADDRESS no Ingress)
+
+**Root Causes Identificadas:**
+- **Causa #1:** Domínios fake (.local) incompatíveis com Let's Encrypt HTTP-01 challenge (requer DNS público)
+- **Causa #2:** Self-signed issuer mal configurado (optimistic locking issues no Cert-Manager)
+- **Causa #3:** ALB Controller exige certificados reais quando TLS section está presente no Ingress spec
+- **Causa #4:** Ausência de DNS real (Route53 ou externo) impossibilita validação ACME
+
+**Solução Aplicada (Temporária):**
+1. Removida TLS section de ambos Ingresses via `kubectl patch`
+2. Alterado `alb.ingress.kubernetes.io/listen-ports` para `'[{"HTTP": 80}]'` (apenas HTTP)
+3. Removido annotation `alb.ingress.kubernetes.io/ssl-redirect: "443"`
+4. Resultado: ALBs criados com sucesso em HTTP-only
+
+**Impactos:**
+- ✅ Validação end-to-end funcional (stack completo operacional)
+- ⚠️ Tráfego HTTP não criptografado (aceitável para ambiente de teste)
+- ⚠️ Cert-Manager não validado em cenário real (Let's Encrypt staging/production não testados)
+- ⚠️ Necessário planejar solução TLS adequada antes de workloads produtivos
+
+#### 💰 Custo e ROI
+
+**Custo Adicional:** $32.40/mês (ALBs)
+- 2 Application Load Balancers: 2 × $16.20/mês = $32.40/mês
+- Nota: Em produção, múltiplos Ingresses podem compartilhar 1 ALB usando IngressGroup annotation (economia)
+
+**Custo Total Plataforma (após Fase 7):**
+- Marco 0 (Backend): $0.07/mês
+- Marco 1 (EKS + Nodes): $550/mês
+- Marco 2 Fase 3 (Prometheus): $2.56/mês
+- Marco 2 Fase 4 (Loki): $19.70/mês
+- Marco 2 Fase 6 (Autoscaler): $0/mês
+- Marco 2 Fase 7 (Test Apps): $32.40/mês
+- **Total:** $604.73/mês
+
+**Otimização Futura:**
+- Consolidar Ingresses em IngressGroup (reduzir para 1 ALB: -$16.20/mês)
+- Deletar test apps após validação (-$32.40/mês)
+
+#### 📋 Checklist de Validação Fase 7
+
+- [x] Namespace test-apps criado com labels corretos
+- [x] 4 pods Running (2 nginx, 2 echo-server)
+- [x] 2 Services criados (ClusterIP)
+- [x] 2 Ingresses criados (ingressClassName: alb)
+- [x] 2 ALBs provisionados e Active
+- [x] HTTP 200 responses de ambos ALBs
+- [x] Network Policy permitindo tráfego ALB → Pods
+- [x] 2 ServiceMonitors criados e descobertos pelo Prometheus
+- [x] Métricas NGINX Exporter visíveis no Prometheus
+- [x] Logs visíveis no Grafana Loki (query: `{namespace="test-apps"}`)
+- [x] Fluent Bit coletando logs dos 4 pods
+- [x] Script de validação criado (validate-fase7.sh)
+- [x] kubectl provider configurado (gavinbunney/kubectl v1.14)
+- [ ] ⚠️ TLS configurado (pendente - removido temporariamente)
+- [ ] ⚠️ ADR-008 criado (TLS Strategy - a ser feito)
+
+#### 🎯 Próximos Passos
+
+**Imediato (Fase 7 - Continuação):**
+1. [ ] **Analisar soluções TLS** usando framework executor-terraform.md:
+   - Opção A: Route53 + Let's Encrypt (HTTP-01 ou DNS-01 challenge)
+   - Opção B: ACM (AWS Certificate Manager) para ALB + domínio real
+   - Opção C: Self-signed certificates corretamente configurados (apenas dev/test)
+   - Opção D: Certificado wildcard manual no ACM
+2. [ ] **Criar ADR-008:** TLS Strategy - Decisão de como implementar HTTPS
+3. [ ] **Implementar solução TLS escolhida**
+4. [ ] **Atualizar Ingresses** com TLS habilitado
+5. [ ] **Validar HTTPS** (curl -k, browser, certificado válido)
+
+**Curto Prazo (1-2 semanas):**
+6. [ ] **Consolidar ALBs** - IngressGroup annotation (economia $16.20/mês)
+7. [ ] **Testar auto-scaling** - Gerar carga no nginx para trigger scale-up
+8. [ ] **Dashboard Grafana** - Visualizar métricas NGINX + Echo Server
+9. [ ] **Alertas Prometheus** - Notificar se ALB healthcheck fail
+
+**Marco 3 (Workloads Produtivos):**
+10. [ ] GitLab CE deployment (CI/CD platform)
+11. [ ] Keycloak (Identity & Access Management)
+12. [ ] ArgoCD (GitOps continuous delivery)
+13. [ ] Harbor (Container registry)
+
+#### 📄 Documentação Criada
+
+**1. Terraform Module**
+- Diretório: `modules/test-applications/`
+- Arquivos:
+  - `main.tf` (133 linhas) - Namespace, kubectl manifests, Network Policy
+  - `variables.tf` (28 linhas) - cluster_name, namespace, tags
+  - `outputs.tf` (18 linhas) - namespace_name, manifests count
+  - `versions.tf` (27 linhas) - Provider constraints (kubectl ~> 1.14)
+
+**2. Kubernetes Manifests**
+- `manifests/nginx-test.yaml` (145 linhas):
+  - Deployment (2 replicas, nginx:1.27-alpine + nginx-exporter:1.4.0 sidecar)
+  - Service (ClusterIP, ports 80 e 9113)
+  - ServiceMonitor (Prometheus integration)
+  - Ingress (ALB, HTTP-only após fix TLS)
+- `manifests/echo-server.yaml` (115 linhas):
+  - Deployment (2 replicas, ealen/echo-server:latest)
+  - Service (ClusterIP, port 8080)
+  - ServiceMonitor
+  - Ingress (ALB, HTTP-only)
+
+**3. Integration Marco 2**
+- `marco2/main.tf` (+17 linhas) - Module invocation com dependency em cluster_autoscaler
+- `marco2/providers.tf` (+18 linhas) - kubectl provider configuration
+
+**4. Script de Validação**
+- `scripts/validate-fase7.sh` (350 linhas, +x permission)
+- Checks: pods, services, ingresses, ALBs, certificates (TLS), Prometheus targets, Loki logs
+- Nota: Checks de TLS comentados (não aplicável atualmente)
+
+**5. Scripts Up/Down Atualizados**
+- `scripts/startup-full-platform.sh` - Adicionado checks Calico, Network Policies, Cluster Autoscaler
+- `scripts/shutdown-full-platform.sh` - Atualizado para mencionar 11 Network Policies + Calico
+
+#### ⚠️ Issues e Lessons Learned
+
+**Issue #1: WSL DNS Resolver Failure**
+- Erro: `dial tcp: lookup portal.sso.us-east-1.amazonaws.com on 10.255.255.254:53: no such host`
+- Causa: WSL2 DNS resolver (10.255.255.254) não respondendo
+- Fix: Configurar Google DNS manualmente e desabilitar auto-generation em /etc/wsl.conf
+- Impacto: Bloqueou terraform init/apply por ~10 minutos
+
+**Issue #2: ImagePullBackOff echo-server**
+- Erro: `docker.io/ealen/echo-server:0.9.4: not found`
+- Causa: Versão específica não existe no Docker Hub
+- Fix: Alterado para `ealen/echo-server:latest`
+- Aplicação: `kubectl apply -f manifests/echo-server.yaml` direto (bypass Terraform)
+
+**Issue #3: TLS Blocking ALB Creation (CRÍTICO)**
+- Erro: Ingresses sem ADDRESS, ALB Controller logs mostrando "no certificate found for host: nginx-test.test-apps.local"
+- Causa: Domínios .local sem DNS real + Cert-Manager unable to validate + ALB Controller exigindo certs
+- Fix: Removido TLS section via kubectl patch, alterado listen-ports para HTTP-only
+- **Lição Aprendida:** TLS requer DNS real (Route53 ou domínio externo) OU certificados ACM pre-existentes
+- **Ação Futura:** Planejar solução TLS adequada usando executor-terraform.md framework
+
+**Issue #4: Governance Violation (Pre-commit Hook)**
+- Erro: `❌ VIOLAÇÃO: Documento único duplicado: README.md` (cluster-autoscaler module)
+- Causa: Policy exige README.md apenas no root do repositório
+- Fix: Renomeado para USAGE.md
+- Impacto: Atrasou commit final da Fase 6 em ~5 minutos
+
+**Lessons Learned:**
+- ✅ kubectl Terraform provider (gavinbunney/kubectl) excelente para aplicar manifests complexos
+- ✅ ALB Controller funciona perfeitamente com target-type=ip + Network Policies
+- ✅ Sidecar pattern (nginx + exporter) funciona bem para métricas Prometheus
+- ⚠️ **TLS com ALB requer certificados reais** - não funciona com domínios fake
+- ⚠️ **Cert-Manager + Let's Encrypt requer DNS público** - HTTP-01 challenge impossível com .local
+- ⚠️ **Self-signed certificates precisam configuração adequada** - não é plug-and-play
+- ✅ IngressGroup annotation permite compartilhar ALB entre múltiplos Ingresses (economia)
+- ✅ Prometheus ServiceMonitor auto-discovery funciona perfeitamente (zero config)
+- ✅ Fluent Bit + Loki capturando logs automaticamente (DaemonSet pattern eficaz)
+
+---
+
 ## 🔄 Changelog
 
 | Data | Versão | Alterações | Autor |
@@ -2724,9 +2960,10 @@ terraform apply
 | 2026-01-28 | 1.5 | **Marco 2 Fase 5 COMPLETO**: Network Policies implementadas com Calico policy-only + 11 políticas aplicadas (DNS, API Server, Prometheus, Loki, Grafana, Cert-Manager) + ADR-006 criado | DevOps Team + Claude Sonnet 4.5 |
 | 2026-01-28 | 1.6 | **Marco 2 Fase 6 CÓDIGO IMPLEMENTADO**: Cluster Autoscaler (aguardando deploy) - Módulo Terraform completo, IAM IRSA, ASG tags (Marco 1), script validação, ADR-007 criado. Economia estimada: ~$372/ano | DevOps Team + Claude Sonnet 4.5 |
 | 2026-01-28 | 1.7 | **Marco 2 Fase 6 COMPLETO**: Cluster Autoscaler deployado com sucesso - 5 recursos criados (IAM Role, Policy, ServiceAccount, Helm release), 1 pod Running, IRSA configurado, ASG tags aplicados, ServiceMonitor criado. Validação completa, sem erros IAM. | DevOps Team + Claude Sonnet 4.5 |
+| 2026-01-28 | 1.8 | **Marco 2 Fase 7 COMPLETO**: Test Applications deployadas (nginx + echo-server) - 4 pods Running, 2 ALBs ativos, validação end-to-end OK (Ingress→ALB→Pods→Prometheus→Loki). **ISSUE TLS:** Removido temporariamente (domínios .local sem DNS), ALBs em HTTP-only. Custo: +$32.40/mês. Próximo: Planejar solução TLS adequada. | DevOps Team + Claude Sonnet 4.5 |
 
 ---
 
-**Última atualização:** 2026-01-28 (Versão 1.7)
-**Próxima revisão:** Marco 2 Fase 7 (Apps teste), monitoramento autoscaling
+**Última atualização:** 2026-01-28 (Versão 1.8)
+**Próxima revisão:** Análise TLS (executor-terraform.md), consolidação ALBs, Marco 3 planning
 **Mantenedor:** DevOps Team
