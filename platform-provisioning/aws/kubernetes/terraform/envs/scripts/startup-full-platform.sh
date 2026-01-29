@@ -135,6 +135,15 @@ kubectl get pods -n cert-manager
 kubectl get pods -n monitoring
 
 echo ""
+echo "🔍 Network Policies (Calico):"
+kubectl get pods -n calico-system 2>/dev/null || echo "   ℹ️  Calico não encontrado"
+kubectl get networkpolicies -A 2>/dev/null | grep -E "NAMESPACE|kube-system|monitoring|cert-manager" || echo "   ℹ️  Nenhuma Network Policy encontrada"
+
+echo ""
+echo "🔍 Cluster Autoscaler:"
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-cluster-autoscaler 2>/dev/null || echo "   ℹ️  Cluster Autoscaler não encontrado"
+
+echo ""
 echo "🔍 ClusterIssuers:"
 kubectl get clusterissuer 2>/dev/null || echo "   ⚠️  Nenhum ClusterIssuer encontrado"
 
@@ -148,10 +157,12 @@ echo "📋 Resumo"
 echo "=============================================="
 echo ""
 echo "✅ Marco 1: Cluster EKS com 7 nodes"
-echo "✅ Marco 2: AWS Load Balancer Controller"
-echo "✅ Marco 2: Cert-Manager"
-echo "✅ Marco 2: Prometheus + Grafana + Alertmanager"
-echo "✅ Marco 2: Loki + Fluent Bit (Logging)"
+echo "✅ Marco 2 Fase 1: AWS Load Balancer Controller"
+echo "✅ Marco 2 Fase 2: Cert-Manager"
+echo "✅ Marco 2 Fase 3: Prometheus + Grafana + Alertmanager"
+echo "✅ Marco 2 Fase 4: Loki + Fluent Bit (Logging)"
+echo "✅ Marco 2 Fase 5: Network Policies (Calico policy-only + 11 políticas)"
+echo "✅ Marco 2 Fase 6: Cluster Autoscaler (IRSA + scale-down habilitado)"
 echo "✅ ClusterIssuers: Let's Encrypt Staging/Production/Self-Signed"
 echo "✅ Volumes: 47Gi provisionados (Grafana 5Gi, Prometheus 20Gi, Alertmanager 2Gi, Loki 20Gi)"
 echo "✅ S3 Bucket: Loki logs com retenção de 30 dias"
