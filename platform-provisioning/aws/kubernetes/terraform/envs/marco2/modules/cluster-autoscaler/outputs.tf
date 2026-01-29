@@ -45,12 +45,12 @@ output "scale_down_enabled" {
 output "configuration_summary" {
   description = "Summary of Cluster Autoscaler configuration"
   value = {
-    cluster_name                      = var.cluster_name
-    namespace                         = var.namespace
-    scale_down_enabled                = var.scale_down_enabled
-    scale_down_delay_after_add        = var.scale_down_delay_after_add
-    scale_down_unneeded_time          = var.scale_down_unneeded_time
-    scale_down_utilization_threshold  = var.scale_down_utilization_threshold
-    kubernetes_version                = var.kubernetes_version
+    cluster_name                     = var.cluster_name
+    namespace                        = var.namespace
+    scale_down_enabled               = var.scale_down_enabled
+    scale_down_delay_after_add       = var.scale_down_delay_after_add
+    scale_down_unneeded_time         = var.scale_down_unneeded_time
+    scale_down_utilization_threshold = var.scale_down_utilization_threshold
+    kubernetes_version               = var.kubernetes_version
   }
 }

@@ -39,7 +39,7 @@ resource "aws_s3_bucket" "loki" {
   # Este bucket contém logs históricos que não devem ser perdidos
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [bucket]  # Prevenir recreate se o name for recalculado
+    ignore_changes  = [bucket] # Prevenir recreate se o name for recalculado
   }
 
   tags = merge(

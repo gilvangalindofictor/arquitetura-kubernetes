@@ -9,20 +9,20 @@ locals {
   # Policy files to apply
   policy_files = {
     # Basic policies (apply first)
-    "allow-dns"                   = var.enable_dns_policy ? "${path.module}/policies/allow-dns.yaml" : null
-    "allow-api-server"            = var.enable_api_server_policy ? "${path.module}/policies/allow-api-server.yaml" : null
+    "allow-dns"        = var.enable_dns_policy ? "${path.module}/policies/allow-dns.yaml" : null
+    "allow-api-server" = var.enable_api_server_policy ? "${path.module}/policies/allow-api-server.yaml" : null
 
     # Monitoring specific policies
-    "allow-prometheus-scraping"   = var.enable_prometheus_scraping ? "${path.module}/policies/allow-prometheus-scraping.yaml" : null
-    "allow-fluent-bit-to-loki"    = var.enable_loki_ingestion ? "${path.module}/policies/allow-fluent-bit-to-loki.yaml" : null
-    "allow-grafana-datasources"   = var.enable_grafana_datasources ? "${path.module}/policies/allow-grafana-datasources.yaml" : null
-    "allow-monitoring-ingress"    = var.enable_prometheus_scraping ? "${path.module}/policies/allow-monitoring-ingress.yaml" : null
+    "allow-prometheus-scraping" = var.enable_prometheus_scraping ? "${path.module}/policies/allow-prometheus-scraping.yaml" : null
+    "allow-fluent-bit-to-loki"  = var.enable_loki_ingestion ? "${path.module}/policies/allow-fluent-bit-to-loki.yaml" : null
+    "allow-grafana-datasources" = var.enable_grafana_datasources ? "${path.module}/policies/allow-grafana-datasources.yaml" : null
+    "allow-monitoring-ingress"  = var.enable_prometheus_scraping ? "${path.module}/policies/allow-monitoring-ingress.yaml" : null
 
     # Cert-Manager egress
-    "allow-cert-manager-egress"   = var.enable_cert_manager_egress ? "${path.module}/policies/allow-cert-manager-egress.yaml" : null
+    "allow-cert-manager-egress" = var.enable_cert_manager_egress ? "${path.module}/policies/allow-cert-manager-egress.yaml" : null
 
     # Default deny (apply last)
-    "default-deny-all"            = var.enable_default_deny ? "${path.module}/policies/default-deny-all.yaml" : null
+    "default-deny-all" = var.enable_default_deny ? "${path.module}/policies/default-deny-all.yaml" : null
   }
 
   # Filter out null values (disabled policies)

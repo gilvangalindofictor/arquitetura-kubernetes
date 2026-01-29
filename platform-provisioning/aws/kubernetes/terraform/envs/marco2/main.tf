@@ -185,10 +185,10 @@ module "network_policies" {
   enable_api_server_policy = true
 
   # Fase 5.2.2: Aplicar políticas específicas de monitoring
-  enable_prometheus_scraping   = true
-  enable_loki_ingestion        = true
-  enable_grafana_datasources   = true
-  enable_cert_manager_egress   = true
+  enable_prometheus_scraping = true
+  enable_loki_ingestion      = true
+  enable_grafana_datasources = true
+  enable_cert_manager_egress = true
 
   # Fase 5.2.3: Default Deny - HABILITADO para teste de 7 dias
   # ✅ MONITORAMENTO: Validar observabilidade por 7 dias
@@ -224,10 +224,10 @@ module "cluster_autoscaler" {
   kubernetes_version = "1.31" # Match EKS version
 
   # Autoscaling configuration
-  scale_down_enabled                = true
-  scale_down_delay_after_add        = "10m" # Wait 10 min after scale-up
-  scale_down_unneeded_time          = "10m" # Node unneeded for 10 min
-  scale_down_utilization_threshold  = "0.5" # 50% utilization threshold
+  scale_down_enabled               = true
+  scale_down_delay_after_add       = "10m" # Wait 10 min after scale-up
+  scale_down_unneeded_time         = "10m" # Node unneeded for 10 min
+  scale_down_utilization_threshold = "0.5" # 50% utilization threshold
 
   tags = {
     Environment = "production"
@@ -255,9 +255,9 @@ module "test_applications" {
   # 2. Update domain_name below
   # 3. Set enable_tls = true
   # 4. Run: terraform apply
-  domain_name          = var.test_apps_domain_name
-  create_route53_zone  = var.test_apps_create_route53_zone
-  enable_tls           = var.test_apps_enable_tls
+  domain_name         = var.test_apps_domain_name
+  create_route53_zone = var.test_apps_create_route53_zone
+  enable_tls          = var.test_apps_enable_tls
 
   tags = {
     Environment = "test"

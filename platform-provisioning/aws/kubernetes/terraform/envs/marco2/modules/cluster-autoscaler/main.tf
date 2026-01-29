@@ -198,10 +198,10 @@ resource "helm_release" "cluster_autoscaler" {
 
       # Service Account (use existing one)
       rbac = {
-        create                 = true
+        create = true
         serviceAccount = {
-          create      = false
-          name        = var.service_account_name
+          create = false
+          name   = var.service_account_name
           annotations = {
             "eks.amazonaws.com/role-arn" = aws_iam_role.cluster_autoscaler.arn
           }
@@ -242,19 +242,19 @@ resource "helm_release" "cluster_autoscaler" {
 
       # Cluster Autoscaler configuration
       extraArgs = {
-        "v"                                 = "4" # Log verbosity
-        "stderrthreshold"                   = "info"
-        "cloud-provider"                    = "aws"
-        "skip-nodes-with-system-pods"       = "false" # Allow scaling nodes with system pods
-        "balance-similar-node-groups"       = "true"  # Balance across AZs
-        "skip-nodes-with-local-storage"     = "false" # Can scale nodes with local storage
-        "scale-down-enabled"                = var.scale_down_enabled
-        "scale-down-delay-after-add"        = var.scale_down_delay_after_add
-        "scale-down-unneeded-time"          = var.scale_down_unneeded_time
-        "scale-down-utilization-threshold"  = var.scale_down_utilization_threshold
-        "max-node-provision-time"           = "15m0s"
-        "max-graceful-termination-sec"      = "600"
-        "expander"                          = "least-waste" # Cost-efficient expander
+        "v"                                = "4" # Log verbosity
+        "stderrthreshold"                  = "info"
+        "cloud-provider"                   = "aws"
+        "skip-nodes-with-system-pods"      = "false" # Allow scaling nodes with system pods
+        "balance-similar-node-groups"      = "true"  # Balance across AZs
+        "skip-nodes-with-local-storage"    = "false" # Can scale nodes with local storage
+        "scale-down-enabled"               = var.scale_down_enabled
+        "scale-down-delay-after-add"       = var.scale_down_delay_after_add
+        "scale-down-unneeded-time"         = var.scale_down_unneeded_time
+        "scale-down-utilization-threshold" = var.scale_down_utilization_threshold
+        "max-node-provision-time"          = "15m0s"
+        "max-graceful-termination-sec"     = "600"
+        "expander"                         = "least-waste" # Cost-efficient expander
       }
 
       # Service monitor (for Prometheus scraping)
@@ -302,7 +302,7 @@ resource "helm_release" "cluster_autoscaler" {
   ]
 
   # Force update if values change
-  recreate_pods = true
+  recreate_pods   = true
   cleanup_on_fail = true
   timeout         = 600
 
