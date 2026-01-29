@@ -1,0 +1,140 @@
+# =============================================================================
+# RedisFailover CRD - Spotahome Redis Operator (COMPLETO)
+# =============================================================================
+# Operator: redis-operator v1.3.0
+# Mode: Sentinel-based HA (1 master + 2 replicas + 3 sentinels)
+# =============================================================================
+apiVersion: databases.spotahome.com/v1
+kind: RedisFailover
+metadata:
+  name: redis-ha
+  namespace: redis
+  labels:
+    project: k8s-platform
+    environment: prod
+    domain: data-services
+spec:
+  # -----------------------------------------------------------------------------
+  # SENTINEL CONFIGURATION (High Availability)
+  # -----------------------------------------------------------------------------
+  sentinel:
+    replicas: 3  # Quorum for automatic failover
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+    # Custom config
+    customConfig:
+      - "down-after-milliseconds 5000"
+      - "failover-timeout 60000"
+
+    # Node placement
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  redisfailovers.databases.spotahome.com/name: redis-ha
+              topologyKey: kubernetes.io/hostname
+
+  # -----------------------------------------------------------------------------
+  # REDIS CONFIGURATION
+  # -----------------------------------------------------------------------------
+  redis:
+    replicas: 3  # 1 master + 2 replicas (failover automático)
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Persistence
+    storage:
+      persistentVolumeClaim:
+        metadata:
+          name: redis-data
+        spec:
+          storageClassName: gp3
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 8Gi
+
+    # Custom Redis config
+    customConfig:
+      - "maxmemory 384mb"
+      - "maxmemory-policy allkeys-lru"
+      - "save 900 1"
+      - "save 300 10"
+      - "save 60 10000"
+
+    # Security
+    securityContext:
+      runAsUser: 1001
+      runAsNonRoot: true
+      fsGroup: 1001
+
+    # Node placement
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  redisfailovers.databases.spotahome.com/name: redis-ha
+              topologyKey: kubernetes.io/hostname
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-type
+                  operator: In
+                  values:
+                    - workloads
+
+  # -----------------------------------------------------------------------------
+  # EXPORTER (Prometheus Metrics)
+  # -----------------------------------------------------------------------------
+  enableMetrics: true
+  exporter:
+    enabled: true
+    image: oliver006/redis_exporter:v1.55.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+---
+# =============================================================================
+# ServiceMonitor - Prometheus Integration
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-ha
+  namespace: redis
+  labels:
+    project: k8s-platform
+    release: prometheus  # Match Prometheus operator label selector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+      redisfailovers.databases.spotahome.com/name: redis-ha
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s

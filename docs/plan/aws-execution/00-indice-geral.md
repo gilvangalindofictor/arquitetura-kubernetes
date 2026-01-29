@@ -14,7 +14,60 @@
 
 ---
 
-## Visão Geral
+## 📊 Estado Atual da Implementação (2026-01-29)
+
+> **NOTA:** Este documento representa o **plano base original** (épicos A-I). A implementação real evoluiu para um roadmap de 8 semanas com mudanças estratégicas.
+
+### Marco 2: Platform Services - ✅ COMPLETO
+
+**Fases Deployadas (100%):**
+- ✅ Fase 1: AWS Load Balancer Controller (v1.11.0)
+- ✅ Fase 2: Cert-Manager (v1.16.3)
+- ✅ Fase 3: Kube-Prometheus-Stack (13 pods, 3 PVCs)
+- ✅ Fase 4: Loki + Fluent Bit (15 pods, S3 backend)
+- ✅ Fase 5: Network Policies (11 políticas, Calico)
+- ✅ Fase 6: Cluster Autoscaler (IRSA configurado)
+- ✅ Fase 7: Test Applications (4 pods, 2 ALBs)
+
+**Fase Planejada:**
+- 📝 Fase 8: OpenTelemetry Tempo + Collector (ADR-020 aprovado)
+
+**Custo Atual:** $666/mês | **Projetado com Fase 8:** $685.70/mês
+
+### Marco 3: Workloads - 📝 PLANEJADO (8 Semanas)
+
+**Mudança Estratégica (ADR-021):** Implementação em 2 fases
+- **Fase 1 (Semanas 1-8):** Sem domínio, LoadBalancer (NLB) para databases, ALB DNS HTTP para workloads
+- **Fase 2 (Futuro):** TLS/HTTPS + Keycloak SSO após registro de domínio
+
+**Mudança Estratégica (ADR-023):** Migration from Bitnami Charts to Kubernetes Operators
+- **Motivação:** Evitar licenciamento Bitnami Tanzu Standard ($72,000/ano) + HA superior + cloud-agnostic
+- **Redis:** Spotahome Redis Operator (RedisFailover CRD, Sentinel-based HA)
+- **RabbitMQ:** RabbitMQ Cluster Operator oficial (RabbitmqCluster CRD, Quorum Queues)
+- **Economia:** $72,900/ano vs alternativa Bitnami Tanzu Standard
+- **Impacto:** Sprint 1 +4h (88h→92h), Épico C +4h (20h→24h)
+
+**Sequência Atualizada:**
+1. Semanas 1-2: OpenTelemetry Tempo + Collector (Fase 8)
+2. Semanas 3-5: Data Services (PostgreSQL RDS, Redis, RabbitMQ)
+3. Semanas 6-8: Workloads (GitLab, ArgoCD, Harbor)
+
+**Custo Projetado Marco 3:** $737.10/mês (com otimizações Reserved Instances -$165.20/mês)
+
+### Documentação Atualizada
+
+| Documento | Status |
+|-----------|--------|
+| [architecture.md](../../context/architecture.md) | ✅ Atualizado (Fase 8, Marco 3 estratégia) |
+| [decisions.md](../../context/decisions.md) | ✅ Atualizado (ADR-020, ADR-021) |
+| [costs.md](../../context/costs.md) | ✅ Atualizado (Fase 8 $19.70/mês, Marco 3 breakdown) |
+| [00-diario-de-bordo.md](00-diario-de-bordo.md) | ✅ Atualizado (Versão 1.11 - Mudança estratégica) |
+| [04-observability-stack.md](04-observability-stack.md) | ✅ Atualizado (Fases 1-7 completas, Fase 8 planejada) |
+| **Plano Executivo 8 Semanas** | ✅ [~/.claude/plans/wild-wiggling-treasure.md](~/.claude/plans/wild-wiggling-treasure.md) |
+
+---
+
+## Visão Geral (Plano Base Original)
 
 Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **guia de execução passo a passo** extremamente detalhado, permitindo que qualquer pessoa com acesso ao console AWS consiga executar a implementação.
 
@@ -24,14 +77,14 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 |---------|-----------|
 | **Ambientes** | Staging (scheduled 8h-18h) + Prod (24/7) |
 | **Duração** | 3 Sprints (6 semanas) |
-| **Esforço** | 262 person-hours |
+| **Esforço** | 266 person-hours (92h + 84h + 90h) |
 | **Custo Mensal** | ~R$ 3.624 (USD $604) |
 | **Região AWS** | us-east-1 (N. Virginia) |
 
 ### Princípios
 
 - **CLI-First**: Terraform/AWS CLI para reprodutibilidade e automação (Console apenas como referência)
-- **Cloud-Agnostic onde possível**: Redis e RabbitMQ via Helm (bitnami), não serviços gerenciados
+- **Cloud-Agnostic onde possível**: Redis e RabbitMQ via **Kubernetes Operators**, não serviços gerenciados (ADR-023: economia de $72,900/ano vs Bitnami Tanzu Standard)
 - **Security by Design**: Network Policies, RBAC, WAF, least-privilege desde o dia 1
 - **Testes e Validação**: Scripts de validação automatizados em cada fase
 - **FinOps integrado**: Budgets, alertas, automação start/stop
@@ -42,18 +95,18 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        SPRINT 1 (88h) - Semanas 1-2                         │
+│                        SPRINT 1 (92h) - Semanas 1-2                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐ │
 │  │ 01-INFRAESTRUTURA   │  │ 02-GITLAB           │  │ 03-DATA-SERVICES    │ │
-│  │ BASE AWS            │  │ HELM DEPLOY         │  │ HELM                │ │
+│  │ BASE AWS            │  │ HELM DEPLOY         │  │ OPERATORS           │ │
 │  │                     │  │                     │  │                     │ │
-│  │ Épico A (20h)       │  │ Épico B (48h)       │  │ Épico C (20h)       │ │
+│  │ Épico A (20h)       │  │ Épico B (48h)       │  │ Épico C (24h)       │ │
 │  │ • VPC Multi-AZ      │──▶ • GitLab CE Helm   │──▶ • RDS PostgreSQL   │ │
-│  │ • EKS Cluster       │  │ • Runners           │  │ • Redis (bitnami)   │ │
-│  │ • Node Groups       │  │ • Route53 + ALB     │  │ • RabbitMQ          │ │
-│  │ • IAM/IRSA          │  │ • S3 Backups        │  │                     │ │
+│  │ • EKS Cluster       │  │ • Runners           │  │ • Redis Operator    │ │
+│  │ • Node Groups       │  │ • Route53 + ALB     │  │ • RabbitMQ Operator │ │
+│  │ • IAM/IRSA          │  │ • S3 Backups        │  │ • ADR-023 (FinOps)  │ │
 │  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘ │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -114,13 +167,13 @@ Este conjunto de documentos transforma o **AWS EKS GitLab Quickstart** em um **g
 |---|-----------|-----------|
 | 00 | [Análise CLI-First](00-analise-cli-first.md) | Avaliação dos documentos vs critérios CLI-first, Security by Design e Automação |
 
-### Sprint 1 - Preparação e GitLab Mínimo (88h)
+### Sprint 1 - Preparação e GitLab Mínimo (92h)
 
 | # | Documento | Épico | Horas | Conteúdo Principal |
 |---|-----------|-------|-------|-------------------|
 | 01 | [Infraestrutura Base AWS](01-infraestrutura-base-aws.md) | A | 20h | VPC, EKS, Node Groups, IAM, Storage (**CLI/Terraform**) |
 | 02 | [GitLab Helm Deploy](02-gitlab-helm-deploy.md) | B | 48h | GitLab CE, Runners, Route53, ALB, S3 |
-| 03 | [Data Services Helm](03-data-services-helm.md) | C | 20h | RDS PostgreSQL, Redis, RabbitMQ (**CLI/Terraform**) |
+| 03 | [Data Services Operators](03-data-services-helm.md) | C | 24h | RDS PostgreSQL, **Redis Operator** (Spotahome), **RabbitMQ Operator** (Cluster Operator) - **ADR-023**: Economia $72,900/ano vs Bitnami Tanzu |
 
 **Definition of Done Sprint 1:**
 - [ ] VPC com 3 AZs operacional

@@ -1,0 +1,189 @@
+# =============================================================================
+# RabbitmqCluster CRD - RabbitMQ Cluster Operator (COMPLETO)
+# =============================================================================
+# Operator: cluster-operator v2.9.0
+# Mode: 3-node cluster com quorum queues
+# =============================================================================
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq-ha
+  namespace: rabbitmq
+  labels:
+    project: k8s-platform
+    environment: prod
+    domain: data-services
+spec:
+  # -----------------------------------------------------------------------------
+  # CLUSTER CONFIGURATION
+  # -----------------------------------------------------------------------------
+  replicas: 3
+
+  # Image
+  image: rabbitmq:3.13-management
+
+  # -----------------------------------------------------------------------------
+  # RESOURCES
+  # -----------------------------------------------------------------------------
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # -----------------------------------------------------------------------------
+  # PERSISTENCE
+  # -----------------------------------------------------------------------------
+  persistence:
+    storageClassName: gp3
+    storage: 8Gi
+
+  # -----------------------------------------------------------------------------
+  # RABBITMQ CONFIGURATION
+  # -----------------------------------------------------------------------------
+  rabbitmq:
+    # Advanced config (Erlang format)
+    advancedConfig: |
+      [
+        {rabbit, [
+          {vm_memory_high_watermark, 0.6},
+          {disk_free_limit, {mem_relative, 2.0}},
+          {log_levels, [{connection, info}, {channel, info}]}
+        ]},
+        {rabbitmq_management, [
+          {load_definitions, "/etc/rabbitmq/definitions.json"}
+        ]}
+      ].
+
+    # Additional RabbitMQ plugins
+    additionalPlugins:
+      - rabbitmq_management
+      - rabbitmq_prometheus
+      - rabbitmq_shovel
+      - rabbitmq_shovel_management
+      - rabbitmq_federation
+      - rabbitmq_federation_management
+
+    # Environment variables
+    envConfig: |
+      # Clustering
+      CLUSTER_PARTITION_HANDLING=autoheal
+
+  # -----------------------------------------------------------------------------
+  # SERVICE
+  # -----------------------------------------------------------------------------
+  service:
+    type: ClusterIP
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "15692"
+
+  # -----------------------------------------------------------------------------
+  # AFFINITY (Pod Anti-Affinity para HA)
+  # -----------------------------------------------------------------------------
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - rabbitmq-ha
+          topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                  - workloads
+
+  # -----------------------------------------------------------------------------
+  # TLS (Operator gerencia automaticamente)
+  # -----------------------------------------------------------------------------
+  tls:
+    secretName: rabbitmq-ha-tls  # Operator cria automaticamente
+
+  # -----------------------------------------------------------------------------
+  # OVERRIDE (Customizações StatefulSet)
+  # -----------------------------------------------------------------------------
+  override:
+    statefulSet:
+      spec:
+        template:
+          spec:
+            # Security context
+            securityContext:
+              fsGroup: 999
+              runAsUser: 999
+              runAsGroup: 999
+
+            # Init containers para otimizações
+            initContainers:
+              - name: setup-data-permissions
+                image: busybox:1.36
+                command:
+                  - sh
+                  - -c
+                  - |
+                    chown -R 999:999 /var/lib/rabbitmq
+                    chmod 700 /var/lib/rabbitmq
+                volumeMounts:
+                  - name: persistence
+                    mountPath: /var/lib/rabbitmq
+                securityContext:
+                  runAsUser: 0
+
+---
+# =============================================================================
+# ServiceMonitor - Prometheus Integration
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rabbitmq-ha
+  namespace: rabbitmq
+  labels:
+    project: k8s-platform
+    release: prometheus  # Match Prometheus operator label selector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq-ha
+  endpoints:
+    - port: prometheus
+      interval: 30s
+      scrapeTimeout: 10s
+
+---
+# =============================================================================
+# Ingress - Management UI (Opcional)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rabbitmq-management
+  namespace: rabbitmq
+  labels:
+    project: k8s-platform
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rabbitmq-ha
+                port:
+                  number: 15672

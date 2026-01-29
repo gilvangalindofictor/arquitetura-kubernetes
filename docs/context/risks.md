@@ -22,6 +22,12 @@
 | R-010 | Secrets leak em Git | BAIXO | CRÍTICO | 🔴 ALTO | ✅ Mitigado | AWS Secrets Manager + pre-commit hooks |
 | R-011 | Drift entre Terraform state e recursos | MÉDIO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | Terraform plan daily + drift detection |
 | R-012 | Cluster Autoscaler scale-down agressivo | BAIXO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | 5min threshold + PDB configurados |
+| R-013 | Data loss durante shutdown (ADR-022) | BAIXO | ALTO | 🟡 MÉDIO | ✅ Mitigado | PVCs persistem, S3 always-on |
+| R-014 | Startup failure após shutdown | BAIXO | ALTO | 🟡 MÉDIO | ✅ Mitigado | Health checks automáticos, rollback |
+| R-015 | RDS 7-day auto-restart (Marco 3) | MÉDIO | MÉDIO | 🟡 MÉDIO | ⚠️ Planejar | Snapshot strategy ou 24/7 |
+| R-016 | Cold start excede tolerância (>10min) | BAIXO | BAIXO | 🟢 BAIXO | ✅ Mitigado | Target 5-8min, monitorado |
+| R-017 | State drift Terraform vs Cluster Autoscaler | MÉDIO | BAIXO | 🟢 BAIXO | ✅ Mitigado | ignore_changes em desired_size |
+| **R-018** | **Licenciamento Bitnami → Tanzu Standard** | **ALTO** | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)** | **Migração para Operators** |
 
 ---
 
@@ -367,13 +373,412 @@ Cluster Autoscaler remove nodes prematuramente, causando reschedule desnecessár
 
 ---
 
+## 🔄 Riscos Startup/Shutdown Automation (ADR-022)
+
+**Referência:** [ADR-022](decisions.md#adr-022-startupshutdown-automation-strategy-finops), [costs.md - Economia Start/Stop](costs.md#custos-fixos-vs-variaveis--economia-startstop)
+
+### R-013: Data Loss Durante Shutdown
+
+**Probabilidade:** BAIXO
+**Impacto:** ALTO
+**Severidade:** 🟡 MÉDIO
+**Status:** ✅ Mitigado
+
+**Descrição:**
+Perda de dados persistentes (métricas Prometheus, logs Loki, dashboards Grafana) durante shutdown da infraestrutura (ASG scale to 0).
+
+**Cenário de Falha:**
+1. `./scripts/down.sh` executado (ASG scale to 0)
+2. Nodes são terminados antes de flush completo de dados
+3. PVCs detached mas dados in-memory não persistidos
+4. Startup posterior detecta dados corrompidos ou missing
+5. Métricas/logs recentes (últimos 5-10min) perdidos
+
+**Mitigações Implementadas:**
+- ✅ **PVCs persistem sempre:** EBS volumes não são deleted, apenas detached (reattach automático no startup)
+- ✅ **S3 backend:** Loki e Tempo usam S3 como storage primário (always-on, não afetado por shutdown)
+- ✅ **Graceful shutdown:** Scripts `down.sh` executam `kubectl drain` antes de scale to 0 (30s grace period)
+- ✅ **Retention policies:** Prometheus 15d local + remote write para Thanos (futuro), Loki 7d cache + 30d S3
+
+**Componentes Always-On (Não Afetados):**
+- S3 buckets: `k8s-platform-loki-*`, `k8s-platform-tempo-*` (logs + traces persistidos)
+- EBS PVCs: Prometheus (20GB), Grafana (5GB), Loki Write (20GB) - **persist detached**
+- Terraform state: S3 `k8s-terraform-state-*` (infraestrutura preservada)
+
+**Data Loss Risk por Componente:**
+
+| Componente | Storage Backend | Risk Level | Justificativa |
+|------------|-----------------|------------|---------------|
+| Prometheus | EBS PVC (20GB) | 🟡 MÉDIO | Últimos 5-10min podem ser perdidos (in-memory buffer) |
+| Loki | S3 (500GB) | 🟢 BAIXO | S3 always-on, flush automático a cada 1min |
+| Tempo | S3 (500GB) | 🟢 BAIXO | S3 always-on, traces persistidos |
+| Grafana | EBS PVC (5GB) | 🟢 BAIXO | Dashboards/config persistidos (zero data loss) |
+
+**Monitoramento:**
+```bash
+# Verificar PVCs após startup
+kubectl get pvc -n monitoring
+# Esperado: Todos "Bound" (reattached)
+
+# Verificar data integrity Prometheus
+kubectl exec -n monitoring prometheus-0 -- promtool tsdb list /prometheus
+# Esperado: Blocos de dados sem corrupção
+```
+
+**Ações Pós-Startup:**
+- [ ] Validar Prometheus TSDB integrity (zero corruption)
+- [ ] Verificar Grafana dashboards acessíveis (config preservado)
+- [ ] Query Loki últimos logs pre-shutdown (validar continuidade)
+
+---
+
+### R-014: Startup Failure Após Shutdown
+
+**Probabilidade:** BAIXO
+**Impacto:** ALTO
+**Severidade:** 🟡 MÉDIO
+**Status:** ✅ Mitigado
+
+**Descrição:**
+Falha ao iniciar infraestrutura após shutdown, deixando plataforma indisponível por tempo prolongado (> 30 min).
+
+**Cenários de Falha:**
+
+**1. ASG não escala (Stuck at 0 nodes):**
+- Causa: IAM role Cluster Autoscaler sem permissões, ASG tags incorretos
+- Impacto: Cluster sem nodes, 100% indisponível
+- Mitigação: `aws autoscaling set-desired-capacity` manual override
+
+**2. Nodes join mas ficam NotReady:**
+- Causa: VPC CNI add-on degraded, ENI allocation failure
+- Impacto: Nodes visíveis mas pods não scheduleam
+- Mitigação: Restart vpc-cni daemonset, verificar subnet IPs disponíveis
+
+**3. Pods crashloop após startup:**
+- Causa: PVCs não reattach, image pull errors (ECR throttling)
+- Impacto: Platform services (Prometheus, Grafana, Loki) indisponíveis
+- Mitigação: Describe pods, retry imagePullBackOff, resize PVCs se necessário
+
+**Mitigações Implementadas:**
+- ✅ **Health check automático:** `scripts/health-check.sh` valida nodes + pods + Grafana UI
+- ✅ **Retry logic:** Script `up.sh` tenta 3× antes de falhar (1min sleep entre tentativas)
+- ✅ **Timeout configurado:** 10min timeout para nodes Ready, 15min para pods Running
+- ✅ **Rollback strategy:** Se health check fail, escalar ASG to 0 novamente (reset state)
+
+**Health Checks Validados:**
+```bash
+# scripts/health-check.sh (executado automaticamente por up.sh)
+✅ 7 nodes Ready (kubectl get nodes)
+✅ 36 pods Running em monitoring (kubectl get pods -n monitoring)
+✅ Grafana UI accessible (curl http://localhost:3000/login)
+✅ Loki ingestion functional (logcli query --limit=1)
+✅ Tempo traces functional (tempo-cli query)
+```
+
+**Troubleshooting Startup Failure:**
+```bash
+# 1. Verificar ASG
+aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names k8s-platform-prod-node-group
+# Esperado: DesiredCapacity=7, CurrentCapacity aumentando
+
+# 2. Verificar nodes
+kubectl get nodes -o wide
+# Esperado: 7 nodes Ready em 5-8 min
+
+# 3. Verificar pods crashloop
+kubectl get pods -A | grep -v Running
+# Se houver pods Error/CrashLoopBackOff: kubectl describe pod <name>
+
+# 4. Forçar reschedule
+kubectl delete pod <pod-name> -n monitoring --force
+```
+
+**Fallback Manual:**
+Se `up.sh` falhar após 3 tentativas:
+1. Verificar AWS Health Dashboard (AZ outage?)
+2. Escalar ASG manualmente: `aws autoscaling set-desired-capacity --desired-capacity 7`
+3. Aguardar 10min, re-executar `health-check.sh`
+4. Se persistir: Contato AWS Support (caso extremo, <1% probabilidade)
+
+**Cold Start Time Targets:**
+- ⚡ **Normal:** 5-8 min (nodes up + pods scheduled)
+- ⚠️ **Degraded:** 10-15 min (image pulls lentos, ENI allocation delays)
+- 🔴 **Failure:** > 15 min (indica problema real, ativar troubleshooting)
+
+---
+
+### R-015: RDS 7-Day Auto-Restart Limitation (Marco 3)
+
+**Probabilidade:** MÉDIO
+**Impacto:** MÉDIO
+**Severidade:** 🟡 MÉDIO
+**Status:** ⚠️ Planejar (Marco 3)
+
+**Descrição:**
+PostgreSQL RDS (Marco 3 Data Services) não pode ficar stopped > 7 dias consecutivos. AWS auto-restart após 7 dias, gerando custos inesperados em ambientes dev/staging longos shutdowns (ex: férias time, 2-3 semanas).
+
+**Cenário de Falha:**
+1. Time para de trabalhar em sexta-feira (shutdown infraestrutura)
+2. Férias coletivas (2 semanas sem atividade)
+3. Dia 8: AWS auto-restart RDS automaticamente
+4. RDS roda sozinho por 1 semana adicional (custo $50 desperdiçado)
+5. Billing alert dispara, surpresa no fim do mês
+
+**Impacto Financeiro:**
+- **Baseline:** RDS db.t3.medium $50/mês (Marco 3)
+- **Cenário férias 2 semanas:** $25 extra cobrado (auto-restart dia 8-21)
+- **Anualizado:** 3 períodos longos = $75/ano desperdício
+
+**Soluções Avaliadas:**
+
+| Abordagem | Economia/Mês | Restore Time | Custo Snapshot | Complexidade | Decisão |
+|-----------|--------------|--------------|----------------|--------------|---------|
+| **RDS 24/7 Always-On** | $0 | Instant | $0 | ⚡ Baixa | ✅ **Produção** |
+| **RDS Stop/Start (< 7d)** | $50 (se shutdown full) | 3-5 min | $0 | 🟡 Média | ✅ **Dev (ciclos curtos)** |
+| **Snapshot + Delete + Restore** | $40.50 líquido | 10-15 min | $9.50/mês (100GB) | 🔴 Alta | ✅ **Dev (férias longas)** |
+
+**Decisão Recomendada Marco 3:**
+- **Dev/Staging:** Snapshot + Delete strategy para shutdowns > 5 dias
+  - Automação: Script `scripts/rds-snapshot-delete.sh` (executar antes de férias)
+  - Restore: Script `scripts/rds-restore.sh` (executar no retorno)
+- **Produção:** RDS 24/7 Always-On (dados persistentes necessários, zero downtime)
+
+**Scripts Planejados (Q2 2026):**
+```bash
+# rds-snapshot-delete.sh
+#!/bin/bash
+aws rds create-db-snapshot \
+  --db-instance-identifier k8s-platform-postgres \
+  --db-snapshot-identifier k8s-postgres-vacation-$(date +%Y%m%d)
+
+aws rds wait db-snapshot-completed \
+  --db-snapshot-identifier k8s-postgres-vacation-$(date +%Y%m%d)
+
+aws rds delete-db-instance \
+  --db-instance-identifier k8s-platform-postgres \
+  --skip-final-snapshot
+
+echo "✅ RDS deleted. Snapshot: k8s-postgres-vacation-$(date +%Y%m%d)"
+echo "💰 Economia: $50/mês - $9.50 snapshot = $40.50/mês líquido"
+
+# rds-restore.sh
+#!/bin/bash
+SNAPSHOT_ID=$(aws rds describe-db-snapshots \
+  --query 'DBSnapshots[?starts_with(DBSnapshotIdentifier, `k8s-postgres-vacation`)] | sort_by(@, &SnapshotCreateTime) | [-1].DBSnapshotIdentifier' \
+  --output text)
+
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier k8s-platform-postgres \
+  --db-snapshot-identifier $SNAPSHOT_ID
+
+echo "⏳ Restoring RDS from $SNAPSHOT_ID (10-15 min)..."
+aws rds wait db-instance-available \
+  --db-instance-identifier k8s-platform-postgres
+
+echo "✅ RDS restored. Endpoint: $(aws rds describe-db-instances --db-instance-identifier k8s-platform-postgres --query 'DBInstances[0].Endpoint.Address' --output text)"
+```
+
+**Monitoramento:**
+- CloudWatch Event: RDS state change "stopped" → "starting" (detectar auto-restart)
+- Alert: Email DevOps Lead se RDS auto-restart detectado (ação: avaliar se intencional)
+
+**Mitigação Imediata:**
+- [ ] Documentar limitation em runbook Marco 3
+- [ ] Adicionar reminder em scripts `down.sh`: "⚠️ RDS will auto-restart in 7 days"
+- [ ] Criar calendar reminder: RDS auto-restart check (dia 6 após shutdown)
+
+---
+
+### R-016: Cold Start Excede Tolerância (>10min)
+
+**Probabilidade:** BAIXO
+**Impacto:** BAIXO
+**Severidade:** 🟢 BAIXO
+**Status:** ✅ Mitigado
+
+**Descrição:**
+Tempo de cold start (startup completo da infraestrutura) excede 10 minutos, impactando produtividade do time (atraso início do dia).
+
+**Target vs Reality:**
+- 🎯 **Target:** 5-8 min (nodes up + pods Running + health checks)
+- ✅ **Baseline actual:** 6m23s (medido 2026-01-29)
+- ⚠️ **Worst-case aceitável:** 10 min
+- 🔴 **Unacceptable:** > 15 min (indica problema infraestrutura)
+
+**Fatores que Aumentam Cold Start:**
+1. **Image pulls lentos:** ECR throttling ou imagens grandes (> 1GB)
+2. **ENI allocation delays:** Subnet com poucos IPs disponíveis (AWS slow allocation)
+3. **PVC attach delays:** EBS volumes em AZ diferente do node (cross-AZ attach)
+4. **Init containers timeout:** Health checks Prometheus/Grafana lentos (dependencies não prontos)
+
+**Mitigações Implementadas:**
+- ✅ **Image caching:** ECR pull-through cache (reduz pulls externos)
+- ✅ **PVC topology:** StorageClass com `volumeBindingMode: WaitForFirstConsumer` (attach local AZ)
+- ✅ **Parallel scheduling:** Kubernetes schedules pods assim que nodes Ready (não sequencial)
+- ✅ **Monitoring:** Script `up.sh` mede tempo total, log em `startup.log`
+
+**Monitoramento Cold Start:**
+```bash
+# scripts/up.sh (adiciona timestamp)
+START_TIME=$(date +%s)
+# ... ASG scale up ...
+# ... Health checks ...
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+echo "✅ Infrastructure started in ${DURATION}s ($(($DURATION / 60))m $((DURATION % 60))s)"
+
+# Histórico cold start times (tail logs)
+grep "Infrastructure started" /var/log/startup.log
+```
+
+**Ações Se Cold Start > 10min:**
+1. Verificar qual componente demorou (nodes Ready? pods Running? health checks?)
+2. Revisar AWS Health Dashboard (degradação AZ?)
+3. Analisar `kubectl describe nodes` (taints, unschedulable?)
+4. Otimizar imagens Docker (remover layers desnecessários, multi-stage builds)
+
+**Trade-off Aceito:**
+- ⚠️ Cold start 6-8min é aceitável para dev environments (vs economia $3,890/ano)
+- ✅ Produção: 24/7 (zero cold start, sempre disponível)
+
+---
+
+### R-017: State Drift Terraform vs Cluster Autoscaler
+
+**Probabilidade:** MÉDIO
+**Impacto:** BAIXO
+**Severidade:** 🟢 BAIXO
+**Status:** ✅ Mitigado
+
+**Descrição:**
+Cluster Autoscaler ajusta `desired_size` do ASG dinamicamente (ex: 7 → 5 em baixa demanda), causando state drift com Terraform que espera `desired_size = 7`.
+
+**Cenário de Drift:**
+1. Terraform define ASG: `desired_size = 7, min_size = 3, max_size = 10`
+2. Cluster Autoscaler scale down para 5 nodes (baixa utilização)
+3. AWS ASG real state: `desired_size = 5`
+4. `terraform plan` mostra drift: "desired_size: 7 → 5"
+5. `terraform apply` reseta para 7 (undo do autoscaling)
+
+**Solução Implementada:**
+```hcl
+# marco1/main.tf (ASG configuration)
+resource "aws_eks_node_group" "main" {
+  scaling_config {
+    desired_size = 7
+    min_size     = 3
+    max_size     = 10
+  }
+
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+}
+```
+
+**Resultado:**
+- ✅ Terraform gerencia `min_size` e `max_size` (limites)
+- ✅ Cluster Autoscaler gerencia `desired_size` (valor atual)
+- ✅ `terraform plan` não mostra drift em `desired_size`
+- ✅ Scripts bash `up.sh`/`down.sh` ajustam `desired_size` via AWS CLI (não Terraform)
+
+**Validação:**
+```bash
+# 1. Verificar Terraform ignora desired_size
+terraform plan
+# Esperado: "No changes. Infrastructure is up-to-date."
+
+# 2. Simular Cluster Autoscaler scale-down
+kubectl scale deployment nginx-test --replicas=0
+# Aguardar 5min (Cluster Autoscaler threshold)
+# Cluster Autoscaler reduz nodes 7 → 6
+
+# 3. Re-verificar Terraform
+terraform plan
+# Esperado: AINDA "No changes" (ignore_changes funciona)
+```
+
+**Documentação:**
+- ADR-022: Decisão Terraform Specialist (Agent a9d1641)
+- Pattern reutilizável: Sempre usar `ignore_changes` em recursos gerenciados por controllers K8s
+
+---
+
+### R-018: Licenciamento Bitnami Charts → Tanzu Standard (EVITADO)
+
+**Probabilidade:** ALTA (se não agir)
+**Impacto:** CRÍTICO (+$72k/ano)
+**Severidade:** 🟢 EVITADO
+**Status:** ✅ Mitigado (ADR-023)
+
+**Descrição:**
+Bitnami Helm Charts (Redis, RabbitMQ) migrariam para modelo pago (Tanzu Standard) em Setembro 2025, gerando custo de licenciamento de $72,000/ano ($6,000/mês).
+
+**Descoberta:**
+- Data: 2026-01-29
+- Componentes afetados: Redis + RabbitMQ (planejados no Quickstart Marco 3)
+- Custo licenciamento: $72,000/ano (Tanzu Standard)
+- Prazo: Setembro 2025 (8 meses restantes)
+
+**Impacto Financeiro SE NÃO MITIGADO:**
+- Infraestrutura AWS: $7,248/ano
+- Licenciamento Tanzu: $72,000/ano
+- **TOTAL:** $79,248/ano (+993% vs planejamento original) 🔴
+
+**Mitigação Implementada (ADR-023):**
+✅ Migração para Kubernetes Operators:
+- **Redis:** Spotahome Redis Operator (open source, $0 licenciamento)
+- **RabbitMQ:** RabbitMQ Cluster Operator (oficial VMware, open source, $0)
+
+**Resultado Mitigação:**
+- ✅ Custo licenciamento: $0 (evitado $72,000/ano)
+- ✅ Economia infraestrutura: $900/ano (Operators mais eficientes)
+- ✅ **Economia total:** $72,900/ano (92% redução vs Tanzu)
+- ✅ Benefícios técnicos adicionais:
+  - HA automático (failover < 30s vs 5-6 min manual)
+  - Backups nativos (CronJobs automáticos)
+  - Zero-downtime upgrades (rolling updates)
+  - Cloud-agnostic (portável GCP/Azure)
+
+**Investimento Mitigação:**
+- +4h esforço Sprint 1 ($400 @ $100/h)
+- 4h onboarding Operators (estudo documentação)
+- 4h POC em ambiente dev (validação)
+- **TOTAL:** 12h ($1,200)
+
+**ROI Mitigação:**
+- Investimento: $1,200
+- Economia Ano 1: $72,900
+- **ROI:** 6,075% (payback 5 dias)
+
+**Status Atual:**
+- ✅ Decisão aprovada stakeholders (2026-01-29)
+- ✅ ADR-023 criado ([decisions.md](decisions.md#adr-023))
+- ⏳ Implementação prevista: Sprint 1 Marco 3
+- ⏳ Operators a deployar: Spotahome Redis Operator + RabbitMQ Cluster Operator
+
+**Documentação:**
+- **ADR-023:** [decisions.md#adr-023](decisions.md#adr-023-migration-from-bitnami-charts-to-kubernetes-operators)
+- **Análise Impacto:** [BITNAMI-LICENSING-IMPACT-ANALYSIS.md](../../finops/BITNAMI-LICENSING-IMPACT-ANALYSIS.md)
+- **Cruzamento Quickstart:** [QUICKSTART-VS-BITNAMI-ANALYSIS.md](../../finops/QUICKSTART-VS-BITNAMI-ANALYSIS.md)
+- **Custos Completos:** [COST-PROJECTION-COMPLETE.md](../../finops/COST-PROJECTION-COMPLETE.md)
+
+**Lições Aprendidas:**
+- ✅ Monitorar licenciamento de dependências open source (alertas mudanças roadmap)
+- ✅ Avaliar cloud-agnostic alternatives (Operators vs vendor-specific charts)
+- ✅ Realizar análise financeira proativa (antes de lock-in)
+- ✅ Priorizar portabilidade e HA nativa (vs simplicidade deploy inicial)
+
+---
+
 ## 📈 Tendências de Riscos
 
 ### Riscos Emergentes (Marco 3)
-- **R-013:** GitLab CE single point of failure (sem HA configurado)
-- **R-014:** Backup & DR strategy inexistente (loss tolerance: 24h RPO)
-- **R-015:** PostgreSQL RDS sem Multi-AZ (custo vs HA trade-off)
-- **R-016:** Secrets rotation policy inexistente (compliance risk)
+- **R-019:** GitLab CE single point of failure (sem HA configurado)
+- **R-020:** Backup & DR strategy inexistente (loss tolerance: 24h RPO)
+- **R-021:** PostgreSQL RDS sem Multi-AZ (custo vs HA trade-off)
+- **R-022:** Secrets rotation policy inexistente (compliance risk)
 
 ---
 

@@ -158,20 +158,29 @@ kubectl run rds-test --image=postgres:15 --rm -it --restart=Never -n gitlab -- \
   pg_isready -h $RDS_ENDPOINT -p 5432 -U gitlab > /dev/null 2>&1
 test_result $? "RDS PostgreSQL accessible"
 
-# Redis
-kubectl exec -n data-services deploy/redis-master -- redis-cli ping | grep -q "PONG"
-test_result $? "Redis responding"
+# Redis (Spotahome Operator - ADR-023)
+kubectl get redisfailover redis-ha -n redis -o jsonpath='{.status.phase}' | grep -q "Running"
+test_result $? "Redis Operator RedisFailover Running"
+
+# Redis Master responding
+kubectl exec -n redis rfr-redis-ha-0 -c redis -- redis-cli ping | grep -q "PONG"
+test_result $? "Redis Master responding"
 
 # Redis Sentinel
-kubectl exec -n data-services deploy/redis-master -- redis-cli -p 26379 ping | grep -q "PONG"
+kubectl exec -n redis rfs-redis-ha-0 -- redis-cli -p 26379 ping | grep -q "PONG"
 test_result $? "Redis Sentinel responding"
 
-# RabbitMQ
-kubectl exec -n data-services deploy/rabbitmq -- rabbitmqctl status > /dev/null 2>&1
-test_result $? "RabbitMQ healthy"
+# RabbitMQ (Cluster Operator - ADR-023)
+kubectl get rabbitmqcluster rabbitmq-ha -n rabbitmq -o jsonpath='{.status.conditions[?(@.type=="AllReplicasReady")].status}' | grep -q "True"
+test_result $? "RabbitMQ Cluster all replicas ready"
 
-# RabbitMQ Management
-HTTP_CODE=$(kubectl exec -n data-services deploy/rabbitmq -- curl -s -o /dev/null -w "%{http_code}" http://localhost:15672/api/overview -u guest:guest)
+# RabbitMQ pods healthy
+kubectl exec -n rabbitmq rabbitmq-ha-server-0 -- rabbitmqctl status > /dev/null 2>&1
+test_result $? "RabbitMQ pod 0 healthy"
+
+# RabbitMQ Management API
+RABBIT_PASS=$(kubectl get secret rabbitmq-ha-default-user -n rabbitmq -o jsonpath='{.data.password}' | base64 -d)
+HTTP_CODE=$(kubectl exec -n rabbitmq rabbitmq-ha-server-0 -- curl -s -o /dev/null -w "%{http_code}" -u "default-user:${RABBIT_PASS}" http://localhost:15672/api/overview)
 [ "$HTTP_CODE" = "200" ]
 test_result $? "RabbitMQ Management API accessible"
 
@@ -538,18 +547,22 @@ echo "✅ E2E Backup & Restore Test PASSED"
 | B9 | Login funciona | Teste manual no browser | ☐ |
 | B10 | Pipeline CI executa | E2E test pipeline | ☐ |
 
-### 4.3 Épico C - Data Services (20h)
+### 4.3 Épico C - Data Services (24h - ADR-023 Operators)
 
 | # | Critério | Verificação | Status |
 |---|----------|-------------|--------|
 | C1 | RDS PostgreSQL Multi-AZ | `aws rds describe-db-instances` | ☐ |
 | C2 | RDS acessível do cluster | `pg_isready -h <endpoint>` | ☐ |
 | C3 | RDS backups automáticos | Console RDS → Backups | ☐ |
-| C4 | Redis instalado (bitnami) | `helm list -n data-services` | ☐ |
-| C5 | Redis Sentinel HA | `kubectl exec redis-master -- redis-cli -p 26379 info sentinel` | ☐ |
-| C6 | RabbitMQ cluster | `kubectl exec rabbitmq -- rabbitmqctl cluster_status` | ☐ |
-| C7 | GitLab conecta ao RDS | `kubectl logs -n gitlab -l app=webservice | grep -i postgres` | ☐ |
-| C8 | GitLab conecta ao Redis | `kubectl logs -n gitlab -l app=sidekiq | grep -i redis` | ☐ |
+| C4 | Redis Operator instalado (Spotahome) | `kubectl get pods -n redis-operator` | ☐ |
+| C5 | RedisFailover CRD Running | `kubectl get redisfailover redis-ha -n redis` | ☐ |
+| C6 | Redis Sentinel HA (3 sentinels) | `kubectl exec rfs-redis-ha-0 -n redis -- redis-cli -p 26379 info sentinel` | ☐ |
+| C7 | RabbitMQ Cluster Operator instalado | `kubectl get pods -n rabbitmq-system` | ☐ |
+| C8 | RabbitmqCluster CRD Running (3 nodes) | `kubectl get rabbitmqcluster rabbitmq-ha -n rabbitmq` | ☐ |
+| C9 | RabbitMQ cluster status | `kubectl exec rabbitmq-ha-server-0 -n rabbitmq -- rabbitmqctl cluster_status` | ☐ |
+| C10 | GitLab conecta ao RDS | `kubectl logs -n gitlab -l app=webservice | grep -i postgres` | ☐ |
+| C11 | GitLab conecta ao Redis Operator | `kubectl logs -n gitlab -l app=sidekiq | grep -i redis` | ☐ |
+| C12 | Economia ADR-023 confirmada ($72,900/ano vs Tanzu) | Verificar docs/finops/BITNAMI-LICENSING-IMPACT-ANALYSIS.md | ☐ |
 
 ### 4.4 Épicos D/E/F - Observability (84h)
 
@@ -973,20 +986,30 @@ dig gitlab.seudominio.com.br
 echo | openssl s_client -connect gitlab.seudominio.com.br:443 -servername gitlab.seudominio.com.br 2>/dev/null | openssl x509 -noout -dates
 ```
 
-#### Redis não conecta
+#### Redis Operator não conecta (ADR-023)
 
 ```bash
-# 1. Verificar pods Redis
-kubectl get pods -n data-services -l app.kubernetes.io/name=redis
+# 1. Verificar RedisFailover CRD
+kubectl get redisfailover redis-ha -n redis
 
-# 2. Testar conectividade
-kubectl exec -n gitlab deploy/gitlab-webservice -- nc -zv redis-master.data-services 6379
+# 2. Verificar pods Redis Operator
+kubectl get pods -n redis
+# Esperado: rfr-redis-ha-* (3 redis) e rfs-redis-ha-* (3 sentinels)
 
-# 3. Verificar password
-kubectl get secret -n data-services redis -o jsonpath='{.data.redis-password}' | base64 -d
+# 3. Testar conectividade GitLab → Redis
+kubectl exec -n gitlab deploy/gitlab-webservice -- nc -zv rfr-redis-ha.redis.svc.cluster.local 6379
 
-# 4. Verificar Network Policy
-kubectl get networkpolicy -n data-services redis-policy -o yaml
+# 4. Testar conectividade GitLab → Sentinel
+kubectl exec -n gitlab deploy/gitlab-webservice -- nc -zv rfs-redis-ha.redis.svc.cluster.local 26379
+
+# 5. Verificar password (gerado pelo Operator)
+kubectl get secret rfr-redis-ha -n redis -o jsonpath='{.data.password}' | base64 -d
+
+# 6. Verificar Network Policy (se aplicável)
+kubectl get networkpolicy -n redis -o yaml
+
+# 7. Verificar logs do Operator
+kubectl logs -n redis-operator -l app.kubernetes.io/name=redis-operator --tail=50
 ```
 
 #### Pipeline CI falha

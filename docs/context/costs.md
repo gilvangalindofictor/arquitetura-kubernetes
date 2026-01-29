@@ -10,16 +10,18 @@
 
 | Métrica | Valor | Observações |
 |---------|-------|-------------|
-| **Custo Total Mensal** | **~$666/mês** | Marco 0 + Marco 1 + Marco 2 completo |
-| **Custo Anual** | **~$7.992/ano** | $666 × 12 meses |
-| **Economia vs Baseline** | **$1.575/ano** | Loki + VPC reuse + optimizations |
-| **Custo por Node** | **~$95/mês** | $666 ÷ 7 nodes |
-| **Custo por Pod (Platform)** | **~$13.32/mês** | $666 ÷ 50 pods platform |
+| **Custo Total Mensal (Marco 2)** | **~$685.70/mês** | Marco 0 + Marco 1 + Marco 2 + Fase 8 |
+| **Custo Anual (Marco 2)** | **~$8.228.40/ano** | $685.70 × 12 meses |
+| **Custo Projetado Fase 1 (Marco 3)** | **$737.10/mês** | Com otimizações Q1 2026 (RI + consolidações) |
+| **Custo Anual Fase 1** | **$8.845.20/ano** | $737.10 × 12 meses |
+| **Economia vs Baseline** | **$2.942/ano** | Loki vs CloudWatch, VPC reuse, Tempo vs Jaeger, otimizações |
+| **Custo por Node** | **~$98/mês** | $685.70 ÷ 7 nodes |
+| **Custo por Pod (Platform)** | **~$19/mês** | $685.70 ÷ 36 pods observability |
 
-### Tendência de Custos
+### Tendência de Custos (Atualizada 2026-01-29)
 
 ```
-Marco 0 (Baseline): $0.07/mês  →  Marco 1 (EKS): $550/mês  →  Marco 2 (Platform): $666/mês  →  Marco 3 (Projeção): $850-900/mês
+Marco 0 (Baseline): $0.07/mês  →  Marco 1 (EKS): $550/mês  →  Marco 2 (Platform): $666/mês  →  Marco 2 Fase 8: $685.70/mês  →  Marco 3 Fase 1 (Otimizado): $737.10/mês
 ```
 
 ---
@@ -92,7 +94,12 @@ Economia RI: $1.494.66/ano
 | **Fase 7: Test Applications** | | **$32.40** | |
 | ├─ ALB nginx-test | Internet-facing | $16.20 | LCU charges ~$5/mês |
 | └─ ALB echo-server | Internet-facing | $16.20 | LCU charges ~$5/mês |
-| **TOTAL Marco 2** | | **$54.66** | |
+| **Fase 8: OpenTelemetry (Traces)** | | **$19.70** | **NOVO** |
+| ├─ S3 Tempo Storage | 500GB traces | $11.50 | $0.023/GB/mês |
+| ├─ S3 API Requests | PUT 5M, GET 2M | $5.00 | Trace ingestion + queries |
+| ├─ EBS PVC Tempo Ingester | gp3 20GB | $1.60 | Write-Ahead Log |
+| └─ EBS PVC Tempo Compactor | gp3 20GB | $1.60 | Compaction cache |
+| **TOTAL Marco 2** | | **$74.36** | **Atualizado** |
 
 **Observações Fase 4 (Loki):**
 - **Economia vs CloudWatch:** $50/mês CloudWatch - $19.70/mês Loki = **$30.30/mês saved** ($363.60/ano)
@@ -103,30 +110,38 @@ Economia RI: $1.494.66/ano
 - **Consolidação ALBs:** Usando IngressGroup annotation, reduziria para 1 ALB ($16.20/mês saved)
 - **Fase 7.1 (TLS):** Adiciona $0.90/mês (Route53 hosted zone), total $33.30/mês
 
-**Breakdown Platform Services:**
+**Observações Fase 8 (OpenTelemetry Traces):**
+- **ADR-020:** Grafana Tempo escolhido vs Jaeger (economia $205.55/mês com Cassandra backend)
+- **Componentes:** Tempo backend (6 pods) + OpenTelemetry Collector (2 pods Gateway mode)
+- **Integração:** Correlação traces ↔ logs ↔ metrics em Grafana (single pane observability)
+- **Otimizações possíveis:** Sampling 10% + retenção 7 dias reduziria para $4.45/mês (economia $15.25/mês)
+- **IRSA:** TempoS3Role-k8s-platform-prod (padrão reutilizado de Loki)
+
+**Breakdown Platform Services (Atualizado):**
 ```
-Monitoring (Fase 3): $2.56/mês (4.7%)
-Logging (Fase 4): $19.70/mês (36.0%)
-Test Apps (Fase 7): $32.40/mês (59.3%)
+Monitoring (Fase 3): $2.56/mês (3.4%)
+Logging (Fase 4): $19.70/mês (26.5%)
+Test Apps (Fase 7): $32.40/mês (43.6%)
+Tracing (Fase 8): $19.70/mês (26.5%)  ← NOVO
 ──────────────────────────────────
-Total Marco 2: $54.66/mês (100%)
+Total Marco 2: $74.36/mês (100%)
 ```
 
 ---
 
-## 💸 Consolidação Marco 0 + Marco 1 + Marco 2
+## 💸 Consolidação Marco 0 + Marco 1 + Marco 2 + Fase 8
 
 | Categoria | Componentes | Custo/Mês | % Total |
 |-----------|-------------|-----------|---------|
-| **Compute** | EKS Control Plane + EC2 Nodes | $285.59 | 42.9% |
-| **Storage** | EBS (Root + PVCs) + S3 | $44.96 | 6.8% |
-| **Networking** | NAT Gateways + Data Transfer + ALBs | $120.60 | 18.1% |
-| **Platform Services** | Monitoring + Logging | $22.26 | 3.3% |
-| **Test Apps** | 2 ALBs | $32.40 | 4.9% |
+| **Compute** | EKS Control Plane + EC2 Nodes | $285.59 | 41.6% |
+| **Storage** | EBS (Root + PVCs) + S3 (Loki + Tempo) | $67.76 | 9.9% |
+| **Networking** | NAT Gateways + Data Transfer + ALBs | $120.60 | 17.6% |
+| **Platform Services** | Monitoring + Logging + Tracing | $41.96 | 6.1% |
+| **Test Apps** | 2 ALBs | $32.40 | 4.7% |
 | **Secrets** | AWS Secrets Manager | $0.40 | 0.1% |
 | **Database** | DynamoDB State Lock | $0.25 | 0.0% |
-| **VPC (Reused)** | NAT Gateways (baseline) | $65.70 | 9.9% |
-| **TOTAL** | | **$666.00** | **100%** |
+| **VPC (Reused)** | NAT Gateways (baseline) | $65.70 | 9.6% |
+| **TOTAL Marco 2 + Fase 8** | | **$685.70** | **100%** |
 
 ### Gráfico de Distribuição
 
@@ -142,6 +157,163 @@ Other (14%) ██████████████
 
 ---
 
+## 🔄 Custos Fixos vs Variáveis + Economia Start/Stop
+
+**Referência:** [ADR-022](decisions.md#adr-022-startupshutdown-automation-strategy-finops) - Startup/Shutdown Automation Strategy
+
+### Breakdown Fixos vs Variáveis (Marco 2 + Fase 8)
+
+Análise detalhada dos componentes que persistem durante shutdown (custos fixos) vs componentes que podem ser desligados (custos variáveis):
+
+| Categoria | Componente | Custo/Mês | % | Tipo | Comportamento Shutdown |
+|-----------|------------|-----------|---|------|------------------------|
+| **CUSTOS FIXOS (Always On)** | | **$200.75** | **29.3%** | | |
+| Compute | EKS Control Plane | $73.00 | 10.6% | Fixo | Não pode ser stopped (AWS managed) |
+| Networking | NAT Gateways (2) | $66.00 | 9.6% | Fixo | Necessário para cluster (sempre on) |
+| Storage | S3 (State + Loki + Tempo) | $34.57 | 5.0% | Fixo | Dados persistentes (logs, traces, state) |
+| Networking | ALBs (2) | $16.20 | 2.4% | Fixo | Ingress endpoints (sempre on) |
+| Networking | CloudWatch Logs | $10.08 | 1.5% | Fixo | Retenção logs infraestrutura |
+| Secrets | AWS Secrets Manager | $0.40 | 0.1% | Fixo | Credentials (Grafana, futuros) |
+| DNS | Route53 Hosted Zone | $0.50 | 0.1% | Fixo | DNS (Marco 3) |
+| **CUSTOS VARIÁVEIS (Stop/Start)** | | **$484.95** | **70.7%** | | |
+| Compute | EC2 Nodes (7× t3.medium) | $477.12 | 69.6% | Variável | Terminate (ASG scale to 0) |
+| Storage | EBS Volumes (PVCs) | $5.36 | 0.8% | Variável | Persist (detached, custo mantido) |
+| Networking | Data Transfer | $2.47 | 0.3% | Variável | Zero quando nodes stopped |
+| **TOTAL MARCO 2 + FASE 8** | | **$685.70** | **100%** | | |
+
+### Cenários de Economia Start/Stop
+
+**Premissa:** Infraestrutura é desligada (ASG scale to 0) fora do horário de uso, mantendo apenas custos fixos.
+
+| Cenário | Uptime | Dias/Semana | Horas/Dia | Custo Fixo | Custo Variável | Total/Mês | Economia/Mês | Economia/Ano | % Redução |
+|---------|--------|-------------|-----------|------------|----------------|-----------|--------------|--------------|-----------|
+| **Baseline (24/7)** | 100% | 7 dias | 24h | $200.75 | $484.95 | $685.70 | - | - | - |
+| **Dev 8h/dia** | 33% | 5 dias | 8h | $200.75 | $160.74 | $361.49 | **$324.21** | **$3,890.52** | **47.3%** |
+| **Dev 10h/dia** | 42% | 5 dias | 10h | $200.75 | $200.93 | $401.68 | $284.02 | $3,408.24 | 41.4% |
+| **Dev 12h/dia** | 50% | 5 dias | 12h | $200.75 | $241.11 | $441.86 | $243.84 | $2,926.08 | 35.6% |
+| **Prod 24/5** (noturno off) | 71% | 5 dias | 24h | $200.75 | $344.31 | $545.06 | $140.64 | $1,687.68 | 20.5% |
+| **Prod 16/7** (noturno off) | 67% | 7 dias | 16h | $200.75 | $324.92 | $525.67 | $160.03 | $1,920.36 | 23.3% |
+
+**Cálculo Custo Variável por Cenário:**
+- Custo Variável = $484.95 × (Uptime %)
+- Exemplo Dev 8h/dia: $484.95 × 33% = $160.74
+
+### ROI Automação Startup/Shutdown
+
+**Investimento Inicial:**
+- Desenvolvimento scripts bash (up.sh, down.sh, health-check.sh): 8h × $50/h = $400
+- GitHub Actions workflows (automação CI/CD): 4h × $50/h = $200
+- Testes e documentação: 2h × $50/h = $100
+- **TOTAL INVESTIMENTO:** $700
+
+**Economia Anual por Cenário:**
+| Cenário | Economia/Ano | ROI Year 1 | Payback |
+|---------|--------------|------------|---------|
+| Dev 8h/dia | $3,890.52 | **556%** | **1.6 meses** |
+| Dev 10h/dia | $3,408.24 | 487% | 1.8 meses |
+| Dev 12h/dia | $2,926.08 | 418% | 2.2 meses |
+| Prod 24/5 | $1,687.68 | 241% | 3.7 meses |
+
+**Recomendação:** Implementar IMEDIATAMENTE para ambientes dev/staging. ROI Year 1 de 556% justifica investimento de 14h development.
+
+### Cold Start Times & Operational Impact
+
+| Operação | Tempo | Descrição |
+|----------|-------|-----------|
+| **Startup (Nodes Only)** | 5-8 min | ASG scale up → Nodes join → Pods scheduled |
+| **Shutdown (Nodes Only)** | 2-4 min | Drain pods → Terminate nodes (ASG scale to 0) |
+| **Startup (Full Cluster)** | 15-18 min | Terraform apply (EKS + nodes + Helm releases) |
+
+**Health Checks Pós-Startup:**
+```bash
+# Validação automática (scripts/health-check.sh)
+✅ 7 nodes Ready
+✅ 36 pods Running (monitoring namespace)
+✅ Grafana UI accessible (http://localhost:3000)
+✅ Loki ingestion functional (LogQL queries)
+✅ Tempo traces functional (TraceQL queries)
+```
+
+### Custos Fixos Inevitáveis
+
+Mesmo com shutdown completo (ASG scale to 0), estes custos persistem:
+
+| Componente | Custo/Mês | Justificativa |
+|------------|-----------|---------------|
+| EKS Control Plane | $73.00 | AWS managed, não pode ser stopped |
+| NAT Gateways (2) | $66.00 | Necessário para cluster restart, não deleteable sem downtime |
+| S3 Storage | $34.57 | Dados persistentes (logs, traces, terraform state) |
+| ALBs (2) | $16.20 | Ingress endpoints, não destroyable sem recreate |
+| CloudWatch Logs | $10.08 | Retenção logs infraestrutura (auditoria) |
+| Secrets Manager | $0.40 | Credentials (Grafana admin, futuros) |
+| Route53 Hosted Zone | $0.50 | DNS (Marco 3, zero custo se não criado ainda) |
+| **TOTAL FIXO** | **$200.75/mês** | **29.3% do custo total** |
+
+**Implicação:** Economia máxima possível é **70.7%** ($484.95/mês), nunca 100%.
+
+### Marco 3 Considerações RDS
+
+**Problema:** RDS PostgreSQL (Marco 3 Data Services) não pode ficar stopped > 7 dias. AWS auto-restart após 7 dias.
+
+**Soluções Avaliadas:**
+
+| Abordagem | Economia/Mês | Restore Time | Custo Snapshot | Complexidade |
+|-----------|--------------|--------------|----------------|--------------|
+| **RDS 24/7 (Always On)** | $0 | Instant | $0 | ⚡ Baixa |
+| **RDS Stop/Start (< 7d)** | $50 (Full) | 3-5 min | $0 | 🟡 Média |
+| **Snapshot + Delete + Restore** | $40.50 | 10-15 min | $9.50/mês (100GB) | 🔴 Alta |
+
+**Decisão Recomendada (Marco 3):**
+- **Dev/Staging:** Snapshot + Delete + Restore (economia $40.50/mês líquida)
+- **Produção:** RDS 24/7 (dados persistentes necessários, zero downtime)
+
+### Scripts Implementados
+
+**Localização:** `platform-provisioning/aws/kubernetes/terraform/scripts/`
+
+| Script | Descrição | Tempo Exec | Status |
+|--------|-----------|------------|--------|
+| `up.sh` | Startup infraestrutura (ASG scale + health checks) | 6-8 min | ✅ Implementado |
+| `down.sh` | Shutdown infraestrutura (drain + scale to 0) | 3-4 min | ✅ Implementado |
+| `health-check.sh` | Validação pós-startup (nodes, pods, Grafana) | 1-2 min | ✅ Implementado |
+
+**Uso Manual:**
+```bash
+# Ligar infraestrutura (início do dia)
+./scripts/up.sh
+# Output: "✅ Infrastructure started in 6m23s. Grafana: http://..."
+
+# Desligar infraestrutura (fim do dia)
+./scripts/down.sh
+# Output: "☑️ Infrastructure stopped. Saving $22.05 tonight."
+```
+
+### Automação GitHub Actions (Roadmap Q2 2026)
+
+**Workflows Planejados:**
+- `.github/workflows/infra-shutdown.yml` → Cron: 22:00 UTC (19h BRT) Mon-Fri
+- `.github/workflows/infra-startup.yml` → Cron: 11:00 UTC (8h BRT) Mon-Fri
+- Notifications: Slack `#infrastructure` channel
+- Fallback: Manual trigger via `workflow_dispatch`
+
+**Economia Automação Q2 2026:** $324.21/mês ($3,890.52/ano) com 8h/dia uptime
+
+### Métricas de Sucesso
+
+**KPIs Fase 1 (Manual):**
+- ✅ Cold start < 10 min (target: 5-8 min)
+- ✅ Zero data loss em 30 shutdowns consecutivos
+- ✅ Economia > $300/mês
+- ✅ Health check success rate > 95%
+
+**KPIs Fase 2 (GitHub Actions):**
+- [ ] Automação success rate > 99%
+- [ ] Notificações < 2 min após evento
+- [ ] Rollback automático < 5 min (se health check fail)
+- [ ] Economia anualizada > $3.500/ano
+
+---
+
 ## 📉 Economia e Otimizações
 
 ### Economias Já Realizadas
@@ -152,7 +324,9 @@ Other (14%) ██████████████
 | VPC Reuse vs New VPC | $0 vs $65.70 NAT GW | $65.70 | $788.40 | ✅ Implementado |
 | Calico policy-only vs Overlay | $0 vs $100/mês nodes | $100.00 | $1.200.00 | ✅ Implementado |
 | ACM vs Third-party CA | $0 vs $33/mês | $33.00 | $396.00 | ✅ Implementado (Fase 7.1) |
-| **TOTAL ECONOMIAS** | | **$229.00** | **$2.748.00** | |
+| Tempo vs Jaeger+Cassandra | $19.70 vs $210/mês | $190.30 | $2.283.60 | ✅ Implementado (Fase 8) |
+| **Operators vs Bitnami Tanzu** | **$0 vs $6.000/mês** | **$6.000.00** | **$72.000.00** | ⏳ **Marco 3 (ADR-023)** |
+| **TOTAL ECONOMIAS** | | **$6.419.30** | **$77.031.60** | |
 
 ### Otimizações Futuras (Não Implementadas)
 
@@ -179,51 +353,88 @@ Other (14%) ██████████████
 
 ---
 
-## 🔮 Projeção Marco 3: Workloads
+## 🔮 Marco 3: Workloads - VALORES REAIS APROVADOS
 
-### Componentes Planejados
+### Fase 1 (Sem Domínio) - Implementação Imediata
 
-| Componente | Especificação | Custo Estimado/Mês | Observações |
-|------------|---------------|---------------------|-------------|
-| **GitLab CE** | | $150-200 | |
-| ├─ RDS PostgreSQL | db.t3.medium (2 vCPU, 4GB) | $50.00 | Single-AZ (staging) |
-| ├─ ElastiCache Redis | cache.t3.micro | $15.00 | Session storage |
-| ├─ S3 Artifacts | 500GB storage | $11.50 | CI/CD artifacts |
-| ├─ ALB | Internet-facing | $16.20 | HTTPS required |
-| ├─ Route53 + ACM | 1 hosted zone | $0.90 | gitlab.domain.com |
-| └─ EBS PVCs | 100GB (repos + registry) | $8.00 | gp3 volumes |
-| **Keycloak** | | $50-80 | |
-| ├─ RDS PostgreSQL | db.t3.small | $25.00 | Shared instance |
-| ├─ ALB | Internet-facing | $16.20 | auth.domain.com |
-| └─ Route53 + ACM | 1 hosted zone | $0.90 | |
-| **ArgoCD** | Pods em nodes existentes | $0.90 | Apenas Route53 + ACM |
-| **Harbor** | | $40-60 | |
-| ├─ S3 Registry Storage | 200GB | $4.60 | Container images |
-| ├─ RDS PostgreSQL | db.t3.small (shared) | $0.00 | Shared com Keycloak |
-| ├─ ALB | Internet-facing | $16.20 | registry.domain.com |
-| └─ Route53 + ACM | 1 hosted zone | $0.90 | |
-| **TOTAL MARCO 3 (Estimado)** | | **$184-260** | Range baseado em usage |
+**ADR-021:** Deployment sem domínio registrado, usando LoadBalancer (NLB) para databases e ALB DNS HTTP para workloads.
 
-### Projeção Consolidada
+| Componente | Especificação | Custo/Mês | Observações |
+|------------|---------------|-----------|-------------|
+| **Data Services (Tier 1)** | | **$97.40** | |
+| ├─ RDS PostgreSQL | db.t3.medium (2 vCPU, 4GB), Single-AZ | $50.00 | 3 databases: gitlab, keycloak, harbor |
+| ├─ **Redis (Spotahome Operator)** | RedisFailover CRD (1 master + 2 replicas + 3 sentinels) | **$0.00** | Usa nodes existentes, **ADR-023** |
+| ├─ **RabbitMQ (Cluster Operator)** | RabbitmqCluster CRD (3 nodes) | **$0.00** | Usa nodes existentes, **ADR-023** |
+| ├─ NLB PostgreSQL | LoadBalancer para acesso externo | $16.20 | DBeaver, PgAdmin, psql |
+| ├─ NLB Redis | LoadBalancer para acesso externo | $16.20 | Redis CLI, Redis Desktop Manager |
+| ├─ S3 Buckets | gitlab-artifacts (500GB) + harbor-images (200GB) | $15.00 | CI/CD artifacts + container images |
+| **Workloads (Tier 2)** | | **$119.20** | |
+| ├─ GitLab CE | ALB DNS HTTP (sem domínio) | $81.20 | Inclui RDS share + Redis + S3 + ALB |
+| ├─ ArgoCD | ALB DNS HTTP | $16.20 | GitOps platform |
+| ├─ Harbor | ALB DNS HTTP + S3 backend | $21.80 | Registry + Trivy scan |
+| **SUBTOTAL Marco 3 Fase 1** | | **$216.60** | **SEM otimizações** |
+
+### Otimizações Q1 2026 (Implementação Paralela)
+
+| Otimização | Economia/Mês | Esforço | Status |
+|------------|--------------|---------|--------|
+| **Reserved Instances EC2 (1 ano)** | -$124.00 | 1h | ✅ Aprovado |
+| **Consolidar ALBs (IngressGroup)** | -$16.20 | 2h | ✅ Aprovado |
+| **PostgreSQL RDS Shared** | -$25.00 | 4h | ✅ Aprovado (já contemplado) |
+| **TOTAL ECONOMIA Q1** | **-$165.20** | **7h** | |
+
+### Projeção Consolidada REAL (Aprovada 2026-01-29)
 
 ```
-Marco 0 + 1 + 2: $666/mês
-Marco 3 (Mínimo): +$184/mês
-Marco 3 (Máximo): +$260/mês
-──────────────────────────────
-Total Plataforma (Mínimo): $850/mês ($10.200/ano)
-Total Plataforma (Máximo): $926/mês ($11.112/ano)
+Marco 0 + 1 + 2 Base:        $666.00/mês
+Marco 2 Fase 8 (OpenTelemetry): +$19.70/mês
+Marco 3 Data Services:        +$97.40/mês
+Marco 3 Workloads:           +$119.20/mês
+──────────────────────────────────────────
+SUBTOTAL SEM OTIMIZAÇÕES:    $902.30/mês ($10.827.60/ano)
+
+Otimizações Q1 2026:
+- Reserved Instances:       -$124.00/mês
+- Consolidar ALBs:           -$16.20/mês
+- PostgreSQL Shared:         -$25.00/mês
+──────────────────────────────────────────
+TOTAL ECONOMIA:              -$165.20/mês ($1.982.40/ano)
+
+CUSTO FASE 1 OTIMIZADO:      $737.10/mês ($8.845.20/ano)
 ```
 
-### Otimizações Marco 3
+### Crescimento vs Marco 2 Base
 
-- **Compartilhar RDS PostgreSQL:** GitLab, Keycloak, Harbor em 1 instance (economia $50/mês)
-- **Consolidar ALBs:** 4 apps em 1 ALB via IngressGroup (economia $48.60/mês)
-- **RDS Multi-AZ apenas produção:** Single-AZ staging (economia 2× custo RDS)
+| Métrica | Marco 2 Base | Fase 1 Otimizado | Delta | % |
+|---------|--------------|------------------|-------|---|
+| Custo Mensal | $666.00 | $737.10 | +$71.10 | +10.7% |
+| Custo Anual | $7.992 | $8.845 | +$853 | +10.7% |
 
-**Com Otimizações Marco 3:**
-- Economia: $98.60/mês ($1.183.20/ano)
-- Custo otimizado: $751-827/mês ($9.012-9.924/ano)
+### Componentes Deployados Fase 1
+
+**Data Services:**
+- PostgreSQL: `postgres-lb-xyz.us-east-1.elb.amazonaws.com:5432`
+- Redis: `redis-lb-xyz.us-east-1.elb.amazonaws.com:6379`
+- RabbitMQ: `rabbitmq-lb-xyz.us-east-1.elb.amazonaws.com:15672` (Management UI)
+
+**Workloads (HTTP, sem HTTPS):**
+- GitLab: `http://k8s-gitlab-xyz.us-east-1.elb.amazonaws.com`
+- ArgoCD: `http://k8s-argocd-xyz.us-east-1.elb.amazonaws.com`
+- Harbor: `http://k8s-harbor-xyz.us-east-1.elb.amazonaws.com`
+
+### Fase 2 (Com Domínio) - Implementação Posterior
+
+**Quando:** Após registro de domínio ou quando necessário funcionalidades avançadas (webhooks HTTPS, SSO)
+
+**Custo adicional:** +$0.50/mês (Route53 Hosted Zone)
+
+**Componentes adicionais:**
+- Route53: `k8s-platform.mycompany.com` hosted zone
+- ACM certificates: TLS gratuito (4 certificados)
+- Keycloak: SSO/OIDC (sem custo adicional, usa nodes existentes)
+- HTTPS: ALBs recriados com listeners 443
+
+**Custo Fase 2:** $737.60/mês ($8.851.20/ano)
 
 ---
 

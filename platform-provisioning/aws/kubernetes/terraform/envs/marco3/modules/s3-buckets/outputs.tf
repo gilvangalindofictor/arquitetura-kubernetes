@@ -1,0 +1,62 @@
+# =============================================================================
+# S3 Buckets Module Outputs
+# =============================================================================
+
+# GitLab Artifacts Bucket
+output "gitlab_artifacts_bucket_name" {
+  description = "GitLab artifacts S3 bucket name"
+  value       = aws_s3_bucket.gitlab_artifacts.id
+}
+
+output "gitlab_artifacts_bucket_arn" {
+  description = "GitLab artifacts S3 bucket ARN"
+  value       = aws_s3_bucket.gitlab_artifacts.arn
+}
+
+output "gitlab_artifacts_bucket_region" {
+  description = "GitLab artifacts S3 bucket region"
+  value       = aws_s3_bucket.gitlab_artifacts.region
+}
+
+output "gitlab_s3_policy_arn" {
+  description = "IAM policy ARN for GitLab S3 access (IRSA)"
+  value       = aws_iam_policy.gitlab_s3.arn
+}
+
+# Harbor Images Bucket
+output "harbor_images_bucket_name" {
+  description = "Harbor images S3 bucket name"
+  value       = aws_s3_bucket.harbor_images.id
+}
+
+output "harbor_images_bucket_arn" {
+  description = "Harbor images S3 bucket ARN"
+  value       = aws_s3_bucket.harbor_images.arn
+}
+
+output "harbor_images_bucket_region" {
+  description = "Harbor images S3 bucket region"
+  value       = aws_s3_bucket.harbor_images.region
+}
+
+output "harbor_s3_policy_arn" {
+  description = "IAM policy ARN for Harbor S3 access (IRSA)"
+  value       = aws_iam_policy.harbor_s3.arn
+}
+
+# Summary
+output "buckets_summary" {
+  description = "Summary of all S3 buckets created"
+  value = {
+    gitlab_artifacts = {
+      name   = aws_s3_bucket.gitlab_artifacts.id
+      arn    = aws_s3_bucket.gitlab_artifacts.arn
+      region = aws_s3_bucket.gitlab_artifacts.region
+    }
+    harbor_images = {
+      name   = aws_s3_bucket.harbor_images.id
+      arn    = aws_s3_bucket.harbor_images.arn
+      region = aws_s3_bucket.harbor_images.region
+    }
+  }
+}

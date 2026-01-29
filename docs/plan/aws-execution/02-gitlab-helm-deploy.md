@@ -1,6 +1,10 @@
 # 02 - GitLab Helm Deploy
 
-**Épico B** | **Esforço: 48 person-hours** | **Sprint 1**
+**Épico B** | **Esforço: 48 person-hours** | **Sprint 1** | **Atualizado: 2026-01-29**
+
+> ⚠️ **Atualização ADR-023:** Este documento foi atualizado para refletir integração com **Redis Operator** (Spotahome) ao invés de Bitnami Helm charts.
+>
+> **Referência:** [ADR-023: Migration from Bitnami Charts to Kubernetes Operators](../../context/decisions.md#adr-023)
 
 ---
 
@@ -26,7 +30,7 @@
 Instalar o **GitLab CE** no cluster EKS usando o Helm chart oficial em modo **híbrido**:
 - GitLab como pods Kubernetes
 - PostgreSQL em RDS (gerenciado AWS)
-- Redis via Helm (bitnami) no cluster
+- **Redis via Spotahome Operator** (Sentinel HA, ADR-023) no cluster
 - Backups para S3
 
 ### Arquitetura do Deploy
@@ -52,9 +56,9 @@ Instalar o **GitLab CE** no cluster EKS usando o Helm chart oficial em modo **h�
 │  │                         CONEXÕES EXTERNAS                            │   │
 │  │                                                                      │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │   │
-│  │  │ RDS         │  │ Redis       │  │ S3          │  │ Registry    │ │   │
-│  │  │ PostgreSQL  │  │ (bitnami)   │  │ Backups     │  │ S3 Backend  │ │   │
-│  │  │ (AWS)       │  │ (K8s)       │  │ Artifacts   │  │             │ │   │
+│  │  │ RDS         │  │ Redis HA    │  │ S3          │  │ Registry    │ │   │
+│  │  │ PostgreSQL  │  │ Operator    │  │ Backups     │  │ S3 Backend  │ │   │
+│  │  │ (AWS)       │  │ (Spotahome) │  │ Artifacts   │  │             │ │   │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │   │
 │  │                                                                      │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
@@ -78,7 +82,7 @@ Instalar o **GitLab CE** no cluster EKS usando o Helm chart oficial em modo **h�
 Antes de iniciar, confirme que todos os itens abaixo estão concluídos:
 
 - [ ] **Doc 01 concluído**: VPC, EKS, Node Groups operacionais
-- [ ] **Doc 03 concluído**: RDS PostgreSQL e Redis (bitnami) operacionais
+- [ ] **Doc 03 concluído**: RDS PostgreSQL e **Redis Operator** (Spotahome RedisFailover) operacionais
 - [ ] **kubectl configurado**: `kubectl get nodes` retorna nodes `Ready`
 - [ ] **Helm 3.x instalado**: `helm version` retorna versão 3.x
 - [ ] **Domínio disponível**: Você tem acesso a um domínio para configurar DNS
@@ -103,9 +107,11 @@ kubectl get storageclass
 kubectl run psql-test --image=postgres:15 --rm -it --restart=Never -- \
   psql -h <RDS_ENDPOINT> -U postgres_admin -d postgres -c "SELECT 1;"
 
-# Verificar Redis está operacional
+# Verificar Redis Operator está operacional (ADR-023)
+kubectl get redisfailover redis-ha -n redis
 kubectl get pods -n redis
-kubectl exec -it <redis-pod> -n redis -- redis-cli ping
+# Esperado: rfr-redis-ha-* (3 redis) e rfs-redis-ha-* (3 sentinels) Running
+kubectl exec -it rfr-redis-ha-0 -n redis -c redis -- redis-cli ping
 ```
 
 ### Informações Necessárias
@@ -116,8 +122,9 @@ Colete estas informações antes de prosseguir:
 |------------|------------|---------|
 | **RDS Endpoint** | Console AWS > RDS > Instances | `k8s-platform-prod-postgresql.xxxxx.us-east-1.rds.amazonaws.com` |
 | **RDS Password** | Secrets Manager | `senha_segura_32chars` |
-| **Redis Endpoint** | `kubectl get svc -n redis` | `redis-master.redis.svc.cluster.local` |
-| **Redis Password** | `kubectl get secret -n redis` | `redis_password` |
+| **Redis Sentinel** | Service Redis Operator (ADR-023) | `rfs-redis-ha.redis.svc.cluster.local:26379` |
+| **Redis Master** | Service Redis Operator (fallback) | `rfr-redis-ha.redis.svc.cluster.local:6379` |
+| **Redis Password** | `kubectl get secret rfr-redis-ha -n redis` | Secret gerado pelo Operator |
 | **Domínio** | Seu registrador | `gitlab.empresa.com.br` |
 | **S3 Bucket (backups)** | Console AWS > S3 | `k8s-platform-gitlab-backups-xxxxx` |
 | **AWS Account ID** | Console AWS > Conta | `123456789012` |
@@ -357,11 +364,11 @@ kubectl create secret generic gitlab-postgresql-password \
 kubectl get secret gitlab-postgresql-password -n gitlab
 ```
 
-**Secret para Redis:**
+**Secret para Redis (Spotahome Operator - ADR-023):**
 
 ```bash
-# Obter password do Redis (se configurado)
-REDIS_PASSWORD=$(kubectl get secret redis -n redis -o jsonpath='{.data.redis-password}' | base64 -d)
+# Obter password do Redis Operator (gerado automaticamente pelo Operator)
+REDIS_PASSWORD=$(kubectl get secret rfr-redis-ha -n redis -o jsonpath='{.data.password}' | base64 -d)
 
 # Criar secret para GitLab
 kubectl create secret generic gitlab-redis-secret \
@@ -427,7 +434,7 @@ cat > gitlab-values.yaml <<'EOF'
 # =============================================================================
 # Versão: 7.7.x
 # Ambiente: Produção
-# Configuração: Híbrido (GitLab no K8s, PostgreSQL no RDS, Redis via bitnami)
+# Configuração: Híbrido (GitLab no K8s, PostgreSQL no RDS, Redis via Spotahome Operator - ADR-023)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -484,11 +491,18 @@ global:
       key: postgresql-password
 
   # -------------------------------------------------------------------------
-  # REDIS (bitnami/redis no cluster)
+  # REDIS (Spotahome Operator com Sentinel HA - ADR-023)
   # -------------------------------------------------------------------------
   redis:
-    host: redis-master.redis.svc.cluster.local
+    # Master service (failover automático via Sentinel)
+    host: rfr-redis-ha.redis.svc.cluster.local
     port: 6379
+
+    # Sentinel configuration (HA automático)
+    sentinels:
+      - host: rfs-redis-ha.redis.svc.cluster.local
+        port: 26379
+
     password:
       enabled: true
       secret: gitlab-redis-secret
@@ -664,7 +678,7 @@ gitlab:
 postgresql:
   install: false
 
-# Redis interno (desabilitado - usando bitnami/redis)
+# Redis interno (desabilitado - usando Spotahome Redis Operator, ADR-023)
 redis:
   install: false
 

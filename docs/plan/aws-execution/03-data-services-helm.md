@@ -1,9 +1,12 @@
-# 03 - Data Services Helm
+# 03 - Data Services (RDS + Kubernetes Operators)
 
-**Épico C** | **Esforço: 20 person-hours** | **Sprint 1**
+**Épico C** | **Esforço: 24 person-hours** | **Sprint 1** | **Atualizado: 2026-01-29**
 
-> ⚠️ **Abordagem CLI-First:** Este documento oferece múltiplas opções de provisionamento.
-> **Recomendação:** Use Terraform ou AWS CLI para RDS. Redis e RabbitMQ já usam Helm (CLI).
+> ⚠️ **Mudança Estratégica (ADR-023):** Este documento foi atualizado para refletir a migração de Bitnami Helm Charts para Kubernetes Operators.
+>
+> **Decisão:** Spotahome Redis Operator + RabbitMQ Cluster Operator (economia $72,900/ano vs Tanzu Standard)
+>
+> **Referência:** [ADR-023: Migration from Bitnami Charts to Kubernetes Operators](../../context/decisions.md#adr-023)
 
 ---
 
@@ -11,10 +14,11 @@
 
 1. [Visão Geral](#1-visão-geral)
 2. [Task C.1: RDS PostgreSQL Multi-AZ (4h)](#2-task-c1-rds-postgresql-multi-az-4h)
-3. [Task C.2: Redis via Helm (8h)](#3-task-c2-redis-via-helm-8h)
-4. [Task C.3: RabbitMQ via Helm (8h)](#4-task-c3-rabbitmq-via-helm-8h)
+3. [Task C.2: Redis via Spotahome Operator (10h)](#3-task-c2-redis-via-spotahome-operator-10h)
+4. [Task C.3: RabbitMQ via Cluster Operator (10h)](#4-task-c3-rabbitmq-via-cluster-operator-10h)
 5. [Validação e Definition of Done](#5-validação-e-definition-of-done)
 6. [Troubleshooting](#6-troubleshooting)
+7. [Referências ADR-023](#7-referências-adr-023)
 
 ---
 
@@ -24,11 +28,11 @@
 
 Provisionar os serviços de dados necessários para a plataforma:
 
-| Serviço | Abordagem | Propósito |
-|---------|-----------|-----------|
-| **PostgreSQL** | AWS RDS (gerenciado) | Banco de dados para GitLab, Keycloak, SonarQube |
-| **Redis** | Helm bitnami/redis | Cache e sessões (cloud-agnostic) |
-| **RabbitMQ** | Helm bitnami/rabbitmq | Mensageria (cloud-agnostic) |
+| Serviço | Abordagem | Propósito | Decisão ADR |
+|---------|-----------|-----------|-------------|
+| **PostgreSQL** | AWS RDS (gerenciado) | Banco de dados para GitLab, Keycloak, SonarQube | - |
+| **Redis** | **Spotahome Redis Operator** | Cache e sessões (HA automático) | **ADR-023** |
+| **RabbitMQ** | **RabbitMQ Cluster Operator** | Mensageria (quorum queues) | **ADR-023** |
 
 ### Arquitetura
 
@@ -82,12 +86,21 @@ Provisionar os serviços de dados necessários para a plataforma:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Helm Charts Utilizados
+### Kubernetes Operators Utilizados
 
-| Chart | Versão | Repository |
-|-------|--------|------------|
-| `bitnami/redis` | v18.x | https://charts.bitnami.com/bitnami |
-| `bitnami/rabbitmq` | v12.x | https://charts.bitnami.com/bitnami |
+| Operator | CRD | Repository | Versão |
+|----------|-----|------------|--------|
+| **Spotahome Redis Operator** | `RedisFailover` | https://github.com/spotahome/redis-operator | v1.3.x |
+| **RabbitMQ Cluster Operator** | `RabbitmqCluster` | https://github.com/rabbitmq/cluster-operator | v2.x |
+
+**Referência Estratégica:** [ADR-023 - Migration from Bitnami Charts to Kubernetes Operators](../../context/decisions.md#adr-023)
+
+**Benefícios vs Bitnami Helm Charts:**
+- ✅ **Economia:** $72,900/ano (evita Tanzu Standard $72k + redução infra $900)
+- ✅ **HA Superior:** Failover automático < 30s (vs 5-6 min manual)
+- ✅ **Backups Nativos:** CronJobs automáticos (vs scripts manuais)
+- ✅ **Cloud-Agnostic:** Portável GCP/Azure sem refactoring
+- ✅ **Zero-Downtime Upgrades:** Rolling updates
 
 ---
 
@@ -605,25 +618,43 @@ GRANT ALL ON SCHEMA public TO harbor_user;
 
 ---
 
-## 3. Task C.2: Redis via Helm (8h)
+## 3. Task C.2: Redis via Spotahome Operator (10h)
 
-### 3.1 Adicionar Repositório Bitnami
+> **Mudança Estratégica (ADR-023):** Substituímos `bitnami/redis` Helm chart por **Spotahome Redis Operator** devido à migração do Bitnami para licenciamento pago (Tanzu Standard $72k/ano).
+>
+> **Benefícios:**
+> - ✅ Failover automático < 30s (vs 5-6 min manual)
+> - ✅ Zero custo licenciamento
+> - ✅ Backups CronJobs nativos
+> - ✅ ServiceMonitors Prometheus out-of-the-box
+
+### 3.1 Instalar Spotahome Redis Operator
 
 ```bash
-# Adicionar repositório
-helm repo add bitnami https://charts.bitnami.com/bitnami
+# Adicionar repositório do Operator
+helm repo add spotahome https://spotahome.github.io/redis-operator
 helm repo update
 
 # Verificar versão disponível
-helm search repo bitnami/redis --versions | head -10
+helm search repo spotahome/redis-operator --versions | head -5
 ```
 
 ---
 
-### 3.2 Criar Namespace
+### 3.2 Criar Namespaces
 
 ```bash
+# Namespace para o Operator
+kubectl create namespace redis-operator
+
+# Namespace para instâncias Redis
 kubectl create namespace redis
+
+# Labels
+kubectl label namespace redis-operator \
+  project=k8s-platform \
+  environment=prod \
+  domain=operators
 
 kubectl label namespace redis \
   project=k8s-platform \
@@ -633,21 +664,53 @@ kubectl label namespace redis \
 
 ---
 
-### 3.3 Criar values.yaml para Redis
+### 3.3 Deploy Redis Operator
 
 ```bash
-cat > redis-values.yaml <<'EOF'
-# =============================================================================
-# Redis Helm Chart - values.yaml
-# =============================================================================
-# Chart: bitnami/redis v18.x
-# Mode: Master-Replica com Sentinel (HA)
-# =============================================================================
+# Instalar Operator via Helm
+helm install redis-operator spotahome/redis-operator \
+  --namespace redis-operator \
+  --version 3.3.0 \
+  --set image.tag=v1.3.0 \
+  --timeout 300s \
+  --wait
 
-# -----------------------------------------------------------------------------
-# ARCHITECTURE
-# -----------------------------------------------------------------------------
-architecture: replication
+# Verificar CRDs instalados
+kubectl get crd | grep redis
+# Saída esperada:
+# redisfailovers.databases.spotahome.com
+
+# Verificar Operator Running
+kubectl get pods -n redis-operator
+```
+
+---
+
+### 3.4 Criar RedisFailover CRD (HA Configuration)
+
+```bash
+cat > redis-failover.yaml <<'EOF'
+# =============================================================================
+# RedisFailover CRD - Spotahome Redis Operator
+# =============================================================================
+# Operator: redis-operator v1.3.0
+# Mode: Sentinel-based HA (1 master + 2 replicas + 3 sentinels)
+# =============================================================================
+apiVersion: databases.spotahome.com/v1
+kind: RedisFailover
+metadata:
+  name: redis-ha
+  namespace: redis
+  labels:
+    project: k8s-platform
+    environment: prod
+    domain: data-services
+spec:
+  # -----------------------------------------------------------------------------
+  # SENTINEL CONFIGURATION (High Availability)
+  # -----------------------------------------------------------------------------
+  sentinel:
+    replicas: 3  # Quorum for automatic failover
 
 # -----------------------------------------------------------------------------
 # AUTHENTICATION
@@ -795,95 +858,212 @@ commonLabels:
   environment: prod
   domain: data-services
 
+  # -----------------------------------------------------------------------------
+  # REDIS CONFIGURATION
+  # -----------------------------------------------------------------------------
+  redis:
+    replicas: 3  # 1 master + 2 replicas (failover automático)
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Persistence
+    storage:
+      persistentVolumeClaim:
+        metadata:
+          name: redis-data
+        spec:
+          storageClassName: gp3
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 8Gi
+
+    # Node placement
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-type
+                  operator: In
+                  values:
+                    - workloads
+
+  # -----------------------------------------------------------------------------
+  # METRICS (Prometheus)
+  # -----------------------------------------------------------------------------
+  enableMetrics: true
+  exporter:
+    enabled: true
+    image: oliver006/redis_exporter:v1.55.0
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {cpu: 50m, memory: 64Mi}
 EOF
 ```
 
 ---
 
-### 3.4 Instalar Redis
+### 3.5 Deploy RedisFailover
 
 ```bash
-# Instalar Redis
-helm install redis bitnami/redis \
-  --namespace redis \
-  --values redis-values.yaml \
-  --version 18.6.1 \
-  --timeout 300s \
-  --wait
+# Aplicar CRD
+kubectl apply -f redis-failover.yaml
 
-# Verificar instalação
+# Aguardar criação dos pods (Operator cria automaticamente)
 kubectl get pods -n redis -w
+
+# Saída esperada (após ~2min):
+# NAME                    READY   STATUS    RESTARTS   AGE
+# rfr-redis-ha-0          2/2     Running   0          90s
+# rfr-redis-ha-1          2/2     Running   0          60s
+# rfr-redis-ha-2          2/2     Running   0          30s
+# rfs-redis-ha-0          1/1     Running   0          90s
+# rfs-redis-ha-1          1/1     Running   0          75s
+# rfs-redis-ha-2          1/1     Running   0          60s
 ```
 
-**Saída esperada:**
+**Componentes Criados Automaticamente:**
+- `rfr-redis-ha-*` → Redis instances (1 master + 2 replicas)
+- `rfs-redis-ha-*` → Sentinel instances (quorum 3)
+- Services: `rfs-redis-ha` (Sentinel), `rfr-redis-ha` (Redis master)
+- ConfigMaps, Secrets (gerados pelo Operator)
 
-```
-NAME                READY   STATUS    RESTARTS   AGE
-redis-master-0      2/2     Running   0          2m
-redis-replicas-0    2/2     Running   0          2m
-redis-replicas-1    2/2     Running   0          1m
+---
+
+### 3.6 Verificar HA e Sentinel
+
+```bash
+# Verificar status do RedisFailover CRD
+kubectl get redisfailover redis-ha -n redis
+
+# Saída esperada:
+# NAME       PHASE     MASTER   READY
+# redis-ha   Running   1        3
+
+# Conectar ao Sentinel e verificar master
+kubectl exec -it rfs-redis-ha-0 -n redis -- \
+  redis-cli -p 26379 SENTINEL masters
+
+# Saída esperada: mostra master atual e estado
 ```
 
 ---
 
-### 3.5 Obter Senha do Redis
+### 3.7 Testar Failover Automático (Simular Falha)
 
 ```bash
-# Obter senha gerada
-REDIS_PASSWORD=$(kubectl get secret redis -n redis -o jsonpath='{.data.redis-password}' | base64 -d)
+# 1. Identificar pod master atual
+MASTER_POD=$(kubectl exec -it rfs-redis-ha-0 -n redis -- \
+  redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster | head -1)
+echo "Master atual: $MASTER_POD"
+
+# 2. Deletar pod master (simular falha)
+kubectl delete pod rfr-redis-ha-0 -n redis
+
+# 3. Observar failover automático (< 30s)
+kubectl get pods -n redis -w
+
+# 4. Verificar novo master
+kubectl exec -it rfs-redis-ha-0 -n redis -- \
+  redis-cli -p 26379 SENTINEL masters
+
+# ✅ Resultado esperado: Sentinel promove réplica a master em < 30s
+```
+
+---
+
+### 3.8 Conexão de Aplicações (GitLab, etc)
+
+```bash
+# Service DNS para aplicações:
+# - Sentinel (HA automático): rfs-redis-ha.redis.svc.cluster.local:26379
+# - Redis master direto: rfr-redis-ha.redis.svc.cluster.local:6379
+
+# Obter senha (gerada automaticamente pelo Operator)
+REDIS_PASSWORD=$(kubectl get secret rfr-redis-ha -n redis \
+  -o jsonpath='{.data.password}' | base64 -d)
 echo "Redis Password: $REDIS_PASSWORD"
 
-# Salvar para uso posterior
-kubectl create secret generic redis-password \
+# Criar secret no namespace gitlab para uso posterior
+kubectl create secret generic redis-credentials \
   --namespace gitlab \
+  --from-literal=sentinel-host=rfs-redis-ha.redis.svc.cluster.local \
+  --from-literal=sentinel-port=26379 \
   --from-literal=password="${REDIS_PASSWORD}" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ---
 
-### 3.6 Testar Conexão
+### 3.9 Testar Conexão e Performance
 
 ```bash
-# Testar conexão via pod temporário
+# Teste de conectividade
 kubectl run redis-test --rm -it --restart=Never \
-  --image=bitnami/redis:latest \
+  --image=redis:7-alpine \
   --namespace redis \
-  --env="REDIS_PASSWORD=${REDIS_PASSWORD}" \
-  -- redis-cli -h redis-master -a $REDIS_PASSWORD ping
+  -- redis-cli -h rfr-redis-ha -a $REDIS_PASSWORD ping
 
 # Saída esperada: PONG
 
-# Testar via Sentinel
-kubectl run redis-test --rm -it --restart=Never \
-  --image=bitnami/redis:latest \
-  --namespace redis \
-  -- redis-cli -h redis -p 26379 sentinel masters
-```
-
----
-
-### 3.7 Verificar Replicação
-
-```bash
-# Verificar info de replicação
-kubectl exec -it redis-master-0 -n redis -c redis -- \
-  redis-cli -a $REDIS_PASSWORD info replication
+# Teste de write/read
+kubectl exec -it rfr-redis-ha-0 -n redis -c redis -- \
+  redis-cli -a $REDIS_PASSWORD <<EOF
+SET test-key "ADR-023 Operators Working"
+GET test-key
+INFO replication
+EOF
 
 # Saída esperada:
+# OK
+# "ADR-023 Operators Working"
 # role:master
 # connected_slaves:2
-# slave0:ip=redis-replicas-0.redis-headless.redis.svc.cluster.local,port=6379,state=online,...
-# slave1:ip=redis-replicas-1.redis-headless.redis.svc.cluster.local,port=6379,state=online,...
 ```
 
 ---
 
-## 4. Task C.3: RabbitMQ via Helm (8h)
+## 4. Task C.3: RabbitMQ via Cluster Operator (10h)
 
-### 4.1 Criar Namespace
+> **Mudança Estratégica (ADR-023):** Substituímos `bitnami/rabbitmq` Helm chart por **RabbitMQ Cluster Operator** (oficial VMware/Broadcom) devido à migração do Bitnami para licenciamento pago.
+>
+> **Benefícios:**
+> - ✅ TLS automático + Management UI integrada
+> - ✅ Quorum queues (HA superior a classic mirrored queues)
+> - ✅ Rolling updates zero-downtime
+> - ✅ Operator oficial (suporte VMware/Broadcom)
+
+### 4.1 Instalar RabbitMQ Cluster Operator
 
 ```bash
+# Deploy Operator + CRDs
+kubectl apply -f https://github.com/rabbitmq/cluster-operator/releases/download/v2.9.0/cluster-operator.yml
+
+# Verificar CRDs instalados
+kubectl get crd | grep rabbitmq
+# Saída esperada:
+# rabbitmqclusters.rabbitmq.com
+
+# Verificar Operator Running
+kubectl get pods -n rabbitmq-system
+# Saída esperada:
+# NAME                                         READY   STATUS    RESTARTS   AGE
+# rabbitmq-cluster-operator-xxx-yyy           1/1     Running   0          30s
+```
+
+---
+
+### 4.2 Criar Namespace para Instâncias
+
+```bash
+# Namespace para instâncias RabbitMQ
 kubectl create namespace rabbitmq
 
 kubectl label namespace rabbitmq \
@@ -894,21 +1074,30 @@ kubectl label namespace rabbitmq \
 
 ---
 
-### 4.2 Criar values.yaml para RabbitMQ
+### 4.3 Criar RabbitmqCluster CRD
 
 ```bash
-cat > rabbitmq-values.yaml <<'EOF'
+cat > rabbitmq-cluster.yaml <<'EOF'
 # =============================================================================
-# RabbitMQ Helm Chart - values.yaml
+# RabbitmqCluster CRD - RabbitMQ Cluster Operator
 # =============================================================================
-# Chart: bitnami/rabbitmq v12.x
-# Mode: Cluster com Quorum Queues
+# Operator: cluster-operator v2.9.0
+# Mode: 3-node cluster com quorum queues
 # =============================================================================
-
-# -----------------------------------------------------------------------------
-# REPLICAS
-# -----------------------------------------------------------------------------
-replicaCount: 3
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq-ha
+  namespace: rabbitmq
+  labels:
+    project: k8s-platform
+    environment: prod
+    domain: data-services
+spec:
+  # -----------------------------------------------------------------------------
+  # CLUSTER CONFIGURATION
+  # -----------------------------------------------------------------------------
+  replicas: 3
 
 # -----------------------------------------------------------------------------
 # AUTHENTICATION
@@ -1209,23 +1398,28 @@ kubectl get pvc -A | grep -E "(redis|rabbitmq)"
   - [ ] Credenciais armazenadas no Secrets Manager
   - [ ] Conexão testada do cluster EKS
 
-- [ ] **Redis (bitnami/redis)**
-  - [ ] Pods `redis-master-0` e `redis-replicas-*` Running
-  - [ ] Sentinel habilitado (3 instâncias)
-  - [ ] Replicação funcionando (2 replicas conectadas)
-  - [ ] Persistence habilitada (PVCs criados)
-  - [ ] Metrics habilitado
-  - [ ] NetworkPolicy aplicada
-  - [ ] Senha salva como Secret
+- [ ] **Redis (Spotahome Operator - ADR-023)**
+  - [ ] Redis Operator Running em `redis-operator` namespace
+  - [ ] RedisFailover CRD `redis-ha` criado e PHASE=Running
+  - [ ] Pods `rfr-redis-ha-*` (3 redis) e `rfs-redis-ha-*` (3 sentinels) Running
+  - [ ] Sentinel quorum operacional (verificado via `SENTINEL masters`)
+  - [ ] Failover automático testado (< 30s)
+  - [ ] Persistence habilitada (PVCs 8Gi criados)
+  - [ ] ServiceMonitor Prometheus configurado
+  - [ ] Senha obtida e secret criado no namespace `gitlab`
+  - [ ] **Economia:** $72,900/ano vs Bitnami Tanzu confirmada
 
-- [ ] **RabbitMQ (bitnami/rabbitmq)**
-  - [ ] 3 pods Running em cluster
-  - [ ] Cluster status mostra todos os nodes
-  - [ ] Management UI acessível
-  - [ ] Persistence habilitada (PVCs criados)
-  - [ ] Metrics habilitado
-  - [ ] NetworkPolicy aplicada
-  - [ ] Credenciais salvas como Secret
+- [ ] **RabbitMQ (Cluster Operator - ADR-023)**
+  - [ ] RabbitMQ Cluster Operator Running em `rabbitmq-system` namespace
+  - [ ] RabbitmqCluster CRD `rabbitmq-ha` criado (3 replicas)
+  - [ ] 3 pods Running (cluster status OK via `rabbitmqctl cluster_status`)
+  - [ ] Management UI acessível (port-forward ou Ingress)
+  - [ ] Quorum queues configuradas (superior a mirrored queues)
+  - [ ] Persistence habilitada (PVCs 8Gi criados)
+  - [ ] ServiceMonitor Prometheus configurado
+  - [ ] TLS automático gerado pelo Operator
+  - [ ] Credenciais obtidas e secret criado no namespace `gitlab`
+  - [ ] **Economia:** Confirmada (parte dos $72,900/ano total)
 
 - [ ] **Documentação**
   - [ ] Endpoint do RDS documentado
@@ -1297,17 +1491,50 @@ kubectl get namespace gitlab --show-labels
 
 ---
 
+## 7. Referências ADR-023
+
+### Documentação Estratégica
+
+| Documento | Seção | Conteúdo |
+|-----------|-------|----------|
+| **[ADR-023](../../context/decisions.md#adr-023)** | Migration from Bitnami Charts to Kubernetes Operators | Decisão completa, análise de agentes, economia $72,900/ano |
+| **[architecture.md](../../context/architecture.md)** | Marco 3 Data Services | Redis: Spotahome Operator, RabbitMQ: Cluster Operator |
+| **[costs.md](../../context/costs.md)** | Marco 3 Breakdown | Custos ajustados: Redis $0 + RabbitMQ $0 (usa nodes existentes) |
+| **[BITNAMI-LICENSING-IMPACT-ANALYSIS.md](../../finops/BITNAMI-LICENSING-IMPACT-ANALYSIS.md)** | Análise Impacto Licenciamento | Custo Tanzu Standard: $72,000/ano evitado |
+
+### Operators Utilizados
+
+| Operator | Repository | Docs | Status |
+|----------|------------|------|--------|
+| **Spotahome Redis Operator** | [GitHub](https://github.com/spotahome/redis-operator) | [Docs](https://github.com/spotahome/redis-operator/tree/master/docs) | Production-ready (>50 companies) |
+| **RabbitMQ Cluster Operator** | [GitHub](https://github.com/rabbitmq/cluster-operator) | [Docs](https://www.rabbitmq.com/kubernetes/operator/operator-overview.html) | Oficial VMware/Broadcom |
+
+### Benefícios Consolidados
+
+| Benefício | Redis Operator | RabbitMQ Operator |
+|-----------|----------------|-------------------|
+| **Economia licenciamento** | $36,000/ano | $36,000/ano |
+| **Failover automático** | < 30s (vs 5-6 min Bitnami) | Quorum queues (superior mirrored) |
+| **Backups** | CronJobs nativos | CronJobs nativos |
+| **HA Superior** | Sentinel 3 nodes | 3-node cluster |
+| **Cloud-agnostic** | ✅ Portável GCP/Azure | ✅ Portável GCP/Azure |
+| **Zero-downtime upgrades** | ✅ Rolling updates | ✅ Rolling updates |
+
+---
+
 ## Próximos Passos
 
 Após concluir este documento:
 
 1. Prosseguir para **[02-gitlab-helm-deploy.md](02-gitlab-helm-deploy.md)** (se não concluído)
 2. Depois **[04-observability-stack.md](04-observability-stack.md)**
+3. Validar economia real vs projeção ($72,900/ano esperado)
 
 ---
 
-**Documento:** 03-data-services-helm.md
-**Versão:** 1.0
-**Última atualização:** 2026-01-19
+**Documento:** 03-data-services-operators.md (atualizado de 03-data-services-helm.md)
+**Versão:** 2.0 (ADR-023 aplicado)
+**Última atualização:** 2026-01-29
 **Épico:** C
-**Esforço:** 20 person-hours
+**Esforço:** 24 person-hours (+4h vs planejamento original devido complexidade Operators)
+**Mudança Estratégica:** [ADR-023 - Migration from Bitnami Charts to Kubernetes Operators](../../context/decisions.md#adr-023)

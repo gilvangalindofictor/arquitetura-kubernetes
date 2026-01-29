@@ -1,6 +1,23 @@
 # AWS EKS Quickstart — GitLab, Observability e Serviços Básicos
 
-**Última atualização:** 2026-01-07
+**Última atualização:** 2026-01-07 | **Atualização Estratégica:** 2026-01-29 (ADR-023)
+
+> ⚠️ **ATUALIZAÇÃO CRÍTICA 2026-01-29 - ADR-023:** Este documento representa o **plano original** com Bitnami Helm Charts para Redis e RabbitMQ. **A estratégia foi atualizada** para usar **Kubernetes Operators** ao invés de Bitnami charts devido à mudança de licenciamento (Tanzu Standard $72,000/ano).
+>
+> **Nova Abordagem:**
+> - ✅ **Redis:** Spotahome Redis Operator (RedisFailover CRD, Sentinel-based HA)
+> - ✅ **RabbitMQ:** RabbitMQ Cluster Operator oficial (RabbitmqCluster CRD, Quorum Queues)
+> - ✅ **Economia:** $72,900/ano vs Bitnami Tanzu Standard
+> - ✅ **Benefícios:** HA superior, backups nativos, zero-downtime upgrades, cloud-agnostic
+>
+> **Documentos Atualizados:**
+> - 📄 [ADR-023: Migration from Bitnami Charts to Kubernetes Operators](../../context/decisions.md#adr-023)
+> - 📄 [03-data-services-operators.md](../aws-execution/03-data-services-helm.md) - Guia de implementação completo
+> - 📄 [executor-terraform.md](../../prompts/executor-terraform.md) - Framework Operators pattern
+>
+> Este documento permanece como **referência histórica** do planejamento original. Para implementação atual, consultar os documentos atualizados acima.
+
+---
 
 Resumo executivo rápido para o time terceirizado: plano estratégico para provisionar um ambiente AWS/EKS operacional com GitLab (híbrido Helm + serviços gerenciados), observability (OpenTelemetry + Prometheus/Grafana/Loki/Tempo) e serviços básicos (RDS Postgres, Redis e RabbitMQ via Helm). A abordagem é "clickOps rápido".
 

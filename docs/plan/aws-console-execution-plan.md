@@ -6,6 +6,24 @@
 **Região Principal:** us-east-1 (N. Virginia)
 **Ambientes:** Homologação + Produção
 
+> ⚠️ **AVISO: Documento de Referência Histórica**
+>
+> Este documento representa o **plano ideal original** (2026-01-22) e serve como referência arquitetural.
+>
+> **Para o estado atual da implementação, consulte:**
+> - **Arquitetura Real:** [docs/context/architecture.md](docs/context/architecture.md) (Marco 2 completo, 7 fases)
+> - **Planos Táticos:** [docs/plan/aws-execution/](docs/plan/aws-execution/) (comandos CLI executáveis)
+> - **Diário de Bordo:** [docs/plan/aws-execution/00-diario-de-bordo.md](docs/plan/aws-execution/00-diario-de-bordo.md) (versão 1.11)
+> - **Decisões Técnicas:** [docs/context/decisions.md](docs/context/decisions.md) (ADRs 001-021)
+>
+> **Principais Divergências do Plano Original:**
+> - Arquitetura: 2-AZ (não 3-AZ), VPC existente reaproveitada
+> - Redis: Helm bitnami (não ElastiCache)
+> - RDS: Single-AZ Fase 1 (Multi-AZ posterado para otimização)
+> - Observabilidade: Grafana Tempo (não Jaeger) - ADR-020
+> - Marco 3: Sem domínio Fase 1, LoadBalancer pattern - ADR-021
+> - Custo Atual: $666/mês (Marco 2 completo)
+
 ---
 
 ## 1️⃣ Visão Geral da Estratégia Cloud

@@ -1,24 +1,33 @@
 # 04 - Observability Stack
 
-**Épicos D, E, F** | **Esforço: 84 person-hours** | **Sprint 2** | **Status: 🟡 75% Completo**
+**Épicos D, E, F** | **Esforço: 84 person-hours** | **Sprint 2** | **Status: ✅ COMPLETO**
 
-**Última Atualização:** 2026-01-28
+**Última Atualização:** 2026-01-29
 
 ---
 
-## 📊 Status Atual (2026-01-28)
+## 📊 Status Atual (2026-01-29)
 
 | Fase | Componente | Status | Detalhes |
 |------|------------|--------|----------|
 | **Fase 1** | AWS Load Balancer Controller | ✅ COMPLETO | v1.11.0, IRSA configurado |
 | **Fase 2** | Cert-Manager | ✅ COMPLETO | v1.16.3, CRDs provisionados |
 | **Fase 3** | kube-prometheus-stack | ✅ COMPLETO | 13 pods Running, 3 PVCs (27Gi), Grafana acessível |
-| **Fase 4** | Loki + Fluent Bit | 📝 CÓDIGO IMPLEMENTADO | Aguardando deploy (ADR-005, módulos Terraform criados) |
-| **Fase 5** | Network Policies | ⏳ PENDENTE | Planejado |
-| **Fase 6** | Cluster Autoscaler | ⏳ PENDENTE | Planejado |
-| **Fase 7** | Aplicações de Teste | ⏳ PENDENTE | Planejado |
+| **Fase 4** | Loki + Fluent Bit | ✅ COMPLETO | 15 pods Running (8 Loki + 7 Fluent Bit), S3 backend |
+| **Fase 5** | Network Policies | ✅ COMPLETO | 11 políticas aplicadas, Calico policy-only mode |
+| **Fase 6** | Cluster Autoscaler | ✅ COMPLETO | 1 pod Running, IRSA configurado, ASG tags aplicados |
+| **Fase 7** | Test Applications | ✅ COMPLETO | 4 pods Running, 2 ALBs ativos HTTP-only |
+| **Fase 8** | OpenTelemetry Tempo + Collector | 📝 PLANEJADA | ADR-020 aprovado, módulos Terraform pendentes |
 
-**Progresso Geral:** 🟡 75% (Fases 1-3 completas, Fase 4 código pronto)
+**Progresso Geral:** ✅ 100% Marco 2 Fases 1-7 | 📝 Fase 8 Planejada
+
+**Custo Atual Marco 2:** $666/mês (Fases 1-7) | **Custo Projetado:** $685.70/mês (com Fase 8)
+
+**Referências:**
+- ADR-020: OpenTelemetry Tracing Strategy (Tempo vs Jaeger, economia $205.55/mês)
+- ADR-021: No-Domain Phase 1 Strategy (Marco 3 sem domínio, LoadBalancer pattern)
+- Diário de Bordo: Versão 1.11 (2026-01-29) - Mudança estratégica completa
+- Plano Executivo: ~/.claude/plans/wild-wiggling-treasure.md (8 semanas, 217h)
 
 ---
 
