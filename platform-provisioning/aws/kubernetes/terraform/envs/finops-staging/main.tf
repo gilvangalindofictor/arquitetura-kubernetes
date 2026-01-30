@@ -43,42 +43,62 @@ data "aws_autoscaling_groups" "eks_nodes" {
 module "finops_automation" {
   source = "../../modules/finops-automation"
 
-  environment             = "staging"
-  cluster_name            = var.cluster_name
-  rds_instance_identifier = var.rds_instance_identifier
-  asg_names               = var.asg_names
+  # Core configuration
+  environment     = "staging"
+  cluster_name    = var.cluster_name
+  rds_instance_id = var.rds_instance_identifier
+  asg_names       = var.asg_names
 
   # Schedules (BRT timezone = UTC-3)
   # Shutdown: 18:00 BRT = 21:00 UTC Monday-Friday
   # Startup:  08:00 BRT = 11:00 UTC Monday-Friday
-  shutdown_schedule = "cron(0 21 ? * MON-FRI *)"
   startup_schedule  = "cron(0 11 ? * MON-FRI *)"
+  shutdown_schedule = "cron(0 21 ? * MON-FRI *)"
 
-  # Circuit breaker configuration
-  circuit_breaker_threshold = 3
+  # CRITICAL: Start with automation DISABLED for manual testing
+  enable_automation = false
 
   # Lambda configuration
-  lambda_timeout = 900 # 15 minutes (RDS startup can take 3-5 min)
+  lambda_timeout = 300 # 5 minutes
   lambda_memory  = 512
-  lambda_runtime = "python3.12"
+  lambda_runtime = "python3.11"
 
-  # CloudWatch configuration
-  cloudwatch_logs_retention_days   = 30
-  alarm_startup_duration_threshold = 600 # 10 minutes
+  # Circuit breaker
+  circuit_breaker_threshold = 3
 
-  # Feature flags
-  enable_brasilapi_holidays = true
-  health_check_enabled      = true
+  # Monitoring
+  enable_cloudwatch_alarms   = true
+  startup_duration_threshold = 600 # 10 minutes
+  sns_topic_arn              = ""  # Optional: add SNS topic for alerts
 
-  # Security tags (mandatory)
+  # Node groups configuration (startup target sizes)
+  node_groups_config = {
+    system = {
+      min_size     = 0
+      desired_size = 2
+      max_size     = 4
+    }
+    workloads = {
+      min_size     = 0
+      desired_size = 3
+      max_size     = 6
+    }
+    critical = {
+      min_size     = 0
+      desired_size = 2
+      max_size     = 4
+    }
+  }
+
+  # Ownership tags
+  owner_email = "devops-team@company.com"
+  cost_center = "Infrastructure-Optimization"
+
+  # Additional tags (merged with module security tags)
   tags = {
-    Project            = "FinOps-Automation"
-    Environment        = "staging"
-    ManagedBy          = "Terraform"
-    SecurityReview     = "2026-01-30"
-    Compliance         = "LGPD-OK"
-    DataClassification = "Internal"
-    CriticalityTier    = "Medium"
-    Owner              = "DevOps-Team"
+    Project     = "FinOps-Automation"
+    Environment = "staging"
+    ManagedBy   = "Terraform"
+    Deployment  = "executor-terraform.md"
   }
 }
