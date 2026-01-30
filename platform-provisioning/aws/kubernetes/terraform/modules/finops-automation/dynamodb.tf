@@ -100,9 +100,6 @@ resource "aws_dynamodb_table_item" "initial_state" {
     holidays_cache = {
       M = {}
     }
-    ttl = {
-      N = tostring(timeadd(timestamp(), "720h")) # 30 days from now (720 hours)
-    }
   })
 
   lifecycle {

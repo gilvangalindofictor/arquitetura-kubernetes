@@ -109,7 +109,7 @@ resource "aws_lambda_function" "finops_stop" {
 resource "aws_cloudwatch_log_group" "lambda_start" {
   name              = "/aws/lambda/finops-scheduler-start-${var.environment}"
   retention_in_days = 14
-  kms_key_id        = aws_kms_key.dynamodb_finops.arn # Reuse DynamoDB KMS key
+  # KMS encryption removed - operational logs don't require KMS
 
   tags = local.security_tags
 }
@@ -117,7 +117,7 @@ resource "aws_cloudwatch_log_group" "lambda_start" {
 resource "aws_cloudwatch_log_group" "lambda_stop" {
   name              = "/aws/lambda/finops-scheduler-stop-${var.environment}"
   retention_in_days = 14
-  kms_key_id        = aws_kms_key.dynamodb_finops.arn
+  # KMS encryption removed - operational logs don't require KMS
 
   tags = local.security_tags
 }
