@@ -28,6 +28,7 @@ sns = boto3.client('sns')
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+RDS_INSTANCE_ID = os.environ.get('RDS_INSTANCE_ID', '')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 
 # Node groups configuration
@@ -35,13 +36,6 @@ NODE_GROUPS_CONFIG = {
     'system': {'min': 2, 'desired': 2, 'max': 4},
     'workloads': {'min': 2, 'desired': 3, 'max': 6},
     'critical': {'min': 2, 'desired': 2, 'max': 4}
-}
-
-# RDS instances mapping
-RDS_INSTANCES = {
-    'dev': 'gitlab-dev',
-    'staging': 'gitlab-staging',
-    'prod': 'gitlab-prod'
 }
 
 
@@ -71,13 +65,12 @@ def lambda_handler(event, context):
                 results['node_groups'][ng_name] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
 
-        # Start RDS if applicable
-        rds_instance = RDS_INSTANCES.get(ENVIRONMENT)
-        if rds_instance:
+        # Start RDS if configured
+        if RDS_INSTANCE_ID:
             try:
-                start_rds(rds_instance, results)
+                start_rds(RDS_INSTANCE_ID, results)
             except Exception as e:
-                logger.error(f"Error starting RDS {rds_instance}: {str(e)}")
+                logger.error(f"Error starting RDS {RDS_INSTANCE_ID}: {str(e)}")
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
 

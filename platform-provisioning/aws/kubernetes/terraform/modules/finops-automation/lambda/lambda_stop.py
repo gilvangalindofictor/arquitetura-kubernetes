@@ -29,6 +29,7 @@ sns = boto3.client('sns')
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+RDS_INSTANCE_ID = os.environ.get('RDS_INSTANCE_ID', '')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 CREATE_RDS_SNAPSHOT = os.environ.get('CREATE_RDS_SNAPSHOT', 'false').lower() == 'true'
 
@@ -37,13 +38,6 @@ NODE_GROUPS_CONFIG = {
     'system': {'min': 0, 'desired': 0, 'max': 4},
     'workloads': {'min': 0, 'desired': 0, 'max': 6},
     'critical': {'min': 0, 'desired': 0, 'max': 4}
-}
-
-# RDS instances mapping
-RDS_INSTANCES = {
-    'dev': 'gitlab-dev',
-    'staging': 'gitlab-staging',
-    'prod': 'gitlab-prod'
 }
 
 
@@ -66,16 +60,15 @@ def lambda_handler(event, context):
     }
 
     try:
-        # Stop RDS (with optional snapshot)
-        rds_instance = RDS_INSTANCES.get(ENVIRONMENT)
-        if rds_instance:
+        # Stop RDS (with optional snapshot) if configured
+        if RDS_INSTANCE_ID:
             try:
                 if CREATE_RDS_SNAPSHOT:
-                    create_snapshot(rds_instance, results)
+                    create_snapshot(RDS_INSTANCE_ID, results)
 
-                stop_rds(rds_instance, results)
+                stop_rds(RDS_INSTANCE_ID, results)
             except Exception as e:
-                logger.error(f"Error stopping RDS {rds_instance}: {str(e)}")
+                logger.error(f"Error stopping RDS {RDS_INSTANCE_ID}: {str(e)}")
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
 
