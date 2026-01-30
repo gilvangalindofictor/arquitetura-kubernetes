@@ -26,11 +26,11 @@ declare -A NODE_GROUPS=(
     ["critical"]="0:0:4"
 )
 
-# RDS instances
+# RDS instances (Marco 3 - PostgreSQL)
 declare -A RDS_INSTANCES=(
-    ["dev"]="gitlab-dev"
-    ["staging"]="gitlab-staging"
-    ["prod"]="gitlab-prod"
+    ["dev"]="k8s-platform-prod-postgresql"
+    ["staging"]="k8s-platform-prod-postgresql"
+    ["prod"]="k8s-platform-prod-postgresql"
 )
 
 # Cores

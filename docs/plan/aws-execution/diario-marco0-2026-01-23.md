@@ -1824,4 +1824,148 @@ Conforme [README.md](../../../README.md), a próxima fase é:
 ---
 
 Sessão concluída em: 2026-01-26 14:35 UTC
+
+---
+
+## 📅 2026-01-30 - Repriorização Estratégica: FinOps Automation PRIORITÁRIO
+
+### 🎯 Decisão Estratégica
+
+**Decisão:** Repriorizados todos os marcos de desenvolvimento para colocar a automação FinOps (Fase 9) à frente de Marco 3 (Workloads), permitindo deploy e utilização da funcionalidade **nos próximos dias** (2026-01-31 a 2026-02-03).
+
+**Motivação:** Obter economia imediata de custos através da automação de start/stop dos ambientes STAGING e PRODUCTION, sem esperar a conclusão completa de Marco 2.
+
+### 📊 Nova Priorização dos Marcos
+
+**Ordem ANTERIOR:**
+```
+Marco 0 (✅) → Marco 1 (✅) → Marco 2 (🟡 7/8) → Marco 3 (Workloads) → Marco 4 (FinOps)
+```
+
+**Ordem ATUAL (REPRIORITIZADA):**
+```
+Marco 0 (✅) → Marco 1 (✅) → Marco 2 (🟡 7/8) → 🔴 Fase 9: FinOps Automation (PRÓXIMO) → Marco 3 (BLOQUEADO)
+```
+
+**Status:** 🔴 PRIORIDADE MÁXIMA - Deploy imediato (próximos 3-5 dias)
+
+### 💰 Impacto Financeiro
+
+**Economia Imediata (Fase 1 - STAGING only):**
+- **Mensal:** R$ 360/mês (19.9% de redução)
+- **Anual:** R$ 4.320/ano
+- **Horário:** 8h-18h (segunda a sexta)
+- **Feriados:** Integração com BrasilAPI (shutdown automático)
+
+**Economia Futura (Fase 2 - STAGING + PRODUCTION):**
+- **Mensal total:** R$ 1.140/mês
+- **Anual total:** R$ 13.680/ano
+- **PRODUCTION:** Shutdown madrugada 0h-7h (7 dias/semana)
+- **ROI Year 1:** 382%
+
+**Economia Máxima (Fase 3 - STAGING on-demand + PRODUCTION):**
+- **Mensal total:** R$ 1.842/mês
+- **Anual total:** R$ 22.104/ano
+- **STAGING:** On-demand apenas (shutdown total quando não utilizado)
+- **ROI Year 1:** 521%
+
+### 📅 Timeline de Deploy
+
+**Deploy STAGING (Fase 1):**
+- **Início:** 2026-01-31 (sexta-feira)
+- **Conclusão:** 2026-02-03 (segunda-feira)
+- **Duração:** 3 dias úteis
+- **Economia ativa:** A partir de 2026-02-03
+
+**Próximas fases:**
+- **Fase 2 (PROD):** Após estabilização STAGING (1-2 semanas monitoramento)
+- **Fase 3 (On-demand):** Após go-live PRODUCTION
+
+### 🚧 Impacto nos Marcos
+
+**Marco 2 - Platform Services:**
+- **Status atual:** 🟡 7/8 fases completas
+- **Fase 8 pendente:** Políticas de rede (Network Policies)
+- **Ação:** Fase 8 pode ser concluída DEPOIS da automação FinOps
+
+**Marco 3 - Workloads:**
+- **Status:** ⏸️ **BLOQUEADO** até conclusão da automação FinOps
+- **Motivo:** Priorizar economia imediata de custos
+- **Retomada:** Após deploy e validação da Fase 1 FinOps (estimado 2026-02-05)
+
+### 📝 Documentos Atualizados
+
+**Arquitetura e planejamento:**
+1. [architecture.md](../../context/architecture.md) - Versão 2.2
+   - Status atualizado: 🔴 PRIORIDADE MÁXIMA
+   - Marcos reorganizados: FinOps antes de Marco 3
+   - Timeline de deploy: 2026-01-31 a 2026-02-03
+
+2. [costs.md](../../context/costs.md)
+   - Seção PRODUCTION adicionada
+   - Consolidação multi-ambiente (3 fases)
+   - ROI e payback calculados
+
+3. [decisions.md](../../context/decisions.md)
+   - ADR-024 expandido: Multi-Ambiente (STAGING + PRODUCTION)
+   - Estratégia evolutiva 3-fases documentada
+
+**Demandas e execução:**
+4. [automacao-finops-production.md](../../demands/2026-01-30-automacao-finops-production.md)
+   - Demanda PRODUCTION criada
+   - Especificações técnicas completas
+   - Health checks rigorosos e rollback automático
+
+5. [fase-9-finops-multi-ambiente-automation.md](fase-9-finops-multi-ambiente-automation.md)
+   - Plano executável completo (13 seções)
+   - Terraform HCL + Lambda Python
+   - Testes, monitoramento e troubleshooting
+
+### 🎓 Justificativa Técnica
+
+**Por que agora:**
+1. **Infraestrutura pronta:** EKS, ALB, RDS já provisionados
+2. **Economia imediata:** R$ 4.320/ano sem esperar Marco 3
+3. **Risco baixo:** Implementação isolada, não afeta workloads
+4. **ROI rápido:** Payback em 2.3 meses (STAGING) ou 1.9 meses (PROD)
+
+**Por que antes de Marco 3:**
+1. **Independência:** FinOps não depende de workloads em produção
+2. **Aprendizado:** Testar automação antes de cargas críticas
+3. **Iteração:** Ajustar schedules e health checks com feedback real
+
+### ✅ Próximas Ações Imediatas
+
+**2026-01-31 (sexta-feira):**
+- [ ] Criar módulo Terraform `finops-automation`
+- [ ] Implementar Lambda Python com health checks básicos
+- [ ] Configurar EventBridge Scheduler (UTC -3 = BRT)
+- [ ] Deploy em STAGING
+
+**2026-02-03 (segunda-feira):**
+- [ ] Validar primeiro ciclo automático (8h start, 18h stop)
+- [ ] Verificar logs CloudWatch e métricas
+- [ ] Confirmar economia de custos no Cost Explorer
+- [ ] Documentar observações e ajustes necessários
+
+**2026-02-05 (quarta-feira):**
+- [ ] Finalizar validações e monitoramento
+- [ ] Apresentar resultados e métricas
+- [ ] **Desbloquear Marco 3** para retomada
+
+### 📌 Estado Atual do Projeto
+
+**Marcos concluídos:**
+- ✅ Marco 0: Backend Terraform + VPC
+- ✅ Marco 1: Cluster EKS com 7 nodes
+- 🟡 Marco 2: Platform Services (7/8 fases)
+
+**Próxima ação PRIORITÁRIA:**
+- 🔴 **Deploy FinOps Automation STAGING** (2026-01-31 a 2026-02-03)
+- Economia: R$ 4.320/ano
+- Marco 3 bloqueado até conclusão
+
+---
+
+Sessão concluída em: 2026-01-30 17:45 UTC
 Tempo total da sessão: ~25 minutos

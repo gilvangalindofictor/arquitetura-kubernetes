@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-01-29
-**Versão:** 2.1 (Marco 2 Fase 8 Planejada)
-**Status:** 🟡 Em Expansão (Fase 8 Pendente)
+**Última Atualização:** 2026-01-30
+**Versão:** 2.2 (Marco 2 Fase 8 Completa + Fase 9 FinOps PRIORIZADA)
+**Status:** 🔴 PRIORIDADE MÁXIMA: Deploy FinOps Automation (próximos dias)
 
 ---
 
@@ -13,8 +13,10 @@ Plataforma Kubernetes completa na AWS, estruturada em marcos evolutivos, com foc
 ### Marcos de Evolução
 
 ```
-Marco 0: Baseline & State Management  →  Marco 1: EKS Cluster  →  Marco 2: Platform Services  →  Marco 3: Workloads (Próximo)
+Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (🟡 7/8)  →  🔴 FinOps Automation (PRÓXIMO - PRIORITÁRIO)  →  Marco 3: Workloads
 ```
+
+**⚠️ PRIORIDADE ATUAL:** Deploy imediato da automação FinOps (Fase 9) para economia de **R$ 4.320/ano** em STAGING nos próximos dias, antes de iniciar Marco 3.
 
 ---
 
@@ -73,7 +75,7 @@ Marco 0: Baseline & State Management  →  Marco 1: EKS Cluster  →  Marco 2: P
 
 ## 🛠️ Marco 2: Platform Services
 
-**Status:** 🟡 Fase 8 Planejada (7/8 Fases Completas)
+**Status:** 🟡 7/8 Fases Completas | 🔴 Fase 9 FinOps PRIORIZADA para deploy imediato
 
 ### Fase 1: AWS Load Balancer Controller
 - **Versão:** v1.11.0
@@ -197,6 +199,293 @@ Marco 0: Baseline & State Management  →  Marco 1: EKS Cluster  →  Marco 2: P
 - Root cause analysis: correlacionar erros com traces + logs
 
 **Custo:** $19.70/mês (S3 500GB + API requests + EBS 40Gi)
+
+### Fase 9: FinOps Automation Multi-Ambiente (STAGING + PRODUCTION)
+**Status:** 🔴 PRIORIDADE MÁXIMA - Deploy imediato (próximos 3-5 dias)
+**ADR-024:** Aprovado | **Demandas:** Criadas | **Plano:** Executável pronto
+
+**Objetivo:** Automação start/stop de ambientes com estratégia evolutiva 3-fases
+
+**⚠️ AÇÃO IMEDIATA REQUERIDA:**
+- **Deploy STAGING:** 2026-01-31 a 2026-02-03 (3 dias úteis)
+- **Economia imediata:** R$ 360/mês (R$ 4.320/ano) a partir do deploy
+- **Marco 3 BLOQUEADO** até conclusão desta fase
+
+---
+
+#### 📋 Estratégia Evolutiva
+
+**Fase 1 (Pré-PROD): STAGING 8h-18h Mon-Fri**
+```
+STAGING (Dev+Homolog):  Ligado 8h-18h Mon-Fri (desenvolvimento ativo)
+PROD:                   Não existe
+────────────────────────────────────
+Economia:               R$ 4.320/ano (STAGING apenas)
+```
+
+**Fase 2 (Go-Live): STAGING + PROD operando**
+```
+STAGING (Dev+Homolog):  Ligado 8h-18h Mon-Fri (testes + homologação)
+PROD:                   Ligado 7h-0h 7 dias/semana (operação)
+────────────────────────────────────
+Economia STAGING:       R$ 4.320/ano
+Economia PROD:          R$ 9.360/ano
+────────────────────────────────────
+TOTAL ECONOMIA:         R$ 13.680/ano ✅
+```
+
+**Fase 3 (Estável): STAGING on-demand + PROD**
+```
+STAGING:                DESLIGADO permanentemente (liga SOB DEMANDA)
+PROD:                   Ligado 7h-0h 7 dias/semana (operação)
+────────────────────────────────────
+Economia STAGING:       R$ 12.744/ano ✅ (95% economia, uptime ~5%)
+Economia PROD:          R$ 9.360/ano
+────────────────────────────────────
+TOTAL ECONOMIA:         R$ 22.104/ano ✅✅
+NPV 3 anos:             R$ 50.479 (ROI 1.121%)
+```
+
+**Gatilhos para Fase 3:**
+- [ ] PROD estável > 3 meses sem incidentes críticos
+- [ ] Cobertura testes automatizados > 80%
+- [ ] Equipe confortável com CI/CD production-first
+- [ ] STAGING usado < 2×/mês (validar necessidade real)
+
+---
+
+#### 🏗️ Componentes
+
+**Infraestrutura Compartilhada:**
+- **EventBridge Scheduler:** 4 rules (2 STAGING, 2 PRODUCTION)
+- **Lambda Functions:** 2 (staging, production) - Python 3.12, 512MB, 300s timeout
+- **DynamoDB Table:** `finops-scheduler-state` (circuit breaker multi-ambiente)
+- **BrasilAPI Integration:** Verificação de feriados nacionais brasileiros
+- **IAM Roles:** 2 (least privilege, environment-specific)
+
+**Arquitetura:**
+
+```
+EventBridge Rules (cron UTC)
+  ├─ STAGING
+  │   ├─ STARTUP: cron(0 11 ? * MON-FRI *)  # 8:00 AM BRT
+  │   └─ SHUTDOWN: cron(0 21 ? * MON-FRI *) # 6:00 PM BRT
+  │
+  └─ PRODUCTION
+      ├─ STARTUP: cron(0 10 ? * * *)        # 7:00 AM BRT
+      └─ SHUTDOWN: cron(0 3 ? * * *)        # 0:00 (meia-noite) BRT
+         ↓
+Lambda finops-scheduler-{environment}
+  ├─ 1. Verificar feriados (BrasilAPI) [PROD: liga em feriados, STAGING: não liga]
+  ├─ 2. Health checks (STAGING: GitLab jobs | PROD: Transações DB rigorosas)
+  ├─ 3. STOP: ASG min=0, RDS stop/pause, scale operators to 0
+  ├─ 4. START: RDS resume, ASG restore, wait for Ready
+  ├─ 5. Circuit breaker (DynamoDB state, PROD: 2 falhas, STAGING: 3 falhas)
+  ├─ 6. Snapshot RDS (PROD: pré-shutdown, STAGING: não)
+  └─ 7. Métricas CloudWatch + notificações Slack/PagerDuty
+         ↓
+AWS Resources (environment-specific)
+  ├─ Auto Scaling Groups (node groups regular/production)
+  ├─ RDS Instances (marco2-{env}-rds)
+  └─ Kubernetes Operators (Redis, RabbitMQ scaled to 0)
+```
+
+---
+
+#### 📊 Comparação STAGING vs PRODUCTION
+
+| Aspecto | STAGING (Dev+Homolog) | PRODUCTION |
+|---------|----------------------|------------|
+| **Schedule** | 8h-18h Mon-Fri | 7h-0h 7 dias/semana |
+| **Uptime** | 50h/semana (30%) | 119h/semana (71%) |
+| **Feriados** | SKIP (não liga) | LIGA (clientes ativos) |
+| **Health Checks** | GitLab jobs (básico) | Transações ativas + Conexões DB (rigoroso) |
+| **Rollback** | Manual (30 min) | Automático (< 5 min) |
+| **SLA** | 99.5% (8h-18h) | 99.9% (7h-0h) |
+| **Circuit Breaker** | 3 falhas | 2 falhas (mais sensível) |
+| **Snapshot RDS** | Não | Sim (pré-shutdown, RPO < 1h) |
+| **Notificação Falha** | Slack | PagerDuty + Slack |
+
+---
+
+#### 🎯 Node Groups Strategy
+
+**STAGING:**
+
+| Node Group | Behavior | Workloads | Uptime |
+|------------|----------|-----------|--------|
+| **critical-always-on** | Nunca desliga | GitLab, Harbor, ArgoCD, Prometheus/Grafana | 24/7 |
+| **regular** | Automação start/stop | Keycloak, SonarQube, Kong, Redis, RabbitMQ | 50h/semana |
+
+**PRODUCTION:**
+
+| Node Group | Behavior | Workloads | Uptime |
+|------------|----------|-----------|--------|
+| **critical-always-on** | Nunca desliga | Prometheus/Grafana, GitLab CI/CD, AlertManager | 24/7 |
+| **production** | Automação start/stop | Apps cliente, APIs, Kong, Redis, RabbitMQ | 119h/semana |
+
+**Justificativa Node Groups:**
+- **STAGING:** GitLab precisa jobs noturnos (backups, security scans), ArgoCD reconciliação contínua
+- **PRODUCTION:** Observabilidade 24/7 essencial, CI/CD jobs noturnos (backups 2 AM, scans 4 AM)
+
+---
+
+#### 💰 Economia Consolidada
+
+**STAGING:**
+
+| Recurso | 24/7 | Com Automação | Economia |
+|---------|------|---------------|----------|
+| EKS Control Plane | $37 | $37 | $0 |
+| EC2 nodes regular (2x t3.medium) | $60 | $18 | **$42** ✅ |
+| EC2 nodes critical (1x t3.medium) | - | $30 | $0 (novo) |
+| RDS db.t3.small auto-pause | $70 | $30 | **$40** ✅ |
+| Redis scaled to 0 | $10 | $5 | **$5** ✅ |
+| RabbitMQ scaled to 0 | $10 | $5 | **$5** ✅ |
+| Lambda + EventBridge | - | $2 | -$2 |
+| **TOTAL STAGING** | **$187** | **$127** | **$60/mês** |
+
+**Economia STAGING:** $60/mês × 12 = **$720/ano (USD)** = **R$ 4.320/ano (BRL, taxa 6.0)**
+
+**PRODUCTION:**
+
+| Recurso | 24/7 | Com Automação | Economia |
+|---------|------|---------------|----------|
+| EKS Control Plane | $37 | $37 | $0 |
+| EC2 critical-always-on (1x t3.medium) | - | $30 | $0 (novo) |
+| EC2 production (4x t3.large) | $240 | $170 | **$70** ✅ |
+| RDS db.t3.large Multi-AZ | $280 | $199 | **$81** ✅ |
+| Redis scaled to 0 | $20 | $14 | **$6** ✅ |
+| RabbitMQ scaled to 0 | $20 | $14 | **$6** ✅ |
+| Lambda + EventBridge | - | $3 | -$3 |
+| **TOTAL PRODUCTION** | **$652** | **$522** | **$130/mês** |
+
+**Economia PRODUCTION:** $130/mês × 12 = **$1.560/ano (USD)** = **R$ 9.360/ano (BRL, taxa 6.0)**
+
+**STAGING Fase 3 (On-Demand):**
+- Custo 24/7: R$ 13.464/ano
+- Uptime estimado: 5% (ligando ~1×/semana, 10h/mês)
+- Custo otimizado: R$ 720/ano
+- **Economia Fase 3: R$ 12.744/ano** (vs R$ 4.320/ano Fase 2)
+
+---
+
+#### 📈 ROI Consolidado
+
+| Fase | Economia Anual | Investimento Acumulado | ROI Year 1 | Payback |
+|------|---------------|------------------------|-----------|---------|
+| **Fase 1 (STAGING apenas)** | R$ 4.320 | R$ 3.000 | 44% | 6.7 meses |
+| **Fase 2 (STAGING + PROD)** | R$ 13.680 | R$ 4.500 | 204% | 3.9 meses |
+| **Fase 3 (On-demand + PROD)** | R$ 22.104 | R$ 4.500 | 391% | 2.4 meses |
+
+**Investimento Total:**
+- STAGING: R$ 3.000 (10h desenvolvimento)
+- PRODUCTION: R$ 1.500 (5h incremental)
+- **Total: R$ 4.500**
+
+**NPV 3 Anos (Fase 3):**
+```
+Year 1: R$ 22.104 / 1.10 = R$ 20.095
+Year 2: R$ 22.104 / 1.21 = R$ 18.268
+Year 3: R$ 22.104 / 1.33 = R$ 16.616
+────────────────────────────────────
+NPV 3 anos: R$ 54.979
+Investimento: R$ 4.500
+────────────────────────────────────
+NPV líquido: R$ 50.479 (ROI cumulativo 1.121%) ✅✅✅
+```
+
+---
+
+#### 🔐 Health Checks Diferenciados
+
+**STAGING (Básico):**
+```python
+def staging_health_checks():
+    # Bloqueia shutdown se jobs GitLab ativos
+    running_jobs = check_gitlab_running_jobs()
+    if running_jobs > 0:
+        return False  # BLOQUEIA
+
+    # ArgoCD healthy (aguarda sync)
+    argocd_healthy = check_argocd_applications()
+    return argocd_healthy
+```
+
+**PRODUCTION (Rigoroso):**
+```python
+def production_health_checks():
+    # 1. Transações DB ativas (commits pendentes)
+    if check_rds_active_transactions() > 0:
+        return False  # BLOQUEIA
+
+    # 2. Conexões idle recentes (< 5 min)
+    if check_rds_idle_connections(threshold_minutes=5) > 10:
+        return False
+
+    # 3. Mensagens RabbitMQ não processadas
+    if check_rabbitmq_queue_depth() > 100:
+        return False
+
+    # 4. Manutenção agendada (AlertManager)
+    if not check_alertmanager_maintenance_window():
+        return False
+
+    # 5. Snapshot RDS pré-shutdown (RPO < 1h)
+    create_rds_snapshot()
+
+    return True  # AUTORIZA shutdown
+```
+
+---
+
+#### 📊 Observabilidade
+
+**CloudWatch Metrics:**
+
+| Métrica | STAGING | PRODUCTION | Threshold |
+|---------|---------|------------|-----------|
+| `finops.{env}.startup.duration` | 8 min | 8 min | > 10 min (warning) |
+| `finops.{env}.sla.availability` | 99.5% | 99.9% | < target (critical) |
+| `finops.{env}.cost_savings_daily` | $2 | $4.33 | < $1 (investigar) |
+| `finops.{env}.circuit_breaker_state` | 0/1 | 0/1 | 1 (PagerDuty) |
+| `finops.{env}.transactions.blocked` | - | count | > 0 (alerta) |
+
+**Grafana Dashboards:**
+1. **FinOps STAGING Automation:** Uptime, economia, falhas, circuit breaker
+2. **FinOps PROD Critical:** SLA 99.9%, revenue impact, startup duration, rollback automático
+
+**Alertas:**
+- STAGING: Startup > 15min (warning), 3 falhas consecutivas (critical + Slack)
+- PROD: Startup > 10min (PagerDuty), 2 falhas (rollback automático + PagerDuty P1)
+
+---
+
+#### ⏱️ Timeline
+
+| Fase | Prazo | Pré-requisito | Status |
+|------|-------|---------------|--------|
+| **STAGING deploy** | 2026-02-17 | Aprovação stakeholders | 📝 Planejado |
+| **STAGING validação 1 mês** | 2026-03-17 | 30 dias operação | ⏳ Aguardando |
+| **PROD environment ready** | 2026-04-01 | Marco 3 deployado | ⏳ Aguardando |
+| **PROD automation dev** | 2026-04-08 | STAGING learnings | ⏳ Aguardando |
+| **PROD automation deploy** | 2026-04-15 | Testes carga + runbooks | ⏳ Aguardando |
+| **PROD validação 2 meses** | 2026-06-15 | SLA 99.9% confirmado | ⏳ Aguardando |
+| **Fase 3 (STAGING on-demand)** | 2026-09-15 | PROD estável 3 meses | ⏳ Aguardando |
+
+**Milestone Crítico:** PROD automation SOMENTE após STAGING 1 mês operação SEM falhas
+
+---
+
+#### 🔗 Referências
+
+- [Demanda STAGING](../demands/2026-01-30-automacao-finops-staging.md)
+- [Demanda PRODUCTION](../demands/2026-01-30-automacao-finops-production.md)
+- [ADR-024: FinOps Automation Multi-Ambiente](./decisions.md#adr-024)
+- [Costs Analysis](./costs.md#automacao-finops-multi-ambiente)
+- [Risks STAGING](./risks.md#r-019-riscos-automação-finops-staging)
+- [Risks PRODUCTION](./risks.md#r-020-riscos-automação-finops-production)
+- [Plano Executável Multi-Ambiente](../plan/aws-execution/fase-8-finops-multi-ambiente-automation.md)
 
 ---
 

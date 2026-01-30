@@ -772,6 +772,299 @@ Bitnami Helm Charts (Redis, RabbitMQ) migrariam para modelo pago (Tanzu Standard
 
 ---
 
+## ⚠️ R-019: Riscos Automação FinOps STAGING (EventBridge + Lambda)
+
+**Data Identificação:** 2026-01-30
+**Status:** 📝 PLANEJADO (implementação prevista 2026-02-17)
+**Categoria:** Disponibilidade + Operacional + Financeiro
+**Impacto:** 🟡 MÉDIO (afeta STAGING apenas, PROD não impactado)
+**Probabilidade:** 🟡 MÉDIA (5-10% chance de falhas operacionais)
+**Severidade Combinada:** 🟡 **MÉDIA** (Probabilidade × Impacto = 5)
+
+### Descrição
+
+Implementação de automação start/stop do ambiente STAGING via EventBridge + Lambda para economia de R$ 4.320/ano introduz **novos riscos operacionais** relacionados a:
+
+1. **Falhas de startup:** RDS/nodes não inicializam corretamente
+2. **Perda de dados:** GitLab jobs ativos durante shutdown
+3. **Dependências externas:** BrasilAPI indisponível
+4. **Timeouts Lambda:** Operações excedem 300s limit
+5. **Circuit breaker:** Desabilita automação após 3 falhas consecutivas
+
+**Contexto Arquitetural:**
+- **ADR-024:** FinOps Automation STAGING (EventBridge + Lambda)
+- **Demanda:** [docs/demands/2026-01-30-automacao-finops-staging.md](../demands/2026-01-30-automacao-finops-staging.md)
+- **Economia Projetada:** R$ 4.320/ano (ROI 44% Year 1, payback 6.7 meses)
+- **Investimento:** R$ 3.000 (10h desenvolvimento)
+
+---
+
+### Riscos Identificados
+
+#### R-019.1: Falha Startup RDS (Timeout ou Erro)
+
+**Probabilidade:** 🟡 5% (1 falha a cada 20 startups)
+**Impacto:** 🔴 ALTO ($60/dia STAGING indisponível, equipe bloqueada)
+
+**Cenário:**
+1. EventBridge dispara Lambda startup 8:00 AM BRT
+2. Lambda chama `aws rds start-db-instance`
+3. RDS timeout após 300s (5 min) OU erro AWS API throttling
+4. Lambda retorna erro, STAGING permanece offline
+5. Equipe chega 8:30 AM, descobre STAGING indisponível
+6. Intervenção manual necessária (~30 min)
+
+**Impacto Financeiro:**
+- Perda produtividade: 4 devs × 0.5h × R$ 300/h = **R$ 600/incidente**
+- Frequência estimada: 1× a cada 2 meses (6×/ano) = **R$ 3.600/ano**
+
+**Mitigações:**
+
+| Mitigação | Eficácia | Esforço | Status |
+|-----------|---------|---------|--------|
+| **Retry 3× com backoff exponencial** (30s, 60s, 120s) | 🟢 95% | BAIXO (2h) | ✅ Planejado |
+| **Alerta PagerDuty on-call** (falha 3× consecutivas) | 🟢 100% detecção | BAIXO (1h) | ✅ Planejado |
+| **Health check timeout aumentado** (de 300s para 600s) | 🟡 70% | BAIXO (30min) | ⏳ Considerar se necessário |
+| **Fallback manual trigger** (botão Slack "Start STAGING") | 🟢 100% recovery | MÉDIO (4h) | ⏳ Q2 2026 |
+
+**ROI Mitigação:**
+- Investimento: R$ 900 (3h desenvolvimento)
+- Redução perda: R$ 3.600 → R$ 360 (90% redução)
+- **NPV Year 1:** R$ 3.240 - R$ 900 = **R$ 2.340 líquido**
+
+---
+
+#### R-019.2: GitLab Job Perdido Durante Shutdown
+
+**Probabilidade:** 🟢 2% (1 falha a cada 50 shutdowns)
+**Impacto:** 🔴 ALTO (rebuild job, retrabalho 1-4h, reputação equipe)
+
+**Cenário:**
+1. EventBridge dispara Lambda shutdown 18:00 BRT
+2. Lambda verifica GitLab jobs ativos: `/api/v4/jobs?scope[]=running`
+3. Health check FALHA (detecta 0 jobs) MAS job foi criado 1s depois (race condition)
+4. Lambda prossegue shutdown, nodes terminam
+5. GitLab job perdido mid-execution (ex: deploy staging app crítica)
+6. Dev descobre falha 19:00, precisa rerun job (~2h rebuild)
+
+**Impacto Financeiro:**
+- Retrabalho dev: 2h × R$ 300/h = **R$ 600/incidente**
+- Frequência estimada: 2×/ano = **R$ 1.200/ano**
+
+**Mitigações:**
+
+| Mitigação | Eficácia | Esforço | Status |
+|-----------|---------|---------|--------|
+| **Health check com retry 3×** (verificar jobs 3× com 10s intervalo) | 🟢 99% | BAIXO (1h) | ✅ Planejado |
+| **Grace period 5 min** (bloquear shutdown se job criado < 5min) | 🟢 95% | BAIXO (30min) | ✅ Planejado |
+| **Notificação Slack pre-shutdown** (5 min aviso "STAGING will shutdown") | 🟡 80% awareness | BAIXO (1h) | ⏳ Nice-to-have |
+| **GitLab webhook** (cancelar shutdown se novo job) | 🟢 99.9% | ALTO (8h) | ⏳ Q2 2026 |
+
+**ROI Mitigação:**
+- Investimento: R$ 450 (1.5h desenvolvimento health checks)
+- Redução perda: R$ 1.200 → R$ 120 (90% redução)
+- **NPV Year 1:** R$ 1.080 - R$ 450 = **R$ 630 líquido**
+
+---
+
+#### R-019.3: BrasilAPI Indisponível (Feriados Não Detectados)
+
+**Probabilidade:** 🟢 1% (API pública, SLA ~99%)
+**Impacto:** 🟡 MÉDIO (workloads ligam desnecessariamente em feriado, perda $2/feriado)
+
+**Cenário:**
+1. EventBridge dispara Lambda startup 8:00 AM em feriado nacional
+2. Lambda chama BrasilAPI: `GET https://brasilapi.com.br/api/feriados/v1/{ano}`
+3. BrasilAPI timeout ou retorna 500 Internal Server Error
+4. Lambda fallback: consulta cache local DynamoDB (30 dias TTL)
+5. Cache expirado (último sync 31 dias atrás)
+6. Lambda fallback final: lista estática hardcoded (feriados fixos apenas)
+7. Feriado móvel (ex: Carnaval, Páscoa) NÃO detectado
+8. STAGING liga, equipe não trabalha, desperdício $2/dia
+
+**Impacto Financeiro:**
+- Desperdício por feriado: $2/dia (workloads ligados 1 dia sem uso)
+- Frequência: 1-2 feriados/ano = **$4/ano** (desprezível)
+
+**Mitigações:**
+
+| Mitigação | Eficácia | Esforço | Status |
+|-----------|---------|---------|--------|
+| **Cache local DynamoDB** (30 dias TTL, sync semanal) | 🟢 99% | BAIXO (2h) | ✅ Planejado |
+| **Lista estática fallback** (feriados fixos hardcoded) | 🟡 70% (feriados fixos apenas) | BAIXO (30min) | ✅ Planejado |
+| **Alerta CloudWatch** (log warning BrasilAPI unreachable) | 🟢 100% detecção | BAIXO (30min) | ✅ Planejado |
+| **Sync manual mensal** (atualizar lista estática 1×/ano) | 🟡 80% | BAIXO (15min/ano) | ⏳ Processo operacional |
+
+**ROI Mitigação:**
+- Investimento: R$ 750 (2.5h desenvolvimento cache + fallback)
+- Redução perda: $4/ano (desprezível, mas melhora confiabilidade)
+- **Justificativa:** Investimento defensivo (evitar falso-positivo, reputação)
+
+---
+
+#### R-019.4: Lambda Timeout 300s (Startup Lento)
+
+**Probabilidade:** 🟢 1% (1 timeout a cada 100 startups)
+**Impacto:** 🟡 MÉDIO (Lambda timeout, startup parcial, recovery manual 15 min)
+
+**Cenário:**
+1. Lambda startup inicia: RDS start, ASG scale up, aguardar nodes Ready
+2. RDS leva 4 min (normal), nodes join 3 min, pods scheduling 2 min
+3. Total: 9 min > 300s Lambda limit
+4. Lambda timeout, retorna erro
+5. RDS ficou online, nodes Ready, mas pods ainda scheduling
+6. Estado inconsistente: infraestrutura partially up
+7. Próxima tentativa (retry) detecta RDS/nodes já up, finaliza startup
+8. Startup completo em 2ª tentativa (10 min total)
+
+**Impacto Financeiro:**
+- Delay startup: 10 min vs 6 min esperado = +4 min atraso
+- Frequência: 1×/ano = **impacto desprezível**
+
+**Mitigações:**
+
+| Mitigação | Eficácia | Esforço | Status |
+|-----------|---------|---------|--------|
+| **Operações assíncronas** (não aguardar pods inline, validar em retry) | 🟢 99% | MÉDIO (4h) | ✅ Planejado |
+| **Timeout Lambda 600s** (dobrar limite para 10 min) | 🟡 90% | BAIXO (15min config) | ⏳ Se necessário |
+| **Step Functions** (workflow multi-step, sem timeout single Lambda) | 🟢 99.9% | ALTO (12h) | ⏳ Q2 2026 se frequente |
+| **Idempotência** (retry detecta estado partial, continua de onde parou) | 🟢 100% | MÉDIO (3h) | ✅ Planejado |
+
+**ROI Mitigação:**
+- Investimento: R$ 1.200 (4h operações assíncronas + idempotência)
+- Redução perda: Desprezível (1×/ano), mas melhora robustez
+- **Justificativa:** Investimento preventivo (arquitetura sólida)
+
+---
+
+#### R-019.5: Circuit Breaker Ativado Erroneamente
+
+**Probabilidade:** 🟢 1% (ativação falso-positivo 1×/ano)
+**Impacto:** 🟡 MÉDIO (automação desabilitada, intervenção manual 30 min)
+
+**Cenário:**
+1. Startup falha 3× consecutivas (ex: RDS maintenance window não planejado)
+2. Lambda detecta threshold, ativa circuit breaker: `state = CIRCUIT_OPEN`
+3. DynamoDB `finops-scheduler-state` atualizada: `failures = 3`
+4. EventBridge rule desabilitada automaticamente: `aws events disable-rule`
+5. Notificação PagerDuty on-call: "FinOps automation disabled"
+6. On-call investiga logs (15 min), identifica manutenção AWS temporária
+7. Reset circuit breaker manualmente: `aws dynamodb update-item --set failures = 0`
+8. Reabilita EventBridge rule: `aws events enable-rule`
+9. Automação restaurada (30 min total intervenção)
+
+**Impacto Financeiro:**
+- Tempo on-call: 0.5h × R$ 400/h = **R$ 200/incidente**
+- Frequência: 1×/ano = **R$ 200/ano**
+
+**Mitigações:**
+
+| Mitigação | Eficácia | Esforço | Status |
+|-----------|---------|---------|--------|
+| **Threshold ajustável** (3 falhas vs 5 falhas, configurável) | 🟡 70% | BAIXO (1h) | ✅ Planejado |
+| **Notificação imediata** (PagerDuty + Slack alert) | 🟢 100% detecção | BAIXO (1h) | ✅ Planejado |
+| **Runbook recovery** (docs/runbooks/finops-circuit-breaker-reset.md) | 🟢 100% recovery | BAIXO (2h) | ✅ Planejado |
+| **Auto-reset após 24h** (reset automático se 24h sem falhas) | 🟡 80% | MÉDIO (3h) | ⏳ Q2 2026 |
+
+**ROI Mitigação:**
+- Investimento: R$ 1.200 (4h runbook + alertas + threshold config)
+- Redução perda: R$ 200 → R$ 40 (80% redução com runbook eficiente)
+- **NPV Year 1:** R$ 160 - R$ 1.200 = **-R$ 1.040 líquido** (investimento preventivo)
+
+---
+
+### Matriz de Riscos Consolidada
+
+| Risco | Probabilidade | Impacto | Perda/Ano | Investimento Mitigação | ROI Mitigação | Prioridade |
+|-------|--------------|---------|-----------|------------------------|---------------|------------|
+| **R-019.1** RDS Startup Failure | 🟡 5% | 🔴 Alto | R$ 3.600 | R$ 900 | **R$ 2.340** | 🔴 ALTA |
+| **R-019.2** GitLab Job Lost | 🟢 2% | 🔴 Alto | R$ 1.200 | R$ 450 | **R$ 630** | 🟡 MÉDIA |
+| **R-019.3** BrasilAPI Down | 🟢 1% | 🟡 Médio | R$ 24 | R$ 750 | **-R$ 726** | 🟢 BAIXA |
+| **R-019.4** Lambda Timeout | 🟢 1% | 🟡 Médio | R$ 50 | R$ 1.200 | **-R$ 1.150** | 🟢 BAIXA |
+| **R-019.5** Circuit Breaker | 🟢 1% | 🟡 Médio | R$ 200 | R$ 1.200 | **-R$ 1.040** | 🟢 BAIXA |
+| **TOTAL RISCOS** | | | **R$ 5.074/ano** | **R$ 4.500** | **R$ 54** | |
+
+**Observação:** Mesmo com perda anual projetada R$ 5.074 (cenário pessimista), **economia R$ 4.320/ano ainda justifica implementação** (break-even em ROI negativo aceitável).
+
+---
+
+### Análise de Viabilidade Considerando Riscos
+
+**Economia Projetada (sem riscos):** R$ 4.320/ano
+**Perda Esperada (riscos não mitigados):** R$ 5.074/ano
+**Economia Líquida (pessimista):** **-R$ 754/ano** ❌ **NEGATIVA**
+
+**Decisão Crítica:** Implementar **TODAS as mitigações prioritárias** (R-019.1 + R-019.2) = R$ 1.350 investimento adicional
+
+**Recalculo com Mitigações:**
+```
+Economia Projetada:              R$ 4.320/ano
+Investimento Total:              R$ 3.000 (desenvolvimento) + R$ 1.350 (mitigações) = R$ 4.350
+Perda Esperada (mitigada 90%):   R$ 507/ano (R$ 5.074 × 10%)
+Custo Operacional Lambda:        R$ 24/ano
+────────────────────────────────────────────────────────
+Economia Líquida Year 1:         R$ 4.320 - R$ 4.350 - R$ 507 - R$ 24 = -R$ 561 ❌
+
+ROI Year 1 (com mitigações):     -12.9% (NEGATIVO) ❌
+Payback:                         NUNCA (economia < investimento)
+```
+
+**⚠️ CONCLUSÃO CRÍTICA:** Implementação da automação **NÃO é viável financeiramente no Year 1** quando consideramos:
+1. Investimento desenvolvimento: R$ 3.000
+2. Mitigações obrigatórias: R$ 1.350
+3. Perdas residuais: R$ 507/ano
+
+**ALTERNATIVA RECOMENDADA:**
+
+| Abordagem | Investimento | Economia Year 1 | ROI Year 1 | Decisão |
+|-----------|-------------|-----------------|-----------|---------|
+| **Automação Completa (proposta inicial)** | R$ 4.350 | -R$ 561 | -12.9% | ❌ REJEITADO |
+| **Automação Simplificada** (sem health checks complexos) | R$ 2.700 | R$ 1.113 | 41% | ✅ **APROVADO** |
+| **Manual Scripts** (zero automação, processo operacional) | R$ 0 | R$ 0 | N/A | ⏳ Considerar |
+
+**Automação Simplificada (Proposta Ajustada):**
+- Investimento: R$ 2.700 (9h vs 14.5h)
+- Remove: Health checks GitLab complexos (R-019.2), Step Functions fallback (R-019.4)
+- Mantém: Retry RDS (R-019.1), BrasilAPI cache (R-019.3), Circuit breaker básico (R-019.5)
+- Aceita: Risco residual R-019.2 (2% GitLab jobs perdidos) = R$ 1.200/ano perda esperada
+- **Economia Líquida Year 1:** R$ 4.320 - R$ 2.700 - R$ 1.200 - R$ 24 = **R$ 396** ✅
+- **ROI Year 1:** 14.7% (viável porém marginal)
+- **Payback:** 8.2 meses
+
+---
+
+### Recomendações Finais
+
+**Decisão Executiva:**
+1. ⏸️ **PAUSAR implementação completa** (ADR-024 original)
+2. ✅ **APROVAR versão simplificada** (70% features, 60% investimento)
+3. ⏳ **REAVALIAR Q3 2026** (após 6 meses operação, validar perdas reais)
+
+**Critérios de Sucesso Versão Simplificada:**
+- Zero falhas startup (R-019.1 mitigado)
+- ≤ 2 jobs GitLab perdidos/ano (R-019.2 risco aceito)
+- Economia observada ≥ R$ 350/mês (threshold viabilidade)
+- Satisfação equipe > 7/10 (aceitação processo)
+
+**Triggers para Upgrade Completo:**
+- Perda observada R-019.2 > R$ 2.000/ano (upgrade health checks GitLab)
+- Falhas Lambda timeout > 5×/ano (upgrade Step Functions)
+- Budget disponível Q3 2026 (ROI cumulativo justifica investimento adicional)
+
+---
+
+**Referências:**
+- [Demanda Original](../demands/2026-01-30-automacao-finops-staging.md)
+- [ADR-024 (Original)](./decisions.md#adr-024)
+- [Costs Analysis](./costs.md#automacao-finops-staging-planejada---adr-024)
+- [Architecture](./architecture.md#fase-9-finops-automation-staging-environment)
+
+**Status:** 📝 PLANEJADO → Aguardando aprovação versão simplificada
+**Responsável:** FinOps Team + DevOps Lead
+**Próxima Revisão:** 2026-02-03 (decisão stakeholders versão simplificada)
+
+---
+
 ## 📈 Tendências de Riscos
 
 ### Riscos Emergentes (Marco 3)
