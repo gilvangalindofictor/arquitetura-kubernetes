@@ -211,15 +211,16 @@ locals {
 
   # Lambda common environment variables
   lambda_env_vars = {
-    ENVIRONMENT          = var.environment
-    CLUSTER_NAME         = var.cluster_name
-    RDS_INSTANCE_ID      = var.rds_instance_id
-    ASG_NAMES            = join(",", var.asg_names)
-    DYNAMODB_TABLE       = aws_dynamodb_table.scheduler_state.name
-    BRASIL_API_URL       = "https://brasilapi.com.br/api/feriados/v1"
-    LOG_LEVEL            = "INFO"
-    SNS_TOPIC_ARN        = var.sns_topic_arn
+    ENVIRONMENT           = var.environment
+    CLUSTER_NAME          = var.cluster_name
+    RDS_INSTANCE_ID       = var.rds_instance_id
+    ASG_NAMES             = join(",", var.asg_names)
+    DYNAMODB_TABLE_NAME   = aws_dynamodb_table.scheduler_state.name
+    BRASIL_API_URL        = "https://brasilapi.com.br/api/feriados/v1"
+    LOG_LEVEL             = "INFO"
+    SNS_TOPIC_ARN         = var.sns_topic_arn
     CIRCUIT_BREAKER_THRESHOLD = tostring(var.circuit_breaker_threshold)
+    AWS_REGION            = data.aws_region.current.name
   }
 }
 

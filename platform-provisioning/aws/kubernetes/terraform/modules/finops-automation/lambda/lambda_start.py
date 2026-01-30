@@ -23,6 +23,7 @@ logger.setLevel(logging.INFO)
 eks = boto3.client('eks')
 rds = boto3.client('rds')
 sns = boto3.client('sns')
+dynamodb = boto3.resource('dynamodb')
 
 # Configuration from environment variables
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
@@ -30,6 +31,7 @@ AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
 RDS_INSTANCE_ID = os.environ.get('RDS_INSTANCE_ID', '')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
+DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', '')
 
 # Node groups configuration
 NODE_GROUPS_CONFIG = {
@@ -73,6 +75,9 @@ def lambda_handler(event, context):
                 logger.error(f"Error starting RDS {RDS_INSTANCE_ID}: {str(e)}")
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
+
+        # Update DynamoDB state
+        update_dynamodb_state(results)
 
         # Send notification
         send_notification(results)
@@ -179,6 +184,57 @@ def start_rds(rds_instance, results):
         'status': status,
         'message': 'Unexpected status, no action taken'
     }
+
+
+def update_dynamodb_state(results):
+    """
+    Update DynamoDB table with startup state and timestamp
+    """
+    if not DYNAMODB_TABLE_NAME:
+        logger.warning("DYNAMODB_TABLE_NAME not configured, skipping state update")
+        return
+
+    try:
+        table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+
+        timestamp = datetime.utcnow().isoformat()
+
+        # Prepare update expression
+        update_expr = "SET last_startup = :timestamp"
+        expr_attr_values = {':timestamp': timestamp}
+
+        if results['success']:
+            # Success: reset startup_failures counter
+            update_expr += ", startup_failures = :zero"
+            expr_attr_values[':zero'] = 0
+            logger.info("Startup successful, resetting failure counter")
+        else:
+            # Failure: increment startup_failures counter
+            update_expr += ", startup_failures = startup_failures + :one"
+            expr_attr_values[':one'] = 1
+            logger.warning("Startup failed, incrementing failure counter")
+
+            # Check if circuit breaker should open (after fetching current count)
+            response = table.get_item(Key={'environment': ENVIRONMENT})
+            if 'Item' in response:
+                current_failures = int(response['Item'].get('startup_failures', 0))
+                if current_failures + 1 >= 3:  # Threshold
+                    update_expr += ", circuit_breaker_state = :open"
+                    expr_attr_values[':open'] = 'OPEN'
+                    logger.error("Circuit breaker threshold reached! Setting state to OPEN")
+
+        # Update DynamoDB
+        table.update_item(
+            Key={'environment': ENVIRONMENT},
+            UpdateExpression=update_expr,
+            ExpressionAttributeValues=expr_attr_values
+        )
+
+        logger.info(f"DynamoDB state updated: last_startup={timestamp}, success={results['success']}")
+
+    except Exception as e:
+        logger.error(f"Failed to update DynamoDB state: {str(e)}")
+        # Don't fail the whole operation if DynamoDB update fails
 
 
 def send_notification(results):
