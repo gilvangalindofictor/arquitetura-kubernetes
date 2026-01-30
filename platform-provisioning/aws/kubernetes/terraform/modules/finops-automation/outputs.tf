@@ -1,92 +1,126 @@
-# 📤 Module Outputs
-# Terraform Specialist requirement: Export ARNs for integration (T-002)
+# =============================================================================
+# Outputs: FinOps Scheduler Module
+# =============================================================================
 
-output "lambda_function_arn" {
-  description = "ARN of the FinOps automation Lambda function"
-  value       = aws_lambda_function.finops_automation.arn
+# -----------------------------------------------------------------------------
+# Lambda Functions
+# -----------------------------------------------------------------------------
+
+output "lambda_start_function_name" {
+  description = "Name of the Lambda function for startup"
+  value       = aws_lambda_function.finops_start.function_name
 }
 
-output "lambda_function_name" {
-  description = "Name of the FinOps automation Lambda function"
-  value       = aws_lambda_function.finops_automation.function_name
+output "lambda_start_function_arn" {
+  description = "ARN of the Lambda function for startup"
+  value       = aws_lambda_function.finops_start.arn
 }
 
-output "lambda_function_url" {
-  description = "Function URL for manual testing (IAM authenticated)"
-  value       = aws_lambda_function_url.finops_automation.function_url
+output "lambda_stop_function_name" {
+  description = "Name of the Lambda function for shutdown"
+  value       = aws_lambda_function.finops_stop.function_name
 }
 
-output "dynamodb_circuit_breaker_table_name" {
-  description = "Name of the DynamoDB circuit breaker table"
-  value       = aws_dynamodb_table.circuit_breaker.name
+output "lambda_stop_function_arn" {
+  description = "ARN of the Lambda function for shutdown"
+  value       = aws_lambda_function.finops_stop.arn
 }
 
-output "dynamodb_circuit_breaker_table_arn" {
-  description = "ARN of the DynamoDB circuit breaker table"
-  value       = aws_dynamodb_table.circuit_breaker.arn
+# -----------------------------------------------------------------------------
+# EventBridge Rules
+# -----------------------------------------------------------------------------
+
+output "eventbridge_rule_startup_arn" {
+  description = "ARN of the EventBridge startup rule"
+  value       = aws_cloudwatch_event_rule.startup.arn
 }
 
-output "dynamodb_rds_state_table_name" {
-  description = "Name of the DynamoDB RDS state table"
-  value       = aws_dynamodb_table.rds_state.name
+output "eventbridge_rule_shutdown_arn" {
+  description = "ARN of the EventBridge shutdown rule"
+  value       = aws_cloudwatch_event_rule.shutdown.arn
 }
 
-output "kms_key_id" {
-  description = "KMS key ID for DynamoDB encryption"
-  value       = aws_kms_key.dynamodb.id
+output "eventbridge_rules_enabled" {
+  description = "Whether EventBridge rules are enabled (automation active)"
+  value       = var.enable_automation
 }
 
-output "kms_key_arn" {
-  description = "KMS key ARN for DynamoDB encryption"
-  value       = aws_kms_key.dynamodb.arn
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+
+output "cloudwatch_log_group_start" {
+  description = "CloudWatch Log Group for Lambda start function"
+  value       = aws_cloudwatch_log_group.lambda_start.name
 }
 
-output "shutdown_schedule_rule_arn" {
-  description = "ARN of the EventBridge shutdown schedule rule"
-  value       = aws_cloudwatch_event_rule.shutdown_schedule.arn
+output "cloudwatch_log_group_stop" {
+  description = "CloudWatch Log Group for Lambda stop function"
+  value       = aws_cloudwatch_log_group.lambda_stop.name
 }
 
-output "startup_schedule_rule_arn" {
-  description = "ARN of the EventBridge startup schedule rule"
-  value       = aws_cloudwatch_event_rule.startup_schedule.arn
+output "cloudwatch_alarms" {
+  description = "CloudWatch alarms created (if enabled)"
+  value = var.enable_cloudwatch_alarms ? {
+    startup_duration = try(aws_cloudwatch_metric_alarm.startup_duration_high[0].arn, null)
+    startup_failures = try(aws_cloudwatch_metric_alarm.startup_failures[0].arn, null)
+    shutdown_failures = try(aws_cloudwatch_metric_alarm.shutdown_failures[0].arn, null)
+  } : {}
 }
 
-output "sns_topic_arn" {
-  description = "ARN of the SNS topic for CloudWatch alarms"
-  value       = aws_sns_topic.finops_alerts.arn
-}
+# -----------------------------------------------------------------------------
+# Manual Invocation Commands
+# -----------------------------------------------------------------------------
 
-output "cloudwatch_log_group_name" {
-  description = "Name of the CloudWatch Log Group for Lambda logs"
-  value       = aws_cloudwatch_log_group.lambda_logs.name
-}
-
-output "cloudwatch_dashboard_name" {
-  description = "Name of the CloudWatch Dashboard"
-  value       = aws_cloudwatch_dashboard.finops_monitoring.dashboard_name
-}
-
-output "iam_role_arn" {
-  description = "ARN of the Lambda execution IAM role"
-  value       = aws_iam_role.lambda_execution.arn
-}
-
-# Cost tracking outputs (FinOps requirement)
-output "estimated_monthly_cost_usd" {
-  description = "Estimated monthly cost in USD"
+output "manual_invocation_commands" {
+  description = "AWS CLI commands for manual Lambda invocation (testing)"
   value = {
-    lambda_compute    = "0.15"
-    eventbridge_rules = "1.00"
-    dynamodb_ondemand = "0.05"
-    cloudwatch_logs   = "0.05"
-    kms_key           = "1.00"
-    cloudwatch_alarms = "0.20"
-    sns_topic         = "0.00"
-    total             = "2.45"
+    start = "aws lambda invoke --function-name ${aws_lambda_function.finops_start.function_name} --payload '{\"action\":\"start\",\"environment\":\"${var.environment}\",\"triggered_by\":\"manual\"}' response.json"
+    stop = "aws lambda invoke --function-name ${aws_lambda_function.finops_stop.function_name} --payload '{\"action\":\"stop\",\"environment\":\"${var.environment}\",\"triggered_by\":\"manual\"}' response.json"
   }
 }
 
-output "environment" {
-  description = "Environment name"
-  value       = var.environment
+# -----------------------------------------------------------------------------
+# Cost Savings Estimation
+# -----------------------------------------------------------------------------
+
+output "cost_savings_estimation" {
+  description = "Estimated cost savings with automation (based on Marco 2 validation)"
+  value = {
+    monthly_usd = 177.61
+    monthly_brl = 177.61 * 6.0 # R$ 1,065.66
+    annual_brl  = 177.61 * 6.0 * 12 # R$ 12,787.92
+    reduction_percent = 25.9
+    validated_date = "2026-01-30"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Next Steps (Post-Deployment)
+# -----------------------------------------------------------------------------
+
+output "next_steps" {
+  description = "Post-deployment actions required"
+  value = <<-EOT
+    1. Validate Terraform deployment:
+       terraform output
+
+    2. Test manual invocation (BEFORE enabling automation):
+       ${try(aws_lambda_function.finops_start.function_name, "N/A")}
+       ${try(aws_lambda_function.finops_stop.function_name, "N/A")}
+
+    3. Check Lambda logs:
+       aws logs tail /aws/lambda/${try(aws_lambda_function.finops_start.function_name, "N/A")} --follow
+
+    4. Enable automation (after 1 week manual testing):
+       terraform apply -var="enable_automation=true"
+
+    5. Monitor savings:
+       - Cost Explorer dashboard: "FinOps Savings Real vs Projected"
+       - CloudWatch namespace: FinOps/Scheduler
+       - Target: R$ 1,065.66/month savings
+
+    6. Validate circuit breaker:
+       aws dynamodb get-item --table-name ${aws_dynamodb_table.scheduler_state.name} --key '{"environment":{"S":"${var.environment}"}}'
+  EOT
 }

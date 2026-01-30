@@ -1,0 +1,121 @@
+# =============================================================================
+# FinOps Scheduler - Example Configuration
+# =============================================================================
+# Copy this file to terraform.tfvars and adjust for your environment
+# Usage: terraform apply -var-file="terraform.tfvars"
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Core Configuration
+# -----------------------------------------------------------------------------
+
+environment     = "staging" # dev, staging, prod
+cluster_name    = "k8s-platform-prod"
+rds_instance_id = "k8s-platform-prod-postgresql"
+
+# ASG names (supports wildcards)
+asg_names = [
+  "eks-k8s-platform-prod-system-*",
+  "eks-k8s-platform-prod-workloads-*",
+  "eks-k8s-platform-prod-critical-*"
+]
+
+# -----------------------------------------------------------------------------
+# Schedule (Timezone: America/Sao_Paulo = BRT)
+# -----------------------------------------------------------------------------
+
+# Startup: 8:00 AM BRT = 11:00 UTC (Monday-Friday)
+startup_schedule = "cron(0 11 ? * MON-FRI *)"
+
+# Shutdown: 6:00 PM BRT = 21:00 UTC (Monday-Friday)
+shutdown_schedule = "cron(0 21 ? * MON-FRI *)"
+
+# Enable automation (IMPORTANT: Set to false for initial testing)
+enable_automation = false # Set to true after 1 week manual validation
+
+# -----------------------------------------------------------------------------
+# Lambda Configuration
+# -----------------------------------------------------------------------------
+
+lambda_timeout  = 300 # 5 minutes (increase if startup/shutdown > 5 min)
+lambda_memory   = 512 # MB (512 MB sufficient for most cases)
+lambda_runtime  = "python3.12"
+
+# -----------------------------------------------------------------------------
+# Node Groups Scaling
+# -----------------------------------------------------------------------------
+
+node_groups_config = {
+  system = {
+    min_size     = 2
+    desired_size = 2
+    max_size     = 4
+  }
+  workloads = {
+    min_size     = 2
+    desired_size = 3
+    max_size     = 6
+  }
+  critical = {
+    min_size     = 2
+    desired_size = 2
+    max_size     = 4
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Circuit Breaker
+# -----------------------------------------------------------------------------
+
+circuit_breaker_threshold   = 3  # Failures before disabling automation
+circuit_breaker_reset_hours = 24 # Hours to wait before retry
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+
+enable_cloudwatch_alarms    = true
+startup_duration_threshold  = 600 # seconds (10 minutes)
+
+# SNS topic for notifications (optional - leave empty to disable)
+sns_topic_arn = "" # Example: "arn:aws:sns:us-east-1:123456789012:finops-alerts"
+
+# -----------------------------------------------------------------------------
+# Ownership & Tags
+# -----------------------------------------------------------------------------
+
+owner_email = "devops-team@company.com"
+cost_center = "Infrastructure-Optimization"
+
+tags = {
+  Project     = "k8s-platform"
+  ManagedBy   = "terraform"
+  Component   = "finops-automation"
+  CostSavings = "enabled" # For AWS Cost Explorer filtering
+}
+
+# -----------------------------------------------------------------------------
+# Advanced Configuration (Optional)
+# -----------------------------------------------------------------------------
+
+# Uncomment to override defaults
+
+# Lambda Python version
+# lambda_runtime = "python3.11" # Use python3.12 (default) for latest features
+
+# Custom schedules (examples)
+# startup_schedule = "cron(0 10 ? * MON-FRI *)"  # 7:00 AM BRT
+# shutdown_schedule = "cron(0 22 ? * MON-FRI *)" # 7:00 PM BRT
+
+# Extended timeout (if startup/shutdown > 5 min)
+# lambda_timeout = 600 # 10 minutes
+
+# Increased memory (if processing large node groups)
+# lambda_memory = 1024 # MB
+
+# Circuit breaker more aggressive
+# circuit_breaker_threshold = 2   # Fail after 2 consecutive errors
+# circuit_breaker_reset_hours = 12 # Reset after 12 hours
+
+# Alarm threshold more strict
+# startup_duration_threshold = 300 # 5 minutes (alarm if startup > 5 min)

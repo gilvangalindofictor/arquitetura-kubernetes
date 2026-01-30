@@ -1,93 +1,137 @@
-# 🔄 DynamoDB Circuit Breaker State Table
-# Terraform Specialist requirement: prevent_destroy = true (T-005)
-# Security Specialist requirement: KMS encryption enabled (S-019.1)
+# =============================================================================
+# DynamoDB Table: Circuit Breaker State + Holiday Cache
+# =============================================================================
+# Purpose: Store FinOps scheduler state for circuit breaker logic
+# Encryption: KMS managed (LGPD compliance)
+# Destroy Protection: Enabled (prevent accidental data loss)
+# =============================================================================
 
-resource "aws_dynamodb_table" "circuit_breaker" {
-  name         = "${local.name_prefix}-circuit-breaker"
-  billing_mode = "PAY_PER_REQUEST" # On-demand pricing (FinOps approved: $0.03/mês)
+# -----------------------------------------------------------------------------
+# KMS Key for DynamoDB Encryption
+# -----------------------------------------------------------------------------
+
+resource "aws_kms_key" "dynamodb_finops" {
+  description             = "KMS key for DynamoDB finops-scheduler-state encryption (LGPD compliance)"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  tags = local.security_tags
+}
+
+resource "aws_kms_alias" "dynamodb_finops" {
+  name          = "alias/finops-scheduler-dynamodb-${var.environment}"
+  target_key_id = aws_kms_key.dynamodb_finops.key_id
+}
+
+# -----------------------------------------------------------------------------
+# DynamoDB Table
+# -----------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "scheduler_state" {
+  name         = "finops-scheduler-state-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST" # On-demand (cost: ~$0.25/month)
   hash_key     = "environment"
-  range_key    = "timestamp"
 
   attribute {
     name = "environment"
     type = "S"
   }
 
-  attribute {
-    name = "timestamp"
-    type = "N"
+  # TTL for holiday cache (30 days)
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
   }
 
-  # Security Specialist: KMS encryption at rest
+  # Server-side encryption with KMS (LGPD compliance)
   server_side_encryption {
     enabled     = true
-    kms_key_arn = aws_kms_key.dynamodb.arn
+    kms_key_arn = aws_kms_key.dynamodb_finops.arn
   }
 
-  # Enable point-in-time recovery for data protection
+  # Point-in-time recovery (best practice)
   point_in_time_recovery {
     enabled = true
   }
 
-  # TTL for automatic cleanup of old records (30 days retention)
-  ttl {
-    attribute_name = "expiration_time"
-    enabled        = true
-  }
-
-  # Terraform Specialist: Prevent accidental deletion
+  # Prevent accidental deletion
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name        = "${local.name_prefix}-circuit-breaker"
-      Component   = "StateManagement"
-      Criticality = "High"
-      Cost        = "0.03-USD-month"
-    }
-  )
+  tags = merge(local.security_tags, {
+    Name        = "finops-scheduler-state-${var.environment}"
+    Purpose     = "Circuit breaker state and holiday cache"
+    Compliance  = "LGPD-OK"
+    Encryption  = "KMS-managed"
+  })
 }
 
-# DynamoDB table for tracking RDS last_stop_time
-# AWS Specialist requirement: T-025 RDS 7-day auto-start mitigation
-resource "aws_dynamodb_table" "rds_state" {
-  name         = "${local.name_prefix}-rds-state"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "instance_id"
+# -----------------------------------------------------------------------------
+# Initialize State Table (Circuit Breaker Defaults)
+# -----------------------------------------------------------------------------
 
-  attribute {
-    name = "instance_id"
-    type = "S"
-  }
+resource "aws_dynamodb_table_item" "initial_state" {
+  table_name = aws_dynamodb_table.scheduler_state.name
+  hash_key   = aws_dynamodb_table.scheduler_state.hash_key
 
-  server_side_encryption {
-    enabled     = true
-    kms_key_arn = aws_kms_key.dynamodb.arn
-  }
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  ttl {
-    attribute_name = "expiration_time"
-    enabled        = true
-  }
+  item = jsonencode({
+    environment = {
+      S = var.environment
+    }
+    startup_failures = {
+      N = "0"
+    }
+    shutdown_failures = {
+      N = "0"
+    }
+    circuit_breaker_state = {
+      S = "CLOSED"
+    }
+    last_startup = {
+      S = "never"
+    }
+    last_shutdown = {
+      S = "never"
+    }
+    last_stop_time = {
+      S = "1970-01-01T00:00:00Z" # Epoch - for RDS 7-day check
+    }
+    holidays_cache = {
+      M = {}
+    }
+    ttl = {
+      N = tostring(timeadd(timestamp(), "720h")) # 30 days from now (720 hours)
+    }
+  })
 
   lifecycle {
-    prevent_destroy = true
+    ignore_changes = [
+      item # Don't overwrite runtime state on re-apply
+    ]
   }
+}
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name      = "${local.name_prefix}-rds-state"
-      Component = "StateManagement"
-      Purpose   = "RDS-AutoStart-Mitigation"
-      Cost      = "0.02-USD-month"
-    }
-  )
+# -----------------------------------------------------------------------------
+# Outputs
+# -----------------------------------------------------------------------------
+
+output "dynamodb_table_name" {
+  description = "DynamoDB table name for circuit breaker state"
+  value       = aws_dynamodb_table.scheduler_state.name
+}
+
+output "dynamodb_table_arn" {
+  description = "DynamoDB table ARN"
+  value       = aws_dynamodb_table.scheduler_state.arn
+}
+
+output "kms_key_id" {
+  description = "KMS key ID for DynamoDB encryption"
+  value       = aws_kms_key.dynamodb_finops.id
+}
+
+output "kms_key_arn" {
+  description = "KMS key ARN for DynamoDB encryption"
+  value       = aws_kms_key.dynamodb_finops.arn
 }
