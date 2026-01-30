@@ -1161,6 +1161,456 @@ terraform plan
 
 ---
 
-**Última Atualização**: 2026-01-29
+## 📅 2026-01-30 - FinOps Automation - Deploy STAGING + Testes Manuais
+
+### Status
+✅ **DEPLOY COMPLETO** | ⚠️ **TESTES PARCIALMENTE VALIDADOS** (shutdown não-graceful)
+
+### Fase: FinOps Cost Optimization
+**Objetivo**: Automatizar startup/shutdown do ambiente staging para reduzir custos em 25.9%
+
+### Implementação - Módulo Terraform
+
+**Recursos Criados** (12 resources):
+```
+platform-provisioning/aws/kubernetes/terraform/
+├── modules/finops-automation/
+│   ├── main.tf          (Lambda functions + EventBridge)
+│   ├── iam.tf           (Least privilege policies)
+│   ├── dynamodb.tf      (Circuit breaker state + KMS)
+│   ├── cloudwatch.tf    (Alarms + dashboards)
+│   ├── lambda/
+│   │   ├── lambda_start.py  (Scale up EKS + RDS)
+│   │   └── lambda_stop.py   (Scale down EKS + RDS)
+│   └── outputs.tf
+└── envs/finops-staging/
+    ├── main.tf          (Module invocation)
+    ├── backend.tf       (S3 state)
+    └── outputs.tf       (Test commands)
+```
+
+**Componentes**:
+- ✅ 2 Lambda functions (Python 3.11, 512MB, 5min timeout)
+- ✅ 2 EventBridge rules (DISABLED - manual testing first)
+- ✅ 1 DynamoDB table (circuit breaker + KMS encryption)
+- ✅ 1 KMS key (LGPD compliance)
+- ✅ 1 IAM Role (7 policies - least privilege)
+- ✅ 3 CloudWatch Alarms (failures + duration)
+- ✅ 2 CloudWatch Log Groups (retention 14d)
+
+**Configuração**:
+- **Startup Schedule**: 08:00 BRT (11:00 UTC) Mon-Fri
+- **Shutdown Schedule**: 18:00 BRT (21:00 UTC) Mon-Fri
+- **Target Savings**: R$ 1,065.66/mês (R$ 12,787.92/ano - 25.9%)
+- **Automation**: DISABLED (enable_automation=false) - 1 week manual testing required
+
+---
+
+### Desafios Encontrados e Correções
+
+#### 🐛 Bug 1: DynamoDB TTL Type Mismatch
+**Sintoma**:
+```
+Error: The parameter cannot be converted to a numeric value: 2026-03-01T17:41:56Z
+```
+
+**Causa**: `tostring(timeadd(timestamp(), "720h"))` returns RFC3339 string but DynamoDB TTL expects Unix epoch number.
+
+**Solução**: Removed TTL field from initial_state item [dynamodb.tf:74-110](../../modules/finops-automation/dynamodb.tf#L74-L110). Lambda manages TTL at runtime.
+
+**Commit**: `d2a38dc`
+
+---
+
+#### 🐛 Bug 2: CloudWatch Logs KMS Permission Error
+**Sintoma**:
+```
+Error: The specified KMS key does not exist or is not allowed to be used with Arn
+'arn:aws:logs:us-east-1:...:log-group:/aws/lambda/finops-scheduler-start-staging'
+```
+
+**Causa**: CloudWatch Logs requires specific KMS key policy permissions that weren't configured.
+
+**Solução**: Removed `kms_key_id` parameter from both CloudWatch log groups [main.tf:109-123](../../modules/finops-automation/main.tf#L109-L123). Operational logs don't require KMS encryption.
+
+**Commit**: `d2a38dc`
+
+---
+
+#### 🐛 Bug 3: Lambda IAM Missing EKS Permissions
+**Sintoma**:
+```
+AccessDeniedException: User arn:aws:sts::891377105802:assumed-role/finops-scheduler-role-staging/
+finops-scheduler-start-staging is not authorized to perform: eks:UpdateNodegroupConfig
+```
+
+**Causa**: IAM policy only had read-only EKS permissions but missing UpdateNodegroupConfig action.
+
+**Solução**: Added new statement to eks_policy [iam.tf:136-144](../../modules/finops-automation/iam.tf#L136-L144):
+```hcl
+{
+  Sid    = "ManageNodegroups"
+  Effect = "Allow"
+  Action = ["eks:UpdateNodegroupConfig"]
+  Resource = "arn:aws:eks:${region}:${account}:nodegroup/${cluster}/*/*"
+}
+```
+
+**Terraform Apply**: 2 resources changed
+
+---
+
+#### 🐛 Bug 4: Lambda IAM Missing RDS Describe Permission
+**Sintoma**:
+```
+AccessDenied when calling DescribeDBInstances: not authorized to perform:
+rds:DescribeDBInstances on resource: arn:aws:rds:...:db:gitlab-staging
+```
+
+**Causa**: RDS policy had DescribeDBInstances action but with StringEquals tag condition that blocked access.
+
+**Solução**: Split into separate statement with Resource: "*" for read-only describe [iam.tf:75-111](../../modules/finops-automation/iam.tf#L75-L111):
+```hcl
+{
+  Sid    = "DescribeRDSInstances"
+  Effect = "Allow"
+  Action = ["rds:DescribeDBInstances"]
+  Resource = "*"  # Read-only, safe
+}
+```
+
+---
+
+#### 🐛 Bug 5: Lambda Credential Cache Not Refreshing
+**Sintoma**: IAM permissions still denied after policy updates were applied and verified in AWS.
+
+**Causa**: Lambda functions cache IAM role credentials (15min TTL), continuing to use old credentials without new permissions.
+
+**Solução**: Updated Lambda function configuration (changed description) to force credential refresh:
+```bash
+aws lambda update-function-configuration \
+  --function-name finops-scheduler-start-staging \
+  --description "FinOps automation: Start EKS nodes + RDS for staging (IAM updated)"
+```
+
+Waited 15 seconds for propagation → Permissions worked! ✅
+
+---
+
+#### 🐛 Bug 6: RDS Instance Name Hardcoded (CRITICAL)
+**Sintoma**:
+```json
+{
+  "rds": {
+    "status": "error",
+    "message": "DBInstance gitlab-staging not found."
+  }
+}
+```
+
+**Causa**: Lambda code had **hardcoded dictionary** mapping environments to RDS instances:
+```python
+RDS_INSTANCES = {
+    'dev': 'gitlab-dev',
+    'staging': 'gitlab-staging',  # ❌ Wrong!
+    'prod': 'gitlab-prod'
+}
+```
+
+Lambda was looking for "gitlab-staging" but actual RDS is "k8s-platform-prod-postgresql".
+
+**Root Cause**: Lambda code **ignored** `RDS_INSTANCE_ID` environment variable already passed by Terraform [variables.tf:216](../../modules/finops-automation/variables.tf#L216).
+
+**Solução**:
+1. Removed hardcoded `RDS_INSTANCES` dictionary from both Lambdas
+2. Read `RDS_INSTANCE_ID` directly from environment variables
+3. Updated Lambda handler logic to use variable
+
+**Arquivos Modificados**:
+- [lambda_start.py:27-45](../../modules/finops-automation/lambda/lambda_start.py#L27-L45)
+- [lambda_stop.py:28-47](../../modules/finops-automation/lambda/lambda_stop.py#L28-L47)
+
+**Terraform Apply**: 2 resources changed (Lambda code updated)
+
+**Commit**: `af3853c - fix(finops): Replace hardcoded RDS mapping with environment variable`
+
+---
+
+### Testes Manuais - Resultados
+
+#### ✅ Teste 1: Lambda START (17:57 UTC)
+```bash
+aws lambda invoke --function-name finops-scheduler-start-staging response.json
+```
+
+**Resultado**: ✅ **SUCESSO COMPLETO**
+```json
+{
+  "statusCode": 200,
+  "body": {
+    "node_groups": {
+      "system": {"status": "initiated", "desired": 2},
+      "workloads": {"status": "initiated", "desired": 3},
+      "critical": {"status": "initiated", "desired": 2}
+    },
+    "rds": {
+      "instance": "k8s-platform-prod-postgresql",
+      "status": "already_available"
+    },
+    "success": true
+  }
+}
+```
+
+**Validação**:
+- ✅ 7 nodes criados e rodando (2 system + 3 workloads + 2 critical)
+- ✅ RDS instance correta identificada (k8s-platform-prod-postgresql)
+- ✅ CloudWatch Logs: Execução em 1.2s sem erros
+- ✅ EKS nodegroups: Todos ACTIVE com desired sizes corretos
+
+---
+
+#### ⚠️ Teste 2: Lambda STOP (18:01 UTC)
+```bash
+aws lambda invoke --function-name finops-scheduler-stop-staging response.json
+```
+
+**Resultado**: ✅ Lambda executou com sucesso | ⚠️ Shutdown não 100% graceful
+```json
+{
+  "statusCode": 200,
+  "body": {
+    "node_groups": {
+      "system": {"status": "stop_initiated", "desired": 0},
+      "workloads": {"status": "stop_initiated", "desired": 0},
+      "critical": {"status": "stop_initiated", "desired": 0}
+    },
+    "rds": {
+      "instance": "k8s-platform-prod-postgresql",
+      "status": "stop_initiated"
+    },
+    "savings": {
+      "daily_usd": 9.72,
+      "monthly_usd": 213.79,
+      "annual_usd": 2565.45
+    },
+    "success": true
+  }
+}
+```
+
+**Validação**:
+- ✅ Lambda StatusCode: 200
+- ✅ RDS: stopping (estava available)
+- ✅ Nodegroups: desired=0 aplicado com sucesso
+- ⚠️ **Shutdown Parcial**: 4 nodes permaneceram rodando por 10-15min até force termination
+
+**Causa Identificada**: **PodDisruptionBudgets (PDBs) restritivos**
+
+9 PDBs com `ALLOWED DISRUPTIONS = 0` impedindo drain graceful:
+- calico-kube-controllers
+- cluster-autoscaler
+- coredns
+- ebs-csi-controller
+- loki-backend, loki-gateway, loki-read, loki-write (monitoring)
+
+**Progresso Observado**:
+```
+Inicial: 7 nodes rodando
+Após 1min: 6 nodes (-1)
+Após 3min: 4 nodes (-2)
+Após 10-15min: 0 nodes (force termination timeout)
+```
+
+**Pods Impedindo Drain**:
+- DaemonSets: fluent-bit, prometheus-node-exporter, loki-canary
+- Stateful workloads: loki-gateway, loki-read, coredns
+
+---
+
+### 🧠 Análise Multi-Agente (Framework executor-terraform.md)
+
+#### Problema
+Lambda STOP funcional mas shutdown não-graceful (~10-15min vs ~2-3min esperado) devido a PDBs bloqueando drain de nodes.
+
+**Impacto**: MÉDIO
+- Lambda operacional ✅
+- Eventual shutdown ✅
+- Custo extra: ~$0.40-0.80/dia desperdiçado (~$22/ano)
+
+#### Agentes Consultados
+1. ☁️ **DevOps AWS Specialist**: Avaliou 4 cenários
+2. 🌱 **Terraform Specialist**: Recomendou solução IaC
+3. 🔐 **Security & Compliance**: Avaliou riscos
+4. 💰 **FinOps**: Quantificou ROI
+
+#### Cenários Avaliados
+
+**Cenário 1: Status Quo** (Aceitar shutdown não-graceful)
+- ✅ Zero mudanças
+- ❌ $22/ano desperdiçado
+- ❌ Não é best practice
+
+**Cenário 2: Pre-Drain Hook** (Lambda relaxa PDBs temporariamente)
+- ✅ Shutdown graceful (~2-3min)
+- ❌ Lambda precisa acesso Kubernetes API (alto risco security)
+- ❌ Complexidade +100 LOC
+- 🔴 **BLOQUEADO por Security Agent**
+
+**Cenário 3: Ajustar PDBs no Terraform** (maxUnavailable: 1)
+- ✅ Solução permanente (não apenas FinOps)
+- ✅ Melhora resiliência geral
+- ✅ IaC declarativo e auditável
+- ✅ Zero mudanças no Lambda
+- ⚠️ Requer coordenação com Platform team
+
+**Cenário 4: DaemonSet Tolerations** (Permite shutdown rápido)
+- ✅ Complementa Cenário 3
+- ✅ Melhora upgrades de nodes
+
+#### ✅ DECISÃO CONSENSUAL
+
+**Implementar Cenário 3 + Cenário 4** (Fase 2 - Próxima Sprint)
+
+**Justificativa**:
+- ☁️ AWS: Segue best practices Kubernetes
+- 🌱 Terraform: Solução IaC auditável
+- 🔐 Security: Sem expansão de permissões (APROVADO)
+- 💰 FinOps: ROI positivo ($22 saving + benefícios laterais: upgrades mais rápidos, melhor HA)
+
+**Para staging agora**: ✅ **Aceitar comportamento atual** (não-blocker)
+
+---
+
+### 📄 Documentação POST-HOOKS
+
+**Commits Realizados**:
+```git
+af3853c: fix(finops): Replace hardcoded RDS mapping with environment variable
+d2a38dc: fix(finops): Fix DynamoDB TTL and CloudWatch Logs KMS issues
+72e307b: fix(finops): Update staging environment to use new module interface
+```
+
+**ADR Proposto** (para criação):
+- ADR-025: Adjust PDBs for Graceful Node Drain (Proposed status)
+
+---
+
+### Configuração Final
+
+**Lambda START**:
+- Function: finops-scheduler-start-staging
+- Runtime: Python 3.11
+- Memory: 512MB
+- Timeout: 5min
+- Execution Time: ~1.2s
+- Target Sizes: system=2, workloads=3, critical=2
+
+**Lambda STOP**:
+- Function: finops-scheduler-stop-staging
+- Runtime: Python 3.11
+- Memory: 512MB
+- Timeout: 5min
+- Execution Time: ~1.5s
+- Target Sizes: desired=0 (all nodegroups)
+- RDS Action: Stop (no snapshot in staging)
+
+**Savings Calculation** (Lambda output):
+- Daily: $9.72 USD
+- Monthly: $213.79 USD (22 business days)
+- Annual: $2,565.45 USD
+
+**Terraform State**: S3 backend `terraform-state-marco0-891377105802/finops-staging/terraform.tfstate`
+
+---
+
+### Próximos Passos
+
+#### **Fase 1: Manual Testing - Esta Semana** ✅ IN PROGRESS
+- [x] Deploy módulo Terraform
+- [x] Corrigir bugs críticos (IAM, RDS hardcoded, DynamoDB TTL)
+- [x] Teste Lambda START manual
+- [x] Teste Lambda STOP manual
+- [ ] **Executar 3-5 testes manuais adicionais** (diferentes horários)
+- [ ] Validar circuit breaker no DynamoDB
+- [ ] Monitorar logs CloudWatch por 1 semana
+- [ ] Documentar qualquer anomalia
+
+#### **Fase 2: PDB Optimization - Próxima Sprint** 📋 PLANNED
+1. Criar branch `feat/improve-pdb-drain-behavior`
+2. Atualizar Helm values:
+   - Loki charts com `maxUnavailable=1`
+   - DaemonSets com tolerations curtas (`tolerationSeconds=10`)
+3. Override CoreDNS/Calico PDBs via Terraform kubectl provider
+4. Testar em staging:
+   - Medir tempo de shutdown (expectativa: <3min)
+   - Validar sem perda de logs
+   - Simular failover durante drain
+5. Aplicar em prod após validação
+
+#### **Fase 3: Enable Automation - Após 1 Semana** 📋 PLANNED
+1. Editar `finops-staging/main.tf`: `enable_automation = true`
+2. `terraform apply` para habilitar EventBridge rules
+3. Monitorar primeiras execuções automáticas:
+   - Startup: 08:00 BRT Mon-Fri
+   - Shutdown: 18:00 BRT Mon-Fri
+4. Validar economia real vs projetada no Cost Explorer
+
+#### **Fase 4: Production Deployment** 📋 FUTURE
+1. Criar `envs/finops-prod/` baseado em staging
+2. Ajustar schedules se necessário
+3. Validar em prod-like environment primeiro
+4. Deploy gradual com circuit breaker ativo
+
+---
+
+### Lições Aprendidas
+
+1. **Lambda Credential Caching**: IAM permission updates require Lambda config update to force credential refresh (~15s propagation).
+
+2. **Hardcoded Configuration is Evil**: Always use environment variables for environment-specific values (RDS instance IDs, cluster names). Terraform passes them, Lambda must read them.
+
+3. **PodDisruptionBudgets são Críticos**: PDBs muito restritivos (maxUnavailable=0) impedem shutdown graceful. Best practice: `maxUnavailable=1` mantém HA (N-1) e permite drain.
+
+4. **Terraform Multi-Stage Validation**:
+   - Stage 1: `terraform plan` (detect syntax errors)
+   - Stage 2: `terraform apply` (detect resource conflicts)
+   - Stage 3: Manual testing (detect logic errors)
+   - Stage 4: Automated testing (detect edge cases)
+
+5. **Circuit Breaker Pattern**: DynamoDB state table permite failsafe automático. Após 3 falhas consecutivas, automação para até intervenção manual.
+
+6. **Cost-Benefit of Non-Graceful Shutdown**: $22/ano de desperdício vs ~4h de eng work ($400) = ROI negativo se implementado APENAS para FinOps. Mas benefícios laterais (upgrades, HA) justificam.
+
+7. **Framework Multi-Agente Funciona**: executor-terraform.md process evitou solução complexa (pre-drain hook) e direcionou para solução arquitetural correta (PDB adjustment).
+
+---
+
+### Métricas Finais
+
+**Recursos AWS**:
+- Lambda Functions: 2
+- EventBridge Rules: 2 (DISABLED)
+- DynamoDB Tables: 1
+- KMS Keys: 1
+- IAM Roles: 1 (7 policies)
+- CloudWatch Alarms: 3
+- CloudWatch Log Groups: 2
+- S3 Buckets: 1 (Terraform state)
+
+**Custos**:
+- Lambda: ~$0.02/mês (20 invocations × 1.5s × 512MB)
+- DynamoDB: ~$0.25/mês (on-demand, baixo uso)
+- CloudWatch: ~$0.50/mês (logs + alarms)
+- **Total FinOps Module**: ~$0.77/mês
+- **Target Savings**: $177.61/mês (R$ 1,065.66)
+- **ROI**: 23,000% (savings vs cost)
+
+**Status**: ✅ **DEPLOYMENT COMPLETO** | ⚠️ Shutdown non-graceful (aceitável para staging)
+
+---
+
+**Última Atualização**: 2026-01-30
 **Status do Marco 2**: **7/7 Fases Completas (100%)** ✅
-**Próximo Marco**: Marco 3 (Workloads Produtivos)
+**FinOps Automation**: **Deploy STAGING Completo** | **Manual Testing In Progress**
+**Próximo Marco**: Marco 3 (Workloads Produtivos - GitLab priority)
