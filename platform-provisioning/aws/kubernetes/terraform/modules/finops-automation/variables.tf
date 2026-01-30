@@ -149,9 +149,28 @@ variable "circuit_breaker_reset_hours" {
 # -----------------------------------------------------------------------------
 
 variable "sns_topic_arn" {
-  description = "SNS topic ARN for notifications (optional)"
+  description = "SNS topic ARN for notifications (optional, leave empty to create one)"
   type        = string
   default     = ""
+}
+
+variable "enable_sns_notifications" {
+  description = "Enable SNS topic creation and notifications"
+  type        = bool
+  default     = false # Disabled by default - enable when ready for notifications
+}
+
+variable "notification_emails" {
+  description = "List of email addresses to receive FinOps notifications"
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for email in var.notification_emails : can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", email))
+    ])
+    error_message = "All notification_emails must be valid email addresses."
+  }
 }
 
 variable "enable_cloudwatch_alarms" {
@@ -209,6 +228,9 @@ locals {
     Framework          = "executor-terraform.md" # Multi-agent framework used
   })
 
+  # SNS alarm actions (use created topic or external topic ARN)
+  sns_alarm_actions = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? [aws_sns_topic.finops_notifications[0].arn] : (var.sns_topic_arn != "" ? [var.sns_topic_arn] : [])
+
   # Lambda common environment variables
   lambda_env_vars = {
     ENVIRONMENT           = var.environment
@@ -218,7 +240,7 @@ locals {
     DYNAMODB_TABLE_NAME   = aws_dynamodb_table.scheduler_state.name
     BRASIL_API_URL        = "https://brasilapi.com.br/api/feriados/v1"
     LOG_LEVEL             = "INFO"
-    SNS_TOPIC_ARN         = var.sns_topic_arn
+    SNS_TOPIC_ARN         = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? aws_sns_topic.finops_notifications[0].arn : var.sns_topic_arn
     CIRCUIT_BREAKER_THRESHOLD = tostring(var.circuit_breaker_threshold)
     AWS_REGION            = data.aws_region.current.name
   }

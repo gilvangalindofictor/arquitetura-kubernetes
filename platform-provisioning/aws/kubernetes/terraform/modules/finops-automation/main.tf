@@ -215,7 +215,7 @@ resource "aws_cloudwatch_metric_alarm" "startup_duration_high" {
     FunctionName = aws_lambda_function.finops_start.function_name
   }
 
-  alarm_actions = var.sns_topic_arn != "" ? [var.sns_topic_arn] : []
+  alarm_actions = local.sns_alarm_actions
 
   tags = local.security_tags
 }
@@ -237,7 +237,7 @@ resource "aws_cloudwatch_metric_alarm" "startup_failures" {
     FunctionName = aws_lambda_function.finops_start.function_name
   }
 
-  alarm_actions = var.sns_topic_arn != "" ? [var.sns_topic_arn] : []
+  alarm_actions = local.sns_alarm_actions
 
   tags = local.security_tags
 }
@@ -259,7 +259,7 @@ resource "aws_cloudwatch_metric_alarm" "shutdown_failures" {
     FunctionName = aws_lambda_function.finops_stop.function_name
   }
 
-  alarm_actions = var.sns_topic_arn != "" ? [var.sns_topic_arn] : []
+  alarm_actions = local.sns_alarm_actions
 
   tags = local.security_tags
 }
