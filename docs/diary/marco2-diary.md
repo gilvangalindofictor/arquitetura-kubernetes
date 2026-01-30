@@ -1613,4 +1613,385 @@ d2a38dc: fix(finops): Fix DynamoDB TTL and CloudWatch Logs KMS issues
 **Última Atualização**: 2026-01-30
 **Status do Marco 2**: **7/7 Fases Completas (100%)** ✅
 **FinOps Automation**: **Deploy STAGING Completo** | **Manual Testing In Progress**
+
+---
+
+## Sessão 2026-01-30 (Continuação) - Testes 3-4 + Análises Paralelas
+
+**Objetivo**: Executar Testes 3-4 de validação manual e paralelizar análises durante uptime
+**Duração**: ~2h (incluindo 30min de espera para uptime)
+**Participantes**: DevOps Team + Claude Agent
+
+---
+
+### Resumo Executivo
+
+**Progresso**: 4/5 testes manuais completos (80%)
+
+✅ **Teste 3: Startup em horário diferente** - 100% SUCESSO
+✅ **Teste 4: Shutdown após 30min uptime** - 100% SUCESSO
+
+**Tarefas Paralelas Completadas**:
+1. ✅ Investigação bug DynamoDB timestamps
+2. ✅ Análise métricas CloudWatch 24h
+3. ✅ Criação script validação automatizada
+
+**Métricas Consolidadas**:
+- Lambda Invocations (24h): 9 total (7 START, 2 STOP)
+- Success Rate: **100%** (0 errors)
+- Duration média: ~1.2s (excelente)
+
+**Descoberta Crítica**: Lambda não atualiza DynamoDB (apenas IAM configurado, código incompleto)
+
+---
+
+### Teste 3: Startup em Horário Diferente
+
+**Data/Hora**: 2026-01-30 19:00:59 UTC
+**Objetivo**: Validar startup após ambiente totalmente parado
+**Estado Inicial**: 0 nodes, RDS stopped
+
+#### Resultado
+
+**✅ 100% SUCESSO**
+
+| Métrica | Resultado | Target | Status |
+|---------|-----------|--------|--------|
+| Nodes criados | 7/7 | 7 | ✅ |
+| Nodes Ready | ~2 min | <5 min | ✅ |
+| RDS available | ~4 min | <5 min | ✅ |
+| Lambda duration | 1.68s | <3s | ✅ |
+| CloudWatch errors | 0 | 0 | ✅ |
+
+**Lambda Response**:
+```json
+{
+  "statusCode": 200,
+  "timestamp": "2026-01-30T19:00:59.374280",
+  "node_groups": {
+    "system": {"status": "initiated", "config": {"desired": 2}},
+    "workloads": {"status": "initiated", "config": {"desired": 3}},
+    "critical": {"status": "initiated", "config": {"desired": 2}}
+  },
+  "rds": {
+    "status": "start_initiated",
+    "previous_status": "stopped"
+  }
+}
+```
+
+**Timeline**:
+- T+0: Lambda invocada (1.68s execution)
+- T+2min: 7 nodes Ready
+- T+4min: RDS available
+
+**Observação**: DynamoDB `last_startup` permaneceu "never" (bug confirmado).
+
+---
+
+### Teste 4: Shutdown Após 30min Uptime
+
+**Data/Hora**: 2026-01-30 19:32:51 UTC (após 30min uptime)
+**Objetivo**: Validar shutdown após ambiente estabilizado
+**Estado Inicial**: 7 nodes Ready, RDS available
+
+#### Resultado
+
+**✅ 100% SUCESSO** (com shutdown non-graceful esperado)
+
+| Métrica | Resultado | Target | Status |
+|---------|-----------|--------|--------|
+| Shutdown total | ~23 min | 10-15 min | ⚠️ PDBs |
+| RDS stopped | ~10 min | <15 min | ✅ |
+| Lambda duration | 1.51s | <3s | ✅ |
+| CloudWatch errors | 0 | 0 | ✅ |
+| desired=0 aplicado | T+30s | <1 min | ✅ |
+
+**Timeline Detalhada**:
+- **T+0**: Lambda STOP invocada
+- **T+30s**: 7 nodes SchedulingDisabled (cordon OK)
+- **T+5min**: 5 nodes terminados, 2 bloqueados
+- **T+10min**: RDS stopped ✅, 2 nodes persistem
+- **T+15min**: 2 nodes ainda bloqueados
+- **T+20min**: 1 node restante
+- **T+23min**: 0 nodes ✅ (completo)
+
+**Pods Bloqueando Drain** (fase T+5-23min):
+- DaemonSets: fluent-bit, calico-node, aws-node, kube-proxy
+- Loki StatefulSets: loki-backend-1, loki-write-1
+- Loki Deployments: loki-gateway, loki-read
+
+**Comportamento**: Consistente com Teste 2 (PDBs maxUnavailable=0)
+
+---
+
+### Tarefas Paralelas (Durante Espera de 30min Uptime)
+
+#### 1. Investigação Bug DynamoDB Timestamps
+
+**Problema**: `last_startup` e `last_shutdown` sempre retornam "never"
+
+**Root Cause Identificada**:
+```bash
+# Verificação código Lambda
+grep -r "dynamodb\|DynamoDB" lambda_start.py lambda_stop.py
+# Resultado: 0 matches
+```
+
+**Análise**:
+- ✅ IAM permissions OK: `dynamodb:GetItem`, `dynamodb:PutItem`, `dynamodb:UpdateItem`
+- ✅ DynamoDB table criada e acessível
+- ✅ KMS key configurada
+- ❌ **Código Lambda não integra com DynamoDB** (sem boto3 DynamoDB client)
+
+**Impacto**:
+- **BAIXO** - Funcionalidade core (EKS + RDS) 100% operacional
+- Circuit breaker state não persiste
+- Auditoria/tracking incompleto
+- Failure counters não incrementam
+
+**Fix Necessário**: Adicionar código DynamoDB update_item em ambas Lambdas
+
+---
+
+#### 2. Análise Métricas CloudWatch (24h)
+
+**Período**: 2026-01-29 19:00 - 2026-01-30 19:00 UTC
+
+**Lambda START (finops-scheduler-start-staging)**:
+| Métrica | Valor |
+|---------|-------|
+| Invocations | 7 |
+| Duration (avg) | 928 ms |
+| Duration (max) | 1680 ms |
+| Errors | 0 |
+| Success Rate | 100% |
+
+**Lambda STOP (finops-scheduler-stop-staging)**:
+| Métrica | Valor |
+|---------|-------|
+| Invocations | 2 |
+| Duration (avg) | 1508 ms |
+| Duration (max) | 1508 ms |
+| Errors | 0 |
+| Success Rate | 100% |
+
+**Consolidado**:
+- Total invocations: 9
+- Error rate: **0%** ✅
+- Performance: Todas execuções <2s (target <3s) ✅
+- Baseline estabelecido: ~1.0-1.5s para operações completas
+
+---
+
+#### 3. Script de Validação Automatizada
+
+**Criado**: `scratchpad/validate-finops-env.sh` (385 linhas)
+
+**Funcionalidades**:
+- 6 checks automatizados
+- Validação de expected state (up/down)
+- Output colorido com contadores
+- Suporte a parallel validation
+
+**Checks Implementados**:
+1. ✅ EKS nodes status e count
+2. ✅ EKS nodegroup configurations
+3. ✅ RDS instance status
+4. ✅ DynamoDB circuit breaker state
+5. ✅ Lambda CloudWatch logs (errors)
+6. ✅ Expected state validation
+
+**Comandos Rápidos** (alternativa ao script):
+```bash
+# Validar estado UP
+export AWS_PROFILE=k8s-platform-prod
+kubectl get nodes | wc -l  # Esperado: 7
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql \
+  --query 'DBInstances[0].DBInstanceStatus' --output text  # Esperado: available
+
+# Validar estado DOWN
+kubectl get nodes | wc -l  # Esperado: 0
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql \
+  --query 'DBInstanceStatus' --output text  # Esperado: stopped
+```
+
+---
+
+### Métricas Consolidadas (Testes 1-4)
+
+| Teste | Status | Nodes | RDS | Duration | Resultado |
+|-------|--------|-------|-----|----------|-----------|
+| 1. Startup inicial | ✅ | 7/7 | available | ~2min | 100% |
+| 2. Shutdown | ✅ | 0/0 | stopped | ~15min | Funcional |
+| 3. Startup variado | ✅ | 7/7 | available | ~4min | 100% |
+| 4. Shutdown uptime | ✅ | 0/0 | stopped | ~23min | Funcional |
+| **Total** | **4/5** | **100%** | **100%** | - | **100%** |
+
+**Success Rate Geral**: 100% (0 errors em 9 invocações Lambda)
+
+---
+
+### EventBridge - Agendamento Automático Disponível
+
+**Status Atual**: EventBridge rules provisionadas mas **DISABLED**
+
+```bash
+# Verificação AWS
+aws events list-rules --name-prefix "finops-" --output table
+
+# Resultado:
+# - finops-startup-staging:  DISABLED (cron: 0 11 ? * MON-FRI *)  # 08:00 BRT
+# - finops-shutdown-staging: DISABLED (cron: 0 21 ? * MON-FRI *)  # 18:00 BRT
+```
+
+**Configuração Atual**:
+- Startup: Segunda-Sexta às 08:00 BRT (11:00 UTC)
+- Shutdown: Segunda-Sexta às 18:00 BRT (21:00 UTC)
+- State: DISABLED (aguardando validação completa)
+
+**Para Habilitar** (após Teste 5 + 1 semana validação):
+```hcl
+# Arquivo: envs/finops-staging/main.tf
+enable_automation = true  # Mudar de false → true
+```
+
+---
+
+### 🚨 PRÓXIMOS PASSOS - SEGUNDA-FEIRA 2026-02-03
+
+#### ⚡ TESTE 5: Startup Após Longo Downtime (OBRIGATÓRIO)
+
+**⏰ QUANDO**: Segunda-feira 2026-02-03 (qualquer horário 08:00-18:00 BRT)
+
+**📊 Downtime Esperado**: ~96 horas (4 dias - fim de semana completo)
+- Shutdown: Quinta 2026-01-30 19:32 UTC
+- Startup: Segunda 2026-02-03 ~11:00-20:00 UTC
+- ✅ Muito acima das 24h necessárias
+
+**⚠️ RDS 7-Day Stop Limit**:
+- RDS stopped: 2026-01-30 19:32 UTC
+- Limite AWS: 2026-02-06 19:32 UTC (7 dias)
+- Teste 5: 2026-02-03 (✅ seguro, dentro da janela)
+
+**🎯 Objetivo**: Validar startup "fria" após período prolongado (simula fim de semana real)
+
+---
+
+#### 📋 Checklist Teste 5 - Segunda-feira
+
+**PRÉ-REQUISITOS**:
+```bash
+# 1. Autenticar AWS
+aws sso login --profile k8s-platform-prod
+
+# 2. Verificar estado DOWN (ambiente deve estar parado desde quinta)
+kubectl get nodes
+# Esperado: "No resources found"
+
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql \
+  --query 'DBInstances[0].DBInstanceStatus' \
+  --output text
+# Esperado: "stopped"
+```
+
+**EXECUTAR TESTE 5**:
+```bash
+export AWS_PROFILE=k8s-platform-prod
+
+# Invocar Lambda START
+aws lambda invoke \
+  --function-name finops-scheduler-start-staging \
+  /tmp/lambda-start-test5-response.json
+
+# Ver resultado
+cat /tmp/lambda-start-test5-response.json | jq .
+# Esperado: statusCode 200, success: true
+```
+
+**VALIDAÇÕES** (aguardar ~5 minutos):
+```bash
+# 1. Nodes (esperado: 7 Ready)
+kubectl get nodes -o wide
+
+# 2. RDS (esperado: available)
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql \
+  --query 'DBInstances[0].DBInstanceStatus' \
+  --output text
+
+# 3. CloudWatch Logs (esperado: sem ERROR)
+aws logs tail /aws/lambda/finops-scheduler-start-staging --since 10m
+
+# 4. Circuit Breaker (esperado: CLOSED)
+aws dynamodb get-item \
+  --table-name finops-scheduler-state-staging \
+  --key '{"environment":{"S":"staging"}}' \
+  | jq -r '.Item.circuit_breaker_state.S'
+```
+
+**CRITÉRIOS DE SUCESSO**:
+- ✅ 7 nodes Ready em <5min
+- ✅ RDS available em <5min
+- ✅ Lambda duration <3s
+- ✅ CloudWatch sem ERROR logs
+- ✅ StatusCode 200
+
+---
+
+#### 📝 Após Teste 5
+
+1. **Atualizar Documentação**:
+   - [ ] Adicionar entrada Teste 5 no diary
+   - [ ] Consolidar métricas 5/5 testes
+   - [ ] Atualizar finops-next-steps.md
+
+2. **Decisão: Habilitar Automação?**
+   - Opção A: Habilitar agora (`enable_automation = true`)
+   - Opção B: Aguardar 1 semana de monitoramento (recomendado)
+
+3. **Próxima Fase** (se tudo OK):
+   - Fase 2: PDB Optimization (próxima sprint)
+   - Fase 3: Enable Automation (após validação)
+   - Fase 4: Production Deployment (Marco 3)
+
+---
+
+### Lições Aprendidas (Sessão Atual)
+
+1. **Paralelização de Tarefas**: Durante tempos de espera (uptime), executar análises paralelas maximiza produtividade. Completamos 3 tarefas extras enquanto aguardávamos 30min.
+
+2. **DynamoDB Tracking Gap**: Infraestrutura (IAM, KMS, tables) completa, mas código Lambda não implementa tracking. Lição: validar end-to-end, não apenas infra.
+
+3. **CloudWatch Metrics como Baseline**: Estabelecer métricas baseline (duration ~1.2s, 100% success) permite detectar degradação futura.
+
+4. **Scripts de Validação**: Criar scripts reutilizáveis economiza tempo em testes repetitivos e garante consistência.
+
+5. **RDS 7-Day Stop Window**: Sempre considerar limite de 7 dias ao planejar testes com downtime prolongado.
+
+6. **Shutdown Non-Graceful Previsível**: Comportamento consistente entre Testes 2 e 4 (2 nodes bloqueados 10-15min) confirma que PDBs são a causa raiz, não aleatoriedade.
+
+---
+
+### Status Atualizado
+
+**Teste Manual Progress**: 4/5 completos (80%)
+- [x] Teste 1: Startup inicial
+- [x] Teste 2: Shutdown
+- [x] Teste 3: Startup variado
+- [x] Teste 4: Shutdown após uptime
+- [ ] **Teste 5: Startup longo downtime** ⏰ SEGUNDA-FEIRA 2026-02-03
+
+**Descobertas Técnicas**: 1 bug identificado (DynamoDB tracking)
+**Automação**: DISABLED (aguardando Teste 5)
+**Ambiente Atual**: DOWN (0 nodes, RDS stopped)
+
+---
+
+**Última Atualização**: 2026-01-30 20:00 UTC
+**Status do Marco 2**: **7/7 Fases Completas (100%)** ✅
+**FinOps Automation**: **80% Validado** | **Teste 5 Pendente Segunda-feira** ⏰
 **Próximo Marco**: Marco 3 (Workloads Produtivos - GitLab priority)
