@@ -80,19 +80,21 @@ resource "aws_iam_role_policy" "rds_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ManageRDSInstances"
+        Sid    = "DescribeRDSInstances"
         Effect = "Allow"
         Action = [
-          "rds:DescribeDBInstances",
+          "rds:DescribeDBInstances"
+        ]
+        Resource = "*"  # Describe is read-only, safe to allow on all resources
+      },
+      {
+        Sid    = "ManageRDSInstance"
+        Effect = "Allow"
+        Action = [
           "rds:StopDBInstance",
           "rds:StartDBInstance"
         ]
         Resource = "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${var.rds_instance_id}"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Environment" = var.environment
-          }
-        }
       },
       {
         Sid    = "CreateDBSnapshots"
@@ -120,16 +122,26 @@ resource "aws_iam_role_policy" "eks_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "HealthChecks"
-      Effect = "Allow"
-      Action = [
-        "eks:DescribeCluster",
-        "eks:ListNodegroups",
-        "eks:DescribeNodegroup"
-      ]
-      Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
-    }]
+    Statement = [
+      {
+        Sid    = "HealthChecks"
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListNodegroups",
+          "eks:DescribeNodegroup"
+        ]
+        Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
+      },
+      {
+        Sid    = "ManageNodegroups"
+        Effect = "Allow"
+        Action = [
+          "eks:UpdateNodegroupConfig"
+        ]
+        Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:nodegroup/${var.cluster_name}/*/*"
+      }
+    ]
   })
 }
 
