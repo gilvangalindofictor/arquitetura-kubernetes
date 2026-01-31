@@ -94,6 +94,50 @@ output "fluent_bit_namespace" {
 }
 
 # -----------------------------------------------------------------------------
+# Tempo Outputs (Marco 2 Fase 8)
+# -----------------------------------------------------------------------------
+
+output "tempo_s3_bucket" {
+  description = "Nome do S3 bucket do Tempo"
+  value       = module.tempo.s3_bucket_name
+}
+
+output "tempo_iam_role_arn" {
+  description = "ARN da IAM Role do Tempo (IRSA)"
+  value       = module.tempo.iam_role_arn
+}
+
+output "tempo_query_frontend_endpoint" {
+  description = "Endpoint do Tempo Query Frontend (para Grafana datasource)"
+  value       = module.tempo.tempo_query_frontend_endpoint
+}
+
+output "tempo_distributor_otlp_grpc_endpoint" {
+  description = "Endpoint OTLP gRPC do Distributor (para OTel Collector)"
+  value       = module.tempo.tempo_distributor_otlp_grpc_endpoint
+}
+
+output "tempo_gateway_endpoint" {
+  description = "Endpoint do Tempo Gateway"
+  value       = module.tempo.tempo_gateway_endpoint
+}
+
+output "tempo_configuration_summary" {
+  description = "Resumo da configuração do Tempo"
+  value       = module.tempo.configuration_summary
+}
+
+output "tempo_validation_commands" {
+  description = "Comandos para validar o deployment do Tempo"
+  value       = module.tempo.validation_commands
+}
+
+output "tempo_grafana_datasource_config" {
+  description = "Configuração do datasource Tempo para Grafana (Fase 2 deployment)"
+  value       = module.tempo.grafana_datasource_config
+}
+
+# -----------------------------------------------------------------------------
 # Network Policies Outputs (Marco 2 Fase 5)
 # -----------------------------------------------------------------------------
 

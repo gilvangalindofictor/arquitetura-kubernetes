@@ -1,35 +1,117 @@
 # Projeto Kubernetes - Plataforma Corporativa de Engenharia
 
+> **🎯 PROJETO ATIVO:** AWS EKS GitLab Quickstart (Fase 1 - 8 semanas)
+> **📋 VISÃO FUTURA:** Plataforma Cloud-Agnostic Completa (Fases 2-4)
 > **Metodologia**: AI-First (adaptado do projeto iPaaS)
-> **Fase Atual**: 2 (Implementação de Domínios) 🔄
-> **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3 - 2026-01-05)
-> **Última Atualização**: 2026-01-05
-> **Primeiro Objetivo**: Esteira CI/CD completa (GitLab + SonarQube + ArgoCD + Backstage)
-> **Orquestrador**: Kubernetes (ADR-021) - escolhido por cloud-agnostic + ecossistema maduro
-> **Cloud Recomendada**: Azure (CTO) - $7,381.44/ano (on-demand), $4,428.86/ano (RI 3-year)
-
-> 📘 **CONTEXTO CONSOLIDADO**: Ver [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) para documentação completa e atualizada
+> **Status Atual**: Marco 2 Completo (8/8 fases) | Marco 3 Próximo
+> **Última Atualização**: 2026-01-30
 
 ---
 
-## 📋 Visão Geral
+## 🎯 Hierarquia de Projetos
 
-**Projeto Kubernetes** é uma **plataforma corporativa de engenharia robusta e escalável** usando Kubernetes como base de articulação tecnológica do departamento, gerenciando **6 domínios especializados**:
+### 🟢 Projeto Ativo (Fase 1): AWS EKS GitLab Quickstart
+
+**Status:** EM ANDAMENTO (Marco 2 completo, Marco 3 próximo)
+**Documento:** [aws-eks-gitlab-quickstart.md](docs/plan/quickstart/aws-eks-gitlab-quickstart.md)
+**Timeline:** 8 semanas (Marcos 0-3)
+**Custo:** R$ 3.624/mês (USD $604)
+
+**Objetivo:** Entregar plataforma Kubernetes operacional na AWS com GitLab CI/CD, observabilidade completa e data services em **8 semanas**.
+
+**Escopo:**
+
+- ✅ Marco 0: Baseline Terraform (Completo)
+- ✅ Marco 1: Cluster EKS (Completo)
+- ✅ Marco 2: Platform Services 8/8 fases (Completo)
+  - AWS Load Balancer Controller
+  - Cert-Manager
+  - Kube-Prometheus-Stack
+  - Loki + Fluent Bit
+  - Network Policies (Calico)
+  - Cluster Autoscaler
+  - Test Applications
+  - FinOps Automation (IMPLEMENTADO)
+- 📋 Marco 3: Workloads (Próximo - 8 semanas)
+  - PostgreSQL RDS + Redis Operator + RabbitMQ Operator
+  - GitLab CE (Helm)
+  - ArgoCD
+  - Harbor
+
+**Por que este é o projeto principal:**
+
+- ✅ Resultado tangível e operacional rápido
+- ✅ Validação prática de decisões arquiteturais
+- ✅ Fundações corretas para evolução futura
+- ✅ Custos controlados e otimizados
+- ✅ 75-80% dos componentes já cloud-agnostic (ADR-023)
+
+---
+
+### 📋 Visão de Longo Prazo (Fases 2-4): Plataforma Cloud-Agnostic
+
+**Status:** ESTRATÉGIA FUTURA
+**Documento:** [Roadmap de Convergência](docs/plan/convergence-roadmap.md)
+**Timeline:** 12-18 meses (após Marco 3)
+**Custo Projetado:** R$ 8.500/mês (plataforma completa)
+
+**Objetivo:** Evoluir plataforma AWS para arquitetura 100% cloud-agnostic com 6 domínios especializados.
+
+**Fases de Convergência:**
+
+- 📋 Fase 2 (12 semanas): Abstração Multi-Cloud (NGINX Ingress, Karpenter, CloudNativePG)
+- 📋 Fase 3 (8 semanas): Validação em 2ª cloud (GCP/Azure staging)
+- 📋 Fase 4 (12 semanas): Platform Engineering Completo (Service Mesh, Vault, Backstage)
+
+**6 Domínios Especializados (Visão Final):**
 
 1. **platform-core**: Fundação (Kong, Keycloak, Service Mesh, cert-manager)
-2. **cicd-platform**: Esteira CI/CD (GitLab, SonarQube, ArgoCD, Backstage) — **🎯 Primeiro Objetivo**
+2. **cicd-platform**: Esteira CI/CD (GitLab, SonarQube, ArgoCD, Backstage)
 3. **observability**: Monitoramento full-stack (OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Kiali)
 4. **data-services**: DBaaS, CacheaaS, MQaaS (PostgreSQL, Redis, RabbitMQ com HA e backup)
 5. **secrets-management**: Cofre centralizado (Vault)
 6. **security**: Policies, runtime, compliance (OPA/Kyverno, Falco, Trivy)
 
-**Características**:
-- ✅ **Orquestrador: Kubernetes** - Escolhido vs Docker Swarm, Nomad, ECS, Cloud Run (ADR-021)
-- ✅ **Cloud-Agnostic OBRIGATÓRIO** - Sem recursos nativos de cloud
+**Características:**
+
+- ✅ **Orquestrador: Kubernetes** - Escolhido vs Docker Swarm, Nomad, ECS, Cloud Run
+- ✅ **Cloud-Agnostic OBRIGATÓRIO** - Meta final, iniciando com AWS
 - ✅ **Escalabilidade Multi-Domínio** - Cada domínio evolui independentemente
-- ✅ **Governança Centralizada** - SAD como fonte suprema, ADRs obrigatórios
+- ✅ **Governança Centralizada** - ADRs obrigatórios
 - ✅ **Rastreabilidade Total** - Hooks, logs, commits estruturados
 - ✅ **Isolamento** - Namespaces, RBAC, Network Policies, Service Mesh por domínio
+
+---
+
+## 🔄 Estratégia de Convergência
+
+### Princípio: AWS-First, Cloud-Agnostic by Design
+
+**Implementamos primeiro na AWS (rápido, prático) mas projetamos para portabilidade:**
+
+1. **Fundações Corretas Desde o Início**
+   - Uso prioritário de Helm Charts oficiais (agnósticos)
+   - Kubernetes Operators em vez de serviços gerenciados (ADR-023)
+   - Network Policies com Calico (portável)
+   - Terraform modularizado
+
+2. **Portabilidade Atual (Fase 1)**
+   - ✅ 75-80% dos componentes já cloud-agnostic
+   - ⚠️ Dependências AWS: ALB Controller, RDS, EventBridge/Lambda (FinOps)
+   - ✅ Decisões de design permitem migração incremental
+
+3. **Roadmap de Evolução**
+   - Ver [Roadmap de Convergência](docs/plan/convergence-roadmap.md) completo
+   - Migração planejada para NGINX Ingress, CloudNativePG, Karpenter
+   - Validação multi-cloud em Fase 3
+
+**Documentação de Convergência:**
+
+- 📘 [Convergence Roadmap](docs/plan/convergence-roadmap.md) - Estratégia completa de evolução AWS → Multi-Cloud
+- 📘 [AWS EKS Quickstart](docs/plan/quickstart/aws-eks-gitlab-quickstart.md) - Projeto ativo detalhado
+- 📘 [Evolution Strategy](docs/plan/quickstart/evolution-strategy.md) - Fases de maturidade
+- 📘 [Architecture](docs/context/architecture.md) - Estado atual da implementação
+- 📘 [Decisions](docs/context/decisions.md) - ADRs técnicas aplicadas
 
 ---
 

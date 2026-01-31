@@ -25,6 +25,7 @@
 | **ADR-022** | **Startup/Shutdown Automation Strategy (FinOps)** | **2026-01-29** | **✅ Ativo** | **Alto** |
 | **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators** | **2026-01-29** | **✅ Ativo** | **Crítico** |
 | **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)** | **2026-01-30** | **✅ Implementado** | **Alto** |
+| **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado** | **Alto** |
 
 ---
 
@@ -1695,6 +1696,85 @@ NPV líquido: R$ 7.745 (258% ROI cumulativo)
 
 ---
 
+---
+
+## 📝 ADR-025: Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)
+
+**Data:** 2026-01-31
+**Status:** ✅ Implementado - Marco 2 Fase 8
+**Contexto:** Correção de deployment Tempo com replication_factor mismatch
+
+### Problema
+
+Durante deployment do Tempo (Marco 2 Fase 8), encontramos crash loop em Ingesters devido a **replication_factor mismatch**:
+- **Configurado**: 2 replicas de Ingester
+- **Chart default**: replication_factor = 3
+- **Resultado**: Ingesters em crash loop (Exit Code 2)
+
+### Decisão
+
+**Manter replication_factor = 2** alinhado com 2 replicas de Ingester (staging), postergar RF=3 para Marco 3 (produção).
+
+### Análise Multi-Agente
+
+#### Terraform Specialist
+- ❌ **Erro identificado**: Parâmetro Helm incorreto `tempo.ingester.lifecycler.ring.replication_factor` (chart ignora prefixo `tempo.`)
+- ✅ **Correção**: `ingester.lifecycler.ring.replication_factor = 2`
+- ⚠️ **Liveness probes**: Configurações agressivas matando containers stateful prematuramente
+- ✅ **Fix probes**: `initialDelaySeconds=60s`, `failureThreshold=5` para Ingester/Compactor
+
+#### FinOps Specialist
+- **Opção 1 (RF=2, 2 Ingesters)**: $2.47/mês (zero delta) ✅
+- **Opção 2 (RF=3, 3 Ingesters)**: $63.47/mês (+$61.00, +2,465%) ❌
+- **Recomendação**: Opção 1 para staging, diferir Opção 2 para Marco 3 produção
+
+### Rationale
+
+1. ✅ **FinOps**: Economia de $61/mês vs RF=3 ($732/ano)
+2. ✅ **Staging adequado**: RF=2 aceitável para ambiente não-produtivo
+3. ✅ **Consistência**: Mantém target Marco 2 ($2.47/mês total)
+4. ✅ **Rápido deploy**: Zero custo adicional, <5 minutos implementação
+
+### Trade-offs Aceitos
+
+| Aspecto | RF=2 (staging) | RF=3 (produção) |
+|---------|----------------|-----------------|
+| **HA** | ⚠️ Perda de 1 Ingester = degradação | ✅ Tolera 2 falhas simultâneas |
+| **Custo** | $2.47/mês | $63.47/mês |
+| **Recovery** | Single point durante failover | Multi-point resiliente |
+| **Quorum** | 2/2 (sem margem) | 2/3 (tolerante) |
+
+**Mitigações RF=2**:
+- PodDisruptionBudget com `maxUnavailable=0`
+- CloudWatch Alarm para Ingester down >5min
+- Tail sampling (10% traces) → impacto reduzido
+
+### Consequências
+
+- ✅ Deployment bem-sucedido (11/12 pods healthy, 91%)
+- ✅ Custo mantido $2.47/mês (87% economia vs projeção inicial $19.70)
+- ✅ S3 backend + IRSA funcionando perfeitamente
+- ⚠️ 1 Querier com leve instabilidade (não-crítico, 2 queriers disponíveis)
+- 💰 Economia total: $732/ano vs RF=3
+
+### Troubleshooting Realizado
+
+1. **Cluster sem nodes** → Reativado 7 nodes (system:2, workloads:3, critical:2)
+2. **Replication factor mismatch** → Corrigido parâmetro Helm
+3. **Liveness probes agressivos** → Aumentado timeouts (60s initialDelay)
+4. **ALB Controller webhook down** → Aguardado nodes subirem
+
+### Próximos Passos
+
+- Marco 3 (Produção): Reavaliar RF=3 para workloads críticos
+- Implementar PodDisruptionBudgets
+- Configurar CloudWatch Alarms
+- Integrar Grafana Datasource (Fase 2 - Marco 2 Fase 8)
+
+**Arquivo:** [modules/tempo/main.tf:357](../../../platform-provisioning/aws/kubernetes/terraform/envs/marco2/modules/tempo/main.tf)
+
+---
+
 **Mantenedor:** DevOps Team
-**Última Revisão:** 2026-01-29
+**Última Revisão:** 2026-01-31
 **Próxima Revisão:** Marco 3 Planning (GitLab deployment decisions)

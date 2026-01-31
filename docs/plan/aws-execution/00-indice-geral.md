@@ -14,9 +14,11 @@
 
 ---
 
-## 📊 Estado Atual da Implementação (2026-01-29)
+## 📊 Estado Atual da Implementação (2026-01-30)
 
-> **NOTA:** Este documento representa o **plano base original** (épicos A-I). A implementação real evoluiu para um roadmap de 8 semanas com mudanças estratégicas.
+> **🎯 PROJETO ATIVO:** Este documento mapeia o progresso do [AWS EKS GitLab Quickstart](../quickstart/aws-eks-gitlab-quickstart.md), que é o **projeto principal ativo**.
+>
+> **📋 CONVERGÊNCIA:** Ver [Roadmap de Convergência](../convergence-roadmap.md) para entender como este projeto AWS evolui para a plataforma cloud-agnostic completa.
 
 ### Marco 2: Platform Services - ✅ COMPLETO
 

@@ -171,6 +171,50 @@ module "fluent_bit" {
 }
 
 # -----------------------------------------------------------------------------
+# Tempo (Distributed Tracing - Marco 2 Fase 8)
+# -----------------------------------------------------------------------------
+
+module "tempo" {
+  source = "./modules/tempo"
+
+  cluster_name         = var.cluster_name
+  region               = var.region
+  namespace            = "monitoring"
+  service_account_name = "tempo"
+  chart_version        = "1.61.3"
+
+  # Storage configuration (S3 backend)
+  retention_days     = 7     # ADR-020: 7 days retention
+  enable_versioning  = false # FinOps: Disabled para economia
+  storage_class      = "gp2"
+  ingester_pvc_size  = "10Gi" # FinOps: Reduzido de 20Gi
+  compactor_pvc_size = "10Gi" # FinOps: Reduzido de 20Gi
+
+  # Replication and scaling
+  distributor_replicas = 2
+  ingester_replicas    = 2
+  querier_replicas     = 2
+  compactor_replicas   = 1
+
+  # Security: Network Policies (4 policies: otel-ingress, otel-to-tempo, grafana-to-tempo, tempo-to-s3)
+  enable_network_policies = true
+
+  tags = {
+    Environment = "production"
+    Project     = "k8s-platform"
+    Marco       = "marco2"
+    Fase        = "8"
+    ManagedBy   = "terraform"
+  }
+
+  depends_on = [
+    module.kube_prometheus_stack,
+    module.loki,
+    module.fluent_bit
+  ]
+}
+
+# -----------------------------------------------------------------------------
 # Network Policies (Security - Marco 2 Fase 5)
 # -----------------------------------------------------------------------------
 
@@ -202,12 +246,13 @@ module "network_policies" {
   cert_manager_namespace = "cert-manager"
   kube_dns_namespace     = "kube-system"
 
-  # Dependências: aplicar APÓS todos os serviços estarem rodando
+  # Dependências: aplicar APÓS todos os serviços estarem rodando (incluindo Tempo - Fase 8)
   depends_on = [
     module.kube_prometheus_stack,
     module.loki,
     module.fluent_bit,
-    module.cert_manager
+    module.cert_manager,
+    module.tempo
   ]
 }
 
