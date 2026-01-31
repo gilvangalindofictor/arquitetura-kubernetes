@@ -19,8 +19,17 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+# Terraform plans (gerados localmente, nunca commitar)
+*.tfplan
+tfplan
+tfplan-*
 
 # ------------------------------------------------------------------------------
+# Artefatos compilados Lambda
+# **.lambda_*.zip
+**/function_*.zip
+lambda_*.zip
+
 # Python (para scripts de automação)
 # ------------------------------------------------------------------------------
 __pycache__/
