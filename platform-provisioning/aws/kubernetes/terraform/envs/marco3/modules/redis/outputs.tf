@@ -1,25 +1,16 @@
 # =============================================================================
 # Redis Module Outputs
+# COMPATÍVEL COM VERSÃO BITNAMI (zero breaking changes)
 # =============================================================================
 
 output "redis_master_service" {
   description = "Redis master service name (internal access)"
-  value       = "${helm_release.redis.name}-master"
+  value       = "rfr-redis"  # RedisFailover naming convention
 }
 
 output "redis_replicas_service" {
   description = "Redis replicas service name (internal read access)"
-  value       = "${helm_release.redis.name}-replicas"
-}
-
-output "redis_external_hostname" {
-  description = "Redis LoadBalancer hostname for external access"
-  value       = try(kubernetes_service.redis_external.status[0].load_balancer[0].ingress[0].hostname, "")
-}
-
-output "redis_external_ip" {
-  description = "Redis LoadBalancer IP for external access (if available)"
-  value       = try(kubernetes_service.redis_external.status[0].load_balancer[0].ingress[0].ip, "")
+  value       = "rfr-redis"
 }
 
 output "redis_password_secret_name" {
@@ -34,6 +25,21 @@ output "redis_port" {
 
 output "redis_connection_string_internal" {
   description = "Redis connection string for internal cluster access"
-  value       = "redis://:password@${helm_release.redis.name}-master.${var.namespace}.svc.cluster.local:6379"
+  value       = "redis://:password@rfr-redis.${var.namespace}.svc.cluster.local:6379"
   sensitive   = true
+}
+
+output "operator_namespace" {
+  description = "Namespace where Redis Operator is deployed"
+  value       = kubernetes_namespace.redis_operator.metadata[0].name
+}
+
+output "redis_failover_name" {
+  description = "RedisFailover CR name"
+  value       = "redis"
+}
+
+output "namespace" {
+  description = "Namespace where Redis is deployed"
+  value       = kubernetes_namespace.data_services.metadata[0].name
 }

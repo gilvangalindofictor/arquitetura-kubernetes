@@ -26,14 +26,20 @@ output "redis_master_service" {
   value       = module.redis.redis_master_service
 }
 
-output "redis_external_hostname" {
-  description = "Redis NLB hostname for external access"
-  value       = module.redis.redis_external_hostname
-}
-
 output "redis_password_secret" {
   description = "Redis password secret name"
   value       = module.redis.redis_password_secret_name
+}
+
+output "redis_namespace" {
+  description = "Redis namespace"
+  value       = module.redis.namespace
+}
+
+output "redis_connection_string" {
+  description = "Redis connection string (internal)"
+  value       = module.redis.redis_connection_string_internal
+  sensitive   = true
 }
 
 # RabbitMQ Outputs

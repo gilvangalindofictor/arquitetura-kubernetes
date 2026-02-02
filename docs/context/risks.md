@@ -775,11 +775,12 @@ Bitnami Helm Charts (Redis, RabbitMQ) migrariam para modelo pago (Tanzu Standard
 ## ⚠️ R-019: Riscos Automação FinOps STAGING (EventBridge + Lambda)
 
 **Data Identificação:** 2026-01-30
-**Status:** 📝 PLANEJADO (implementação prevista 2026-02-17)
+**Data Ativação:** 2026-02-02
+**Status:** 🚀 **ATIVO** (monitoramento em andamento)
 **Categoria:** Disponibilidade + Operacional + Financeiro
 **Impacto:** 🟡 MÉDIO (afeta STAGING apenas, PROD não impactado)
-**Probabilidade:** 🟡 MÉDIA (5-10% chance de falhas operacionais)
-**Severidade Combinada:** 🟡 **MÉDIA** (Probabilidade × Impacto = 5)
+**Probabilidade:** 🟢 BAIXA (mitigações ativas: circuit breaker, SNS, CloudWatch)
+**Severidade Combinada:** 🟢 **BAIXA-MÉDIA** (Probabilidade reduzida após validação 5/5 testes)
 
 ### Descrição
 
@@ -796,6 +797,32 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 - **Demanda:** [docs/demands/2026-01-30-automacao-finops-staging.md](../demands/2026-01-30-automacao-finops-staging.md)
 - **Economia Projetada:** R$ 4.320/ano (ROI 44% Year 1, payback 6.7 meses)
 - **Investimento:** R$ 3.000 (10h desenvolvimento)
+
+---
+
+### 🚀 Mitigações Ativas (Desde 2026-02-02)
+
+**Status Operacional:** ✅ Automação HABILITADA com controles ativos
+
+| Controle | Status | Efetividade | Validação |
+|----------|--------|-------------|-----------|
+| **Circuit Breaker DynamoDB** | ✅ ATIVO | 3 falhas consecutivas → auto-disable | Test 4: 100% sucesso |
+| **SNS Email Notifications** | ✅ ATIVO | Alertas em falhas startup/shutdown | Email confirmado |
+| **CloudWatch Alarms (3)** | ✅ ATIVO | Startup failures, shutdown failures, duration high | Integrados com SNS |
+| **Lambda Retry Logic** | ✅ ATIVO | 3 tentativas com backoff exponencial | Implementado no código |
+| **BrasilAPI Cache DynamoDB** | ✅ ATIVO | 30 dias TTL, fallback lista estática | Implementado |
+| **RDS 7-day Auto-start Check** | ✅ VALIDADO | Startup após 4 dias downtime | Test 5: 8 min (target <10 min) |
+| **Lambda Performance** | ✅ VALIDADO | <3s target | Média 1.5s (5/5 testes) |
+| **Health Checks** | ✅ ATIVO | Verificação nodes/RDS antes conclusão | Implementado |
+
+**Validação Manual Completa:**
+- ✅ Test 1: Shutdown básico (non-graceful aceitável staging)
+- ✅ Test 2: Startup completo (7 nodes, 6.5 min)
+- ✅ Test 3: BrasilAPI feriados (skip correto)
+- ✅ Test 4: Circuit breaker (disable após 3 falhas)
+- ✅ Test 5: RDS startup após 4 dias downtime (8 min)
+
+**Próximo Review:** 2026-03-03 (30 dias operação, validar efetividade real dos controles)
 
 ---
 

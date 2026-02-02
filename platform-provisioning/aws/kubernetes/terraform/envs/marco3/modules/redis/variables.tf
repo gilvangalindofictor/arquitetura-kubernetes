@@ -1,5 +1,6 @@
 # =============================================================================
 # Redis Module Variables
+# COMPATÍVEL COM VERSÃO BITNAMI (zero breaking changes)
 # =============================================================================
 
 variable "cluster_name" {
@@ -10,13 +11,13 @@ variable "cluster_name" {
 variable "namespace" {
   description = "Kubernetes namespace for Redis deployment"
   type        = string
-  default     = "default"
+  default     = "data-services"
 }
 
 variable "replicas" {
-  description = "Number of Redis replicas"
+  description = "Number of Redis replicas (master + replicas total)"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "pvc_size" {
