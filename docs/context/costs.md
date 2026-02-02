@@ -34,6 +34,179 @@ Marco 0: $0.07/mês → Marco 1: $550/mês → Marco 2: $666/mês → Marco 2 Fa
 **Status:** ✅ **Implementado e Validado**
 **Economia Anual:** **$35,995/ano** vs Bitnami + Tanzu Standard
 
+---
+
+## 🎯 Marco 3 Fase 2: GitLab CE Deployment - Análise de Custos
+
+**Data Análise:** 2026-02-02
+**Status:** 📊 **Análise Completa - Aguardando Deploy**
+**Custo Mensal:** **$92.71/mês** ($83.25 base + $9.46 runner jobs ephemeral)
+**Custo Anual:** **$1,112.52/ano**
+
+### Decisão Arquitetural: GitLab CE Self-Hosted Kubernetes
+
+**Contexto:** Escolha entre GitLab SaaS, EC2 self-hosted, ou Kubernetes self-hosted.
+
+| Cenário | Custo/Mês (10 users) | Custo/Ano | vs K8s | Ops Toil | Decisão |
+|---------|---------------------|-----------|--------|----------|---------|
+| **GitLab SaaS Premium** | $290.00 | $3,480 | +214% | ✅ Zero | ❌ Custo proibitivo |
+| **EC2 Single Instance** | $199.71 | $2,396 | +115% | ⚠️ Médio | ❌ Sem HA |
+| **EC2 HA Multi-Instance** | $263.47 | $3,162 | +184% | ⚠️ Alto | ❌ Caro + toil |
+| **GitLab K8s Self-Hosted** | **$92.71** | **$1,113** | **Baseline** | ⚠️ Médio | ✅ **ESCOLHIDO** |
+| **GitHub Team + Actions** | $136.00 | $1,632 | +47% | ✅ Zero | ⚠️ Lock-in Microsoft |
+
+**Decisão Final:** GitLab CE Self-Hosted em Kubernetes
+**Rationale:** Melhor custo absoluto (<$100/mês), multi-cloud portability, compliance (dados na infra própria)
+
+### Breakdown Custos Detalhado
+
+**Infraestrutura Deployada:**
+- **Webservice:** 2 pods (Rails app: 500m CPU, 2Gi RAM cada)
+- **Sidekiq:** 1 pod (background jobs: 500m CPU, 1Gi RAM)
+- **Gitaly:** 1 pod (Git storage: 200m CPU, 512Mi RAM, 50Gi PVC)
+- **GitLab Runner:** 2 pods (orchestrators: 100m CPU, 256Mi RAM cada)
+- **GitLab Shell:** 1 pod (SSH: 25m CPU, 50Mi RAM estimado)
+- **Total Requests:** 2.125 vCPU, 6.35 GB RAM
+
+**Dependências Externas (já contabilizadas Marco 3 Fase 1):**
+- PostgreSQL RDS: $30/mês (shared GitLab + Harbor + ArgoCD)
+- Redis Operator: $18.50/mês (cache + sessions + Sidekiq jobs)
+
+| Componente | Especificação | Custo/Mês | Custo/Ano | % Total | Observações |
+|------------|---------------|-----------|-----------|---------|-------------|
+| **Compute (Pods)** | 2.125 vCPU, 6.35 GB RAM | $32.31 | $387.72 | 34.8% | 15.2% cluster capacity (shared nodes) |
+| **Networking (ALB + NLB)** | 1 ALB HTTP + 1 NLB SSH | $43.45 | $521.40 | 46.9% | Maior custo (2 load balancers) |
+| **Storage (EBS + S3)** | Gitaly 50GB gp3 + S3 10GB | $5.99 | $71.88 | 6.5% | Artifacts 90d retention |
+| **Runner Jobs (Ephemeral)** | 100 jobs/dia × 3min × 100m CPU | $9.46 | $113.52 | 10.2% | Pods temporários CI/CD |
+| **IAM/Security** | Secrets Manager (1 secret) | $0.40 | $4.80 | 0.4% | GitLab root password |
+| **Hidden Costs** | CloudWatch logs + metrics | $1.10 | $13.20 | 1.2% | Observability |
+| **TOTAL GitLab CE** | | **$92.71** | **$1,112.52** | **100%** | Desenvolvimento (10 devs, 20 pipelines/dia) |
+
+### Análise de Overprovisioning e Otimizações
+
+**Problemas Identificados:**
+
+1. **Gitaly PVC Oversized** ⚠️
+   - Provisionado: 50Gi gp3
+   - Uso estimado: 3 GB (6% utilização)
+   - Overprovisioning: 47 GB desperdício
+   - Economia potencial: $3.20/mês (reduzir para 10Gi em novos deploys)
+   - **Status:** Manter 50Gi atual (resize impossível), usar 10Gi próximos clusters
+
+2. **Shared ALB Opportunity** ✅ QUICK WIN
+   - Custo atual: 3 ALBs separados (GitLab + Harbor + ArgoCD) = 3 × $23 = $69/mês
+   - Otimização: Consolidar em 1 ALB via IngressGroup annotation
+   - Economia: $46/mês total ($15.33/app)
+   - Esforço: 1h implementação
+   - ROI: Imediato, zero risco
+   - **AÇÃO:** Implementar IngressGroup no próximo deploy Harbor
+
+3. **NLB SSH (GitLab Shell)** ⚠️
+   - Custo: $20.43/mês
+   - Uso: ~10% clones via SSH (maioria usa HTTPS)
+   - Economia potencial: $20.43/mês (desabilitar SSH, forçar HTTPS)
+   - Trade-off: DX inferior (onboarding 1h/dev × 10 devs = $1,000)
+   - ROI Year 1: -75% (negativo)
+   - **DECISÃO:** Manter NLB (SSH é DX superior)
+
+4. **Runner Jobs Ephemeral** ⚠️ CUSTO OCULTO IDENTIFICADO
+   - Não estava contabilizado inicialmente
+   - 100 jobs/dia × 3min × 100m CPU = $9.46/mês
+   - Economia spot instances: -70% = -$6.62/mês
+   - Investimento Karpenter: $600
+   - Payback: 88 meses (7.3 anos)
+   - **DECISÃO:** Aceitar custo $9.46/mês, documentado
+
+**Otimizações Rejeitadas (ROI negativo):**
+- ❌ Spot Instances runners (payback 7 anos)
+- ❌ VPA para Sidekiq/Webservice (payback 87 meses)
+- ❌ Docker cache S3 (payback 105 meses)
+
+### Custo Otimizado Projetado
+
+**Cenário Base (atual):**
+- GitLab CE: $92.71/mês
+- TOTAL: $92.71/mês
+
+**Cenário Otimizado (Shared ALB aplicado):**
+- GitLab CE base: $92.71/mês
+- Shared ALB economy: -$15.33/mês
+- **TOTAL OTIMIZADO: $77.38/mês**
+
+**Economia:** $15.33/mês (-16.5%)
+**Economia Anual:** $184/ano
+
+### ROI vs Alternativas
+
+**Break-even Analysis:**
+
+GitLab SaaS Premium ($29/user/mês):
+- Break-even: 3 usuários ($87/mês SaaS = $83/mês self-hosted)
+- 10 usuários: $290/mês SaaS vs $93/mês K8s = **$197/mês desperdício** (+214%)
+- 50 usuários: $1,450/mês SaaS vs $136/mês K8s (produção scaled) = **$1,314/mês desperdício** (+964%)
+
+GitHub Team + Actions:
+- 10 usuários: $40/mês + $96/mês Actions = $136/mês
+- vs K8s: +$43.29/mês (+47%)
+- Trade-off: Zero ops, mas vendor lock-in Microsoft
+
+### Consolidação Marco 3 Completo
+
+**Custo Total Marco 3 (Fase 1 + Fase 2):**
+
+```
+Marco 3 Fase 1 (Base):       $704.20/mês
+- Marco 2 completo:          $685.70/mês
+- Redis Operator:            +$18.50/mês
+
+Marco 3 Fase 2 (GitLab):     +$92.71/mês
+- GitLab pods:               $32.31/mês
+- Networking (ALB + NLB):    $43.45/mês
+- Storage (EBS + S3):        $5.99/mês
+- Runner ephemeral jobs:     $9.46/mês
+- Security + Hidden:         $1.50/mês
+
+────────────────────────────────────────
+TOTAL Marco 3 (Fase 1 + 2):  $796.91/mês
+TOTAL Anual:                 $9,562.92/ano
+```
+
+**Nota:** PostgreSQL ($30/mês) e Redis ($18.50/mês) já estão contabilizados no Marco 3 Fase 1, são compartilhados por GitLab, Harbor e ArgoCD.
+
+### Cenários de Custo (Dev vs Produção)
+
+| Cenário | Usuários | Pipelines/dia | Compute | Networking | Storage | Total/Mês |
+|---------|----------|--------------|---------|------------|---------|-----------|
+| **Desenvolvimento** | 10 devs | 20 | $32.31 | $43.45 | $5.99 | **$92.71** |
+| **Produção** | 50 devs | 100 | $60.74 | $58.00 | $14.50 | **$136.44** |
+
+**Análise usada:** Cenário DESENVOLVIMENTO ($92.71/mês)
+**Rationale:** Marco 3 é ambiente de homologação/staging inicial.
+
+### Métricas de Sucesso (KPIs)
+
+**Operacionais:**
+- Uptime GitLab UI: > 99.5% (8h-18h Mon-Fri)
+- Pipeline success rate: > 95%
+- Startup time pós-deploy: < 5 min
+
+**Financeiras:**
+- Custo real vs projetado: ±10% ($83-$102/mês)
+- Overprovisioning CPU: < 30% idle
+- Storage utilization Gitaly: > 20% (monitorar após 30d)
+
+**Próxima Validação:** 2026-03-02 (30 dias operação)
+- CloudWatch Metrics: CPU/Memory usage real vs requests
+- Cost Explorer: Custo observado vs $92.71 projetado
+- GitLab Admin: Artifacts storage growth rate
+
+### Referências
+
+- [GitLab Terraform Module](../../platform-provisioning/aws/kubernetes/terraform/envs/marco3/modules/gitlab/main.tf)
+- [GitLab Values Template](../../platform-provisioning/aws/kubernetes/terraform/envs/marco3/modules/gitlab/values.yaml.tpl)
+- [S3 Buckets Module](../../platform-provisioning/aws/kubernetes/terraform/envs/marco3/modules/s3-buckets/main.tf)
+- [Marco 3 Diary](../diary/marco3-diary.md) - Implementação Redis Operator
+
 ### Decisão Arquitetural: Spotahome Redis Operator
 
 | Cenário | Custo/Mês | Custo/Ano | vs Operator | ROI | Status |

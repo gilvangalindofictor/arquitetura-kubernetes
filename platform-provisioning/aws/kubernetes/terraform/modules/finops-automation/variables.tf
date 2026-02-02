@@ -232,6 +232,7 @@ locals {
   sns_alarm_actions = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? [aws_sns_topic.finops_notifications[0].arn] : (var.sns_topic_arn != "" ? [var.sns_topic_arn] : [])
 
   # Lambda common environment variables
+  # Note: AWS_REGION is automatically provided by Lambda runtime (reserved key)
   lambda_env_vars = {
     ENVIRONMENT           = var.environment
     CLUSTER_NAME          = var.cluster_name
@@ -242,7 +243,6 @@ locals {
     LOG_LEVEL             = "INFO"
     SNS_TOPIC_ARN         = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? aws_sns_topic.finops_notifications[0].arn : var.sns_topic_arn
     CIRCUIT_BREAKER_THRESHOLD = tostring(var.circuit_breaker_threshold)
-    AWS_REGION            = data.aws_region.current.name
   }
 }
 

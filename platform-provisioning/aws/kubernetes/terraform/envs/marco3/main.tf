@@ -138,3 +138,76 @@ module "s3_buckets" {
   aws_account_id = var.aws_account_id
   common_tags    = var.common_tags
 }
+
+# PostgreSQL Password Secret for GitLab
+# Note: This uses the password from the manual database creation step
+# TODO: Migrate to AWS Secrets Manager in future phase
+resource "kubernetes_secret" "gitlab_postgresql_password" {
+  metadata {
+    name      = "gitlab-postgresql-password"
+    namespace = "data-services"
+
+    labels = merge(var.common_tags, {
+      "app.kubernetes.io/name"     = "postgresql"
+      "app.kubernetes.io/instance" = "${var.cluster_name}-postgresql"
+    })
+  }
+
+  data = {
+    password = "GitLab2026!SecurePass#Marco3"  # From create-databases.sql
+  }
+
+  type = "Opaque"
+}
+
+# GitLab Module
+module "gitlab" {
+  source = "./modules/gitlab"
+
+  depends_on = [
+    module.postgresql,
+    module.redis,
+    module.s3_buckets,
+    kubernetes_secret.gitlab_postgresql_password
+  ]
+
+  # Cluster info
+  cluster_name   = var.cluster_name
+  aws_account_id = var.aws_account_id
+  aws_region     = var.aws_region
+  namespace      = "gitlab"
+  environment    = "prod"
+
+  # GitLab configuration
+  gitlab_edition         = "ce"
+  gitlab_version         = "8.7.0"
+  gitlab_replicas        = 2
+  gitlab_runner_replicas = 2
+
+  # TLS configuration (ADR-021 Phase 1: disabled)
+  enable_tls  = false
+  domain_name = ""
+
+  # PostgreSQL (external - CloudNativePG via RDS)
+  postgresql_host            = module.postgresql.service_name
+  postgresql_port            = 5432
+  postgresql_database        = "gitlab"
+  postgresql_username        = "gitlab_user"
+  postgresql_password_secret = kubernetes_secret.gitlab_postgresql_password.metadata[0].name
+
+  # Redis (external - Spotahome Redis Operator)
+  redis_host            = "${module.redis.redis_master_service}.${module.redis.namespace}.svc.cluster.local"
+  redis_port            = module.redis.redis_port
+  redis_password_secret = module.redis.redis_password_secret_name
+
+  # S3 (IRSA)
+  s3_artifacts_bucket = module.s3_buckets.gitlab_artifacts_bucket_name
+  s3_uploads_bucket   = module.s3_buckets.gitlab_artifacts_bucket_name  # Same bucket, different prefixes
+  s3_policy_arn       = module.s3_buckets.gitlab_s3_policy_arn
+
+  # Monitoring
+  enable_monitoring = true
+
+  # Tags
+  common_tags = var.common_tags
+}

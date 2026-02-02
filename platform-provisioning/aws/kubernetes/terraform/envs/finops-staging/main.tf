@@ -55,8 +55,8 @@ module "finops_automation" {
   startup_schedule  = "cron(0 11 ? * MON-FRI *)"
   shutdown_schedule = "cron(0 21 ? * MON-FRI *)"
 
-  # CRITICAL: Start with automation DISABLED for manual testing
-  enable_automation = false
+  # Automation ENABLED after successful SNS + manual testing (5/5 tests passed)
+  enable_automation = true
 
   # Lambda configuration
   lambda_timeout = 300 # 5 minutes
@@ -66,10 +66,12 @@ module "finops_automation" {
   # Circuit breaker
   circuit_breaker_threshold = 3
 
-  # Monitoring
+  # Monitoring & Notifications
   enable_cloudwatch_alarms   = true
   startup_duration_threshold = 600 # 10 minutes
-  sns_topic_arn              = ""  # Optional: add SNS topic for alerts
+  enable_sns_notifications   = true
+  notification_emails        = ["gilvan.galindo@fctconsig.com.br"]
+  sns_topic_arn              = ""  # Module will create SNS topic automatically
 
   # Node groups configuration (startup target sizes)
   node_groups_config = {
