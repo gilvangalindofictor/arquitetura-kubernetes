@@ -216,7 +216,7 @@ resource "aws_iam_role_policy" "cloudwatch_policy" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "sns_policy" {
-  count = var.sns_topic_arn != "" ? 1 : 0
+  count = var.enable_sns_notifications ? 1 : 0
   name  = "finops-scheduler-sns-policy-v1"
   role  = aws_iam_role.lambda_role.id
 
@@ -228,7 +228,7 @@ resource "aws_iam_role_policy" "sns_policy" {
       Action = [
         "sns:Publish"
       ]
-      Resource = var.sns_topic_arn
+      Resource = var.sns_topic_arn != "" ? var.sns_topic_arn : "*"
     }]
   })
 }

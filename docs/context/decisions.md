@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-01-29
-**Versão:** 2.0 (Marco 2 Completo)
+**Última Atualização:** 2026-02-03
+**Versão:** 3.1 (Marco 3 + Redis Sentinel Fix PSS Restricted)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -26,6 +26,10 @@
 | **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators** | **2026-01-29** | **✅ Ativo** | **Crítico** |
 | **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)** | **2026-02-02** | **🚀 Ativo (Staging)** | **Alto** |
 | **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado** | **Alto** |
+| **ADR-026** | **Multi-Environment Terraform Refactoring** | **2026-02-02** | **✅ Aprovado** | **Crítico** |
+| **ADR-027** | **Shared GitLab with Separated DataServices** | **2026-02-02** | **✅ Aprovado** | **Alto** |
+| **ADR-028** | **Hybrid Observability with OpenTelemetry** | **2026-02-02** | **✅ Aprovado** | **Alto** |
+| **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted** | **2026-02-03** | **✅ Implementado** | **Crítico** |
 
 ---
 
@@ -1816,5 +1820,769 @@ Durante deployment do Tempo (Marco 2 Fase 8), encontramos crash loop em Ingester
 ---
 
 **Mantenedor:** DevOps Team
-**Última Revisão:** 2026-01-31
+**Última Revisão:** 2026-02-02
+
+---
+
+## 📝 ADR-026: Multi-Environment Terraform Refactoring
+
+**Data:** 2026-02-02
+**Status:** ✅ Aprovado
+**Decisores:** AWS Specialist, Terraform Specialist, FinOps, Security
+
+### Contexto
+
+Após implementação do Marco 3 (GitLab + Redis Operator), identificamos necessidade de refatoração arquitetural para:
+
+1. **Segregar ambientes** STAGING/PROD (atualmente rodando como monólito "prod")
+2. **Otimizar custos** via downsizing STAGING + FinOps automation
+3. **Isolar DataServices** por ambiente (PostgreSQL, Redis, RabbitMQ, Secrets)
+4. **Shared GitLab** (único CI/CD para ambos ambientes)
+5. **Hybrid Observability** (shared backend, labeled separation)
+
+**Motivações de Custo:**
+- Custo atual (marco3 monolítico): R$ 4.062/mês
+- Projeção ingênua (duplicar STAGING): R$ 8.124/mês (inviável)
+- **Meta otimizada:** R$ 2.887/mês (economia de 64% vs ingênuo)
+
+### Decisão
+
+#### 1. Terraform Structure Refactoring
+
+```
+terraform/
+├── modules/ (shared)
+│   ├── gitlab/
+│   ├── redis/
+│   ├── rabbitmq/
+│   ├── postgresql/
+│   ├── observability/
+│   ├── kube-prometheus-stack/
+│   ├── loki/
+│   ├── tempo/
+│   └── finops-automation/
+└── environments/
+    ├── common/
+    │   └── common.tfvars (shared variables)
+    ├── staging/
+    │   ├── main.tf
+    │   ├── terraform.tfvars
+    │   └── backend.tf (key: environments/staging/terraform.tfstate)
+    └── prod/
+        ├── main.tf
+        ├── terraform.tfvars
+        └── backend.tf (key: environments/prod/terraform.tfstate)
+```
+
+#### 2. Component Distribution Strategy
+
+| Componente | Decisão | Rationale |
+|------------|---------|-----------|
+| **GitLab** | ✅ SHARED | 1 instância = -$92/mês economia, pipelines por branch |
+| **DataServices** | ❌ SEPARATED | Isolamento dados, secrets, compliance |
+| **Observability** | ⚠️ HYBRID | Shared backend + labels = -40% custo vs separated |
+| **FinOps** | 🎯 STAGING ONLY | Shutdown 18h-8h = -R$ 204/mês |
+
+#### 3. Environment Configurations
+
+**STAGING (Cost-Optimized):**
+- PostgreSQL: `db.t3.micro` single-AZ (accept downtime)
+- Redis: 1 replica (no Sentinel)
+- RabbitMQ: 1 replica (no quorum)
+- Nodes: 2× t3.medium (FinOps shutdown 70% time)
+- Retention: Logs 7d, Metrics 7d
+- Tags: `Environment=staging`, `LGPD=Synthetic`
+
+**PROD (Production-Grade):**
+- PostgreSQL: `db.t3.medium` Multi-AZ (99.95% SLA)
+- Redis: 3 replicas + Sentinel (HA failover <30s)
+- RabbitMQ: 3 replicas quorum (HA)
+- Nodes: 3× t3.large (24/7 always on)
+- Retention: Logs 30d, Metrics 30d
+- Tags: `Environment=prod`, `LGPD=PII`
+
+### Rationale
+
+1. ✅ **Economia massiva:** R$ 5.237/mês vs cenário ingênuo (-64%)
+2. ✅ **Isolamento completo:** Dados STAGING ≠ PROD (compliance LGPD)
+3. ✅ **GitLab shared:** -$92/mês, CI/CD centralizado
+4. ✅ **Observability hybrid:** -40% custo, dashboards comparativos
+5. ✅ **FinOps STAGING:** -R$ 204/mês (auto-shutdown 18h-8h BRT)
+6. ✅ **Professional structure:** Terraform best practices (environments pattern)
+
+### Alternativas Consideradas
+
+1. ❌ **Duplicar Marco 3 (2× STAGING)**: R$ 8.124/mês (inviável, +100% custo)
+2. ❌ **Terraform Workspaces**: Menos isolamento, state shared bucket
+3. ✅ **Environments folders** (escolhido): Máximo isolamento, professional
+
+### Consequências
+
+#### ✅ Positivas
+
+- **Economia:** R$ 5.237/mês vs cenário ingênuo (-64%)
+- **Economia vs Quickstart planejado:** -R$ 737/mês (-20%)
+- **Economia vs Marco 3 atual:** -R$ 1.175/mês (-29%)
+- **Isolamento:** DataServices separados por ambiente (compliance)
+- **Shared benefits:** GitLab único, Observability hybrid
+- **FinOps automation:** STAGING auto-shutdown (seg-sex, 18h-8h BRT)
+- **ROI mantido:** 107% vs SaaS/Tanzu
+
+#### ⚠️ Negativas
+
+- **Complexidade:** Refatoração completa (8 dias esforço)
+- **State migration:** Risco mitigado com backup S3
+- **GitLab SPOF:** Mitigado com backups Gitaly PVC + S3
+- **Observability SPOF:** Mitigado com HA Prometheus (2 replicas)
+
+### Custos Consolidados
+
+| Componente | STAGING | PROD | TOTAL/mês | Economia |
+|------------|---------|------|-----------|----------|
+| GitLab (Shared) | - | - | $92.71 | -$92 vs duplicado |
+| PostgreSQL | $9 | $60 | $69 | - |
+| Redis | $4.50 | $18.50 | $23 | -$419 vs Tanzu |
+| RabbitMQ | $4.50 | $18.50 | $23 | - |
+| Observability (Hybrid) | - | - | $122 | -$82 vs separated |
+| Nodes | $18 | $108 | $126 | - |
+| Storage + S3 | - | - | $30 | - |
+| ALB + NLB | - | - | $29.50 | - |
+| FinOps Economy | -$34 | $0 | -$34 | Shutdown automation |
+| **TOTAL** | **~$100** | **~$380** | **$481.21** | **R$ 2.887/mês** |
+
+**Conversão BRL (R$ 6,00):** R$ 2.887/mês (R$ 34.644/ano)
+
+### NetworkPolicies Enforcement
+
+Cross-environment isolation via NetworkPolicies:
+
+```yaml
+# STAGING apps NÃO acessam PROD dataservices
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-staging-to-prod-data
+  namespace: app-staging
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            environment: staging  # ONLY staging namespaces
+```
+
+### Implementação
+
+Timeline: 8 dias úteis (64h esforço, 1 engenheiro)
+
+**Fases:**
+1. Preparação e Backup (4h)
+2. Refatoração Módulos Shared (12h)
+3. Secrets Manager (6h)
+4. Deploy STAGING (8h)
+5. Deploy PROD (8h)
+6. Observability Hybrid (8h)
+7. NetworkPolicies & Security (6h)
+8. Documentação & Handoff (2h)
+
+**Arquivo:** [environments/README.md](../../../platform-provisioning/aws/kubernetes/terraform/environments/README.md)
+
+---
+
+## 📝 ADR-027: Shared GitLab with Separated DataServices
+
+**Data:** 2026-02-02
+**Status:** ✅ Aprovado
+**Contexto:** Decisão estratégica sobre compartilhamento GitLab vs DataServices
+
+### Decisão
+
+- **GitLab:** ✅ SHARED (1 instância, projects por grupos `staging/` e `prod/`)
+- **DataServices:** ❌ SEPARATED (PostgreSQL, Redis, RabbitMQ por ambiente)
+
+### Rationale
+
+#### GitLab Shared (Por quê compartilhar?)
+
+1. ✅ **Economia:** -$92/mês vs 2 instâncias
+2. ✅ **CI/CD centralizado:** 1 ponto de controle, auditoria unificada
+3. ✅ **GitLab Runners:** Deploy para STAGING ou PROD via Kubernetes RBAC
+4. ✅ **Repos Git compartilhados:** Menos duplicação, single source of truth
+5. ✅ **Branching strategy:** `main` → PROD, `develop` → STAGING (GitFlow)
+
+**Organização de Projects:**
+
+```
+GitLab CE (namespace: gitlab)
+├── Group: staging/
+│   ├── staging/api (deploy target: STAGING K8s)
+│   ├── staging/frontend
+│   └── staging/...
+└── Group: prod/
+    ├── prod/api (deploy target: PROD K8s)
+    ├── prod/frontend
+    └── prod/...
+```
+
+**GitLab Runners RBAC:**
+
+```yaml
+# Runner STAGING - ServiceAccount com RBAC limitado
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-runner-staging
+  namespace: gitlab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-runner-staging-deployer
+  namespace: app-staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit  # Pode deployar apps
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-runner-staging
+    namespace: gitlab
+```
+
+#### DataServices Separated (Por quê separar?)
+
+1. ✅ **Isolamento dados sensíveis:** PROD (PII) ≠ STAGING (synthetic)
+2. ✅ **Compliance LGPD:** Dados pessoais apenas em PROD
+3. ✅ **Secrets segregation:** `staging/` prefix ≠ `prod/` prefix (AWS Secrets Manager)
+4. ✅ **Fail-safe:** Bug em STAGING DB não afeta PROD
+5. ✅ **Performance isolation:** Load test STAGING não degrada PROD
+6. ✅ **Backup policies:** PROD 30d retention, STAGING 7d
+
+**Secrets Segregation (AWS Secrets Manager):**
+
+```
+staging/postgresql/gitlab-password  → STAGING RDS
+staging/redis/password               → STAGING Redis
+prod/postgresql/gitlab-password      → PROD RDS
+prod/redis/password                  → PROD Redis
+```
+
+### NetworkPolicies Enforcement
+
+```yaml
+# STAGING apps ONLY access STAGING dataservices
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-staging-dataservices
+  namespace: app-staging
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            environment: staging
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 6379  # Redis
+        - protocol: TCP
+          port: 5672  # RabbitMQ
+```
+
+### Trade-offs Aceitos
+
+| Aspecto | Shared GitLab | Separated DataServices |
+|---------|---------------|------------------------|
+| **Custo** | ✅ -$92/mês economia | ⚠️ +$69/mês (2 RDS) |
+| **Blast Radius** | ⚠️ GitLab down = CI/CD stop | ✅ STAGING DB down ≠ PROD |
+| **Compliance** | ✅ Repos não contêm PII | ✅ PROD dados isolados |
+| **Operational** | ✅ 1 instância para manter | ⚠️ 2× dataservices (minor) |
+
+**Mitigações GitLab SPOF:**
+- Gitaly PVC backups diários (S3 lifecycle 30d)
+- PostgreSQL RDS automated backups (7d retention)
+- GitLab configuration backup (`gitlab-backup` CronJob)
+- RTO target: <4h (restore from backup)
+
+### Consequências
+
+- ✅ Economia líquida: -$23/mês ($92 GitLab - $69 DataServices duplicados)
+- ✅ Compliance LGPD: Dados PROD isolados
+- ✅ Security: Secrets Manager segregation
+- ⚠️ GitLab SPOF: Mitigado com backups (RTO <4h)
+
+**Arquivo:** ADR-026 (parent decision)
+
+---
+
+## 📝 ADR-028: Hybrid Observability with OpenTelemetry
+
+**Data:** 2026-02-02
+**Status:** ✅ Aprovado
+**Contexto:** Estratégia de observability multi-ambiente (STAGING + PROD)
+
+### Decisão
+
+**Observability Hybrid:** Shared backend + labeled separation
+
+**Arquitetura:**
+
+```
+observability namespace (shared)
+├── Prometheus (scrape STAGING + PROD, labels environment=)
+├── Grafana (datasources per environment, dashboards with variables)
+├── Loki (S3 prefixes staging/ 7d, prod/ 30d lifecycle)
+├── Tempo (tenant separation via headers)
+└── OpenTelemetry Collector (DaemonSet global, auto-label namespace)
+```
+
+### Rationale
+
+#### 1. Shared Backend (Por quê compartilhar?)
+
+1. ✅ **Economia:** $122/mês vs $204 separated (-40% custo)
+2. ✅ **Dashboards comparativos:** STAGING vs PROD side-by-side
+3. ✅ **Single pane of glass:** 1 Grafana para ambos ambientes
+4. ✅ **Operational simplicity:** 1 Prometheus para manter
+
+**Custo Breakdown:**
+
+| Componente | Shared | Separated | Economia |
+|------------|--------|-----------|----------|
+| Prometheus | $30 | $60 (2×) | -$30 |
+| Grafana | $20 | $40 (2×) | -$20 |
+| Loki | $42 | $84 (2×) | -$42 (+lifecycle) |
+| Tempo | $30 | $60 (2×) | -$30 |
+| **TOTAL** | **$122** | **$244** | **-$122 (-40%)** |
+
+#### 2. Labeled Separation (Como isolar?)
+
+**Prometheus Labels:**
+
+```yaml
+# ServiceMonitor auto-label via namespace
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: app-metrics
+  namespace: app-staging
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  endpoints:
+    - port: metrics
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_namespace]
+          regex: ".*-(staging|prod)"
+          targetLabel: environment
+```
+
+**Loki S3 Prefixes + Lifecycle:**
+
+```yaml
+# Loki configuration
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: loki_index_
+        period: 24h
+
+storage_config:
+  aws:
+    bucketnames: k8s-platform-loki-chunks
+    region: us-east-1
+  # Prefixes via tenant ID
+  tsdb_shipper:
+    active_index_directory: /data/loki/tsdb-index
+    cache_location: /data/loki/tsdb-cache
+
+limits_config:
+  retention_period: 168h  # 7d default (STAGING)
+  per_tenant_override_config: /etc/loki/overrides.yaml  # PROD 30d
+
+# S3 Lifecycle Policy
+{
+  "Rules": [
+    {
+      "Id": "staging-logs-7d",
+      "Filter": {"Prefix": "fake/staging/"},
+      "Status": "Enabled",
+      "Expiration": {"Days": 7}
+    },
+    {
+      "Id": "prod-logs-30d",
+      "Filter": {"Prefix": "fake/prod/"},
+      "Status": "Enabled",
+      "Expiration": {"Days": 30}
+    }
+  ]
+}
+```
+
+**Tempo Tenant Separation:**
+
+```yaml
+# Tempo configuration
+multitenancy_enabled: true
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          tenant_header: X-Scope-OrgID  # staging or prod
+
+# OpenTelemetry Collector (auto-inject tenant)
+exporters:
+  otlp/tempo:
+    endpoint: tempo-distributor.observability.svc:4317
+    headers:
+      X-Scope-OrgID: ${NAMESPACE_ENVIRONMENT}  # staging or prod
+```
+
+**Grafana Multi-Datasource:**
+
+```yaml
+datasources:
+  - name: Prometheus-STAGING
+    type: prometheus
+    url: http://prometheus:9090
+    jsonData:
+      httpMethod: POST
+    # Default query: {environment="staging"}
+
+  - name: Prometheus-PROD
+    type: prometheus
+    url: http://prometheus:9090
+    # Default query: {environment="prod"}
+
+  - name: Prometheus-COMPARISON
+    type: prometheus
+    url: http://prometheus:9090
+    # Query both: {environment=~"staging|prod"}
+```
+
+#### 3. OpenTelemetry Auto-Label
+
+```yaml
+# OpenTelemetry Collector DaemonSet
+processors:
+  k8sattributes:
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.deployment.name
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+
+  # Auto-detect environment from namespace suffix
+  resource:
+    attributes:
+      - key: environment
+        from_attribute: k8s.namespace.name
+        action: extract
+        pattern: ^.*-(staging|prod)$
+```
+
+### Alternativas Consideradas
+
+1. ❌ **Fully Separated:** $244/mês, operacional complexity, sem dashboards comparativos
+2. ❌ **Fully Shared (no labels):** $122/mês, mas sem isolamento retention
+3. ✅ **Hybrid (shared + labels):** $122/mês, dashboards comparativos, retention diferenciada
+
+### Trade-offs Aceitos
+
+| Aspecto | Hybrid | Separated |
+|---------|--------|-----------|
+| **Custo** | ✅ $122/mês | ❌ $244/mês |
+| **Dashboards Comparativos** | ✅ STAGING vs PROD | ❌ Requer federation |
+| **Blast Radius** | ⚠️ Prometheus down = ambos | ✅ STAGING ≠ PROD |
+| **Retention Policies** | ✅ S3 lifecycle (7d vs 30d) | ✅ Separado naturalmente |
+| **Query Performance** | ⚠️ Shared index (minor) | ✅ Isolated queries |
+
+**Mitigações Blast Radius:**
+- HA Prometheus (2 replicas + Thanos optional)
+- PodDisruptionBudget `maxUnavailable=0`
+- CloudWatch Alarm: Prometheus down >5min
+- Fallback: CloudWatch Logs (7d STAGING, 30d PROD)
+
+### Consequências
+
+- ✅ Economia: -$122/mês vs separated (-40%)
+- ✅ Dashboards comparativos: STAGING vs PROD performance analysis
+- ✅ Retention diferenciada: S3 lifecycle policies (7d vs 30d)
+- ✅ OpenTelemetry auto-label: Zero config app changes
+- ⚠️ Blast radius: Prometheus down afeta ambos (mitigado HA)
+- ⚠️ Query performance: Shared index (minor, aceitável)
+
+### Grafana Dashboard Example (Comparative)
+
+```json
+{
+  "title": "API Latency: STAGING vs PROD",
+  "panels": [
+    {
+      "title": "p95 Latency Comparison",
+      "targets": [
+        {
+          "datasource": "Prometheus-COMPARISON",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"api\"}[5m])) by (environment)"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Arquivo:** [modules/observability/](../../../platform-provisioning/aws/kubernetes/terraform/modules/)
+
+---
+
+**Mantenedor:** DevOps Team
+**Última Revisão:** 2026-02-02
 **Próxima Revisão:** Marco 3 Planning (GitLab deployment decisions)
+
+## 📝 ADR-029: Redis Sentinel User Alignment for PSS Restricted
+
+**Data:** 2026-02-03
+**Status:** ✅ Implementado (26 minutos resolution)
+**Framework:** [executor-terraform.md](../prompts/executor-terraform.md) (Multi-Agent Validation: Orquestrador, K8s, Security)
+**Logbook:** [2026-02-03-redis-sentinel-crashloop-fix.md](../logbook/2026-02-03-redis-sentinel-crashloop-fix.md)
+**Contexto:** Redis Sentinel CrashLoopBackOff após deploy Marco 3 com PSS Restricted enforcement
+
+### Problema
+
+**Sintoma:** 3 Sentinels em CrashLoopBackOff contínuo
+```
+Sentinel config file /redis/sentinel.conf is not writable: Permission denied. Exiting...
+```
+
+**Impacto:** HA Redis comprometida (0/3 Sentinels READY), quorum impossible
+
+### Causa Raiz
+
+**User ID Mismatch:**
+- Spotahome Redis Operator injeta init container `sentinel-config-copy` com `runAsUser: 1000` (hardcoded)
+- RedisFailover CR configurado com `securityContext.runAsUser: 1001` (main container)
+- Init container copia `/redis/sentinel.conf` com owner 1000
+- Main container (user 1001) tenta escrever → **Permission denied**
+- PSS Restricted bloqueia `chown`/`chmod` no init container → sem workaround
+
+**Problemas Secundários:**
+- Operator authentication failure (`WRONGPASS`) → secret divergente do pod
+- Dual operators em leader election race → reconciliation loops
+- Custom config Sentinel inválido → syntax error `SENTINEL SET`
+
+### Decisão
+
+**Alinhar TODO o SecurityContext para `runAsUser: 1000`** (Sentinel + Redis + Redis master/replicas)
+
+**Rationale:** Spotahome Redis Operator hardcodes init container user=1000, logo CR DEVE seguir esse padrão para compatibilidade PSS Restricted.
+
+### Implementação
+
+#### 1. Fix SecurityContext (User Alignment)
+
+**Antes (BROKEN):**
+```hcl
+# modules/redis/main.tf
+securityContext = {
+  runAsUser  = 1001  # ❌ Mismatch com init container
+  runAsGroup = 1001
+  fsGroup    = 1001
+}
+```
+
+**Depois (FIXED):**
+```hcl
+# modules/redis/main.tf:195-205
+securityContext = {
+  runAsNonRoot = true
+  runAsUser    = 1000  # ✅ Aligned com Operator init container
+  runAsGroup   = 1000
+  fsGroup      = 1000  # ✅ Permite init copy + main write
+  seccompProfile = {
+    type = "RuntimeDefault"
+  }
+}
+```
+
+**Aplicado em:**
+- Sentinel SecurityContext (linha 198-205)
+- Redis SecurityContext (linha 237-245)
+
+#### 2. Fix Secret Password (WRONGPASS)
+
+**Problema:** Secret `redis-password` divergente do pod `$REDIS_PASSWORD`
+
+**Solução:**
+```bash
+# Extrair senha REAL do pod
+REAL_PASS=$(kubectl exec rfr-redis-0 -n data-services -- sh -c 'echo "$REDIS_PASSWORD"')
+# Senha: (ZqDJhlChSzP7VT)of$!rLLG8}l#eJe9
+
+# Recreate secret
+kubectl delete secret redis-password -n data-services
+kubectl create secret generic redis-password -n data-services \
+  --from-literal=password="$REAL_PASS"
+
+# Force operator reload
+kubectl delete pod -n redis-operator -l app.kubernetes.io/name=redis-operator
+```
+
+#### 3. Fix Dual Operators (Leader Election)
+
+**Problema:** 2 operators competindo
+- `redisoperator` (22h, errors WRONGPASS)
+- `redis-operator` (14h, stuck acquiring lease)
+
+**Solução:**
+```bash
+kubectl scale deployment redisoperator -n redis-operator --replicas=0
+kubectl delete lease redis-failover-lease -n redis-operator
+```
+
+#### 4. Cleanup Invalid CustomConfig
+
+**Problema:** `customConfig: ["sentinel monitor mymaster rfrm-redis..."]` → ERR Unknown option
+
+**Solução:** Remover customConfig (auto-discovery funciona perfeitamente)
+```bash
+kubectl patch redisfailover redis -n data-services --type=json \
+  -p='[{"op": "remove", "path": "/spec/sentinel/customConfig"}]'
+```
+
+### Validação
+
+```bash
+# ✅ 3/3 Sentinels READY
+kubectl get pods -n data-services -l app.kubernetes.io/component=sentinel
+# rfs-redis-7459d89b5d-6x6fx   1/1     Running   0          7m
+# rfs-redis-7459d89b5d-hwft6   1/1     Running   0          7m
+# rfs-redis-7459d89b5d-xbxcj   1/1     Running   0          7m
+
+# ✅ Quorum operational
+kubectl exec rfs-redis-7459d89b5d-6x6fx -n data-services -c sentinel -- \
+  redis-cli -p 26379 sentinel ckquorum mymaster
+# OK 3 usable Sentinels. Quorum and failover authorization can be reached
+
+# ✅ Master discovered (auto-discovery)
+kubectl exec rfs-redis-7459d89b5d-6x6fx -n data-services -c sentinel -- \
+  redis-cli -p 26379 sentinel get-master-addr-by-name mymaster
+# 10.0.144.105
+# 6379
+
+# ✅ Operator sem erros
+kubectl logs -n redis-operator -l app.kubernetes.io/name=redis-operator --tail=20 | grep WRONGPASS
+# (sem output = OK)
+```
+
+### Lições Aprendidas (15 itens)
+
+#### 🔒 Security & PSS Restricted
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 1 | **Spotahome Redis Operator hardcodes init container `runAsUser: 1000`** → RedisFailover CR DEVE usar `runAsUser: 1000` em todo SecurityContext | 🔴 Crítico |
+| 2 | PSS Restricted bloqueia `allowPrivilegeEscalation`, `chown`, `chmod` → única solução é **user alignment** | 🟡 Médio |
+| 3 | `readOnlyRootFilesystem: true` no Sentinel requer init container para copiar config writable → filesystem `/redis-writable` (emptyDir) | 🟢 Baixo |
+
+#### 🔐 Secrets & Authentication
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 4 | **Secrets não são hot-reloaded** → mudanças em secret requerem restart do pod consumidor | 🟡 Médio |
+| 5 | Operator cria secret `redis-password` via Terraform, mas pode divergir do usado pelos pods → **sempre validar sync** com `kubectl exec -- echo "$REDIS_PASSWORD"` | 🔴 Crítico |
+| 6 | ConfigMap `rfr-redis` tem senha hardcoded **diferente** do secret → Operator inconsistency conhecida | 🟡 Médio |
+
+#### 🎛️ Operator Management
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 7 | **Múltiplos operators** com mesmo CRD causam reconciliation loops → garantir operator único por namespace/cluster | 🔴 Crítico |
+| 8 | Leader election lease persiste após pod death → `kubectl delete lease` para forçar re-election | 🟢 Baixo |
+| 9 | Operator logs são **críticos** para debug → sempre verificar `WRONGPASS`, `error on object processing` | 🟡 Médio |
+
+#### 🔄 Sentinel Auto-Discovery
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 10 | ConfigMap inicial com `sentinel monitor mymaster 127.0.0.1` é **normal** → Sentinels fazem auto-discovery após quorum | 🟢 Baixo |
+| 11 | Sentinels precisam quorum (2/3) para descobrir master → rollout gradual pode causar `+sdown` temporário | 🟢 Baixo |
+| 12 | `customConfig` para override `sentinel monitor` **NÃO funciona** → deixar auto-discovery | 🟡 Médio |
+
+#### ⚙️ Deployment Strategies
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 13 | **Scale 0→3** é mais rápido que rollout gradual quando há CrashLoopBackOff → limpa estado corrupto | 🟡 Médio |
+| 14 | Operator reverte patches manuais no Deployment → **sempre patchar o CR** (`RedisFailover`), não recursos gerenciados | 🔴 Crítico |
+| 15 | PVC resize warnings (`field can not be less than previous value`) são noise → storage já provisionado, ignorar | 🟢 Baixo |
+
+### Métricas
+
+| Métrica | Valor |
+|---------|-------|
+| **Tempo total** | 26 minutos (12:33-13:01) |
+| **Tentativas de fix** | 4 |
+| **Pods recriados** | ~15 (3 Sentinels × 5 rollouts) |
+| **Operator restarts** | 3 |
+| **Downtime Sentinel HA** | ~20min (master não afetado) |
+| **ROI troubleshooting** | HA restaurada, zero impacto produção |
+
+### Consequências
+
+#### ✅ Positivas
+
+- **Redis HA operacional:** 3/3 Sentinels READY, quorum OK
+- **Auto-discovery funcional:** Master `10.0.144.105:6379` descoberto automaticamente
+- **Operator funcionando:** Sem erros WRONGPASS, reconciliation OK
+- **PSS Restricted compliant:** SecurityContext aligned com Operator pattern
+- **Documentação completa:** Logbook + ADR + lições aprendidas (15 itens)
+
+#### ⚠️ Negativas (Aceitáveis)
+
+- **Vendor pattern lock:** Spotahome user=1000 é hardcoded (sem workaround PSS Restricted)
+- **ConfigMap inconsistency:** Senha hardcoded ≠ secret (Operator bug, não-bloqueante)
+- **Dual operators risk:** Cleanup manual necessário (terraform não gerenciava operator antigo)
+
+### Riscos Mitigados
+
+| Risco | Status | Mitigação |
+|-------|--------|-----------|
+| **HA Redis indisponível** | ✅ MITIGADO | 3/3 Sentinels operacionais, quorum restored |
+| **Permission denied recorrente** | ✅ MITIGADO | User alignment permanente no Terraform module |
+| **Operator authentication failures** | ✅ MITIGADO | Secret sync validado, operator reload |
+| **Dual operators conflicts** | ✅ MITIGADO | Operator antigo scaled down, único operator ativo |
+
+### Referências
+
+- **Logbook:** [2026-02-03-redis-sentinel-crashloop-fix.md](../logbook/2026-02-03-redis-sentinel-crashloop-fix.md)
+- **Terraform Module:** [modules/redis/main.tf](../../../platform-provisioning/aws/kubernetes/terraform/modules/redis/main.tf)
+- **PSS Restricted:** [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted)
+- **Spotahome Redis Operator:** [GitHub](https://github.com/spotahome/redis-operator)
+- **ADR-023:** Migration from Bitnami Charts to Kubernetes Operators
+
+### Aprovações
+
+- [x] **K8s Specialist** (SecurityContext, PSS compliance) - ✅ Validado (2026-02-03)
+- [x] **Security** (user alignment, secrets management) - ✅ Aprovado (2026-02-03)
+- [x] **Orquestrador** (architecture consistency, documentation) - ✅ Aprovado (2026-02-03)
+
+**Status:** 🚀 **ATIVO EM PRODUÇÃO** (2026-02-03 13:01)
+
+---
+
