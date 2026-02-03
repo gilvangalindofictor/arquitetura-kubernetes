@@ -157,7 +157,7 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
           memory = "1Gi"  # MUST be equal to limit (RabbitMQ Operator requirement)
         }
         limits = {
-          cpu    = "1000m"
+          cpu    = "1"  # Normalized form (equivalent to 1000m)
           memory = "1Gi"
         }
       }
@@ -252,6 +252,20 @@ resource "kubernetes_service" "rabbitmq_management_external" {
     }
 
     session_affinity = "ClientIP"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      spec[0].load_balancer_class,
+      spec[0].load_balancer_source_ranges,
+      spec[0].port[0].node_port,
+      spec[0].port[1].node_port,
+      spec[0].health_check_node_port,
+      spec[0].internal_traffic_policy,
+      spec[0].ip_families,
+      spec[0].ip_family_policy,
+      spec[0].session_affinity_config,
+    ]
   }
 
   depends_on = [

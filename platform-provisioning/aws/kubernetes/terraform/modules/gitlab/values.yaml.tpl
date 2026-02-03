@@ -59,14 +59,10 @@ global:
       key: password
 
   # Object Storage (S3 with IRSA)
+  # Using separate configuration per item (not consolidated) for IRSA compatibility
   appConfig:
     object_store:
-      enabled: true
-      proxy_download: true
-      storage_options: {}
-      connection:
-        secret: ""  # Empty, using IRSA
-        key: ""
+      enabled: false  # Disabled, using per-item configuration below
 
     # LFS (Large File Storage)
     lfs:
@@ -132,6 +128,10 @@ global:
       connection:
         secret: ""
         key: ""
+
+  # Gitaly (moved from gitlab.gitaly.enabled in chart v8.7.0)
+  gitaly:
+    enabled: true
 
   # Disable internal charts (using external services)
   minio:
@@ -203,8 +203,8 @@ gitlab:
       enabled: ${enable_monitoring}
 
   # Gitaly (Git repository storage)
+  # Note: gitlab.gitaly.enabled moved to global.gitaly.enabled (chart v8.7.0)
   gitaly:
-    enabled: true
     replicaCount: 1
 
     resources:
@@ -219,6 +219,10 @@ gitlab:
       enabled: true
       storageClass: gp3
       size: 50Gi
+
+  # Toolbox (disabled for staging - no automated backups needed)
+  toolbox:
+    enabled: false
 
 # GitLab Runner (CI/CD)
 gitlab-runner:
@@ -270,6 +274,9 @@ grafana:
 # =============================================================================
 certmanager:
   install: false
+
+certmanager-issuer:
+  email: noreply@example.com  # Placeholder (cert-manager disabled)
 
 # =============================================================================
 # Shared Secrets (root password)

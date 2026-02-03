@@ -1,19 +1,97 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-01-05  
-> **Fase Atual**: 2 (Implementação de Domínios)  
-> **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)  
-> **Governança**: AI-First com rastreabilidade obrigatória  
+> **Última Atualização**: 2026-02-03
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3)
+> **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
+> **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
 
 ---
 
+## 🎯 CONTEXTO CRÍTICO: Hierarquia de Projetos
+
+### IMPORTANTE: O que é "Projeto Ativo" vs "Visão Core"
+
+**Quando pergunto "em que momento estamos?", estou falando do PROJETO ATIVO:**
+
+#### 🟢 PROJETO ATIVO: AWS EKS MVP (Atual)
+
+- **O quê**: Implementação prática e tipada para AWS
+- **Por quê**: Necessidade específica de entregar plataforma funcional rapidamente
+- **Status**: Marco 3 em andamento (67% completo)
+- **Localização**: `/platform-provisioning/aws/kubernetes/`
+- **Documentação**: [aws-eks-gitlab-quickstart.md](docs/plan/quickstart/aws-eks-gitlab-quickstart.md)
+- **Características**:
+  - ✅ Totalmente funcional em AWS
+  - ✅ Terraform + Helm implementados
+  - ✅ Marcos 0, 1, 2 completos
+  - ⚠️ Usa alguns serviços AWS nativos (RDS PostgreSQL, AWS Secrets Manager)
+  - 📅 Timeline: 8 semanas (em progresso)
+
+#### 🎨 VISÃO CORE: Plataforma Cloud-Agnostic (Futuro)
+
+- **O quê**: Stack de ferramentas para "esteirar" linha de produção em QUALQUER cloud
+- **Por quê**: Objetivo arquitetural de longo prazo
+- **Status**: Visão estratégica, implementação futura
+- **Localização**: `/domains/` (estrutura definida, implementação pendente)
+- **Documentação**: [SAD](SAD/docs/sad.md), ADRs sistêmicos
+- **Características**:
+  - 🎯 6 domínios isolados e reutilizáveis
+  - 🎯 100% cloud-agnostic (Kubernetes operators, sem recursos nativos)
+  - 🎯 Portável entre AWS, GCP, Azure, on-premises
+  - 📅 Timeline: 12-18 meses pós-MVP
+
+### Estratégia: AWS-First, Cloud-Agnostic by Design
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  VISÃO CORE (Long-term)                                 │
+│  Stack instrumentada para qualquer cloud                │
+│  • 6 domínios isolados                                  │
+│  • 100% operators Kubernetes                            │
+│  • Zero vendor lock-in                                  │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       │ Evolução Planejada (Fases 2-4)
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  PROJETO ATIVO (Current) ◄── ESTAMOS AQUI              │
+│  AWS EKS MVP - Implementação prática                    │
+│  • Marco 0: Backend Terraform ✅                        │
+│  • Marco 1: Cluster EKS ✅                              │
+│  • Marco 2: Platform Services ✅                        │
+│  • Marco 3: Workloads 🟡 (67% completo)                │
+│                                                          │
+│  Pragmatismo: Usa AWS RDS, Secrets Manager              │
+│  Fundações Corretas: 75-80% já cloud-agnostic           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Quando Você Perguntar "Em Que Momento Estamos?"
+
+**SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
+
+- Marco atual: **Marco 3** (PostgreSQL RDS, Redis Operator, RabbitMQ Operator, GitLab)
+- Progresso: **100% completo** (Todos os componentes operacionais)
+- Próximo: Consolidar estrutura Terraform, evolução para multi-environment (ADR-026)
+
+**NÃO me refiro:**
+
+- ❌ Implementação dos 6 domínios isolados (futuro)
+- ❌ Migração RDS → PostgreSQL Operator (Fase 2-4)
+- ❌ Deploy em múltiplas clouds (futuro)
+
+---
+
 ## 📋 Índice
-1. [Visão Geral](#visão-geral)
-2. [Status dos Domínios](#status-dos-domínios)
-3. [Arquitetura AI](#arquitetura-ai)
-4. [Stack Tecnológica](#stack-tecnológica)
-5. [Governança e Regras](#governança-e-regras)
+
+1. [Hierarquia de Projetos](#-contexto-crítico-hierarquia-de-projetos) ⬆️ **VOCÊ ESTÁ AQUI**
+2. [Visão Geral](#visão-geral)
+3. [Status do Projeto Ativo](#status-do-projeto-ativo)
+4. [Status dos Domínios](#status-dos-domínios) *(Visão Futura)*
+5. [Arquitetura AI](#arquitetura-ai)
+6. [Stack Tecnológica](#stack-tecnológica)
+7. [Governança e Regras](#governança-e-regras)
 
 ---
 
@@ -44,6 +122,55 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 - ✅ IaC: Terraform + Helm para tudo
 - ❌ Desenvolvimento de aplicações de negócio
 - ❌ Recursos nativos de clouds específicas
+
+---
+
+## 📊 Status do Projeto Ativo
+
+### AWS EKS MVP - Progresso Atual
+
+| Marco | Descrição | Status | Duração | Custo/Mês |
+|-------|-----------|--------|---------|-----------|
+| **Marco 0** | Backend Terraform (S3 + DynamoDB) | ✅ Completo | 2 dias | ~$0.01 |
+| **Marco 1** | Cluster EKS (7 nodes, 4 add-ons) | ✅ Completo | 1 dia | $547 |
+| **Marco 2** | Platform Services (8 fases) | ✅ Completo | 3 dias | +$66 |
+| **Marco 3** | Workloads (PostgreSQL, Redis, RabbitMQ, GitLab) | ✅ Completo | 4 dias | +$50 |
+| **TOTAL** | | | **~10 dias** | **~$663/mês** |
+
+### Marco 3 - Detalhamento
+
+| Componente | Status | Observações |
+|------------|--------|-------------|
+| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 100GB → 500GB |
+| Redis Operator | ✅ Completo | Chart v3.2.9, App v1.2.4, 3 sentinels + 1 master |
+| RabbitMQ Operator | ✅ Completo | Official operator, 1 replica staging, namespace data-services |
+| GitLab CE | ✅ Completo | Chart 8.7.0, App v17.7.0, 13 pods, namespace gitlab |
+
+### Marcos Completos
+
+**Marco 2 - Platform Services (8/8 fases):**
+
+1. ✅ AWS Load Balancer Controller (OIDC + IAM Role)
+2. ✅ Cert-Manager (3 ClusterIssuers: Let's Encrypt prod/staging, self-signed)
+3. ✅ Kube-Prometheus-Stack (Prometheus, Grafana, Alertmanager, 28+ dashboards)
+4. ✅ Loki + Fluent Bit (Logging, economia $423/ano vs CloudWatch)
+5. ✅ Network Policies (Calico policy-only, 11 políticas, microsegmentação)
+6. ✅ Cluster Autoscaler (Auto-scaling nodes, economia ~$372/ano)
+7. ✅ Test Applications (nginx + echo-server, validação end-to-end)
+8. ✅ FinOps Automation (Lambda + EventBridge, economia $1.092/ano)
+
+### Próximos Passos (Marco 3)
+
+1. **RabbitMQ Cluster Operator** (Semana atual)
+   - Deploy via Terraform + Helm
+   - Configuração HA com quorum queues
+   - Integração com monitoring
+
+2. **GitLab CE Self-Hosted** (Próxima semana)
+   - Helm chart oficial
+   - PostgreSQL, Redis, Minio S3
+   - Integração Keycloak OIDC
+   - GitLab Runners Kubernetes
 
 ---
 

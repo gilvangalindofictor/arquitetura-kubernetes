@@ -36,12 +36,12 @@ terraform {
 # Local variables combining common.tfvars with environment-specific values
 locals {
   environment  = "staging"
-  cluster_name = "k8s-platform-prod"  # Shared EKS cluster
+  cluster_name = "k8s-platform-prod" # Shared EKS cluster
 
   common_tags = merge(var.base_tags, {
     Environment        = local.environment
     DataClassification = "Internal"
-    LGPD               = "Synthetic"  # No PII in staging
+    LGPD               = "Synthetic" # No PII in staging
     CostCenter         = "development"
   })
 }
@@ -136,9 +136,9 @@ module "redis_staging" {
   source = "../../modules/redis"
 
   cluster_name  = local.cluster_name
-  replicas      = var.redis_replicas  # 1
-  pvc_size      = var.redis_pvc_size  # 5Gi
-  storage_class = "gp2"  # Changed from gp3 (not available in cluster)
+  replicas      = var.redis_replicas # 1
+  pvc_size      = var.redis_pvc_size # 5Gi
+  storage_class = "gp2"              # Changed from gp3 (not available in cluster)
   common_tags   = local.common_tags
 }
 
@@ -147,9 +147,10 @@ module "rabbitmq_staging" {
   source = "../../modules/rabbitmq"
 
   cluster_name  = local.cluster_name
-  replicas      = var.rabbitmq_replicas  # 1
-  pvc_size      = var.rabbitmq_pvc_size  # 5Gi
-  storage_class = "gp2"  # Changed from gp3 (not available in cluster)
+  namespace     = "data-services"       # Fixed: was using default "default"
+  replicas      = var.rabbitmq_replicas # 1
+  pvc_size      = var.rabbitmq_pvc_size # 5Gi
+  storage_class = "gp2"                 # Changed from gp3 (not available in cluster)
   common_tags   = local.common_tags
 }
 
@@ -194,16 +195,61 @@ resource "kubernetes_secret" "gitlab_postgresql_password" {
 }
 
 #------------------------------------------------------------------------------
-# GITLAB (SHARED - One instance for both STAGING and PROD)
-# This module will only be deployed once, from the PROD environment
-# STAGING apps will use GitLab projects under the "staging/" group
+# GITLAB - STAGING (Migrated from envs/marco3)
+# Using centralized module from ../../modules/gitlab
+# Integrated with staging data services (PostgreSQL, Redis, S3)
 #------------------------------------------------------------------------------
 
-# Note: GitLab deployment is handled by PROD environment to avoid duplication
-# STAGING applications will:
-# - Create projects under "staging/" group in GitLab
-# - Use GitLab Runners with RBAC limited to staging namespaces
-# - Deploy to STAGING K8s resources via CI/CD pipelines
+module "gitlab_staging" {
+  source = "../../modules/gitlab"
+
+  depends_on = [
+    module.postgresql_staging,
+    module.redis_staging,
+    module.s3_buckets_staging,
+    kubernetes_secret.gitlab_postgresql_password
+  ]
+
+  # Cluster info
+  cluster_name   = local.cluster_name
+  aws_account_id = var.aws_account_id
+  aws_region     = var.aws_region
+  namespace      = "gitlab-staging"
+  environment    = local.environment
+
+  # GitLab configuration
+  gitlab_edition         = "ce"
+  gitlab_version         = "8.7.0"
+  gitlab_replicas        = 1 # Cost-optimized for staging
+  gitlab_runner_replicas = 1 # Cost-optimized for staging
+
+  # TLS configuration (ADR-021 Phase 1: disabled)
+  enable_tls  = false
+  domain_name = ""
+
+  # PostgreSQL (external - RDS via module)
+  postgresql_host            = module.postgresql_staging.service_name
+  postgresql_port            = 5432
+  postgresql_database        = "gitlab"
+  postgresql_username        = "gitlab_user"
+  postgresql_password_secret = kubernetes_secret.gitlab_postgresql_password.metadata[0].name
+
+  # Redis (external - Spotahome Redis Operator)
+  redis_host            = "${module.redis_staging.redis_master_service}.${module.redis_staging.namespace}.svc.cluster.local"
+  redis_port            = module.redis_staging.redis_port
+  redis_password_secret = module.redis_staging.redis_password_secret_name
+
+  # S3 (IRSA)
+  s3_artifacts_bucket = module.s3_buckets_staging.gitlab_artifacts_bucket_name
+  s3_uploads_bucket   = module.s3_buckets_staging.gitlab_artifacts_bucket_name # Same bucket, different prefixes
+  s3_policy_arn       = module.s3_buckets_staging.gitlab_s3_policy_arn
+
+  # Monitoring
+  enable_monitoring = true
+
+  # Tags
+  common_tags = local.common_tags
+}
 
 #------------------------------------------------------------------------------
 # FINOPS AUTOMATION (STAGING ONLY)
@@ -232,8 +278,8 @@ module "finops_automation_staging" {
 
   # Schedule: shutdown 18h BRT, startup 8h BRT (Mon-Fri)
   enable_automation = true
-  shutdown_schedule = "cron(0 21 ? * MON-FRI *)"  # 18h BRT = 21h UTC
-  startup_schedule  = "cron(0 11 ? * MON-FRI *)"  # 08h BRT = 11h UTC
+  shutdown_schedule = "cron(0 21 ? * MON-FRI *)" # 18h BRT = 21h UTC
+  startup_schedule  = "cron(0 11 ? * MON-FRI *)" # 08h BRT = 11h UTC
 
   # Resources to manage
   rds_instance_id = module.postgresql_staging.db_instance_id
