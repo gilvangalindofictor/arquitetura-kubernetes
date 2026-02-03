@@ -1,6 +1,6 @@
 # =============================================================================
 # Redis Module - Marco 3 Data Services
-# Operator: Spotahome Redis Operator v3.3.0
+# Operator: Spotahome Redis Operator v3.2.9
 # Architecture: RedisFailover (1 master + 2 replicas + 3 sentinels)
 # ADR-023: Migration from Bitnami Charts to Kubernetes Operators
 # =============================================================================
@@ -93,16 +93,11 @@ resource "helm_release" "redis_operator" {
   namespace  = kubernetes_namespace.redis_operator.metadata[0].name
   repository = "https://spotahome.github.io/redis-operator"
   chart      = "redis-operator"
-  version    = "3.3.0"
+  version    = "3.2.9"
 
   timeout         = 600
   cleanup_on_fail = true
-  atomic          = true
-
-  set {
-    name  = "image.tag"
-    value = "1.3.0"
-  }
+  atomic          = false
 
   set {
     name  = "resources.requests.cpu"
@@ -175,9 +170,9 @@ resource "kubectl_manifest" "redis_failover" {
         # Security Context (PSS Restricted compliant)
         securityContext = {
           runAsNonRoot = true
-          runAsUser    = 1001
-          runAsGroup   = 1001
-          fsGroup      = 1001
+          runAsUser    = 1000
+          runAsGroup   = 1000
+          fsGroup      = 1000
           seccompProfile = {
             type = "RuntimeDefault"
           }
@@ -215,9 +210,9 @@ resource "kubectl_manifest" "redis_failover" {
         # Security Context (PSS Restricted compliant)
         securityContext = {
           runAsNonRoot = true
-          runAsUser    = 1001
-          runAsGroup   = 1001
-          fsGroup      = 1001
+          runAsUser    = 1000
+          runAsGroup   = 1000
+          fsGroup      = 1000
           seccompProfile = {
             type = "RuntimeDefault"
           }
