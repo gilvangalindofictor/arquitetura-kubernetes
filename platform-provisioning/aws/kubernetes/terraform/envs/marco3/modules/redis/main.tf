@@ -287,10 +287,12 @@ resource "kubectl_manifest" "redis_service_monitor" {
       name      = "redis"
       namespace = "monitoring"
 
-      labels = {
-        prometheus = "kube-prometheus-stack"
-        app        = "redis"
-      }
+      labels = merge(var.common_tags, {
+        "app.kubernetes.io/name"       = "redis"
+        "app.kubernetes.io/component"  = "service-monitor"
+        "app.kubernetes.io/managed-by" = "terraform"
+        "prometheus"                   = "kube-prometheus-stack"
+      })
     }
 
     spec = {
