@@ -5,7 +5,7 @@
 
 output "redis_master_service" {
   description = "Redis master service name (internal access)"
-  value       = "rfr-redis"  # RedisFailover naming convention
+  value       = "rfr-redis" # RedisFailover naming convention
 }
 
 output "redis_replicas_service" {

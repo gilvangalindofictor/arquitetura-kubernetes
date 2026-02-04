@@ -39,12 +39,12 @@ resource "kubernetes_namespace" "gitlab" {
     name = var.namespace
 
     labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"                 = "gitlab"
-      "app.kubernetes.io/managed-by"           = "terraform"
-      "pod-security.kubernetes.io/enforce"     = "baseline"
-      "pod-security.kubernetes.io/audit"       = "baseline"
-      "pod-security.kubernetes.io/warn"        = "baseline"
-      "kubernetes.io/metadata.name"            = var.namespace
+      "app.kubernetes.io/name"             = "gitlab"
+      "app.kubernetes.io/managed-by"       = "terraform"
+      "pod-security.kubernetes.io/enforce" = "baseline"
+      "pod-security.kubernetes.io/audit"   = "baseline"
+      "pod-security.kubernetes.io/warn"    = "baseline"
+      "kubernetes.io/metadata.name"        = var.namespace
     })
   }
 }
@@ -115,9 +115,9 @@ resource "aws_iam_role" "gitlab_sa" {
   assume_role_policy = data.aws_iam_policy_document.gitlab_assume_role.json
 
   tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-gitlab-sa-role"
+    Name           = "${var.cluster_name}-gitlab-sa-role"
     ServiceAccount = "gitlab"
-    Namespace   = var.namespace
+    Namespace      = var.namespace
   })
 }
 
@@ -161,9 +161,9 @@ resource "helm_release" "gitlab" {
   chart      = "gitlab"
   version    = var.gitlab_version
 
-  timeout         = 1200  # 20 minutes for GitLab deployment
+  timeout         = 1200 # 20 minutes for GitLab deployment
   cleanup_on_fail = true
-  atomic          = false  # GitLab deployment is complex, allow manual intervention
+  atomic          = false # GitLab deployment is complex, allow manual intervention
   wait            = true
   wait_for_jobs   = true
 
@@ -175,23 +175,23 @@ resource "helm_release" "gitlab" {
   values = [
     templatefile("${path.module}/values.yaml.tpl", {
       # General
-      edition    = var.gitlab_edition
-      replicas   = var.gitlab_replicas
+      edition         = var.gitlab_edition
+      replicas        = var.gitlab_replicas
       runner_replicas = var.gitlab_runner_replicas
 
       # ServiceAccount (IRSA)
       service_account_name = kubernetes_service_account.gitlab.metadata[0].name
 
       # PostgreSQL (external)
-      postgresql_host     = var.postgresql_host
-      postgresql_port     = var.postgresql_port
-      postgresql_database = var.postgresql_database
-      postgresql_username = var.postgresql_username
+      postgresql_host            = var.postgresql_host
+      postgresql_port            = var.postgresql_port
+      postgresql_database        = var.postgresql_database
+      postgresql_username        = var.postgresql_username
       postgresql_password_secret = var.postgresql_password_secret
 
       # Redis (external)
-      redis_host = var.redis_host
-      redis_port = var.redis_port
+      redis_host            = var.redis_host
+      redis_port            = var.redis_port
       redis_password_secret = var.redis_password_secret
 
       # S3 (IRSA)
@@ -210,6 +210,12 @@ resource "helm_release" "gitlab" {
       enable_monitoring = var.enable_monitoring
     })
   ]
+
+  # Chart v8.7.0 requires global.gitaly.enabled only (deprecated gitlab.gitaly.enabled)
+  set {
+    name  = "global.gitaly.enabled"
+    value = "true"
+  }
 }
 
 # -----------------------------------------------------------------------------

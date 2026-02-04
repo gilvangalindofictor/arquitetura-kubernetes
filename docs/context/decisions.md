@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-03
-**Versão:** 3.1 (Marco 3 + Redis Sentinel Fix PSS Restricted)
+**Última Atualização:** 2026-02-04
+**Versão:** 3.2 (GitLab Staging Deploy + IRSA S3)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -30,6 +30,7 @@
 | **ADR-027** | **Shared GitLab with Separated DataServices** | **2026-02-02** | **✅ Aprovado** | **Alto** |
 | **ADR-028** | **Hybrid Observability with OpenTelemetry** | **2026-02-02** | **✅ Aprovado** | **Alto** |
 | **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted** | **2026-02-03** | **✅ Implementado** | **Crítico** |
+| **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)** | **2026-02-04** | **✅ Implementado** | **Alto** |
 
 ---
 
@@ -2585,4 +2586,275 @@ kubectl logs -n redis-operator -l app.kubernetes.io/name=redis-operator --tail=2
 **Status:** 🚀 **ATIVO EM PRODUÇÃO** (2026-02-03 13:01)
 
 ---
+
+
+---
+
+## 📝 ADR-030: GitLab CE Staging Deployment (IRSA S3 Object Storage)
+
+**Data:** 2026-02-04
+**Status:** ✅ Implementado (Staging)
+**Impacto:** Alto (Marco 3 primeiro workload)
+**Demanda:** Deploy GitLab CE + Alinhar RabbitMQ (staging)
+**Logbook:** [2026-02-04-execucao-pendente-staging.md](../logbook/2026-02-04-execucao-pendente-staging.md)
+
+### Contexto
+
+Marco 3 Workloads iniciado com deploy do GitLab CE em staging. Primeira aplicação completa (CI/CD platform) com dependências externas (PostgreSQL RDS, Redis Operator, S3 buckets) e IRSA para object storage.
+
+**Desafios:**
+1. GitLab Helm chart requer object storage connection config (não pode ser vazio)
+2. IRSA (IAM Roles for Service Accounts) precisa config específica AWS provider
+3. ADR-021 Fase 1 (no custom domain) causa runner DNS issue esperado
+4. Terraform modules compartilhados entre staging/prod
+
+### Decisão
+
+**Deploy GitLab CE 8.7.0 em staging com:**
+
+1. **Object Storage via IRSA** (não access keys)
+   - Secret `gitlab-object-storage` com config:
+     ```yaml
+     provider: AWS
+     use_iam_profile: true
+     region: us-east-1
+     ```
+   - IAM Role `k8s-platform-prod-gitlab-sa-role` (S3 policy attached)
+   - ServiceAccount annotation: `eks.amazonaws.com/role-arn`
+
+2. **Dependências externas:**
+   - PostgreSQL: RDS `k8s-platform-prod-postgresql` (shared database)
+   - Redis: Spotahome Operator `rfrm-redis.data-services` (6379)
+   - S3 Buckets: artifacts + uploads (shared bucket strategy)
+
+3. **Helm values estratégia:**
+   - Per-item object storage config (não consolidated mode)
+   - Cada tipo (lfs, artifacts, uploads, packages, terraformState, ciSecureFiles, dependencyProxy) referencia mesmo secret
+   - Toolbox backups config adicionado (mesmo com toolbox disabled)
+
+4. **Network Policies:**
+   - Default deny ingress
+   - Allow specific: ALB, PostgreSQL, Redis, AWS API, monitoring, internet egress, internal communication
+
+5. **Observabilidade:**
+   - ServiceMonitor Prometheus (/-/metrics endpoint)
+   - Logs via Loki (já configurado no cluster)
+
+6. **ADR-021 Fase 1 limitation:**
+   - Runner CrashLoop **esperado** (DNS placeholder `gitlab.example.com`)
+   - Resolvido em Fase 2 (custom domain) OU config service interno
+
+### Alternativas Consideradas
+
+#### 1. Consolidated Object Storage (rejected)
+
+```yaml
+global:
+  appConfig:
+    object_store:
+      enabled: true
+      connection:
+        secret: gitlab-object-storage
+        key: connection
+```
+
+**Motivo rejeição:** GitLab Helm chart não aceita connection property vazia no modo consolidado. Per-item config é mais flexível para IRSA.
+
+#### 2. MinIO interno (rejected)
+
+**Motivo rejeição:** Custo adicional (PVCs), complexidade operacional, SPOF. S3 é mais resiliente e custo similar (~$15/mês).
+
+#### 3. Access Keys estáticas (rejected)
+
+**Motivo rejeição:** Violação security best practices. IRSA é padrão AWS recomendado (rotação automática, least privilege, auditável).
+
+#### 4. Runner com service interno imediato (postponed)
+
+**Motivo postpone:** ADR-021 Fase 1 aceita runner non-functional temporariamente. Fix em Fase 2 com domain real ou workaround posterior se necessário.
+
+### Implementação
+
+#### Correções Aplicadas (Módulos Compartilhados)
+
+**1. RabbitMQ Module** (`modules/rabbitmq/main.tf:126-128`)
+- Status: ✅ Já presente (preventivo)
+- `force_conflicts = true` → evita field manager conflict (Operator vs TF)
+
+**2. GitLab Module - main.tf** (`modules/gitlab/main.tf:80-104`)
+```hcl
+resource "kubernetes_secret" "gitlab_object_storage" {
+  metadata {
+    name      = "gitlab-object-storage"
+    namespace = kubernetes_namespace.gitlab.metadata[0].name
+    labels    = merge(var.common_tags, {...})
+  }
+  data = {
+    connection = yamlencode({
+      provider         = "AWS"
+      use_iam_profile  = true
+      region           = var.aws_region
+    })
+  }
+  type = "Opaque"
+}
+```
+- Depends_on: Adicionado `kubernetes_secret.gitlab_object_storage`
+
+**3. GitLab Module - values.yaml.tpl** (`modules/gitlab/values.yaml.tpl`)
+- Secret name corrigido: `gitlab-s3-storage` → `gitlab-object-storage` (7 locais)
+- Toolbox backups config adicionado (linhas 226-232):
+  ```yaml
+  toolbox:
+    enabled: false
+    backups:
+      objectStorage:
+        config:
+          secret: gitlab-object-storage
+          key: connection
+        backend: s3
+  ```
+
+#### Terraform Execution
+
+| Etapa | Duração | Resultado |
+|-------|---------|-----------|
+| TF Init (retry após DynamoDB digest fix) | 30s | ✅ |
+| TF Plan | 1m15s | ✅ 12 add, 23 change, 0 destroy |
+| TF Apply (background + AML 29 cycles) | 7m18s | ✅ |
+| Validação pods + idempotency | 2min | ✅ |
+| DocSync (3 docs) | 1min | ✅ |
+| **TOTAL** | **12min** | **✅ SUCESSO** |
+
+#### Active Monitoring Loop (AML)
+
+- **Cycles:** 29 (15s interval)
+- **Monitoring:**
+  - Tail terraform output (últimas 15 linhas)
+  - GitLab pods status (kubectl get pods)
+  - RabbitMQ cluster status
+  - K8s events (gitlab-staging, data-services)
+  - Pods em erro (field-selector)
+- **Issues detectados:**
+  - ✅ Nenhum bloqueante
+  - ⚠️ gitlab-runner CrashLoop (esperado ADR-021 Fase 1)
+
+### Validações Completas
+
+- [x] **Idempotency:** `terraform plan` → "No changes" ✅
+- [x] **Pods Running:** 12/13 (runner expected CrashLoop)
+- [x] **PostgreSQL connectivity:** ✅ webservice connected
+- [x] **Redis connectivity:** ✅ rfrm-redis:6379
+- [x] **S3 IRSA:** ✅ Secret applied, IAM role assumed
+- [x] **ALB health checks:** ✅ 3 ALBs healthy
+- [x] **Network Policies:** ✅ 9 policies applied
+- [x] **Prometheus scraping:** ✅ ServiceMonitor created
+
+### Recursos Criados (12)
+
+| Recurso | Tipo | Status |
+|---------|------|--------|
+| `gitlab-staging` namespace | Namespace | ✅ Active |
+| `gitlab-object-storage` secret | Secret (IRSA) | ✅ Created |
+| `gitlab` helm release | Helm 8.7.0 | ✅ Deployed |
+| GitLab network policies (9x) | NetworkPolicy | ✅ Created |
+| GitLab ServiceMonitor | ServiceMonitor | ✅ Created |
+| webservice (2 replicas) | Pod | ✅ Running |
+| sidekiq | Pod | ✅ Running |
+| gitaly | StatefulSet | ✅ Running |
+| shell (2 replicas) | Pod | ✅ Running |
+| registry (2 replicas) | Pod | ✅ Running |
+| kas (2 replicas) | Pod | ✅ Running |
+| gitlab-exporter | Pod | ✅ Running |
+
+### Ingress ALBs (3)
+
+| Service | Host (placeholder) | ALB DNS | Ports |
+|---------|-------------------|---------|-------|
+| webservice | gitlab.example.com | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com | 80, 443 |
+| registry | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | 80, 443 |
+| kas | kas.example.com | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com | 80, 443 |
+
+### Consequências
+
+#### ✅ Positivas
+
+- **IRSA working:** Secret config correta, ServiceAccount annotation OK, IAM role assumed
+- **External dependencies:** PostgreSQL + Redis + S3 all connected
+- **Observability:** Prometheus scraping GitLab metrics
+- **Network security:** 9 policies aplicadas (default deny + allow specific)
+- **Terraform idempotent:** Zero drift após apply
+- **Shared modules validated:** Funciona em staging, replicável para prod
+- **Documentation complete:** Logbook timeline detalhada + architecture.md atualizado
+
+#### ⚠️ Negativas (Aceitáveis)
+
+- **gitlab-runner CrashLoop:** DNS lookup failed `gitlab.example.com` → Esperado ADR-021 Fase 1
+  - **Workaround futuro:** Config runner usar service interno `gitlab-webservice-default.gitlab-staging.svc.cluster.local`
+  - **Fix permanente:** ADR-021 Fase 2 (custom domain + TLS)
+- **Webhooks HTTPS externos:** Não funcionam sem domain/TLS → ADR-021 Fase 2
+- **SSO:** Não configurado (Keycloak pendente Marco 3)
+
+### Riscos Mitigados
+
+| Risco | Status | Mitigação |
+|-------|--------|-----------|
+| **Object storage config vazio** | ✅ MITIGADO | Secret IRSA criado antes do Helm install |
+| **Field manager conflict (RabbitMQ)** | ✅ MITIGADO | `force_conflicts=true` preventivo |
+| **Terraform drift** | ✅ MITIGADO | Idempotency validada (plan → "No changes") |
+| **IRSA permissions S3** | ✅ VALIDADO | IAM policy attach + role assumption working |
+
+### Custos
+
+| Recurso | Custo Mensal |
+|---------|--------------|
+| **ALB webservice** | $16.20 |
+| **ALB registry** | $16.20 |
+| **ALB kas** | $16.20 |
+| **Subtotal ALBs** | **$48.60** |
+| RDS PostgreSQL (shared) | $0 (já existente) |
+| Redis Operator (shared) | $0 (já existente) |
+| S3 buckets (shared) | $0 (já existente) |
+| **TOTAL GitLab Staging** | **$48.60/mês** |
+
+### Lições Aprendidas
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 1 | **GitLab Helm chart per-item object storage** é mais flexível que consolidated mode para IRSA | 🟢 Baixo |
+| 2 | **Secret gitlab-object-storage DEVE existir antes do Helm install** → depends_on crítico | 🔴 Crítico |
+| 3 | **Toolbox backups config** necessário mesmo com toolbox disabled → Helm chart validation | 🟡 Médio |
+| 4 | **ADR-021 Fase 1 runner limitation** é aceitável temporariamente → CI/CD non-functional OK para staging inicial | 🟢 Baixo |
+| 5 | **DynamoDB digest mismatch** pode ocorrer com state S3 manual edits → validar checksum antes de plan/apply | 🟡 Médio |
+| 6 | **Active Monitoring Loop (AML)** crítico para terraform apply >5min → detecta erros proativamente durante execução | 🔴 Crítico |
+| 7 | **Terraform modules compartilhados** funcionam bem entre staging/prod → estrutura ADR-026 validada | 🟢 Baixo |
+
+### Próximos Passos
+
+#### Imediato
+- [ ] Testar GitLab webservice via ALB DNS (HTTP)
+- [ ] Criar projeto teste + repository
+- [ ] Validar Git push/pull + Web UI
+
+#### ADR-021 Fase 2 (Futuro)
+- [ ] Registrar domínio Route53
+- [ ] Configurar ACM certificate
+- [ ] Habilitar `enable_tls = true` (terraform.tfvars)
+- [ ] Configurar gitlab-runner com domain real
+- [ ] Validar webhooks HTTPS funcionais
+
+#### Marco 3 Continuação
+- [ ] Deploy Keycloak (SSO OIDC)
+- [ ] Deploy ArgoCD (GitOps)
+- [ ] Deploy Harbor (Container Registry)
+- [ ] Integrar GitLab ↔ Harbor (CI/CD pipelines)
+
+### Referências
+
+- **Logbook:** [2026-02-04-execucao-pendente-staging.md](../logbook/2026-02-04-execucao-pendente-staging.md)
+- **Architecture:** [architecture.md](architecture.md#marco-3-workloads) (Marco 3 GitLab Staging)
+- **GitLab Helm Chart:** [gitlab/gitlab 8.7.0](https://docs.gitlab.com/charts/)
+- **IRSA Documentation:** [AWS EKS IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+- **ADR-021:** No-Domain Phase 1 Strategy
+- **ADR-026:** Multi-Environment Terraform Refactoring
+- **ADR-027:** Shared GitLab with Separated DataServices
 

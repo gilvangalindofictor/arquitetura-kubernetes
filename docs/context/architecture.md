@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-02
-**Versão:** 2.4 (Marco 2 Completo + FinOps ATIVA em STAGING)
-**Status:** 🚀 FinOps Automation ATIVA (STAGING) | 📋 Próximo: Marco 3 (Workloads)
+**Última Atualização:** 2026-02-04
+**Versão:** 2.5 (Marco 3 GitLab Staging Deploy)
+**Status:** 🚀 FinOps ATIVA | 🚧 Marco 3 em progresso (GitLab Staging deployed)
 
 ---
 
@@ -590,10 +590,75 @@ Internet
 
 ---
 
-## 🚀 Marco 3: Workloads (Próximo)
+## 🚀 Marco 3: Workloads
 
-**Status:** 📝 Planejado (8 semanas, ADR-021 aprovado)
+**Status:** 🚧 Em Progresso (GitLab Staging deployed 2026-02-04)
 **Estratégia:** 2 Fases - Fase 1 sem domínio (LoadBalancer), Fase 2 com TLS/SSO
+
+### ✅ IMPLEMENTADO (STAGING)
+
+#### GitLab CE - CI/CD Platform
+**Status:** ✅ Deployed (2026-02-04)
+**Namespace:** gitlab-staging
+**Versão:** 8.7.0 (Helm chart gitlab/gitlab)
+**ADR:** ADR-021 Fase 1 (HTTP-only, sem custom domain)
+
+**Componentes:**
+
+| Componente | Pods | Status | Node |
+|------------|------|--------|------|
+| **webservice** | 2 replicas | Running | workloads |
+| **sidekiq** | 1 replica | Running | workloads |
+| **gitaly** | 1 StatefulSet | Running | workloads |
+| **shell** | 2 replicas | Running | workloads |
+| **registry** | 2 replicas | Running | workloads |
+| **kas** | 2 replicas | Running | workloads |
+| **gitlab-exporter** | 1 replica | Running | workloads |
+| **runner** | ⚠️ CrashLoop | DNS issue (esperado ADR-021 Fase 1) | - |
+
+**Dependências:**
+- PostgreSQL RDS: `k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com:5432`
+- Redis: `rfrm-redis.data-services.svc.cluster.local:6379` (Spotahome Operator)
+- S3 Buckets:
+  - Artifacts: `k8s-platform-gitlab-artifacts-891377105802`
+  - Uploads: `k8s-platform-gitlab-artifacts-891377105802` (shared)
+- IRSA: `k8s-platform-prod-gitlab-sa-role` (S3 access)
+
+**Ingress (ALB):**
+
+| Service | Host | ALB DNS | Status |
+|---------|------|---------|--------|
+| webservice | gitlab.example.com | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com | ✅ |
+| registry | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | ✅ |
+| kas | kas.example.com | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com | ✅ |
+
+**Secrets:**
+- `gitlab-root-password`: Initial root password (Opaque)
+- `gitlab-object-storage`: IRSA S3 config (provider=AWS, use_iam_profile=true)
+
+**Network Policies:** 9 policies aplicadas (default-deny + allow specific traffic)
+
+**Observabilidade:** ServiceMonitor criado (Prometheus scraping /-/metrics)
+
+**⚠️ Limitações Conhecidas (ADR-021 Fase 1):**
+- gitlab-runner: CrashLoop devido DNS placeholder `gitlab.example.com` → Resolvido em Fase 2 (custom domain) OU config service interno
+- Webhooks HTTPS externos: Não funcionam (sem domínio/TLS)
+- SSO: Não configurado (Keycloak pendente)
+
+**Validações Completas:**
+- ✅ Terraform idempotency (plan → "No changes")
+- ✅ Core services Running
+- ✅ PostgreSQL + Redis connectivity
+- ✅ S3 IRSA working
+- ✅ ALB health checks passing
+
+**Custo:** ~$0 adicional (usa RDS/Redis/S3 já existentes + 3 ALBs $48.60/mês)
+
+**Referências:**
+- Logbook: [2026-02-04-execucao-pendente-staging.md](../logbook/2026-02-04-execucao-pendente-staging.md)
+- Deploy duration: 7m18s (438s)
+
+---
 
 ### Fase 1: Deployment Sem Domínio (Semanas 1-8)
 

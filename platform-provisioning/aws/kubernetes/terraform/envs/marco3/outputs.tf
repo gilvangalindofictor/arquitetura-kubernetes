@@ -43,25 +43,26 @@ output "redis_connection_string" {
 }
 
 # RabbitMQ Outputs
-output "rabbitmq_cluster_name" {
-  description = "RabbitMQ cluster CR name"
-  value       = module.rabbitmq.rabbitmq_cluster_name
-}
+# Temporarily disabled (module commented out)
+# output "rabbitmq_cluster_name" {
+#   description = "RabbitMQ cluster CR name"
+#   value       = module.rabbitmq.rabbitmq_cluster_name
+# }
 
-output "rabbitmq_management_url" {
-  description = "RabbitMQ Management UI URL"
-  value       = module.rabbitmq.rabbitmq_management_url
-}
+# output "rabbitmq_management_url" {
+#   description = "RabbitMQ Management UI URL"
+#   value       = module.rabbitmq.rabbitmq_management_url
+# }
 
-output "rabbitmq_external_hostname" {
-  description = "RabbitMQ NLB hostname for external access"
-  value       = module.rabbitmq.rabbitmq_external_hostname
-}
+# output "rabbitmq_external_hostname" {
+#   description = "RabbitMQ NLB hostname for external access"
+#   value       = module.rabbitmq.rabbitmq_external_hostname
+# }
 
-output "rabbitmq_default_user_secret" {
-  description = "RabbitMQ default user secret name"
-  value       = module.rabbitmq.rabbitmq_default_user_secret
-}
+# output "rabbitmq_default_user_secret" {
+#   description = "RabbitMQ default user secret name"
+#   value       = module.rabbitmq.rabbitmq_default_user_secret
+# }
 
 # S3 Outputs
 output "gitlab_artifacts_bucket" {

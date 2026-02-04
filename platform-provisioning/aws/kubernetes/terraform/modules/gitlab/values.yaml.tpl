@@ -70,8 +70,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # Artifacts
     artifacts:
@@ -79,8 +79,8 @@ global:
       proxy_download: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # Uploads
     uploads:
@@ -88,8 +88,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # Packages
     packages:
@@ -97,8 +97,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # External Diffs
     externalDiffs:
@@ -109,16 +109,16 @@ global:
       enabled: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # CI Secure Files
     ciSecureFiles:
       enabled: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
     # Dependency Proxy
     dependencyProxy:
@@ -126,8 +126,8 @@ global:
       proxy_download: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: "gitlab-object-storage"
+        key: "connection"
 
   # Gitaly (moved from gitlab.gitaly.enabled in chart v8.7.0)
   gitaly:
@@ -223,6 +223,12 @@ gitlab:
   # Toolbox (disabled for staging - no automated backups needed)
   toolbox:
     enabled: false
+    backups:
+      objectStorage:
+        config:
+          secret: gitlab-object-storage
+          key: connection
+        backend: s3
 
 # GitLab Runner (CI/CD)
 gitlab-runner:

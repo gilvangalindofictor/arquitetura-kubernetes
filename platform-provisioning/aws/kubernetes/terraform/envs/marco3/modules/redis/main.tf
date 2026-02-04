@@ -56,12 +56,12 @@ resource "kubernetes_namespace" "data_services" {
     name = var.namespace
 
     labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"                 = "data-services"
-      "app.kubernetes.io/managed-by"           = "terraform"
-      "pod-security.kubernetes.io/enforce"     = "restricted"
-      "pod-security.kubernetes.io/audit"       = "restricted"
-      "pod-security.kubernetes.io/warn"        = "restricted"
-      "kubernetes.io/metadata.name"            = var.namespace
+      "app.kubernetes.io/name"             = "data-services"
+      "app.kubernetes.io/managed-by"       = "terraform"
+      "pod-security.kubernetes.io/enforce" = "restricted"
+      "pod-security.kubernetes.io/audit"   = "restricted"
+      "pod-security.kubernetes.io/warn"    = "restricted"
+      "kubernetes.io/metadata.name"        = var.namespace
     })
   }
 }
@@ -117,6 +117,12 @@ resource "helm_release" "redis_operator" {
   set {
     name  = "resources.limits.memory"
     value = "128Mi"
+  }
+
+  # Force image tag to latest (v1.3.0 doesn't exist in quay.io)
+  set {
+    name  = "image.tag"
+    value = "latest"
   }
 }
 
@@ -220,7 +226,7 @@ resource "kubectl_manifest" "redis_failover" {
 
         containerSecurityContext = {
           allowPrivilegeEscalation = false
-          readOnlyRootFilesystem   = false  # Redis needs to write AOF/RDB
+          readOnlyRootFilesystem   = false # Redis needs to write AOF/RDB
           capabilities = {
             drop = ["ALL"]
           }

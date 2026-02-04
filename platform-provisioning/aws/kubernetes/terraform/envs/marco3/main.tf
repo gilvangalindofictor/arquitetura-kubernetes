@@ -120,14 +120,20 @@ module "redis" {
 }
 
 # RabbitMQ Module
+# NOTE: Refactored from Helm (Bitnami) to kubectl-managed Operator (ADR-023)
+# Operator deployed manually via: kubectl apply -f github.com/rabbitmq/cluster-operator
+# This module manages only the RabbitmqCluster Custom Resource
 module "rabbitmq" {
   source = "./modules/rabbitmq"
 
   cluster_name  = var.cluster_name
+  namespace     = "data-services"
   replicas      = var.rabbitmq_replicas
   pvc_size      = var.rabbitmq_pvc_size
   storage_class = "gp2"
   common_tags   = var.common_tags
+
+  enable_monitoring = true
 }
 
 # S3 Buckets Module
@@ -154,7 +160,7 @@ resource "kubernetes_secret" "gitlab_postgresql_password" {
   }
 
   data = {
-    password = "GitLab2026!SecurePass#Marco3"  # From create-databases.sql
+    password = "GitLab2026!SecurePass#Marco3" # From create-databases.sql
   }
 
   type = "Opaque"
@@ -175,8 +181,8 @@ module "gitlab" {
   cluster_name   = var.cluster_name
   aws_account_id = var.aws_account_id
   aws_region     = var.aws_region
-  namespace      = "gitlab"
-  environment    = "prod"
+  namespace      = "gitlab-staging"
+  environment    = "staging"
 
   # GitLab configuration
   gitlab_edition         = "ce"
@@ -189,9 +195,9 @@ module "gitlab" {
   domain_name = ""
 
   # PostgreSQL (external - CloudNativePG via RDS)
-  postgresql_host            = module.postgresql.service_name
+  postgresql_host            = "${module.postgresql.service_name}.default.svc.cluster.local"
   postgresql_port            = 5432
-  postgresql_database        = "gitlab"
+  postgresql_database        = "gitlab_staging"
   postgresql_username        = "gitlab_user"
   postgresql_password_secret = kubernetes_secret.gitlab_postgresql_password.metadata[0].name
 
@@ -202,7 +208,7 @@ module "gitlab" {
 
   # S3 (IRSA)
   s3_artifacts_bucket = module.s3_buckets.gitlab_artifacts_bucket_name
-  s3_uploads_bucket   = module.s3_buckets.gitlab_artifacts_bucket_name  # Same bucket, different prefixes
+  s3_uploads_bucket   = module.s3_buckets.gitlab_artifacts_bucket_name # Same bucket, different prefixes
   s3_policy_arn       = module.s3_buckets.gitlab_s3_policy_arn
 
   # Monitoring

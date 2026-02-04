@@ -1,15 +1,18 @@
 # =============================================================================
 # RabbitMQ Module - Marco 3 Data Services
-# Operator: RabbitMQ Cluster Operator
-# Architecture: 3 node cluster
+# Operator: RabbitMQ Cluster Operator (managed manually via kubectl)
+# ADR-023: Kubernetes Operators (kubectl deploy, not Helm)
+# Architecture: 1 node cluster (can be scaled via replicas variable)
+# =============================================================================
+#
+# NOTE: RabbitMQ Cluster Operator is deployed manually via kubectl apply
+#       from official repository: github.com/rabbitmq/cluster-operator
+#       This module only manages the RabbitmqCluster Custom Resource (CR)
+#
 # =============================================================================
 
 terraform {
   required_providers {
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.0"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.20"
@@ -18,60 +21,14 @@ terraform {
 }
 
 # -----------------------------------------------------------------------------
-# RabbitMQ Cluster Operator (Helm)
-# -----------------------------------------------------------------------------
-
-resource "helm_release" "rabbitmq_operator" {
-  name       = "rabbitmq-cluster-operator"
-  namespace  = var.namespace
-  repository = "https://charts.bitnami.com/bitnami"
-  chart      = "rabbitmq-cluster-operator"
-  version    = "4.4.34"  # Latest: RabbitMQ Cluster Operator 2.16.1
-
-  timeout         = 600
-  cleanup_on_fail = true
-  atomic          = true
-
-  values = [
-    yamlencode({
-      clusterOperator = {
-        resources = {
-          requests = {
-            cpu    = "100m"
-            memory = "128Mi"
-          }
-          limits = {
-            cpu    = "200m"
-            memory = "256Mi"
-          }
-        }
-      }
-
-      msgTopologyOperator = {
-        resources = {
-          requests = {
-            cpu    = "50m"
-            memory = "64Mi"
-          }
-          limits = {
-            cpu    = "100m"
-            memory = "128Mi"
-          }
-        }
-      }
-
-      commonLabels = merge(var.common_tags, {
-        "app.kubernetes.io/managed-by" = "terraform"
-      })
-    })
-  ]
-}
-
-# -----------------------------------------------------------------------------
 # RabbitMQ Cluster CRD
 # -----------------------------------------------------------------------------
 
 resource "kubernetes_manifest" "rabbitmq_cluster" {
+  field_manager {
+    force_conflicts = true
+  }
+
   manifest = {
     apiVersion = "rabbitmq.com/v1beta1"
     kind       = "RabbitmqCluster"
@@ -88,8 +45,9 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
     }
 
     spec = {
-      replicas = var.replicas
-      image    = "rabbitmq:3.13-management"
+      replicas           = var.replicas
+      image              = "rabbitmq:3.13-management"
+      delayStartSeconds  = 30
 
       persistence = {
         storageClassName = var.storage_class
@@ -99,10 +57,10 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
       resources = {
         requests = {
           cpu    = "200m"
-          memory = "512Mi"
+          memory = "1Gi"
         }
         limits = {
-          cpu    = "1000m"
+          cpu    = "1"
           memory = "1Gi"
         }
       }
@@ -127,7 +85,6 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
           cluster_formation.k8s.address_type = hostname
 
           # Monitoring
-          management.load_definitions = /etc/rabbitmq/definitions.json
           prometheus.return_per_object_metrics = true
         EOT
       }
@@ -151,12 +108,14 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
           }
         }
       }
+
+      terminationGracePeriodSeconds = 604800
     }
   }
 
-  depends_on = [
-    helm_release.rabbitmq_operator
-  ]
+  # NOTE: Assumes RabbitMQ Cluster Operator is already installed via kubectl
+  # Operator must be in rabbitmq-system namespace with CRDs installed
+  # Reference: https://github.com/rabbitmq/cluster-operator
 }
 
 # -----------------------------------------------------------------------------
@@ -224,10 +183,12 @@ resource "kubernetes_manifest" "rabbitmq_servicemonitor" {
       name      = "${var.cluster_name}-rabbitmq"
       namespace = "monitoring"
 
-      labels = {
-        prometheus = "kube-prometheus-stack"
-        app        = "rabbitmq"
-      }
+      labels = merge(var.common_tags, {
+        prometheus                     = "kube-prometheus-stack"
+        app                            = "rabbitmq"
+        "app.kubernetes.io/name"       = "rabbitmq"
+        "app.kubernetes.io/managed-by" = "terraform"
+      })
     }
 
     spec = {

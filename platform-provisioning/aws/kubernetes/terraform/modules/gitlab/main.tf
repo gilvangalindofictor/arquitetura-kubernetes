@@ -78,6 +78,32 @@ resource "kubernetes_secret" "gitlab_root_password" {
 }
 
 # -----------------------------------------------------------------------------
+# GitLab Object Storage Connection Secret (IRSA)
+# -----------------------------------------------------------------------------
+
+resource "kubernetes_secret" "gitlab_object_storage" {
+  metadata {
+    name      = "gitlab-object-storage"
+    namespace = kubernetes_namespace.gitlab.metadata[0].name
+
+    labels = merge(var.common_tags, {
+      "app.kubernetes.io/name"     = "gitlab"
+      "app.kubernetes.io/instance" = "${var.cluster_name}-gitlab"
+    })
+  }
+
+  data = {
+    connection = yamlencode({
+      provider         = "AWS"
+      use_iam_profile  = true
+      region           = var.aws_region
+    })
+  }
+
+  type = "Opaque"
+}
+
+# -----------------------------------------------------------------------------
 # IRSA: IAM Role for GitLab ServiceAccount
 # -----------------------------------------------------------------------------
 
@@ -169,7 +195,8 @@ resource "helm_release" "gitlab" {
 
   depends_on = [
     kubernetes_service_account.gitlab,
-    kubernetes_secret.gitlab_root_password
+    kubernetes_secret.gitlab_root_password,
+    kubernetes_secret.gitlab_object_storage
   ]
 
   values = [

@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-01-29
-**Versão:** 2.0 (Marco 2 Completo)
+**Última Atualização:** 2026-02-04
+**Versão:** 2.1 (Marco 3 GitLab Staging + Runner DNS Issue)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -28,6 +28,7 @@
 | R-016 | Cold start excede tolerância (>10min) | BAIXO | BAIXO | 🟢 BAIXO | ✅ Mitigado | Target 5-8min, monitorado |
 | R-017 | State drift Terraform vs Cluster Autoscaler | MÉDIO | BAIXO | 🟢 BAIXO | ✅ Mitigado | ignore_changes em desired_size |
 | **R-018** | **Licenciamento Bitnami → Tanzu Standard** | **ALTO** | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)** | **Migração para Operators** |
+| **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)** | **ALTO** | **BAIXO** | **🟢 BAIXO** | ✅ **Aceito** | **Resolvido ADR-021 Fase 2** |
 
 ---
 
@@ -1151,3 +1152,148 @@ Payback:                         NUNCA (economia < investimento)
 **Mantenedor:** DevOps Team
 **Última Revisão:** 2026-01-29
 **Próxima Revisão:** 2026-02-05 (Marco 3 planning)
+
+---
+
+## 🟢 R-019: GitLab Runner DNS Issue (ADR-021 Fase 1)
+
+**Data Identificado:** 2026-02-04
+**Probabilidade:** ALTO (100% durante ADR-021 Fase 1)
+**Impacto:** BAIXO (CI/CD non-functional temporário)
+**Severidade:** 🟢 BAIXO
+**Status:** ✅ ACEITO (limitação esperada ADR-021 Fase 1)
+
+### Descrição
+
+gitlab-runner pod em CrashLoopBackOff devido DNS lookup failed para hostname placeholder `gitlab.example.com` (ADR-021 Fase 1 strategy).
+
+**Sintoma:**
+```
+ERROR: Registering runner... failed
+status=couldn't execute POST against http://gitlab.example.com/api/v4/runners: 
+Post "http://gitlab.example.com/api/v4/runners": 
+dial tcp: lookup gitlab.example.com on 172.20.0.10:53: no such host
+```
+
+**Pod Status:** 0/1 Running (3+ restarts, liveness probe failures)
+
+### Cenário de Falha
+
+1. GitLab Helm chart deployed com ADR-021 Fase 1 (HTTP-only, no custom domain)
+2. `global.hosts.domain` configurado como `example.com` (placeholder)
+3. gitlab-runner tenta se registrar usando hostname `gitlab.example.com`
+4. CoreDNS (172.20.0.10:53) não resolve placeholder domain
+5. Runner registration fails → CrashLoopBackOff permanente
+6. **Impacto:** CI/CD pipelines não funcionam (jobs não executam)
+
+### Impacto Real
+
+**Functional:**
+- ✅ GitLab webservice: FUNCTIONAL (ALB DNS direto)
+- ✅ GitLab registry: FUNCTIONAL (ALB DNS direto)
+- ✅ GitLab Git push/pull: FUNCTIONAL (ALB DNS direto)
+- ✅ GitLab Web UI: FUNCTIONAL (ALB DNS direto)
+- ❌ GitLab CI/CD pipelines: NON-FUNCTIONAL (runner CrashLoop)
+- ❌ GitLab Runner jobs: NON-FUNCTIONAL (runner não registrado)
+
+**Business:**
+- Staging environment: CI/CD non-functional é aceitável temporariamente
+- Production: Bloqueante (CI/CD é requisito crítico)
+- Workaround: Testes manuais + deploy manual (temporário)
+
+### Probabilidade
+
+**Durante ADR-021 Fase 1:** 100% (esperado, by design)
+**Após ADR-021 Fase 2:** 0% (resolvido com custom domain)
+
+### Mitigação
+
+#### Opção 1: ADR-021 Fase 2 (Permanente) ✅ RECOMENDADO
+
+**Ação:** Registrar domínio Route53 + configurar TLS
+**Timeline:** Marco 3 Fase 2 (após validação staging)
+**Custo:** +$12/ano (Route53 domain) + $0 (ACM certificate free)
+**Esforço:** 4h (domain config + ACM + Ingress update)
+**ROI:** Resolve permanentemente + habilita HTTPS webhooks externos
+
+**Implementação:**
+1. Registrar domínio (ex: `k8s-platform.company.com`)
+2. Criar Hosted Zone Route53
+3. Solicitar ACM certificate
+4. Atualizar terraform.tfvars:
+   ```hcl
+   enable_tls = true
+   domain_name = "k8s-platform.company.com"
+   ```
+5. Terraform apply (ALBs recriados com HTTPS listeners)
+6. Validar runner registration OK
+
+#### Opção 2: Service Interno (Workaround Staging) ⚠️ TEMPORÁRIO
+
+**Ação:** Configurar runner usar service interno K8s
+**Timeline:** Imediato (se CI/CD urgente em staging)
+**Custo:** $0
+**Esforço:** 1h
+**ROI:** Funcional porém não escalável (production requer domain)
+
+**Implementação:**
+```yaml
+# values.yaml.tpl override
+gitlab-runner:
+  gitlabUrl: http://gitlab-webservice-default.gitlab-staging.svc.cluster.local
+```
+
+**Trade-offs:**
+- ✅ Runner funcional imediatamente
+- ❌ URL não acessível fora do cluster (webhooks externos broken)
+- ❌ Configuração diferente staging vs prod (drift)
+- ❌ Não resolve HTTPS requirement (ADR-021 Fase 2 ainda necessário)
+
+### Decisão
+
+**Status:** ✅ **ACEITO (limitação temporária)**
+
+**Rationale:**
+1. ADR-021 Fase 1 é estratégia deliberada (validar staging sem domínio primeiro)
+2. GitLab core services funcionais ✅ (Git, Web UI, registry)
+3. CI/CD non-functional em staging é aceitável temporariamente
+4. ADR-021 Fase 2 resolve permanentemente (domain + TLS)
+5. Workaround service interno disponível se urgente
+
+**Timeline:**
+- **Fase 1 (atual):** Runner CrashLoop aceito (4-8 semanas validação staging)
+- **Fase 2 (futuro):** Domain registrado + runner functional
+
+### Validações
+
+**Confirmado 2026-02-04:**
+- [x] gitlab-runner pod: 0/1 CrashLoop (3 restarts) ✅ ESPERADO
+- [x] Logs: DNS lookup failed `gitlab.example.com` ✅ CONFIRMADO
+- [x] GitLab core: 12/13 pods Running ✅ FUNCTIONAL
+- [x] Workaround disponível (service interno) ✅ VALIDADO
+- [x] ADR-021 Fase 2 planejada ✅ ROADMAP
+
+### Monitoramento
+
+**Alertas:** Não configurar (falso positivo - esperado)
+**SLA:** Não aplicável (staging CI/CD non-functional aceito)
+**Escalation:** Apenas se bloqueio production deployment
+
+### Lições Aprendadas
+
+| # | Lição | Impacto |
+|---|-------|---------|
+| 1 | **ADR-021 Fase 1 strategy funciona** → GitLab deployable sem domain para validação inicial | 🟢 Baixo |
+| 2 | **Runner DNS placeholder** é único componente bloqueado → todos outros funcionais | 🟢 Baixo |
+| 3 | **Workaround service interno** disponível se CI/CD urgente → não há blockers absolutos | 🟢 Baixo |
+| 4 | **Documentation clara** (logbook + ADR-030) previne confusão → "CrashLoop esperado" explícito | 🟢 Baixo |
+
+### Referências
+
+- **Logbook:** [2026-02-04-execucao-pendente-staging.md](../logbook/2026-02-04-execucao-pendente-staging.md)
+- **ADR-021:** No-Domain Phase 1 Strategy (LoadBalancer Pattern)
+- **ADR-030:** [GitLab CE Staging Deployment (IRSA S3 Object Storage)](decisions.md#adr-030)
+- **Architecture:** [architecture.md - Marco 3 GitLab](architecture.md#marco-3-workloads)
+
+**Próxima Revisão:** ADR-021 Fase 2 kickoff (após 4-8 semanas validação staging)
+

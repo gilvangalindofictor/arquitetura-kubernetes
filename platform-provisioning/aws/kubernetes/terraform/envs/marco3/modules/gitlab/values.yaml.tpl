@@ -61,12 +61,7 @@ global:
   # Object Storage (S3 with IRSA)
   appConfig:
     object_store:
-      enabled: true
-      proxy_download: true
-      storage_options: {}
-      connection:
-        secret: ""  # Empty, using IRSA
-        key: ""
+      enabled: false  # Disable consolidated mode, configure each type individually
 
     # LFS (Large File Storage)
     lfs:
@@ -74,8 +69,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # Artifacts
     artifacts:
@@ -83,8 +78,8 @@ global:
       proxy_download: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # Uploads
     uploads:
@@ -92,8 +87,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # Packages
     packages:
@@ -101,8 +96,8 @@ global:
       proxy_download: true
       bucket: ${s3_uploads_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # External Diffs
     externalDiffs:
@@ -113,16 +108,16 @@ global:
       enabled: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # CI Secure Files
     ciSecureFiles:
       enabled: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
 
     # Dependency Proxy
     dependencyProxy:
@@ -130,8 +125,18 @@ global:
       proxy_download: true
       bucket: ${s3_artifacts_bucket}
       connection:
-        secret: ""
-        key: ""
+        secret: gitlab-object-storage
+        key: connection
+
+  # Toolbox backups configuration
+  gitlab:
+    toolbox:
+      backups:
+        objectStorage:
+          config:
+            secret: gitlab-object-storage
+            key: connection
+          backend: s3
 
   # Disable internal charts (using external services)
   minio:
@@ -202,24 +207,6 @@ gitlab:
     metrics:
       enabled: ${enable_monitoring}
 
-  # Gitaly (Git repository storage)
-  gitaly:
-    enabled: true
-    replicaCount: 1
-
-    resources:
-      requests:
-        cpu: 200m
-        memory: 512Mi
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-
-    persistence:
-      enabled: true
-      storageClass: gp3
-      size: 50Gi
-
 # GitLab Runner (CI/CD)
 gitlab-runner:
   install: true
@@ -270,6 +257,9 @@ grafana:
 # =============================================================================
 certmanager:
   install: false
+
+certmanager-issuer:
+  email: "ti@fctconsig.com.br"  # Required even when TLS is disabled
 
 # =============================================================================
 # Shared Secrets (root password)

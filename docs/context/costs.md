@@ -1,7 +1,7 @@
 # 💰 Análise de Custos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-02
-**Versão:** 3.0 (Marco 3 Fase 1: Redis Operator Implementado + $35,995/ano economia confirmada)
+**Última Atualização:** 2026-02-04
+**Versão:** 3.1 (Marco 3 GitLab Staging Deployed: +$48.60/mês)
 **Framework:** FinOps + TCO Analysis
 
 ---
@@ -13,7 +13,8 @@
 | **Custo Total Mensal (Marco 2)** | **~$685.70/mês** | Marco 0 + Marco 1 + Marco 2 + Fase 8 |
 | **Custo Anual (Marco 2)** | **~$8.228.40/ano** | $685.70 × 12 meses |
 | **Custo Marco 3 Fase 1 (Real)** | **$704.20/mês** | Marco 2 + Redis Operator ($18.50) |
-| **Custo Anual Marco 3** | **$8.450.40/ano** | $704.20 × 12 meses |
+| **Custo Marco 3 GitLab (Staging)** | **$752.80/mês** | Marco 3 Fase 1 + GitLab ALBs ($48.60) |
+| **Custo Anual Marco 3** | **$9.033.60/ano** | $752.80 × 12 meses |
 | **Economia vs Bitnami+Tanzu** | **$35,995/ano** | ✅ **Redis Operator implementado 2026-02-02** |
 | **Custo por Node** | **~$98/mês** | $685.70 ÷ 7 nodes |
 | **Custo por Pod (Platform)** | **~$19/mês** | $685.70 ÷ 36 pods observability |
@@ -36,12 +37,37 @@ Marco 0: $0.07/mês → Marco 1: $550/mês → Marco 2: $666/mês → Marco 2 Fa
 
 ---
 
-## 🎯 Marco 3 Fase 2: GitLab CE Deployment - Análise de Custos
+## 🎯 Marco 3 Fase 2: GitLab CE Deployment - Custos Reais (Staging)
 
-**Data Análise:** 2026-02-02
-**Status:** 📊 **Análise Completa - Aguardando Deploy**
-**Custo Mensal:** **$92.71/mês** ($83.25 base + $9.46 runner jobs ephemeral)
+**Data Deploy:** 2026-02-04
+**Status:** ✅ **Deployed (Staging)** | [Logbook](../logbook/2026-02-04-execucao-pendente-staging.md) | [ADR-030](decisions.md#adr-030)
+**Custo Mensal Real (Staging):** **$48.60/mês** (3 ALBs apenas, dependências compartilhadas)
+**Custo Mensal Projetado (Full):** **$92.71/mês** (com runner jobs + storage)
 **Custo Anual:** **$1,112.52/ano**
+
+### 📊 GitLab Staging - Custos Reais (2026-02-04)
+
+**Environment:** Staging | **Namespace:** gitlab-staging | **Helm:** gitlab/gitlab 8.7.0
+
+#### Custos Confirmados (Staging)
+
+| Componente | Especificação | Custo/Mês | Custo/Ano | Observações |
+|------------|---------------|-----------|-----------|-------------|
+| **ALB webservice** | HTTP (80) + HTTPS (443) | $16.20 | $194.40 | k8s-gitlabst-gitlabwe-*.us-east-1.elb.amazonaws.com |
+| **ALB registry** | HTTP (80) + HTTPS (443) | $16.20 | $194.40 | k8s-gitlabst-gitlabre-*.us-east-1.elb.amazonaws.com |
+| **ALB kas** | HTTP (80) + HTTPS (443) | $16.20 | $194.40 | k8s-gitlabst-gitlabka-*.us-east-1.elb.amazonaws.com |
+| **SUBTOTAL ALBs** | | **$48.60** | **$583.20** | 3 ALBs dedicados (ADR-021 Fase 1) |
+| **Compute (Pods)** | 12 pods Running | $0 | $0 | Shared workloads node group |
+| **PostgreSQL RDS** | db.t3.small shared | $0 | $0 | Já existente (Marco 3 Fase 1) |
+| **Redis Operator** | Spotahome shared | $0 | $0 | Já existente (Marco 3 Fase 1) |
+| **S3 Buckets** | artifacts + uploads | $0 | $0 | Já existente (Marco 3 Fase 1) |
+| **IAM IRSA** | gitlab-sa-role | $0 | $0 | IRSA (sem access keys) |
+| **Runner Jobs** | ⚠️ Non-functional | $0 | $0 | CrashLoop (ADR-021 Fase 1 DNS issue) |
+| **TOTAL STAGING** | | **$48.60/mês** | **$583.20/ano** | ✅ Validado 2026-02-04 |
+
+**Comparação vs Projetado:** -$44.11/mês (-47.6% economia temporária até runner funcional)
+
+---
 
 ### Decisão Arquitetural: GitLab CE Self-Hosted Kubernetes
 
