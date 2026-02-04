@@ -660,74 +660,138 @@ Internet
 
 ---
 
-### Fase 1: Deployment Sem Domínio (Semanas 1-8)
+### 📋 PLANEJADO: CI/CD Pipeline Completo (ADR-030 a 035)
 
-**ADR-021:** Implementação inicial sem domínio registrado para uso operacional interno
+**Status:** 📝 Planejado (2026-02-05)
+**Timeline:** 22h desenvolvimento (3-4 dias úteis)
+**Logbook:** [2026-02-05-cicd-pipeline-completo](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
 
-**Tier 1: Data Services (Semanas 3-5)**
-1. **PostgreSQL RDS** - Database centralizado
-   - Instance: db.t3.medium Single-AZ (economia $50/mês vs Multi-AZ)
-   - Databases: gitlab, keycloak, harbor (shared)
-   - Acesso: LoadBalancer (NLB) + endpoint interno ClusterIP
-   - Clientes externos: DBeaver, PgAdmin, psql
-   - Custo: $50/mês (RDS) + $16.20/mês (NLB) = $66.20/mês
+---
 
-2. **Redis** - Cache & Sessions
-   - Helm: bitnami/redis (1 master + 2 replicas)
-   - Acesso: LoadBalancer (NLB) + endpoint interno ClusterIP
-   - Clientes externos: Redis CLI, Redis Desktop Manager
-   - Custo: $0 (nodes existentes) + $16.20/mês (NLB) = $16.20/mês
+#### FASE 1: CI/CD Foundation (16h)
 
-3. **RabbitMQ** - Message Queue
-   - Operator: bitnami/rabbitmq-cluster-operator (3 nodes)
-   - Acesso: LoadBalancer (NLB) para Management UI (15672)
-   - Custo: $0 (nodes existentes) + $16.20/mês (NLB) = $16.20/mês
+**1. GitLab Runner DNS Fix (ADR-021 Fase 2) — 4h**
+- **Domain:** Route53 `k8s-platform.example.com` ($0.50/mês)
+- **TLS:** ACM wildcard certificate (free)
+- **Fix:** Runner registration functional (resolve R-019)
+- **Custo:** +$0.50/mês ($6/ano)
 
-4. **S3 Buckets** - Object Storage
-   - k8s-platform-gitlab-artifacts-891377105802 (CI/CD artifacts)
-   - k8s-platform-harbor-images-891377105802 (container images)
-   - Custo: $15/mês (700GB total estimado)
+**2. Vault HA + KMS Auto-Unseal (ADR-030) — 3h**
+- **Versão:** Helm hashicorp/vault v0.27.0 (3 replicas Raft)
+- **Auto-unseal:** KMS key `alias/vault-unseal-k8s-platform-prod` ($1/mês)
+- **Backups:** S3 Raft snapshots 30d retention ($0.20/mês)
+- **Auth:** Kubernetes auth + policies (eso-reader, gitlab-ci)
+- **Rotation:** Lambda token rotation 90d ($0.50/mês)
+- **Custo:** +$1.70/mês ($20.40/ano)
 
-**Tier 2: Workloads (Semanas 6-8)**
+**3. External Secrets Operator (ADR-031) — 1.5h**
+- **Versão:** Helm external-secrets/external-secrets v0.9.11
+- **CRDs:** 6 instalados (ExternalSecret, SecretStore, ClusterSecretStore)
+- **Backend:** ClusterSecretStore → Vault K8s auth
+- **Sync:** GitLab, Harbor, ArgoCD, SonarQube secrets
+- **Custo:** $0 (pods nodes existentes)
 
-5. **GitLab CE** - CI/CD Platform
-   - Acesso: ALB DNS HTTP (ex: k8s-gitlab-xyz.us-east-1.elb.amazonaws.com)
-   - Dependências: PostgreSQL, Redis, S3
-   - Funcionalidades: Git push/pull ✅, CI/CD pipelines ✅, Interface Web ✅
-   - Limitações: Webhooks HTTPS externos ❌, SSO ❌
-   - Custo: $81.20/mês (inclui RDS $50 + Redis $15 + ALB $16.20)
+**4. Harbor Container Registry (ADR-032) — 4h**
+- **Versão:** Helm goharbor/harbor v1.14.0
+- **Backend:** S3 `k8s-platform-harbor-images-*` IRSA ($11.50/mês)
+- **Database:** PostgreSQL RDS shared DB `harbor` ($0)
+- **Cache:** Redis Operator shared ($0)
+- **Scanner:** Trivy integrated (scan-on-push)
+- **Auth:** Robot accounts via ESO (gitlab-ci push/pull)
+- **imagePullSecrets:** ClusterExternalSecret all namespaces
+- **Custo:** +$27.70/mês (S3 $11.50 + ALB $16.20)
 
-6. **ArgoCD** - GitOps
-   - Acesso: ALB DNS HTTP (ex: k8s-argocd-xyz.us-east-1.elb.amazonaws.com)
-   - Funcionalidades: Sync GitLab repos ✅, Auto-deploy ✅
-   - Custo: $16.20/mês (ALB)
+**5. ArgoCD ApplicationSets (ADR-033) — 2h**
+- **AppProject:** `data-engineering` (3 apps)
+- **ApplicationSet:** Hatch, VemSoft, BucketConnector
+- **Sync:** Auto-sync enabled (prune + self-heal)
+- **RBAC:** No secret enumeration (CI role)
+- **Custo:** $0 (ArgoCD já deployed Marco 2)
 
-7. **Harbor** - Container Registry
-   - Acesso: ALB DNS HTTP (ex: k8s-harbor-xyz.us-east-1.elb.amazonaws.com)
-   - Backend: S3 + PostgreSQL shared + Trivy scanning
-   - Funcionalidades: Push/pull images ✅, Scan vulnerabilities ✅
-   - Limitações: Docker login menos seguro sem HTTPS
-   - Custo: $21.80/mês (S3 $4.60 + ALB $16.20 + shared RDS $0)
+**6. E2E Pipeline Test — 1.5h**
+- **Flow:** GitLab → Kaniko + Vault creds → Harbor push → Trivy scan → ArgoCD sync
+- **Target:** < 15min commit-to-deploy
+- **Validation:** Pods Running, health checks pass
 
-**Custo Total Fase 1:** $902.30/mês (baseline) → **$737.10/mês (otimizado com Reserved Instances)**
+**SUBTOTAL FASE 1:** 16h | **$29.90/mês** ($358.80/ano)
 
-### Fase 2: TLS/SSO (Futuro)
+---
 
-**Quando:** Após registro de domínio ou quando necessário webhooks HTTPS externos
+#### FASE 2: Code Quality + Security (3h)
 
-**Mudanças:**
-- Registrar domínio (Route53 ~$12/ano)
-- Habilitar `enable_tls = true` no terraform.tfvars
-- Deploy Keycloak + configurar OIDC para todos workloads
-- Migração transparente (ALBs recriados com listeners HTTPS)
+**7. SonarQube Community Edition (ADR-034) — 3h**
+- **Versão:** Helm sonarqube/sonarqube v10.7.0
+- **Database:** PostgreSQL RDS shared DB `sonarqube` ($0)
+- **Storage:** S3 plugin analyses archive >90d ($10/mês)
+- **ALB:** `sonarqube.k8s-platform.example.com` ($16.20/mês)
+- **Auth:** Admin token via ESO (Vault sync)
+- **Integration:** GitLab webhook + scanner plugin
+- **Quality Gate:** Critical >0 = FAIL (block merge)
+- **Resources:** 2Gi requests / 4Gi limits + HPA (max 3)
+- **Custo:** +$26.20/mês ($314.40/ano)
 
-**Custo Adicional:** +$0.50/mês (Route53 Hosted Zone)
+**SUBTOTAL FASE 2:** 3h | **$26.20/mês** ($314.40/ano)
 
-### Otimizações Q1 2026 (Incluídas no Custo Otimizado)
-- Reserved Instances EC2 (1 ano, 7 nodes): -$124/mês
-- Consolidar ALBs via IngressGroup (4→1): -$16.20/mês
-- PostgreSQL RDS Shared (3 databases): -$25/mês
-- **Total Economia:** -$165.20/mês
+---
+
+#### FASE 3: Painel Central Observabilidade (3h)
+
+**8. Grafana Multi-Cluster Dashboard (ADR-035) — 3h**
+- **Datasources:**
+  - Prometheus Production (local)
+  - Prometheus Staging (NLB $16.20/mês)
+  - Loki Production/Staging (S3 shared)
+  - Tempo Production/Staging (Fase 8 Marco 2)
+  - ArgoCD Metrics (exporter enabled)
+  - SonarQube Metrics (webhook → Pushgateway)
+- **Dashboards:**
+  - 🏠 Home: Multi-Cluster Overview
+  - 📊 Cluster Health (staging vs prod)
+  - 📦 Applications Status (per environment)
+  - 🚀 GitOps Status (ArgoCD sync)
+  - 🔍 Code Quality (SonarQube gates)
+  - 💰 FinOps Cost Dashboard
+  - 🔥 Alerts Overview (AlertManager)
+- **Complementos:**
+  - ArgoCD UI: GitOps drill-down
+  - OpenLens: Troubleshooting desktop (devs individuais)
+- **Custo:** +$16.20/mês ($194.40/ano)
+
+**SUBTOTAL FASE 3:** 3h | **$16.20/mês** ($194.40/ano)
+
+---
+
+### 💰 Custos Consolidados Marco 3 Completo
+
+| Componente | Detalhes | Custo/Mês | Anual |
+|------------|----------|-----------|-------|
+| **GitLab (deployed)** | 3 ALBs + S3 artifacts | $48.60 | $583.20 |
+| **Data Services (deployed)** | PostgreSQL RDS shared | $50.00 | $600.00 |
+| **GitLab Runner DNS** | Route53 Hosted Zone | $0.50 | $6.00 |
+| **Vault HA** | KMS + S3 + Lambda | $1.70 | $20.40 |
+| **ESO** | Pods | $0 | $0 |
+| **Harbor** | S3 + ALB | $27.70 | $332.40 |
+| **ArgoCD Apps** | ApplicationSets | $0 | $0 |
+| **SonarQube** | ALB + S3 | $26.20 | $314.40 |
+| **Painel Central** | NLB Prometheus | $16.20 | $194.40 |
+| **TOTAL MARCO 3** | | **$170.90/mês** | **$2.050,80/ano** |
+
+**Economia vs Quickstart Baseline ($737.10/mês):** -$566.20/mês (-76.8%) ✅✅✅
+
+---
+
+### 🎯 Drivers de Economia
+
+1. **Operators vs Bitnami:** Redis + RabbitMQ $0 vs $32.40/mês = **$388.80/ano**
+2. **PostgreSQL RDS Shared:** 1 RDS $50/mês vs 3× $150/mês = **$1.200/ano**
+3. **S3 Consolidated:** Harbor reusa buckets = **$84/ano**
+4. **Vault vs Secrets Manager:** $1.70/mês vs $5/mês = **$39.60/ano**
+5. **SonarQube Community:** $0 vs Developer $150/ano = **$150/ano**
+6. **Reserved Instances:** -$124/mês = **$1.488/ano**
+7. **IngressGroup Consolidation:** -$16.20/mês = **$194.40/ano**
+8. **FinOps Automation (staging ativo):** **$720/ano** (R$ 4.320 @ taxa 6.0)
+
+**Total Economia Anual:** **$6.794,40/ano** ✅
 
 ---
 

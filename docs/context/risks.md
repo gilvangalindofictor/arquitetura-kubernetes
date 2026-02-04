@@ -1297,3 +1297,489 @@ gitlab-runner:
 
 **Próxima Revisão:** ADR-021 Fase 2 kickoff (após 4-8 semanas validação staging)
 
+
+---
+
+## 🟡 R-025: SonarQube Memory Pressure (Node Saturation)
+
+**Data Identificado:** 2026-02-05
+**Probabilidade:** 🟡 15%
+**Impacto:** 🟡 MÉDIO
+**Severidade:** 🟡 MÉDIO
+**Status:** ⏳ Planejar mitigação
+**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
+
+### Descrição
+
+SonarQube base process 2Gi + scanners 1Gi cada = **node memory pressure** quando múltiplas análises paralelas (3× scanners = 5Gi total).
+
+### Cenário de Falha
+
+```
+1. GitLab CI dispara 3 jobs paralelos (merge requests)
+2. SonarQube inicia 3 scanners simultâneos (1Gi cada)
+3. Memory usage: 2Gi base + 3Gi scanners = 5Gi total
+4. Node workloads (t3.medium 8GB total) atinge 80% memory
+5. OOMKiller derruba pods não-critical (ou próprio SonarQube)
+6. CI/CD pipelines falham, análises incompletas
+```
+
+### Impacto Financeiro
+
+- **Delay pipelines:** 3× jobs rerun × 5min cada = 15min delay
+- **Frequência:** 2× por semana = **10 delays/mês**
+- **Produtividade:** 10 × 15min × $50/h = **$125/mês** perda
+
+### Mitigações Planejadas
+
+| Mitigação | Eficácia | Esforço | Custo | Status |
+|-----------|---------|---------|-------|--------|
+| **HPA SonarQube** (min 1, max 3 replicas) | 🟢 90% | BAIXO (30min) | $0 | ✅ Planejado |
+| **Node affinity** (`node-type=workloads`) | 🟢 95% | BAIXO (15min) | $0 | ✅ Planejado |
+| **PDB** (minAvailable 1) | 🟡 70% | BAIXO (15min) | $0 | ✅ Planejado |
+| **Memory limits** (2Gi requests / 4Gi limits) | 🟢 85% | BAIXO (config) | $0 | ✅ Planejado |
+| **Scanner queue** (limit 2 concurrent) | 🟢 80% | MÉDIO (SQ config) | $0 | ⏳ Se necessário |
+
+### Monitoramento
+
+```promql
+# Prometheus alert
+container_memory_working_set_bytes{pod=~"sonarqube-.*"}
+  / container_spec_memory_limit_bytes{pod=~"sonarqube-.*"}
+  > 0.85
+```
+
+**Alerta:** SonarQube memory >85% → Slack notification
+
+### ROI Mitigação
+
+- **Investimento:** 1h desenvolvimento HPA + affinity = $100
+- **Economia:** $125/mês × 12 = $1.500/ano loss evitada
+- **ROI:** 1.400% (payback 24 dias)
+
+---
+
+## 🟡 R-026: Quality Gate Bypass (Webhook HMAC Leak)
+
+**Data Identificado:** 2026-02-05
+**Probabilidade:** 🟢 5%
+**Impacto:** 🔴 ALTO
+**Severidade:** 🟡 MÉDIO
+**Status:** ⏳ Planejar mitigação
+**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
+
+### Descrição
+
+GitLab webhook não autenticado (ou HMAC secret leak) = **malicious push força bypass** SonarQube quality gate (merge Critical bugs direto main).
+
+### Cenário de Falha
+
+```
+1. Webhook GitLab → SonarQube sem HMAC validation
+2. Atacante descobre webhook URL (logs, man-in-the-middle)
+3. Fake webhook call: "Analysis passed" (forged payload)
+4. GitLab pipeline prossegue merge (quality gate bypass)
+5. Critical bugs deployados production
+6. CVE High exploited, security breach
+```
+
+### Impacto Financeiro
+
+- **Incident response:** 8h × $150/h = $1.200
+- **Downtime:** 2h production × $500/h revenue loss = $1.000
+- **Reputação:** Estimado $5.000 customer trust loss
+- **TOTAL incidente:** **$7.200**
+- **Frequência:** 1× por ano (5% prob) = **$360/ano** expected loss
+
+### Mitigações Planejadas
+
+| Mitigação | Eficácia | Esforço | Custo | Status |
+|-----------|---------|---------|-------|--------|
+| **Webhook HMAC secret** (GitLab → SQ validation) | 🟢 95% | BAIXO (30min) | $0 | ✅ Planejado |
+| **HTTPS only** (reject HTTP) | 🟡 70% | BAIXO (config) | $0 | ✅ Planejado |
+| **NetworkPolicy** (SQ ingress apenas GitLab CIDR) | 🟢 85% | BAIXO (30min) | $0 | ✅ Planejado |
+| **Audit logs** (CloudWatch webhook calls) | 🟢 100% detecção | MÉDIO (2h) | $5/mês | ⏳ Q2 2026 |
+| **WAF rules** (rate limiting SQ webhook) | 🟡 80% | ALTO (WAF config) | +$5/mês | ⏳ Se necessário |
+
+### Monitoramento
+
+```bash
+# CloudWatch Logs Insights
+fields @timestamp, @message
+| filter @message like /webhook/
+| filter sourceIP not in ["10.0.0.0/16"]  # Internal GitLab CIDR
+| stats count() by sourceIP
+```
+
+**Alerta:** Webhook calls fora CIDR GitLab → PagerDuty P2
+
+### ROI Mitigação
+
+- **Investimento:** 1h HMAC + NetworkPolicy = $100
+- **Expected loss evitado:** $360/ano × 95% = $342/ano
+- **ROI:** 242% (payback 4.2 meses)
+
+---
+
+## 🟢 R-027: Harbor S3 Storage >1TB Cost Spike
+
+**Data Identificado:** 2026-02-05
+**Probabilidade:** 🟡 10%
+**Impacto:** 🟡 MÉDIO
+**Severidade:** 🟢 BAIXO
+**Status:** ⏳ Planejar mitigação
+**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
+
+### Descrição
+
+Harbor image cache crescimento >1TB = **$23/mês extra** (vs $11.50 baseline 500GB) devido builds frequentes sem garbage collection.
+
+### Cenário de Falha
+
+```
+1. CI/CD pipelines build 20× images/dia
+2. Tags acumulam: latest, SHA, branch-name, PR-123 (multi-tags per image)
+3. Untagged images orphaned (layers não GC)
+4. S3 storage: 500GB → 1TB em 3 meses
+5. Custo: $11.50/mês → $23/mês (+$11.50 extra)
+6. Budget alert dispara, investigação demanda 2h
+```
+
+### Impacto Financeiro
+
+- **Extra cost:** $11.50/mês × 12 = **$138/ano**
+- **Investigation:** 2h × $100/h = $200 one-time
+- **TOTAL Year 1:** **$338**
+
+### Mitigações Planejadas
+
+| Mitigação | Eficácia | Esforço | Custo | Status |
+|-----------|---------|---------|-------|--------|
+| **S3 Lifecycle** (Glacier após 90d) | 🟢 80% | BAIXO (30min) | -$9.20/mês | ✅ Planejado |
+| **Harbor garbage collection** (weekly untagged) | 🟢 90% | BAIXO (cron) | $0 | ✅ Planejado |
+| **CloudWatch alarm** (S3 >750GB) | 🟢 100% detecção | BAIXO (15min) | $0.10/mês | ✅ Planejado |
+| **Image retention policy** (keep last 10 tags) | 🟢 95% | MÉDIO (Harbor config) | $0 | ⏳ Q2 2026 |
+| **Dedupe layers** (Harbor replication) | 🟡 70% | ALTO (4h) | $0 | ⏳ Se >2TB |
+
+### Monitoramento
+
+```bash
+# CloudWatch Metric
+aws cloudwatch put-metric-alarm \
+  --alarm-name harbor-s3-storage-high \
+  --metric-name BucketSizeBytes \
+  --namespace AWS/S3 \
+  --statistic Average \
+  --period 86400 \
+  --threshold 806400000000 \  # 750GB
+  --comparison-operator GreaterThanThreshold
+```
+
+**Alerta:** S3 >750GB → Slack + email DevOps
+
+### ROI Mitigação
+
+- **Investimento:** 1h lifecycle + GC config = $100
+- **Economia:** $138/ano extra cost evitado + $9.20/mês Glacier = **$248.40/ano**
+- **ROI:** 148% (payback 4.8 meses)
+
+---
+
+---
+
+## 🔴 R-028: FinOps EventBridge STAGING - Automação Não Funcional
+
+**Data Identificado:** 2026-02-05
+**Probabilidade:** 🔴 100% (confirmado em produção)
+**Impacto:** 🔴 ALTO (economia R$ 0, Marco 3 bloqueado)
+**Severidade:** 🔴 CRÍTICO
+**Status:** ⚠️ **ATIVO** - Correção obrigatória pré-Marco 3
+**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-finops-eventbridge-diagnostico-staging.md)
+
+### Descrição
+
+Automação FinOps STAGING (ADR-024) **não está funcionando** desde deploy 02/02/2026. RDS permanece ligado 24/7, nodes nunca são desligados, **economia projetada R$ 4.320/ano = R$ 0 real**.
+
+### Problemas Identificados
+
+#### Problema 1: RDS_INSTANCE_ID Incorreto (CRÍTICO)
+
+**Root Cause:**
+```hcl
+# modules/postgresql/outputs.tf (ERRADO ❌)
+output "db_instance_id" {
+  value = aws_db_instance.postgresql.id
+  # Retorna: db-VBBRPNR4TI3JRZ26YQLROUY4BQ (DbiResourceId)
+}
+
+# Lambda usa esse ID
+RDS_INSTANCE_ID=db-VBBRPNR4TI3JRZ26YQLROUY4BQ
+
+# Mas API RDS requer DBInstanceIdentifier
+aws rds describe-db-instances --db-instance-identifier db-VBBRPNR4TI3JRZ26YQLROUY4BQ
+# Error: DBInstanceNotFound ❌
+```
+
+**Evidência:**
+- 02/02 12:00: Lambda startup executou com sucesso (1 invoke, 0 errors)
+- 03/02 11:00: Lambda falhou (1 invoke, 3 errors)
+- 04/02 11:00: Lambda falhou (1 invoke, 3 errors)
+- RDS Status: `available` desde 02/02 (nunca foi stopped)
+- DynamoDB: `last_startup: "never"` (Lambda falha antes de atualizar estado)
+
+**Impacto:**
+- RDS ligado 24/7 = R$ 180/mês desperdiçado
+- Lambda falhas consecutivas = circuit breaker risk
+- CloudWatch Alarms disparados (03/02, 04/02)
+
+#### Problema 2: ASG_NAMES Vazio (ALTO)
+
+**Root Cause:**
+```hcl
+# environments/staging/main.tf
+module "finops_automation_staging" {
+  asg_names = data.aws_autoscaling_groups.eks_nodes_staging.names
+}
+
+# Mas data source retorna lista vazia
+data "aws_autoscaling_groups" "eks_nodes_staging" {
+  filter {
+    name   = "tag:environment"
+    values = ["staging"]
+  }
+}
+# Result: [] (nenhum ASG taggeado corretamente)
+```
+
+**Evidência:**
+```bash
+Lambda env vars:
+ASG_NAMES=  # vazio ❌
+```
+
+**Impacto:**
+- Nodes EKS rodando 24/7 = R$ 240/mês desperdiçado
+- 60% da economia projetada perdida
+
+#### Problema 3: Lambda Shutdown Nunca Executou (CRÍTICO)
+
+**Root Cause:** Desconhecido (investigação pendente)
+
+**Evidência:**
+```bash
+CloudWatch Metrics (finops-scheduler-stop-staging):
+{
+  "Datapoints": []  # Zero invocações desde 02/02 ❌
+}
+
+EventBridge Rule:
+- Name: finops-shutdown-staging
+- State: ENABLED ✅
+- Schedule: cron(0 21 ? * MON-FRI *) ✅
+- Target: arn:aws:lambda:...:finops-scheduler-stop-staging ✅
+```
+
+**Impacto:**
+- Ambiente nunca desliga
+- Economia = R$ 0
+
+#### Problema 4: SNS Sem Subscribers (MÉDIO)
+
+**Root Cause:**
+```hcl
+# SNS topic criado mas sem subscriptions
+resource "aws_sns_topic" "finops_alerts_staging" {
+  name = "finops-automation-staging"
+}
+
+# ❌ FALTANDO:
+# resource "aws_sns_topic_subscription" "finops_email" { ... }
+```
+
+**Evidência:**
+```bash
+SubscriptionsConfirmed: 0  # nenhum subscriber ❌
+```
+
+**Impacto:**
+- Falhas não notificadas
+- Equipe não alertada (dependência CloudWatch Alarms apenas)
+
+### Impacto Financeiro
+
+**Perda Até 05/02:**
+- 4 dias × R$ 12/dia = **R$ 48 perdidos**
+
+**Projeção Mensal (se não corrigir):**
+- RDS 24/7: R$ 180/mês
+- Nodes 24/7: R$ 240/mês
+- **Perda:** R$ 420/mês = **R$ 5.040/ano** ❌
+
+**vs Economia Projetada:** R$ 4.320/ano ✅
+
+**Delta:** -R$ 9.360/ano (economia→perda)
+
+### Mitigações Implementadas
+
+**NENHUMA** (sistema em produção com falhas)
+
+### Mitigações Planejadas Marco 3
+
+| Ação Corretiva | Prioridade | Esforço | Arquivo | Status |
+|----------------|-----------|---------|---------|--------|
+| **AC-001: Corrigir RDS_INSTANCE_ID** | 🔴 P0 | 1h | `modules/postgresql/outputs.tf` | ⏳ Planejado |
+| **AC-002: Configurar ASG_NAMES** | 🔴 P0 | 2h | `environments/staging/main.tf` | ⏳ Planejado |
+| **AC-003: Adicionar SNS subscriber** | 🟡 P1 | 30min | `environments/staging/main.tf` | ⏳ Planejado |
+| **AC-004: Investigar shutdown** | 🟡 P1 | 1h | Validação runtime | ⏳ Aguardar 18:00 BRT |
+
+**Investimento Total Correção:** R$ 1.050 (3.5h × R$ 300/h)
+
+### Correção AC-001 (Detalhada)
+
+```hcl
+# modules/postgresql/outputs.tf (ANTES ❌)
+output "db_instance_id" {
+  value = aws_db_instance.postgresql.id
+  # Retorna: db-VBBRPNR4TI3JRZ26YQLROUY4BQ (DbiResourceId)
+}
+
+# modules/postgresql/outputs.tf (DEPOIS ✅)
+output "db_instance_id" {
+  description = "RDS instance identifier (DBInstanceIdentifier)"
+  value       = aws_db_instance.postgresql.identifier
+  # Retorna: k8s-platform-prod-postgresql (correto)
+}
+```
+
+**Validação:**
+```bash
+cd environments/staging
+terraform output postgresql_instance_id
+# Esperado: k8s-platform-prod-postgresql ✅
+
+# Testar API
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql
+# Esperado: Status "available" ✅
+```
+
+### Correção AC-002 (Detalhada)
+
+```hcl
+# environments/staging/main.tf (ADICIONAR)
+
+# 1. Data source para encontrar ASGs staging
+data "aws_autoscaling_groups" "eks_nodes_staging" {
+  filter {
+    name   = "tag:kubernetes.io/cluster/${local.cluster_name}"
+    values = ["owned"]
+  }
+  filter {
+    name   = "tag:environment"
+    values = ["staging"]
+  }
+}
+
+# 2. Passar para módulo
+module "finops_automation_staging" {
+  source = "../../modules/finops-automation"
+
+  # ...
+  asg_names = data.aws_autoscaling_groups.eks_nodes_staging.names  # ✅
+}
+```
+
+**Pré-Requisito:** Verificar ASGs têm tag `environment=staging`
+
+```bash
+aws autoscaling describe-auto-scaling-groups \
+  --query 'AutoScalingGroups[].{Name:AutoScalingGroupName,Tags:Tags}' \
+  | jq '.[] | select(.Tags[] | select(.Key=="environment" and .Value=="staging"))'
+```
+
+Se vazio → adicionar tags aos node groups staging
+
+### Validação Pós-Correção
+
+**Checklist Obrigatório:**
+
+```bash
+# 1. Terraform plan (sem surpresas)
+terraform plan
+# Esperado: Changes to outputs (RDS ID), asg_names populated
+
+# 2. Terraform apply
+terraform apply -auto-approve
+
+# 3. Verificar Lambda env vars atualizadas
+aws lambda get-function-configuration \
+  --function-name finops-scheduler-start-staging \
+  | jq '.Environment.Variables | {RDS_INSTANCE_ID, ASG_NAMES}'
+
+# Esperado:
+# {
+#   "RDS_INSTANCE_ID": "k8s-platform-prod-postgresql",  ✅
+#   "ASG_NAMES": "node-group-staging-20260202..."        ✅
+# }
+
+# 4. Teste manual Lambda startup
+aws lambda invoke \
+  --function-name finops-scheduler-start-staging \
+  --payload '{"action":"test","environment":"staging"}' \
+  /tmp/test-response.json
+
+cat /tmp/test-response.json
+# Esperado: statusCode 200, success: true
+
+# 5. Verificar logs (sem erros DBInstanceNotFound)
+aws logs tail /aws/lambda/finops-scheduler-start-staging --follow
+# Esperado: RDS status check OK, ASG scale-up OK
+
+# 6. Aguardar shutdown 18:00 BRT (validação final)
+# Verificar às 21:00 UTC:
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-prod-postgresql \
+  --query 'DBInstances[0].DBInstanceStatus'
+# Esperado: "stopping" ou "stopped" ✅
+```
+
+### ROI Pós-Correção
+
+```
+Investimento Correção:       R$ 1.050
+Economia Recuperada:         R$ 4.320/ano
+ROI Year 1:                  311%
+Payback:                     1.3 meses
+```
+
+### Decisão
+
+**Status:** ⚠️ **BLOQUEANTE MARCO 3**
+
+**Rationale:**
+1. Automação FinOps CRÍTICA para viabilidade staging
+2. Sem correção = perda R$ 5.040/ano vs economia R$ 4.320/ano
+3. Investimento correção R$ 1.050 justificado (ROI 311%)
+4. Validação obrigatória antes escalar para outros ambientes
+
+**Próximos Passos:**
+1. ✅ Diagnóstico completo (2026-02-05)
+2. ⏳ Implementar AC-001, AC-002, AC-003 (antes Marco 3)
+3. ⏳ Validar shutdown 18:00 BRT hoje (AC-004)
+4. ⏳ Monitorar 1 semana (5× ciclos shutdown/startup)
+5. ⏳ Atualizar risks.md com resultados reais
+
+### Referências
+
+- **Logbook:** [2026-02-05-finops-eventbridge-diagnostico-staging.md](../logbook/2026-02-05-finops-eventbridge-diagnostico-staging.md)
+- **ADR-024:** FinOps Automation STAGING
+- **Architecture:** [architecture.md#fase-9-finops](architecture.md)
+- **Costs:** [costs.md#automacao-finops](costs.md)
+
+**Responsável:** DevOps Lead + FinOps Team
+**Próxima Revisão:** 2026-02-12 (pós-correção, 1 semana operação)
+
+---
+
+**Última Atualização:** 2026-02-05
+**Próxima Revisão:** Após correções Marco 3 e 1 semana validação

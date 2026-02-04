@@ -1818,3 +1818,126 @@ Capabilities adicionadas:          +300% (GitLab + ArgoCD + Harbor + Data Servic
 **Mantenedor:** FinOps Team + DevOps
 **Última Revisão:** 2026-01-29
 **Próxima Revisão:** 2026-02-15 (Marco 3 cost baseline)
+
+---
+
+## 💰 Marco 3: CI/CD Pipeline Completo + SonarQube + Painel Central
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
+**ADRs:** ADR-031 a ADR-036
+
+### Breakdown Detalhado
+
+| Componente | Recurso | Custo/Mês | Anual | Observação |
+|------------|---------|-----------|-------|------------|
+| **GitLab (deployed)** | 3 ALBs | $48.60 | $583.20 | Webservice, Registry, KAS |
+| | S3 artifacts (shared) | $0 | $0 | Bucket reutilizado Harbor |
+| **Data Services (deployed)** | PostgreSQL RDS shared | $50.00 | $600.00 | DBs: gitlab, harbor, sonarqube |
+| | Redis Operator shared | $0 | $0 | Spotahome Operator |
+| | RabbitMQ Operator shared | $0 | $0 | RabbitMQ Cluster Operator |
+| **GitLab Runner DNS** | Route53 Hosted Zone | $0.50 | $6.00 | k8s-platform.example.com |
+| | ACM Certificate | $0 | $0 | Wildcard free |
+| **Vault HA** | KMS key | $1.00 | $12.00 | Auto-unseal |
+| | S3 snapshots Raft | $0.20 | $2.40 | 10GB 30d retention |
+| | Lambda rotation | $0.50 | $6.00 | Token 90d |
+| | Pods (3 replicas) | $0 | $0 | Nodes existentes |
+| **ESO** | Pods | $0 | $0 | Nodes existentes |
+| **Harbor** | S3 images | $11.50 | $138.00 | 500GB @ $0.023/GB |
+| | ALB | $16.20 | $194.40 | Internet-facing |
+| | PostgreSQL (shared) | $0 | $0 | DB harbor |
+| | Redis (shared) | $0 | $0 | Operator shared |
+| | Trivy scanner | $0 | $0 | Integrated pods |
+| **ArgoCD Apps** | ApplicationSets | $0 | $0 | ArgoCD já deployed Marco 2 |
+| **SonarQube** | ALB | $16.20 | $194.40 | sonarqube.k8s-platform.example.com |
+| | S3 analyses | $10.00 | $120.00 | Archive >90d 500GB |
+| | PostgreSQL (shared) | $0 | $0 | DB sonarqube |
+| | Community Edition | $0 | $0 | Zero licenciamento |
+| **Painel Central** | NLB Prometheus staging | $16.20 | $194.40 | Expose metrics 9090 |
+| | Grafana datasources | $0 | $0 | Já deployed Marco 2 |
+| | Dashboards | $0 | $0 | Custom dashboards |
+| **TOTAL MARCO 3** | | **$170.90/mês** | **$2.050,80/ano** |
+
+### Comparação com Quickstart (architecture.md linha 712)
+
+```
+QUICKSTART MARCO 3 BASELINE:            $737.10/mês ($8.845,20/ano)
+
+PLANO ATUAL (CI/CD + SonarQube + Painel):
+├─ CI/CD Pipeline:                      $29.90/mês
+├─ SonarQube:                           $26.20/mês
+├─ Painel Central:                      $16.20/mês
+├─ Data Services (deployed):            $50.00/mês
+├─ GitLab (deployed):                   $48.60/mês
+└─ TOTAL ATUAL:                         $170.90/mês ($2.050,80/ano)
+
+────────────────────────────────────────────────────────────
+ECONOMIA vs QUICKSTART:                 -$566.20/mês (-76.8%)
+                                        -$6.794,40/ano ✅✅✅
+```
+
+### Drivers de Economia (vs Quickstart)
+
+| # | Decisão | Economia/Ano | ADR |
+|---|---------|--------------|-----|
+| 1 | **Operators vs Bitnami** (Redis + RabbitMQ) | $388.80 | ADR-023 |
+| 2 | **PostgreSQL RDS Shared** (1 vs 3 instances) | $1.200,00 | ADR-027 |
+| 3 | **S3 Buckets Consolidated** | $84,00 | ADR-030, ADR-033 |
+| 4 | **Vault vs AWS Secrets Manager** | $99,60 | ADR-031, ADR-032 |
+| 5 | **Harbor vs AWS ECR** (1TB images) | $507,60 | ADR-033 |
+| 6 | **SonarQube Community vs Developer** | $150,00 | ADR-035 |
+| 7 | **Reserved Instances EC2** | $1.488,00 | Quickstart otimização |
+| 8 | **IngressGroup ALB Consolidation** | $194,40 | Quickstart otimização |
+| 9 | **FinOps Automation Staging** | $720,00 | ADR-024 (R$ 4.320 @ 6.0) |
+| **TOTAL ECONOMIA ANUAL** | | **$6.794,40** | |
+
+### ROI Marco 3 Completo
+
+| Métrica | Valor |
+|---------|-------|
+| **Investimento desenvolvimento** | 22h × $100/h = $2.200 |
+| **Economia Ano 1** | $6.794,40/ano |
+| **ROI Year 1** | 209% (payback 3.9 meses) |
+| **NPV 3 anos** (desconto 10%) | $16.876 |
+
+### Projeção Completa Plataforma
+
+```
+Marco 0 + Marco 1 + Marco 2 (8 Fases):  $685.70/mês ($8.228,40/ano)
+Marco 3 (CI/CD + SonarQube + Painel):   $170.90/mês ($2.050,80/ano)
+────────────────────────────────────────────────────────────
+TOTAL PLATAFORMA COMPLETA:              $856.60/mês ($10.279,20/ano)
+
+vs QUICKSTART PROJETADO:
+├─ Marco 0-1-2:                         $666.00/mês (real)
+├─ Marco 3 Quickstart baseline:         $737.10/mês (projetado)
+└─ TOTAL QUICKSTART:                    $1.403,10/mês ($16.837,20/ano)
+
+────────────────────────────────────────────────────────────
+ECONOMIA TOTAL vs QUICKSTART:           -$546.50/mês (-38.9%)
+                                        -$6.558,00/ano ✅
+```
+
+### Tags Aplicadas (FinOps)
+
+```yaml
+Project: k8s-platform
+Marco: "3"
+Component: ci-cd | vault | harbor | sonarqube | observability
+Environment: staging | production
+ManagedBy: terraform
+Terraform: "true"
+Owner: platform-team
+CostCenter: devops
+```
+
+### Aprovação FinOps
+**Status:** ✅ Aprovado (2026-02-05)
+**Aprovador:** FinOps Team
+**Rationale:** Economia 76.8% vs Quickstart baseline, ROI 209% Year 1
+
+---
+
+**Última Atualização:** 2026-02-05
+**Próxima Revisão:** Após execução Marco 3 (validar custos reais ±10%)

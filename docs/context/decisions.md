@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-04
-**Versão:** 3.2 (GitLab Staging Deploy + IRSA S3)
+**Última Atualização:** 2026-02-05
+**Versão:** 3.3 (FinOps Legacy Cleanup)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -31,6 +31,13 @@
 | **ADR-028** | **Hybrid Observability with OpenTelemetry** | **2026-02-02** | **✅ Aprovado** | **Alto** |
 | **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted** | **2026-02-03** | **✅ Implementado** | **Crítico** |
 | **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)** | **2026-02-04** | **✅ Implementado** | **Alto** |
+| **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)** | **2026-02-05** | **📝 Planejado** | **Alto** |
+| **ADR-032** | **External Secrets Operator Integration (Vault Backend)** | **2026-02-05** | **📝 Planejado** | **Alto** |
+| **ADR-033** | **Harbor Container Registry (S3 + IRSA)** | **2026-02-05** | **📝 Planejado** | **Alto** |
+| **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy** | **2026-02-05** | **📝 Planejado** | **Médio** |
+| **ADR-035** | **SonarQube Code Quality Integration** | **2026-02-05** | **📝 Planejado** | **Médio** |
+| **ADR-036** | **Grafana Multi-Cluster Observability Dashboard** | **2026-02-05** | **📝 Planejado** | **Médio** |
+| **ADR-037** | **FinOps Legacy Structure Cleanup** | **2026-02-05** | **✅ Implementado** | **Baixo** |
 
 ---
 
@@ -2858,3 +2865,412 @@ resource "kubernetes_secret" "gitlab_object_storage" {
 - **ADR-026:** Multi-Environment Terraform Refactoring
 - **ADR-027:** Shared GitLab with Separated DataServices
 
+
+---
+
+## 📝 ADR-031: Vault HA Architecture (KMS Auto-Unseal)
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** Secrets management centralizado para ESO, GitLab CI, Harbor, SonarQube
+**Logbook:** [2026-02-05-cicd-pipeline-completo](../logbook/2026-02-05-cicd-pipeline-completo-sonarqube-painel-central.md)
+
+### Decisão
+Deploy **Vault HA 3 replicas Raft consensus** com **KMS auto-unseal** (zero manual unseal keys cluster).
+
+### Alternativas Consideradas
+1. ❌ **AWS Secrets Manager** - REJEITADO (custo $5/mês + API calls $5 = $10/mês, sem K8s auth nativo)
+2. ❌ **Vault Single Replica** - REJEITADO (SPOF, sem HA)
+3. ❌ **Vault Consul Backend** - REJEITADO (overhead operacional, +3 Consul pods)
+4. ✅ **Vault Raft + KMS auto-unseal** - ESCOLHIDO
+
+### Rationale
+- **HA:** Raft 3 replicas (quorum 2/3), survive 1 node failure
+- **Auto-unseal:** KMS key elimina manual unseal keys (zero human intervention)
+- **K8s native:** Kubernetes auth method (ServiceAccount tokens)
+- **Cost:** $1.70/mês (KMS $1 + S3 $0.20 + Lambda $0.50) vs AWS Secrets Manager $10/mês = **economia $8.30/mês**
+- **Policies:** Granular policies (eso-reader, gitlab-ci, harbor-robot)
+
+### Implementação
+```
+Helm: hashicorp/vault v0.27.0
+Namespace: vault
+Replicas: 3 (Raft consensus)
+Storage: Raft (local PVCs 10Gi gp3)
+Auto-unseal: KMS key alias/vault-unseal-k8s-platform-prod
+Backups: S3 snapshots 30d retention (manual script)
+Auth: Kubernetes auth (OIDC cluster)
+Rotation: Lambda token rotation 90d
+```
+
+### Consequências
+- ✅ Secrets centralizados (zero secrets em Git)
+- ✅ Zero manual unseal (KMS auto)
+- ✅ HA (survive 1 pod failure)
+- ⚠️ Vault root token precisa rotation policy 90d
+- ⚠️ Backups manuais (no Vault Enterprise auto-snapshots)
+
+### Custo
+**$1.70/mês** ($20.40/ano) vs AWS Secrets Manager $120/ano = **economia $99.60/ano**
+
+---
+
+## 📝 ADR-032: External Secrets Operator Integration (Vault Backend)
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** Sync automático Vault → Kubernetes Secrets (GitLab, Harbor, ArgoCD, SonarQube)
+
+### Decisão
+Deploy **ESO v0.9.11** com **ClusterSecretStore Vault backend** (K8s auth).
+
+### Alternativas Consideradas
+1. ❌ **Secrets CSI Driver** - REJEITADO (volume mount, não secret objects)
+2. ❌ **Manual kubectl create secret** - REJEITADO (drift, sem sync automático)
+3. ✅ **External Secrets Operator** - ESCOLHIDO
+
+### Rationale
+- **Sync automático:** Vault updates → K8s Secrets (refresh 1h)
+- **ClusterSecretStore:** Shared backend (não duplicar config per namespace)
+- **CRDs:** ExternalSecret por aplicação (GitLab, Harbor, SonarQube)
+- **Zero secrets Git:** Secrets apenas Vault, TF codifica ExternalSecret (não secret values)
+
+### Implementação
+```
+Helm: external-secrets/external-secrets v0.9.11
+Namespace: external-secrets
+CRDs: 6 (ExternalSecret, SecretStore, ClusterSecretStore, etc)
+ClusterSecretStore: vault-backend (Vault K8s auth, role eso-reader)
+ExternalSecrets: gitlab-vault-secrets, harbor-robot-credentials, sonarqube-admin-token
+```
+
+### Consequências
+- ✅ Secrets Git-free (ExternalSecret codifica path Vault, não values)
+- ✅ Rotation automática (Vault TTL → ESO sync)
+- ⚠️ ESO pod SPOF (mitigar: replicas 2)
+- ⚠️ Vault indisponível = secrets não syncam (mitigar: K8s Secrets persistem)
+
+### Custo
+**$0** (pods nodes existentes)
+
+---
+
+## 📝 ADR-033: Harbor Container Registry (S3 + IRSA)
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** Container registry privado com Trivy scanner (GitLab CI push, ArgoCD pull)
+
+### Decisão
+Deploy **Harbor v1.14.0** com **S3 IRSA backend** + **PostgreSQL RDS shared** + **Trivy scanner**.
+
+### Alternativas Consideradas
+1. ❌ **AWS ECR** - REJEITADO (custo $70/mês para 1TB vs Harbor $27.70/mês)
+2. ❌ **Docker Registry** - REJEITADO (sem UI, scanning, RBAC)
+3. ❌ **GitLab Container Registry** - REJEITADO (tightly coupled GitLab, sem Trivy nativo)
+4. ✅ **Harbor + S3 + Trivy** - ESCOLHIDO
+
+### Rationale
+- **Cost:** S3 $11.50/mês + ALB $16.20/mês = **$27.70/mês** vs ECR $70/mês = **economia $42.30/mês** ($507.60/ano)
+- **Scanning:** Trivy integrated (scan-on-push, CVE database auto-update)
+- **RBAC:** Robot accounts per project (gitlab-ci push/pull)
+- **IRSA:** Zero static credentials (ServiceAccount → IAM role → S3)
+- **Shared infra:** PostgreSQL RDS DB `harbor` + Redis Operator (zero custo adicional)
+
+### Implementação
+```
+Helm: goharbor/harbor v1.14.0
+Namespace: harbor
+Backend: S3 bucket k8s-platform-harbor-images-* (IRSA)
+Database: PostgreSQL RDS shared (DB harbor)
+Cache: Redis Operator shared
+Scanner: Trivy (auto-update CVE DB)
+Robot accounts: gitlab-ci (project cicd, push/pull permissions)
+imagePullSecrets: ClusterExternalSecret → all namespaces (ESO)
+```
+
+### Consequências
+- ✅ Economia $507.60/ano vs ECR
+- ✅ Trivy scanning (block Critical CVE)
+- ✅ IRSA zero credentials leak
+- ⚠️ S3 >1TB = $23/mês extra (mitigar: lifecycle 90d Glacier)
+- ⚠️ Trivy scanner memory 1Gi per scan (node pressure risk)
+
+### Custo
+**$27.70/mês** ($332.40/ano) vs ECR $840/ano = **economia $507.60/ano**
+
+---
+
+## 📝 ADR-034: ArgoCD ApplicationSets GitOps Strategy
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** GitOps automated deploy (Hatch, VemSoft, BucketConnector staging)
+
+### Decisão
+**ApplicationSet pattern** para apps data-engineering (auto-generate Applications per app).
+
+### Alternativas Consideradas
+1. ❌ **Manual Applications** - REJEITADO (não escala, duplicação YAML)
+2. ❌ **Helm Umbrella Chart** - REJEITADO (Helm != GitOps, sem history)
+3. ✅ **ApplicationSet** - ESCOLHIDO
+
+### Rationale
+- **DRY:** 1 ApplicationSet → 3 Applications (Hatch, VemSoft, BucketConnector)
+- **Auto-sync:** Git push → ArgoCD detect → deploy (< 5min)
+- **RBAC:** AppProject restricts (no secret enumeration CI role)
+- **Prune:** Auto-delete resources removed from Git
+
+### Implementação
+```
+AppProject: data-engineering
+ApplicationSet: data-engineering-apps (generator list)
+Apps: Hatch, VemSoft, BucketConnector
+Sync: Auto-sync + prune + self-heal
+Source: GitLab repos (path: helm/<app>/)
+Destination: namespace data-engineering-staging
+```
+
+### Consequências
+- ✅ GitOps compliance (Git = source of truth)
+- ✅ Audit trail (ArgoCD history)
+- ⚠️ Sync conflicts (manual kubectl apply → ArgoCD undo)
+- ⚠️ Secrets management (mitigar: ESO ExternalSecret, não hardcoded)
+
+### Custo
+**$0** (ArgoCD já deployed Marco 2)
+
+---
+
+## 📝 ADR-035: SonarQube Code Quality Integration
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** Static code analysis + quality gates (block merge Critical bugs)
+
+### Decisão
+**SonarQube Community Edition** (vs Developer $150/ano).
+
+### Alternativas Consideradas
+1. ❌ **SonarCloud SaaS** - REJEITADO (custo $10/mês per private repo)
+2. ❌ **SonarQube Developer Edition** - REJEITADO (custo $150/ano, branch analysis desnecessário inicial)
+3. ✅ **SonarQube Community** - ESCOLHIDO
+
+### Rationale
+- **Cost:** $0 licenciamento vs Developer $150/ano
+- **Quality Gate:** Critical >0 = FAIL (block GitLab merge)
+- **GitLab integration:** Webhook + scanner plugin
+- **Storage:** S3 plugin arquiva análises >90d ($10/mês)
+- **Limitation Community:** No branch analysis (apenas main), suficiente inicialmente
+
+### Implementação
+```
+Helm: sonarqube/sonarqube v10.7.0
+Namespace: sonarqube
+Database: PostgreSQL RDS shared (DB sonarqube)
+Storage: S3 plugin (analyses >90d)
+ALB: sonarqube.k8s-platform.example.com ($16.20/mês)
+Auth: Admin token via ESO (Vault sync)
+GitLab: Webhook + scanner plugin (.gitlab-ci.yml)
+Quality Gate: Critical >0 = FAIL
+HPA: min 1, max 3 (CPU >70%)
+```
+
+### Consequências
+- ✅ Zero licenciamento (vs Developer $150/ano)
+- ✅ Quality gates enforce (block bad code)
+- ⚠️ No branch analysis (apenas main) → upgrade Developer se necessário Q3
+- ⚠️ Memory 3Gi (node pressure, mitigar HPA)
+
+### Custo
+**$26.20/mês** ($314.40/ano) — zero licenciamento (Community) vs Developer $150/ano extra
+
+---
+
+## 📝 ADR-036: Grafana Multi-Cluster Observability Dashboard
+
+**Data:** 2026-02-05
+**Status:** 📝 Planejado
+**Contexto:** Painel central unificado (staging + production clusters)
+
+### Decisão
+**Grafana (já deployed)** com **multi-cluster datasources** (Prometheus staging via NLB).
+
+### Alternativas Consideradas
+1. ❌ **Rancher** - REJEITADO (custo $32/mês ALB + overhead K8s mgmt, redundante Grafana)
+2. ❌ **OpenLens como painel central** - REJEITADO (desktop app, no MFA/audit, compliance risk)
+3. ❌ **Kubernetes Dashboard** - REJEITADO (single-cluster, no metrics/logs aggregation)
+4. ✅ **Grafana Multi-Cluster** - ESCOLHIDO
+
+### Rationale
+- **Reuso:** Grafana já deployed Marco 2 (zero custo incremental pods)
+- **Multi-cluster:** Datasources staging + production (unified view)
+- **Observability completa:** Metrics (Prometheus) + Logs (Loki) + Traces (Tempo) + GitOps (ArgoCD) + Quality (SonarQube)
+- **Security:** SSO OIDC + MFA + audit logs (vs OpenLens kubeconfig files)
+
+### Implementação
+```
+Datasources:
+├─ Prometheus Production (local)
+├─ Prometheus Staging (NLB $16.20/mês)
+├─ Loki Production/Staging (S3 shared)
+├─ Tempo Production/Staging
+├─ ArgoCD Metrics (exporter)
+└─ SonarQube Metrics (webhook → Pushgateway)
+
+Dashboards:
+├─ Home: Multi-Cluster Overview
+├─ Cluster Health (staging vs prod)
+├─ Applications Status (per environment)
+├─ GitOps Status (ArgoCD sync)
+├─ Code Quality (SonarQube gates)
+├─ FinOps Cost Dashboard
+└─ Alerts Overview (AlertManager)
+
+Complementos:
+├─ ArgoCD UI (GitOps drill-down)
+└─ OpenLens (troubleshooting desktop devs)
+```
+
+### Consequências
+- ✅ Painel único staging + prod
+- ✅ Observability completa (metrics + logs + traces + GitOps + quality)
+- ✅ Security compliance (SSO + MFA + audit)
+- ⚠️ NLB custo ($16.20/mês) — alternativa: VPN tunnel (complexidade)
+
+### Custo
+**$16.20/mês** ($194.40/ano) — NLB Prometheus staging endpoint
+
+---
+
+**Última Atualização:** 2026-02-05
+**Próxima Revisão:** Após execução Marco 3 CI/CD completo
+
+---
+
+## 📝 ADR-037: FinOps Legacy Structure Cleanup
+
+**Data:** 2026-02-05
+**Status:** ✅ Implementado
+**Impacto:** Baixo
+
+### Contexto
+
+Após refatoração ADR-026 (Multi-Environment Terraform), estrutura legada `envs/finops-staging/` permaneceu sem uso. Análise identificou:
+
+1. **State backends separados:**
+   - Legacy: `finops-staging/terraform.tfstate` (S3 key)
+   - Novo: `environments/staging/terraform.tfstate` (S3 key)
+
+2. **Ownership de recursos AWS:**
+   - Legacy: **Nenhum log de apply** (nunca gerenciou recursos)
+   - Novo: Apply 2026-02-02 17:11 com recursos ativos (Lambda + EventBridge)
+
+3. **Risco de confusão:**
+   - Duas estruturas com mesmo objetivo (FinOps automation)
+   - Documentação apontando para estrutura legada
+
+### Decisão
+
+**Remover** `envs/finops-staging/` porque:
+
+1. ✅ **Nunca gerenciou recursos AWS** (verificado via logs)
+2. ✅ **State backend sem conflito** (keys diferentes)
+3. ✅ **Source of truth confirmado:** `environments/staging/` (module `finops_automation_staging`)
+4. ✅ **EventBridges ativos preservados** ($177.61/mês economia)
+
+**Ação executada:**
+
+```bash
+# Backup preventivo
+tar -czf envs/finops-staging-backup-20260205.tar.gz envs/finops-staging/
+
+# Move para archive
+mkdir -p archive/deprecated-envs
+mv envs/finops-staging archive/deprecated-envs/
+```
+
+### Alternativas Consideradas
+
+| Alternativa                | Avaliação        | Motivo Rejeição                       |
+|----------------------------|------------------|---------------------------------------|
+| **Manter indefinidamente** | ❌ Rejeitada     | Aumenta confusão, contradiz ADR-026   |
+| **Migrar state**           | ❌ Desnecessária | Legacy nunca aplicado, sem recursos   |
+| **Destruir sem backup**    | ❌ Arriscada     | Backup preventivo é best practice     |
+| **Remover + backup**       | ✅ Escolhida     | Safe + reversível                     |
+
+### Validação Realizada
+
+#### Phase 1: State Inspection
+
+- [x] Backend configs verificados (keys diferentes)
+- [x] Local state cache verificado (`.terraform/` existe legado)
+
+#### Phase 2: Resource Ownership
+
+- [x] Logs apply estrutura nova analisados (✅ FinOps aplicado 2026-02-02)
+- [x] Logs apply estrutura legada verificados (❌ nenhum log)
+- [x] EventBridges ativos confirmados (gerenciados por estrutura nova)
+
+#### Phase 3: Cleanup Execution
+
+- [x] Backup criado (153MB `finops-staging-backup-20260205.tar.gz`)
+- [x] Estrutura movida para `archive/deprecated-envs/`
+- [x] README-DEPRECATED.md atualizado
+- [x] Economia FinOps preservada ($177.61/mês)
+
+### Recursos AWS Não Afetados
+
+Os seguintes recursos permanecem **ativos e gerenciados por `environments/staging/`**:
+
+```
+module.finops_automation_staging:
+├─ aws_lambda_function.finops_start (finops-scheduler-start-staging)
+├─ aws_lambda_function.finops_stop (finops-scheduler-stop-staging)
+├─ aws_cloudwatch_event_rule.startup (finops-startup-staging) ✅ ENABLED
+├─ aws_cloudwatch_event_rule.shutdown (finops-shutdown-staging) ✅ ENABLED
+├─ aws_cloudwatch_log_group.lambda_{start,stop}
+├─ aws_iam_role.lambda_role (7 policies)
+├─ aws_sns_topic (k8s-platform-prod-finops-alerts-staging)
+├─ aws_cloudwatch_metric_alarm (3 alarms)
+└─ aws_dynamodb_table.scheduler_state (circuit breaker)
+
+Economia mensal: $177.61/mês ($2,131.32/ano) ✅ PRESERVADA
+```
+
+### Impactos
+
+#### Positivos
+
+- ✅ Eliminada confusão entre estruturas
+- ✅ Aderência completa ao ADR-026 (estrutura única `environments/`)
+- ✅ Documentação consistente
+- ✅ Backup disponível para rollback (se necessário)
+
+#### Neutros
+
+- ⚪ Nenhum recurso AWS afetado (legacy não gerenciava recursos)
+
+#### Riscos Mitigados
+
+- ⚠️ Apply acidental na estrutura errada (eliminado)
+- ⚠️ State drift entre estruturas (eliminado)
+
+### Custo
+
+**Impacto financeiro:** $0 (apenas remoção de diretório)
+
+**Economia preservada:** $177.61/mês ($2,131.32/ano) - FinOps automation ativo
+
+### Documentação Relacionada
+
+- **ADR-026:** Multi-Environment Terraform Refactoring
+- **ADR-024:** FinOps Automation Multi-Ambiente
+- **Logbook:** [docs/logbook/2026-02-05-finops-cleanup-estrutura-legada.md](docs/logbook/2026-02-05-finops-cleanup-estrutura-legada.md)
+- **Backup:** `envs/finops-staging-backup-20260205.tar.gz` (153MB)
+- **Archive:** `archive/deprecated-envs/finops-staging/`
+
+---
+
+**Última Atualização:** 2026-02-05
+**Próxima Revisão:** Após execução Marco 3 CI/CD completo

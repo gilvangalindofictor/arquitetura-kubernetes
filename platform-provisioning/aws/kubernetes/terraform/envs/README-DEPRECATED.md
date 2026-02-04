@@ -49,11 +49,24 @@ modules/s3-buckets/
 
 ## 🗂️ Mapeamento Legacy → Novo
 
-| Legacy (envs/)          | Novo (environments/)     |
-|-------------------------|--------------------------|
-| `envs/marco3/`          | `environments/staging/`  |
-| `envs/marco3/modules/*` | `modules/*` (raiz)       |
-| Variáveis inline        | `common/` + env-specific |
+| Legacy (envs/)          | Novo (environments/)                                              | Status                                   |
+|-------------------------|-------------------------------------------------------------------|------------------------------------------|
+| `envs/marco3/`          | `environments/staging/`                                           | Deprecated                               |
+| `envs/marco3/modules/*` | `modules/*` (raiz)                                                | Deprecated                               |
+| `envs/finops-staging/`  | `environments/staging/` (módulo `finops_automation_staging`)      | ✅ Movido para archive/ (2026-02-05)     |
+| Variáveis inline        | `common/` + env-specific                                          | Deprecated                               |
+
+---
+
+## 📦 Estruturas Arquivadas
+
+As seguintes estruturas foram movidas para `../archive/deprecated-envs/`:
+
+- **`finops-staging/`** (2026-02-05)
+  - Motivo: Nunca foi aplicado (sem logs), recursos gerenciados por `environments/staging/`
+  - Backup: `envs/finops-staging-backup-20260205.tar.gz` (153MB)
+  - ADR: ADR-036 (FinOps Cleanup)
+  - Verificado safe: Sem recursos AWS ativos
 
 ---
 
