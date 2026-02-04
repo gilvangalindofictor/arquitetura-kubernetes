@@ -50,6 +50,6 @@ output "security_group_id" {
 }
 
 output "db_instance_id" {
-  description = "RDS instance identifier"
-  value       = aws_db_instance.postgresql.id
+  description = "RDS instance identifier (DBInstanceIdentifier for API calls)"
+  value       = aws_db_instance.postgresql.identifier
 }
