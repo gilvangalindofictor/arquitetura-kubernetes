@@ -232,3 +232,4 @@ localstack/data/
 !**/templates/**
 access/
 **.tfplan
+*.tar.gz
