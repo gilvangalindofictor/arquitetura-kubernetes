@@ -41,3 +41,13 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "additional_databases" {
+  description = "List of additional databases to create (with user/password)"
+  type = list(object({
+    name     = string
+    username = string
+    password = string
+  }))
+  default = []
+}

@@ -170,3 +170,14 @@ resource "kubernetes_service" "postgresql_external" {
 
   depends_on = [aws_db_instance.postgresql]
 }
+
+# -----------------------------------------------------------------------------
+# Bootstrap Additional Databases (DISABLED - network connectivity issue)
+# TODO: Fix security group to allow pod→RDS connectivity, then re-enable
+# For now: use manual script modules/postgresql/scripts/bootstrap-databases.sh
+# -----------------------------------------------------------------------------
+
+# resource "null_resource" "bootstrap_databases" {
+#   count = length(var.additional_databases)
+#   ... (commented out due to pod→RDS network issue)
+# }

@@ -53,3 +53,8 @@ output "db_instance_id" {
   description = "RDS instance identifier (DBInstanceIdentifier for API calls)"
   value       = aws_db_instance.postgresql.identifier
 }
+
+output "additional_databases" {
+  description = "List of additional databases created"
+  value       = [for db in var.additional_databases : db.name]
+}
