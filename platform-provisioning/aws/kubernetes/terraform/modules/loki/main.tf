@@ -398,6 +398,27 @@ resource "helm_release" "loki" {
     value = "NoSchedule"
   }
 
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "read.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "read.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "read.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "read.tolerations[1].effect"
+    value = "NoSchedule"
+  }
+
   # -----------------------------------------------------------------------------
   # Write Component (Ingestion Path)
   # -----------------------------------------------------------------------------
@@ -463,6 +484,27 @@ resource "helm_release" "loki" {
 
   set {
     name  = "write.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "write.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "write.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "write.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "write.tolerations[1].effect"
     value = "NoSchedule"
   }
 
@@ -534,6 +576,27 @@ resource "helm_release" "loki" {
     value = "NoSchedule"
   }
 
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "backend.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "backend.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "backend.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "backend.tolerations[1].effect"
+    value = "NoSchedule"
+  }
+
   # -----------------------------------------------------------------------------
   # Gateway Component (Nginx reverse proxy)
   # -----------------------------------------------------------------------------
@@ -589,6 +652,27 @@ resource "helm_release" "loki" {
 
   set {
     name  = "gateway.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "gateway.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].effect"
     value = "NoSchedule"
   }
 

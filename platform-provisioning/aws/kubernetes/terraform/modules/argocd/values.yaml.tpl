@@ -6,7 +6,20 @@ global:
 
 server:
   replicas: ${replicas}
-  
+
+  nodeSelector:
+    node-type: system
+
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
   config:
     url: https://${domain}
     
@@ -47,7 +60,20 @@ server:
 
 repoServer:
   replicas: ${replicas}
-  
+
+  nodeSelector:
+    node-type: system
+
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
   metrics:
     enabled: ${enable_monitoring}
     serviceMonitor:
@@ -55,7 +81,20 @@ repoServer:
 
 controller:
   replicas: 1  # Single controller (leader election)
-  
+
+  nodeSelector:
+    node-type: system
+
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
   metrics:
     enabled: ${enable_monitoring}
     serviceMonitor:
@@ -66,10 +105,36 @@ dex:
 
 redis:
   enabled: true
-  
+
+  nodeSelector:
+    node-type: system
+
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
 applicationSet:
   enabled: true
   replicas: ${replicas}
+
+  nodeSelector:
+    node-type: system
+
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 notifications:
   enabled: false  # TODO: Enable with Slack/email

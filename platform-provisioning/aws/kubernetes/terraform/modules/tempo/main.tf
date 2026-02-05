@@ -339,10 +339,52 @@ resource "helm_release" "tempo" {
     value = "256Mi"
   }
 
-  # Node selector (consistent with Loki/Prometheus)
+  # Node selector (platform service runs on system nodes - ADR-042)
   set {
     name  = "distributor.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "distributor.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "distributor.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "distributor.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "distributor.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "distributor.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "distributor.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "distributor.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "distributor.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # -----------------------------------------------------------------------------
@@ -398,7 +440,49 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "ingester.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "ingester.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "ingester.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "ingester.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "ingester.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "ingester.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "ingester.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "ingester.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "ingester.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # Liveness/Readiness Probes (stateful component needs more time)
@@ -473,7 +557,49 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "querier.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "querier.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "querier.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "querier.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "querier.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "querier.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "querier.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "querier.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "querier.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # Liveness/Readiness Probes (needs time to connect to S3)
@@ -548,7 +674,49 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "queryFrontend.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "queryFrontend.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "queryFrontend.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "queryFrontend.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # -----------------------------------------------------------------------------
@@ -598,7 +766,49 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "compactor.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "compactor.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "compactor.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "compactor.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "compactor.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "compactor.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "compactor.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "compactor.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "compactor.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # Liveness/Readiness Probes (stateful component needs more time)
@@ -683,7 +893,49 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "gateway.nodeSelector.node-type"
-    value = "workloads"
+    value = "system"
+  }
+
+  # Toleration for system nodes (ADR-042 pattern)
+  set {
+    name  = "gateway.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "gateway.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "gateway.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "gateway.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-042 pattern)
+  set {
+    name  = "gateway.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "gateway.tolerations[1].effect"
+    value = "NoSchedule"
   }
 
   # -----------------------------------------------------------------------------

@@ -62,6 +62,17 @@ core:
     limits:
       memory: 512Mi
       cpu: 500m
+  nodeSelector:
+    node-type: system
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 jobservice:
   serviceAccountName: ${service_account}
@@ -73,6 +84,17 @@ jobservice:
     limits:
       memory: 512Mi
       cpu: 500m
+  nodeSelector:
+    node-type: system
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 registry:
   serviceAccountName: ${service_account}
@@ -92,6 +114,17 @@ registry:
       limits:
         memory: 512Mi
         cpu: 500m
+  nodeSelector:
+    node-type: system
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 portal:
   replicas: 2
@@ -102,6 +135,17 @@ portal:
     limits:
       memory: 256Mi
       cpu: 200m
+  nodeSelector:
+    node-type: system
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 trivy:
   enabled: ${enable_trivy}
@@ -116,6 +160,17 @@ trivy:
     limits:
       cpu: 1
       memory: 1Gi
+  nodeSelector:
+    node-type: system
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 metrics:
   enabled: ${enable_monitoring}
