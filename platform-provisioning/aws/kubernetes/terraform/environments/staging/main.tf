@@ -64,6 +64,11 @@ data "aws_eks_cluster_auth" "cluster" {
   name = local.cluster_name
 }
 
+# Get OIDC Provider for IRSA
+data "aws_iam_openid_connect_provider" "eks" {
+  url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
@@ -129,6 +134,15 @@ module "postgresql_staging" {
   allocated_storage     = var.postgresql_allocated_storage     # 20 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
   common_tags           = local.common_tags
+
+  # Bootstrap additional databases (Harbor)
+  additional_databases = [
+    {
+      name     = "harbor"
+      username = "harbor_user"
+      password = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+    }
+  ]
 }
 
 # Redis Operator - STAGING (1 replica, no Sentinel)
@@ -252,6 +266,83 @@ module "gitlab_staging" {
 }
 
 #------------------------------------------------------------------------------
+# SECRETS & SECURITY INFRASTRUCTURE
+# Vault HA + External Secrets Operator + Harbor Container Registry
+# ADR-031, ADR-032, ADR-033
+#------------------------------------------------------------------------------
+
+# Vault HA Cluster - STAGING (1 replica, KMS auto-unseal)
+module "vault_staging" {
+  source = "../../modules/vault"
+
+  cluster_name        = local.cluster_name
+  aws_account_id      = var.aws_account_id
+  aws_region          = var.aws_region
+  namespace           = "vault-system"
+  oidc_provider_arn   = data.aws_iam_openid_connect_provider.eks.arn
+  vault_chart_version = "0.27.0"
+  replicas            = 1 # Cost-optimized for staging
+  storage_class       = "gp2"
+  pvc_size            = "10Gi"
+  enable_monitoring   = true
+  common_tags         = local.common_tags
+}
+
+# External Secrets Operator - Vault Backend
+module "external_secrets_staging" {
+  source = "../../modules/external-secrets"
+
+  depends_on = [module.vault_staging]
+
+  cluster_name      = local.cluster_name
+  namespace         = "external-secrets-system"
+  eso_chart_version = "0.9.11"
+  replicas          = 1 # Cost-optimized for staging
+  vault_addr        = "http://vault.vault-system.svc.cluster.local:8200"
+  enable_monitoring = true
+  common_tags       = local.common_tags
+}
+
+# Harbor Container Registry - STAGING (IRSA S3 storage)
+module "harbor_staging" {
+  source = "../../modules/harbor"
+
+  depends_on = [
+    module.postgresql_staging,
+    module.redis_staging,
+    module.s3_buckets_staging
+  ]
+
+  cluster_name         = local.cluster_name
+  aws_account_id       = var.aws_account_id
+  aws_region           = var.aws_region
+  namespace            = "harbor-system"
+  oidc_provider_arn    = data.aws_iam_openid_connect_provider.eks.arn
+  harbor_chart_version = "1.14.0"
+
+  # S3 Storage (IRSA)
+  s3_bucket_name = module.s3_buckets_staging.harbor_images_bucket_name
+  s3_bucket_arn  = module.s3_buckets_staging.harbor_images_bucket_arn
+
+  # PostgreSQL (shared RDS) - using FQDN from default namespace
+  postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  postgresql_port     = 5432
+  postgresql_database = "harbor"
+  postgresql_username = "harbor_user"
+
+  # Redis (shared Operator)
+  redis_host            = "${module.redis_staging.redis_master_service}.${module.redis_staging.namespace}.svc.cluster.local"
+  redis_port            = module.redis_staging.redis_port
+  redis_password_secret = module.redis_staging.redis_password_secret_name
+
+  # Options
+  storage_class     = "gp2"
+  enable_trivy      = false # DISABLED: chart não aplica storageClass em volumeClaimTemplate
+  enable_monitoring = true
+  common_tags       = local.common_tags
+}
+
+#------------------------------------------------------------------------------
 # FINOPS AUTOMATION (STAGING ONLY)
 # Auto-shutdown: 18h BRT (21h UTC) Mon-Fri
 # Auto-startup: 08h BRT (11h UTC) Mon-Fri
@@ -289,7 +380,7 @@ module "finops_automation_staging" {
   circuit_breaker_threshold = 3
 
   # SNS notifications
-  enable_sns_notifications = true
+  enable_sns_notifications = false  # Usar apenas tópico externo (k8s-platform-prod-finops-alerts-staging)
   sns_topic_arn            = aws_sns_topic.finops_alerts_staging.arn
 
   # Tags
