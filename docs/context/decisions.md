@@ -40,7 +40,7 @@
 | **ADR-037** | **FinOps Legacy Structure Cleanup** | **2026-02-05** | **✅ Implementado** | **Baixo** |
 | **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration** | **2026-02-04** | **✅ Implementado** | **Alto** |
 | **ADR-039** | **Harbor Jobservice PVC RWO Limitation (Staging)** | **2026-02-05** | **✅ Implementado** | **Médio** |
-| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)** | **2026-02-05** | **✅ Aprovado** | **Médio** |
+| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)** | **2026-02-05** | **🚀 Implementado (Harbor ✅)** | **Médio** |
 | **ADR-043** | **Policy Engine Selection (Kyverno)** | **2026-02-05** | **✅ Aprovado** | **Alto** |
 | **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)** | **2026-02-04** | **✅ Implementado** | **Crítico** |
 
@@ -3658,9 +3658,10 @@ vault operator raft list-peers  # 3 peers
 
 ## 📝 ADR-042: RollingUpdate Strategy for Stateful Workloads with RWO PVC
 
-**Data:** 2026-02-05  
-**Status:** ✅ Aprovado  
-**Impacto:** Médio (Padronização deployment strategy)  
+**Data:** 2026-02-05
+**Status:** 🚀 Implementado (Parcial: Harbor ✅)
+**Impacto:** Médio (Padronização deployment strategy)
+**Demanda:** [Logbook Harbor RWO Fix](../logbook/2026-02-05-harbor-rwo-recreate-strategy.md)  
 
 ### Contexto
 
@@ -3757,7 +3758,7 @@ strategy:
 #### Checklist de Aplicação
 
 **Módulos a atualizar:**
-- [ ] `modules/harbor/values.yaml.tpl` (jobservice, registry)
+- [x] `modules/harbor/values.yaml.tpl` (jobservice, registry) — ✅ 2026-02-05 ([logbook](../logbook/2026-02-05-harbor-rwo-recreate-strategy.md))
 - [ ] `modules/vault/values.yaml.tpl` (se HA standalone)
 - [ ] `modules/gitlab/values.yaml.tpl` (sidekiq, webservice com PVC)
 - [ ] Futuros: PostgreSQL, Redis, RabbitMQ (se não Operator-managed)
@@ -3797,9 +3798,33 @@ kubectl get pods -w  # Old pod Terminating → New pod Creating
 terraform plan  # No changes
 ```
 
+### Resultado (2026-02-05)
+
+**Harbor Staging - Implementação Completa:**
+
+| Item | Status | Detalhe |
+|------|--------|---------|
+| **Problema** | ✅ Resolvido | Multi-Attach error em upgrades (pods Pending 13m+) |
+| **Solução** | ✅ Aplicada | `strategy: Recreate` em jobservice + registry |
+| **Arquivo** | ✅ Editado | `modules/harbor/values.yaml.tpl` L78-79, L97-98 |
+| **Terraform** | ✅ Applied | helm_release.harbor rev 10, status: deployed |
+| **Pods** | ✅ Running | jobservice 1/1, registry 2/2 (7m30s uptime) |
+| **Timeline** | 29min | 15:43 início → 16:12 conclusão |
+
+**Lições Aprendidas:**
+1. ⚠️ Helm timeout (13m+) quando strategy não propagada → fix manual necessário
+2. ✅ Patch K8s deployments funcionou (temporário até próximo helm upgrade)
+3. ✅ PVCs liberaram imediatamente após delete pods antigos (~10s)
+4. 📝 Downtime real: ~30s (conforme previsto no trade-off)
+
+**Próximos Passos:**
+- Vault HA (se PVC RWO standalone mode)
+- GitLab sidekiq/webservice (avaliar se usa PVC ou emptyDir)
+
 ### Referências
 
 - [ADR-039: Harbor Jobservice PVC RWO](./decisions.md#adr-039)
+- [Logbook Harbor RWO Fix 2026-02-05](../logbook/2026-02-05-harbor-rwo-recreate-strategy.md)
 - [Kubernetes Deployment Strategies](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy)
 - [AWS EBS Multi-Attach Limitation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-volumes-multi.html)
 

@@ -6,7 +6,7 @@
 | **Demanda**    | Fix Harbor RollingUpdate deadlock com RWO PVCs |
 | **Impacto**    | alto                                     |
 | **Agentes**    | Orquestrador, K8s, AWS, Terraform, Security |
-| **Status**     | em andamento                             |
+| **Status**     | concluído                                |
 
 ---
 
@@ -29,6 +29,7 @@
 [16:05:53] Apply Done | TF | 1 changed, exit 0 | ✅ 3m53s
 [16:06:00] Validação | K8s | Todos Harbor pods Running | ✅
 [16:12:00] Conclusão | Orq | Fix completo: strategy Recreate aplicada, pods healthy | ✅
+[16:17:00] DocSync | Orq | decisions.md (ADR-042 updated), logbook | ✅
 
 ---
 
