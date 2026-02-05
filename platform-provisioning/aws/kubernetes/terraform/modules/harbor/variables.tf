@@ -1,0 +1,91 @@
+# Harbor Module Variables
+
+variable "cluster_name" {
+  type = string
+}
+
+variable "aws_account_id" {
+  type = string
+}
+
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
+
+variable "namespace" {
+  type    = string
+  default = "harbor"
+}
+
+variable "oidc_provider_arn" {
+  type = string
+}
+
+variable "harbor_chart_version" {
+  type    = string
+  default = "1.14.0"
+}
+
+variable "s3_bucket_name" {
+  description = "S3 bucket for Harbor images"
+  type        = string
+}
+
+variable "s3_bucket_arn" {
+  description = "S3 bucket ARN for Harbor images"
+  type        = string
+}
+
+variable "postgresql_host" {
+  type = string
+}
+
+variable "postgresql_port" {
+  type    = number
+  default = 5432
+}
+
+variable "postgresql_database" {
+  type    = string
+  default = "harbor"
+}
+
+variable "postgresql_username" {
+  type    = string
+  default = "harbor_user"
+}
+
+variable "redis_host" {
+  type = string
+}
+
+variable "redis_port" {
+  type    = number
+  default = 6379
+}
+
+variable "redis_password_secret" {
+  description = "K8s secret name containing Redis password"
+  type        = string
+}
+
+variable "storage_class" {
+  type    = string
+  default = "gp2"
+}
+
+variable "enable_trivy" {
+  type    = bool
+  default = true
+}
+
+variable "enable_monitoring" {
+  type    = bool
+  default = true
+}
+
+variable "common_tags" {
+  type    = map(string)
+  default = {}
+}
