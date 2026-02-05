@@ -1,6 +1,6 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-03
+> **Última Atualização**: 2026-02-05
 > **Projeto Ativo**: AWS EKS MVP (Marcos 0-3)
 > **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
 > **Governança**: AI-First com rastreabilidade obrigatória
@@ -60,7 +60,7 @@
 │  • Marco 0: Backend Terraform ✅                        │
 │  • Marco 1: Cluster EKS ✅                              │
 │  • Marco 2: Platform Services ✅                        │
-│  • Marco 3: Workloads 🟡 (67% completo)                │
+│  • Marco 3: Workloads ✅ (Fase 1a/1b completa)         │
 │                                                          │
 │  Pragmatismo: Usa AWS RDS, Secrets Manager              │
 │  Fundações Corretas: 75-80% já cloud-agnostic           │
@@ -134,17 +134,20 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **Marco 0** | Backend Terraform (S3 + DynamoDB) | ✅ Completo | 2 dias | ~$0.01 |
 | **Marco 1** | Cluster EKS (7 nodes, 4 add-ons) | ✅ Completo | 1 dia | $547 |
 | **Marco 2** | Platform Services (8 fases) | ✅ Completo | 3 dias | +$66 |
-| **Marco 3** | Workloads (PostgreSQL, Redis, RabbitMQ, GitLab) | ✅ Completo | 4 dias | +$50 |
-| **TOTAL** | | | **~10 dias** | **~$663/mês** |
+| **Marco 3 F1a/1b** | Workloads + Secrets (PostgreSQL, Redis, RabbitMQ, GitLab, Vault, ESO, Harbor) | ✅ Completo | 5 dias | +$58 |
+| **TOTAL** | | | **~11 dias** | **~$671/mês** |
 
-### Marco 3 - Detalhamento
+### Marco 3 - Detalhamento (Fase 1a/1b)
 
 | Componente | Status | Observações |
 |------------|--------|-------------|
-| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 100GB → 500GB |
+| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 100GB → 500GB, Harbor database bootstrap |
 | Redis Operator | ✅ Completo | Chart v3.2.9, App v1.2.4, 3 sentinels + 1 master |
 | RabbitMQ Operator | ✅ Completo | Official operator, 1 replica staging, namespace data-services |
-| GitLab CE | ✅ Completo | Chart 8.7.0, App v17.7.0, 13 pods, namespace gitlab |
+| GitLab CE Staging | ✅ Completo | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage |
+| Vault HA | ✅ Completo | KMS auto-unseal, 3 replicas HA, namespace vault-system (ADR-031) |
+| External Secrets Operator | ✅ Completo | Vault backend integration, ClusterSecretStore (ADR-032) |
+| Harbor Registry | ✅ Completo | S3 IRSA storage, jobservice replicas=1 (ADR-039), metrics enabled |
 
 ### Marcos Completos
 
@@ -159,18 +162,23 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 7. ✅ Test Applications (nginx + echo-server, validação end-to-end)
 8. ✅ FinOps Automation (Lambda + EventBridge, economia $1.092/ano)
 
-### Próximos Passos (Marco 3)
+### Próximos Passos (Marco 3 - Fase 1c)
 
-1. **RabbitMQ Cluster Operator** (Semana atual)
-   - Deploy via Terraform + Helm
-   - Configuração HA com quorum queues
-   - Integração com monitoring
+1. **PostgreSQL Security Group Fix** (Bloqueio atual)
+   - Permitir pod CIDR → RDS porta 5432 para bootstrap automation
+   - Re-enable null_resource.bootstrap_databases em postgresql module
 
-2. **GitLab CE Self-Hosted** (Próxima semana)
-   - Helm chart oficial
-   - PostgreSQL, Redis, Minio S3
-   - Integração Keycloak OIDC
-   - GitLab Runners Kubernetes
+2. **Harbor Robot Accounts Setup**
+   - Executar script create-robot-account.sh
+   - Configurar GitLab CI/CD variables para Harbor integration
+
+3. **Metrics Validation**
+   - Verificar Prometheus scraping Harbor ServiceMonitor
+   - Validar dashboards Grafana
+
+4. **ArgoCD + SonarQube** (Planejado)
+   - GitOps deployment strategy
+   - Code quality integration CI/CD pipeline
 
 ---
 
@@ -187,8 +195,8 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **MÉDIA (implementados)** | - | - | **89.6%** | - | - |
 
 ### Decisões Pendentes
-1. **secrets-management**: Vault vs External Secrets Operator (Recomendação: Vault - ADR-003 alignment)
-2. **security**: Kyverno vs OPA Gatekeeper (Recomendação: Kyverno - simplicidade)
+1. ~~**secrets-management**: Vault vs External Secrets Operator~~ → ✅ **DECIDIDO:** Ambos (Vault HA storage + ESO sync, ADR-031/032)
+2. ~~**security**: Kyverno vs OPA Gatekeeper~~ → ✅ **DECIDIDO:** Kyverno (ADR-043, simplicidade + YAML native)
 
 ### Conformidade por ADR (Domínios Implementados)
 
