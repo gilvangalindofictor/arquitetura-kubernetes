@@ -27,3 +27,19 @@
 [16:01:30] Pods UP | K8s | jobservice 1/1, registry 2/2 Running | ✅
 [16:02:00] TF Apply Retry | TF | Novo plan + apply iniciado | 🔄
 [16:05:53] Apply Done | TF | 1 changed, exit 0 | ✅ 3m53s
+[16:06:00] Validação | K8s | Todos Harbor pods Running | ✅
+[16:12:00] Conclusão | Orq | Fix completo: strategy Recreate aplicada, pods healthy | ✅
+
+---
+
+## Sumário Executivo
+
+**Problema:** Harbor jobservice/registry com PVCs RWO + strategy RollingUpdate causava Multi-Attach error durante upgrades (pods stuck ContainerCreating).
+
+**Solução:** Aplicar `strategy: Recreate` em jobservice + registry deployments.
+
+**Resultado:** ✅ Pods Running, PVC attach resolvido, Terraform state consolidado.
+
+**Duração:** 29min (15:43 → 16:12)
+
+**ADR:** ADR-044 - Harbor Recreate Strategy (RWO PVC Compatibility)
