@@ -339,12 +339,6 @@ resource "helm_release" "tempo" {
     value = "256Mi"
   }
 
-  # Node selector (platform service runs on system nodes - ADR-042)
-  set {
-    name  = "distributor.nodeSelector.node-type"
-    value = "system"
-  }
-
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "distributor.tolerations[0].key"
@@ -436,11 +430,6 @@ resource "helm_release" "tempo" {
   set {
     name  = "ingester.persistence.storageClass"
     value = var.storage_class
-  }
-
-  set {
-    name  = "ingester.nodeSelector.node-type"
-    value = "system"
   }
 
   # Toleration for system nodes (ADR-042 pattern)
@@ -556,10 +545,6 @@ resource "helm_release" "tempo" {
   }
 
   set {
-    name  = "querier.nodeSelector.node-type"
-    value = "system"
-  }
-
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "querier.tolerations[0].key"
@@ -673,10 +658,6 @@ resource "helm_release" "tempo" {
   }
 
   set {
-    name  = "queryFrontend.nodeSelector.node-type"
-    value = "system"
-  }
-
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "queryFrontend.tolerations[0].key"
@@ -765,10 +746,6 @@ resource "helm_release" "tempo" {
   }
 
   set {
-    name  = "compactor.nodeSelector.node-type"
-    value = "system"
-  }
-
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "compactor.tolerations[0].key"
@@ -892,10 +869,6 @@ resource "helm_release" "tempo" {
   }
 
   set {
-    name  = "gateway.nodeSelector.node-type"
-    value = "system"
-  }
-
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "gateway.tolerations[0].key"

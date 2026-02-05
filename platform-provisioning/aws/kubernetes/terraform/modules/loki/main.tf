@@ -374,10 +374,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-    name  = "read.nodeSelector.node-type"
-    value = "system"
-  }
-
   set {
     name  = "read.tolerations[0].key"
     value = "node-type"
@@ -463,10 +459,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-    name  = "write.nodeSelector.node-type"
-    value = "system"
-  }
-
   set {
     name  = "write.tolerations[0].key"
     value = "node-type"
@@ -552,10 +544,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-    name  = "backend.nodeSelector.node-type"
-    value = "system"
-  }
-
   set {
     name  = "backend.tolerations[0].key"
     value = "node-type"
@@ -631,10 +619,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-    name  = "gateway.nodeSelector.node-type"
-    value = "system"
-  }
-
   set {
     name  = "gateway.tolerations[0].key"
     value = "node-type"

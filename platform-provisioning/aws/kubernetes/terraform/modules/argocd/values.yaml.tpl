@@ -7,9 +7,6 @@ global:
 server:
   replicas: ${replicas}
 
-  nodeSelector:
-    node-type: system
-
   tolerations:
     - key: node-type
       operator: Equal
@@ -61,9 +58,6 @@ server:
 repoServer:
   replicas: ${replicas}
 
-  nodeSelector:
-    node-type: system
-
   tolerations:
     - key: node-type
       operator: Equal
@@ -81,9 +75,6 @@ repoServer:
 
 controller:
   replicas: 1  # Single controller (leader election)
-
-  nodeSelector:
-    node-type: system
 
   tolerations:
     - key: node-type
@@ -106,9 +97,6 @@ dex:
 redis:
   enabled: true
 
-  nodeSelector:
-    node-type: system
-
   tolerations:
     - key: node-type
       operator: Equal
@@ -122,9 +110,6 @@ redis:
 applicationSet:
   enabled: true
   replicas: ${replicas}
-
-  nodeSelector:
-    node-type: system
 
   tolerations:
     - key: node-type

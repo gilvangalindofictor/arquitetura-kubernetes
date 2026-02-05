@@ -186,6 +186,22 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
         EOT
       }
 
+      # Tolerations (ADR-042 pattern: allow scheduling on critical nodes)
+      tolerations = [
+        {
+          key      = "node-type"
+          operator = "Equal"
+          value    = "system"
+          effect   = "NoSchedule"
+        },
+        {
+          key      = "workload"
+          operator = "Equal"
+          value    = "critical"
+          effect   = "NoSchedule"
+        }
+      ]
+
       override = {
         service = {
           spec = {
@@ -200,29 +216,6 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
                 labels = merge(var.common_tags, {
                   "app.kubernetes.io/component" = "rabbitmq-server"
                 })
-              }
-
-              spec = {
-                # Node selector (platform service runs on system nodes - ADR-042)
-                nodeSelector = {
-                  "node-type" = "system"
-                }
-
-                # Tolerations (ADR-042 pattern: allow scheduling on critical nodes)
-                tolerations = [
-                  {
-                    key      = "node-type"
-                    operator = "Equal"
-                    value    = "system"
-                    effect   = "NoSchedule"
-                  },
-                  {
-                    key      = "workload"
-                    operator = "Equal"
-                    value    = "critical"
-                    effect   = "NoSchedule"
-                  }
-                ]
               }
             }
           }

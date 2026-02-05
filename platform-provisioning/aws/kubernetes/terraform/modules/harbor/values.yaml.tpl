@@ -62,8 +62,6 @@ core:
     limits:
       memory: 512Mi
       cpu: 500m
-  nodeSelector:
-    node-type: system
   tolerations:
     - key: node-type
       operator: Equal
@@ -77,6 +75,8 @@ core:
 jobservice:
   serviceAccountName: ${service_account}
   replicas: 1  # FIXED: RWO PVC doesn't support multiple replicas (ADR-039)
+  strategy:
+    type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
   resources:
     requests:
       memory: 256Mi
@@ -84,8 +84,6 @@ jobservice:
     limits:
       memory: 512Mi
       cpu: 500m
-  nodeSelector:
-    node-type: system
   tolerations:
     - key: node-type
       operator: Equal
@@ -98,6 +96,8 @@ jobservice:
 
 registry:
   serviceAccountName: ${service_account}
+  strategy:
+    type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
   registry:
     resources:
       requests:
@@ -114,8 +114,6 @@ registry:
       limits:
         memory: 512Mi
         cpu: 500m
-  nodeSelector:
-    node-type: system
   tolerations:
     - key: node-type
       operator: Equal
@@ -135,8 +133,6 @@ portal:
     limits:
       memory: 256Mi
       cpu: 200m
-  nodeSelector:
-    node-type: system
   tolerations:
     - key: node-type
       operator: Equal
@@ -160,8 +156,6 @@ trivy:
     limits:
       cpu: 1
       memory: 1Gi
-  nodeSelector:
-    node-type: system
   tolerations:
     - key: node-type
       operator: Equal
