@@ -416,11 +416,11 @@ resource "kubernetes_secret" "velero_credentials" {
 output "namespaces" {
   description = "Namespaces criados pelo domínio data-services"
   value = {
-    data_services    = kubernetes_namespace.data_services.metadata[0].name
-    postgres         = kubernetes_namespace.postgres_operator.metadata[0].name
-    redis            = kubernetes_namespace.redis_operator.metadata[0].name
-    rabbitmq         = kubernetes_namespace.rabbitmq_operator.metadata[0].name
-    velero           = kubernetes_namespace.velero.metadata[0].name
+    data_services = kubernetes_namespace.data_services.metadata[0].name
+    postgres      = kubernetes_namespace.postgres_operator.metadata[0].name
+    redis         = kubernetes_namespace.redis_operator.metadata[0].name
+    rabbitmq      = kubernetes_namespace.rabbitmq_operator.metadata[0].name
+    velero        = kubernetes_namespace.velero.metadata[0].name
   }
 }
 
@@ -452,7 +452,7 @@ output "operators_installed" {
 
 output "usage_instructions" {
   description = "Instruções para criar database/broker instances"
-  value = <<-EOT
+  value       = <<-EOT
     ============================================================
     DATA SERVICES DOMAIN - OPERATORS INSTALADOS
     ============================================================

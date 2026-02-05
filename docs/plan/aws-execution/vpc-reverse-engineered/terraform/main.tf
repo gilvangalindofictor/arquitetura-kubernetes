@@ -19,14 +19,14 @@ module "vpc" {
 }
 
 module "internet_gateway" {
-  source   = "./modules/internet-gateway"
-  vpc_id   = module.vpc.vpc_id
-  name     = "fictor-igw"
+  source = "./modules/internet-gateway"
+  vpc_id = module.vpc.vpc_id
+  name   = "fictor-igw"
 }
 
 module "subnets" {
-  source   = "./modules/subnets"
-  vpc_id   = module.vpc.vpc_id
+  source = "./modules/subnets"
+  vpc_id = module.vpc.vpc_id
   subnets = [
     {
       cidr_block        = "10.0.0.0/20"
@@ -59,19 +59,19 @@ module "nat_gateways" {
   source = "./modules/nat-gateways"
   nat_gateways = [
     {
-      subnet_id = module.subnets.subnet_ids["0"]  # public1 us-east-1a
+      subnet_id = module.subnets.subnet_ids["0"] # public1 us-east-1a
       name      = "fictor-nat-public1-us-east-1a"
     },
     {
-      subnet_id = module.subnets.subnet_ids["1"]  # public2 us-east-1b
+      subnet_id = module.subnets.subnet_ids["1"] # public2 us-east-1b
       name      = "fictor-nat-public2-us-east-1b"
     }
   ]
 }
 
 module "route_tables" {
-  source   = "./modules/route-tables"
-  vpc_id   = module.vpc.vpc_id
+  source = "./modules/route-tables"
+  vpc_id = module.vpc.vpc_id
   route_tables = [
     {
       name = "fictor-rtb-public"
@@ -81,7 +81,7 @@ module "route_tables" {
           gateway_id = module.internet_gateway.igw_id
         }
       ]
-      subnet_ids = [module.subnets.subnet_ids["0"], module.subnets.subnet_ids["1"]]  # public subnets
+      subnet_ids = [module.subnets.subnet_ids["0"], module.subnets.subnet_ids["1"]] # public subnets
     },
     {
       name = "fictor-rtb-private1-us-east-1a"
@@ -91,7 +91,7 @@ module "route_tables" {
           nat_gateway_id = module.nat_gateways.nat_gateway_ids["0"]
         }
       ]
-      subnet_ids = [module.subnets.subnet_ids["2"]]  # private1 us-east-1a
+      subnet_ids = [module.subnets.subnet_ids["2"]] # private1 us-east-1a
     },
     {
       name = "fictor-rtb-private2-us-east-1b"
@@ -101,7 +101,7 @@ module "route_tables" {
           nat_gateway_id = module.nat_gateways.nat_gateway_ids["1"]
         }
       ]
-      subnet_ids = [module.subnets.subnet_ids["3"]]  # private2 us-east-1b
+      subnet_ids = [module.subnets.subnet_ids["3"]] # private2 us-east-1b
     }
   ]
 }

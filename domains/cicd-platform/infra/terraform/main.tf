@@ -4,7 +4,7 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -37,10 +37,10 @@ resource "kubernetes_namespace" "gitlab" {
   metadata {
     name = "cicd-gitlab"
     labels = {
-      "domain"                = "cicd-platform"
-      "component"             = "git-ci"
-      "managed-by"            = "terraform"
-      "linkerd.io/inject"     = "enabled"  # Service mesh injection
+      "domain"            = "cicd-platform"
+      "component"         = "git-ci"
+      "managed-by"        = "terraform"
+      "linkerd.io/inject" = "enabled" # Service mesh injection
     }
   }
 }
@@ -101,7 +101,7 @@ resource "helm_release" "gitlab" {
   chart      = "gitlab"
   version    = var.gitlab_version
   namespace  = kubernetes_namespace.gitlab.metadata[0].name
-  timeout    = 900  # 15 min (GitLab é complexo)
+  timeout    = 900 # 15 min (GitLab é complexo)
 
   values = [
     yamlencode({
@@ -109,10 +109,10 @@ resource "helm_release" "gitlab" {
         hosts = {
           domain = var.gitlab_domain
         }
-        edition = "ce"  # Community Edition
+        edition = "ce" # Community Edition
         ingress = {
-          enabled          = true
-          class            = "nginx"
+          enabled = true
+          class   = "nginx"
           annotations = {
             "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
           }
@@ -134,7 +134,7 @@ resource "helm_release" "gitlab" {
           }
         }
         minio = {
-          enabled = true  # Object storage (S3-compatible)
+          enabled = true # Object storage (S3-compatible)
         }
       }
       # GitLab components
@@ -169,7 +169,7 @@ resource "helm_release" "gitlab" {
       postgresql = {
         install = true
         persistence = {
-          storageClass = var.storage_class_name  # Cloud-agnostic
+          storageClass = var.storage_class_name # Cloud-agnostic
           size         = "20Gi"
         }
       }
@@ -212,7 +212,7 @@ resource "helm_release" "gitlab" {
         install = false
       }
       nginx-ingress = {
-        enabled = false  # Usa NGINX do platform-core
+        enabled = false # Usa NGINX do platform-core
       }
     })
   ]
@@ -254,7 +254,7 @@ resource "helm_release" "sonarqube" {
         }
       }
       ingress = {
-        enabled   = true
+        enabled          = true
         ingressClassName = "nginx"
         hosts = [
           {
@@ -286,14 +286,14 @@ resource "helm_release" "harbor" {
   chart      = "harbor"
   version    = var.harbor_version
   namespace  = kubernetes_namespace.harbor.metadata[0].name
-  timeout    = 600  # 10 min
+  timeout    = 600 # 10 min
 
   values = [
     yamlencode({
       expose = {
         type = "ingress"
         tls = {
-          enabled = true
+          enabled    = true
           certSource = "secret"
         }
         ingress = {
@@ -371,13 +371,13 @@ resource "helm_release" "argocd" {
           }
         }
         ingress = {
-          enabled   = true
+          enabled          = true
           ingressClassName = "nginx"
-          hostname  = var.argocd_domain
-          tls       = true
+          hostname         = var.argocd_domain
+          tls              = true
           annotations = {
-            "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
-            "nginx.ingress.kubernetes.io/ssl-passthrough" = "true"
+            "cert-manager.io/cluster-issuer"               = "letsencrypt-prod"
+            "nginx.ingress.kubernetes.io/ssl-passthrough"  = "true"
             "nginx.ingress.kubernetes.io/backend-protocol" = "HTTPS"
           }
         }
@@ -427,8 +427,8 @@ resource "helm_release" "argocd" {
       configs = {
         cm = {
           "admin.enabled" = "true"
-          "url" = "https://${var.argocd_domain}"
-          "dex.config" = <<-EOT
+          "url"           = "https://${var.argocd_domain}"
+          "dex.config"    = <<-EOT
             connectors:
               - type: oidc
                 id: keycloak
@@ -482,8 +482,8 @@ resource "helm_release" "backstage" {
         }
         appConfig = {
           app = {
-            title    = "Platform Engineering Portal"
-            baseUrl  = "https://${var.backstage_domain}"
+            title   = "Platform Engineering Portal"
+            baseUrl = "https://${var.backstage_domain}"
           }
           backend = {
             baseUrl = "https://${var.backstage_domain}"
@@ -567,17 +567,17 @@ output "backstage_url" {
 
 output "namespaces" {
   value = {
-    gitlab     = kubernetes_namespace.gitlab.metadata[0].name
-    sonarqube  = kubernetes_namespace.sonarqube.metadata[0].name
-    harbor     = kubernetes_namespace.harbor.metadata[0].name
-    argocd     = kubernetes_namespace.argocd.metadata[0].name
-    backstage  = kubernetes_namespace.backstage.metadata[0].name
+    gitlab    = kubernetes_namespace.gitlab.metadata[0].name
+    sonarqube = kubernetes_namespace.sonarqube.metadata[0].name
+    harbor    = kubernetes_namespace.harbor.metadata[0].name
+    argocd    = kubernetes_namespace.argocd.metadata[0].name
+    backstage = kubernetes_namespace.backstage.metadata[0].name
   }
   description = "CI/CD Platform namespaces"
 }
 
 output "usage_instructions" {
-  value = <<-EOT
+  value       = <<-EOT
     CI/CD Platform deployed successfully!
     
     1. GitLab: https://${var.gitlab_domain}

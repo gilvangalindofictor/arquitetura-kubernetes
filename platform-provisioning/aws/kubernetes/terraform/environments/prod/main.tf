@@ -36,12 +36,12 @@ terraform {
 # Local variables combining common.tfvars with environment-specific values
 locals {
   environment  = "prod"
-  cluster_name = "k8s-platform-prod"  # Shared EKS cluster
+  cluster_name = "k8s-platform-prod" # Shared EKS cluster
 
   common_tags = merge(var.base_tags, {
     Environment        = local.environment
     DataClassification = "Sensitive"
-    LGPD               = "PII"  # Production data may contain PII
+    LGPD               = "PII" # Production data may contain PII
     CostCenter         = "production"
   })
 }
@@ -136,8 +136,8 @@ module "redis_prod" {
   source = "../../modules/redis"
 
   cluster_name  = local.cluster_name
-  replicas      = var.redis_replicas  # 3
-  pvc_size      = var.redis_pvc_size  # 10Gi
+  replicas      = var.redis_replicas # 3
+  pvc_size      = var.redis_pvc_size # 10Gi
   storage_class = "gp3"
   common_tags   = local.common_tags
 }
@@ -147,8 +147,8 @@ module "rabbitmq_prod" {
   source = "../../modules/rabbitmq"
 
   cluster_name  = local.cluster_name
-  replicas      = var.rabbitmq_replicas  # 3
-  pvc_size      = var.rabbitmq_pvc_size  # 10Gi
+  replicas      = var.rabbitmq_replicas # 3
+  pvc_size      = var.rabbitmq_pvc_size # 10Gi
   storage_class = "gp3"
   common_tags   = local.common_tags
 }
@@ -213,13 +213,13 @@ module "gitlab" {
   aws_account_id = var.aws_account_id
   aws_region     = var.aws_region
   namespace      = "gitlab"
-  environment    = "shared"  # Shared across STAGING and PROD
+  environment    = "shared" # Shared across STAGING and PROD
 
   # GitLab configuration
   gitlab_edition         = "ce"
   gitlab_version         = "8.7.0"
-  gitlab_replicas        = var.gitlab_replicas         # 2
-  gitlab_runner_replicas = var.gitlab_runner_replicas  # 2
+  gitlab_replicas        = var.gitlab_replicas        # 2
+  gitlab_runner_replicas = var.gitlab_runner_replicas # 2
 
   # TLS configuration (ADR-021 Phase 1: disabled)
   enable_tls  = false
@@ -239,7 +239,7 @@ module "gitlab" {
 
   # S3 (IRSA)
   s3_artifacts_bucket = module.s3_buckets_prod.gitlab_artifacts_bucket_name
-  s3_uploads_bucket   = module.s3_buckets_prod.gitlab_artifacts_bucket_name  # Same bucket, different prefixes
+  s3_uploads_bucket   = module.s3_buckets_prod.gitlab_artifacts_bucket_name # Same bucket, different prefixes
   s3_policy_arn       = module.s3_buckets_prod.gitlab_s3_policy_arn
 
   # Monitoring

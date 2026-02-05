@@ -71,7 +71,7 @@ module "finops_automation" {
   startup_duration_threshold = 600 # 10 minutes
   enable_sns_notifications   = true
   notification_emails        = ["gilvan.galindo@fctconsig.com.br"]
-  sns_topic_arn              = ""  # Module will create SNS topic automatically
+  sns_topic_arn              = "" # Module will create SNS topic automatically
 
   # Node groups configuration (startup target sizes)
   node_groups_config = {

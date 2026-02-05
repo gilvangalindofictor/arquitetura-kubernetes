@@ -3,7 +3,7 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -58,9 +58,9 @@ resource "kubernetes_namespace" "linkerd" {
   metadata {
     name = "linkerd"
     labels = {
-      "domain"                       = "platform-core"
-      "component"                    = "service-mesh"
-      "managed-by"                   = "terraform"
+      "domain"                      = "platform-core"
+      "component"                   = "service-mesh"
+      "managed-by"                  = "terraform"
       "linkerd.io/is-control-plane" = "true"
     }
   }
@@ -182,7 +182,7 @@ resource "helm_release" "ingress_nginx" {
           type = "LoadBalancer"
           annotations = {
             # Cloud-agnostic: funciona em AWS, Azure, GCP
-            "service.beta.kubernetes.io/aws-load-balancer-type"              = "nlb"
+            "service.beta.kubernetes.io/aws-load-balancer-type"                    = "nlb"
             "service.beta.kubernetes.io/azure-load-balancer-health-probe-interval" = "5"
           }
         }
@@ -231,7 +231,7 @@ resource "helm_release" "linkerd_control_plane" {
           }
         }
       }
-      controllerReplicas = 2
+      controllerReplicas    = 2
       enablePodAntiAffinity = true
     })
   ]
@@ -316,10 +316,10 @@ resource "helm_release" "keycloak" {
         }
       }
       ingress = {
-        enabled   = true
+        enabled          = true
         ingressClassName = "nginx"
-        hostname  = var.keycloak_domain
-        tls       = true
+        hostname         = var.keycloak_domain
+        tls              = true
         annotations = {
           "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
         }
@@ -351,7 +351,7 @@ resource "helm_release" "kong" {
   values = [
     yamlencode({
       ingressController = {
-        enabled = true
+        enabled     = true
         installCRDs = true
       }
       replicaCount = 2
@@ -393,7 +393,7 @@ resource "helm_release" "kong" {
       plugins = {
         configMaps = [
           {
-            name = "kong-oidc-config"
+            name       = "kong-oidc-config"
             pluginName = "oidc"
           }
         ]
@@ -443,7 +443,7 @@ output "namespaces" {
 }
 
 output "usage_instructions" {
-  value = <<-EOT
+  value       = <<-EOT
     Platform Core deployed successfully!
     
     1. Access Keycloak:

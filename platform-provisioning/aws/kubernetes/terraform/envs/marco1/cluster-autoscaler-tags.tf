@@ -156,7 +156,7 @@ output "autoscaling_groups_tagged" {
   description = "Auto Scaling Groups with Cluster Autoscaler tags"
   value = {
     workloads = {
-      name               = length(data.aws_autoscaling_groups.workloads.names) > 0 ? data.aws_autoscaling_groups.workloads.names[0] : "not-found"
+      name                = length(data.aws_autoscaling_groups.workloads.names) > 0 ? data.aws_autoscaling_groups.workloads.names[0] : "not-found"
       autoscaling_enabled = "true"
     }
     system = {

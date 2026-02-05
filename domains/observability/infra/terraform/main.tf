@@ -34,7 +34,7 @@ terraform {
 provider "kubernetes" {
   host                   = var.cluster_endpoint
   cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
-  
+
   # Autenticação via AWS EKS (se usar AWS)
   # exec {
   #   api_version = "client.authentication.k8s.io/v1beta1"
@@ -65,7 +65,7 @@ resource "kubernetes_namespace" "observability" {
 
   metadata {
     name = "observability-${each.key}"
-    
+
     labels = {
       name        = "observability-${each.key}"
       environment = each.key
