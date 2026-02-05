@@ -198,7 +198,17 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - 20+ métricas Harbor disponíveis (health, projects, artifacts, HTTP)
    - Queries PromQL documentadas: [harbor-metrics-queries.md](docs/logbook/2026-02-05-harbor-metrics-queries.md)
 
-7. **ArgoCD + SonarQube** (Planejado Marco 4)
+7. **Marco 4 Gap Analysis** ✅ **COMPLETO** (2026-02-05, Sessão 4)
+   - 8 gaps identificados (2 críticos, 3 médios, 3 baixos)
+   - Decisão estratégica: OPÇÃO A (Keycloak + OIDC completo)
+   - Roadmap 4 sprints: 13-17h, +$100/mês
+
+8. **GAP-001: Keycloak Deployment** ⚠️ **PRÓXIMA AÇÃO** (Prioridade CRÍTICA)
+   - BLOQUEANTE para ArgoCD OIDC + SonarQube LDAP
+   - Estimativa: 4-6h, +$35/mês
+   - Status: Pendente (módulo TF a criar)
+
+9. **ArgoCD + SonarQube** 📝 **PLANEJADO** (Marco 4, depende Keycloak)
    - GitOps deployment strategy
    - Code quality integration CI/CD pipeline
 
@@ -407,26 +417,66 @@ Kubernetes/
 
 ## 🚀 Próximos Passos
 
-### Sprint Atual (85% Completo)
-- [x] Terraform cloud-agnostic para platform-core, cicd-platform, data-services
-- [x] VALIDATION-REPORTs completos (89.6% conformidade média)
-- [ ] ADR-002 secrets-management (Vault vs ESO)
-- [ ] ADR-002 security (Kyverno vs OPA)
+### Marco 3 (100% Completo ✅)
+- [x] PostgreSQL RDS + Security Group least privilege (ADR-040)
+- [x] Vault HA 3 replicas + KMS auto-unseal (ADR-041)
+- [x] Redis Operator + RabbitMQ Operator + GitLab CE
+- [x] Harbor Registry + Robot Accounts (UI workaround ADR-045)
+- [x] External Secrets Operator + Vault backend integration
+- [x] Observability Stack validação (28 ServiceMonitors)
 
-### Sprint+1
-**Semana 1-2**: Secrets Management
-- [ ] Criar ADR-002 Vault architecture
-- [ ] Terraform Vault cluster HA (3 réplicas, Consul backend, auto-unsealing)
-- [ ] VALIDATION-REPORT secrets-management
-- [ ] Deploy e integração com platform-core
+### Marco 4 — CI/CD Pipeline Completo (EM ANDAMENTO 🚀)
 
-**Semana 3-4**: Security
-- [ ] Criar ADR-002 Kyverno policies
-- [ ] Terraform Kyverno, Falco, Trivy Operator
-- [ ] Implementar Network Policies (6 domínios)
-- [ ] VALIDATION-REPORT security
+**STATUS:** Gap analysis completo, OPÇÃO A aprovada (Keycloak + OIDC)
+**DURAÇÃO ESTIMADA:** 13-17h (2-3 dias úteis)
+**CUSTO INCREMENTAL:** +$100/mês
 
-**Remediação de Gaps**: RBAC, Network Policies, Velero credentials, HPA/VPA
+#### Sprint 1: Pre-Requisites (6-10h) ⚠️ PRÓXIMO
+- [ ] **GAP-001:** Keycloak SSO Platform (4-6h, +$35/mês) 🔴 CRÍTICO
+  - Criar módulo terraform/modules/keycloak/
+  - Bootstrap database keycloak no PostgreSQL RDS
+  - Deploy Keycloak HA (2 replicas)
+  - Configurar OIDC clients (argocd, sonarqube, gitlab)
+  - Criar realm master + groups (argocd-admins, developers)
+  - ADR-046: Keycloak SSO Platform Strategy
+
+- [ ] **GAP-002:** GitLab Components Fix (2-4h) 🔴 CRÍTICO
+  - Debug Gitaly PVC Pending (StorageClass/scheduling)
+  - Fix Runner CrashLoopBackOff (RBAC/network)
+  - Fix KAS CrashLoopBackOff (K8s API auth)
+  - Fix Sidekiq Init Error (Redis/DB migration)
+
+#### Sprint 2: Core CI/CD Components (4h)
+- [ ] **GAP-003:** ArgoCD Deploy (2h, +$15/mês)
+  - Integrar módulo no main.tf
+  - ExternalSecret OIDC credentials
+  - AppProject CRDs (staging, platform, production)
+  - Validação OIDC Keycloak login
+
+- [ ] **GAP-004:** SonarQube Deploy (2h, +$50/mês)
+  - Bootstrap database sonarqube no PostgreSQL RDS
+  - ExternalSecret DB credentials
+  - Integrar módulo no main.tf
+  - Admin password automation
+  - Quality gates configuration
+
+#### Sprint 3: Pipeline Integration (3h)
+- [ ] **GAP-005:** GitLab CI/CD Integration (3h)
+  - Configurar CI/CD variables (Harbor, SonarQube)
+  - Criar .gitlab-ci.yml templates
+  - Runner RBAC least-privilege
+  - Validação pipeline end-to-end
+
+#### Sprint 4: Hardening (4h) — OPCIONAL
+- [ ] **GAP-006:** ApplicationSets GitOps Patterns (2h)
+- [ ] **GAP-007:** Network Policies Marco 4 (1h)
+- [ ] **GAP-008:** Monitoring & Dashboards (1h)
+
+### Sprint+1: Remediação de Gaps
+- [ ] RBAC Granular (4 domínios)
+- [ ] Network Policies (6 domínios)
+- [ ] Velero Credentials → Vault
+- [ ] HPA/VPA (após 2 semanas métricas)
 
 ### Deploy Order (Sprint+2)
 ```
