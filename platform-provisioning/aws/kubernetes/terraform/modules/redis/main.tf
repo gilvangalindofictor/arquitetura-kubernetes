@@ -255,6 +255,16 @@ resource "kubectl_manifest" "redis_failover" {
           }
         }
 
+        # Tolerations (ADR-041 pattern: allow scheduling on critical nodes)
+        tolerations = length(var.tolerations) > 0 ? [
+          for t in var.tolerations : {
+            key      = t.key
+            operator = t.operator
+            effect   = t.effect
+            value    = try(t.value, null)
+          }
+        ] : null
+
         storage = {
           persistentVolumeClaim = {
             metadata = {

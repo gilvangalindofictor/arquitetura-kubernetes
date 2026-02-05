@@ -107,6 +107,12 @@ data "aws_subnets" "private" {
   }
 }
 
+# Get private subnet details for CIDR blocks
+data "aws_subnet" "private" {
+  for_each = toset(data.aws_subnets.private.ids)
+  id       = each.value
+}
+
 # Import EKS data from Marco1 (for OIDC provider, node groups, etc)
 data "terraform_remote_state" "marco1" {
   backend = "s3"
@@ -130,6 +136,7 @@ module "postgresql_staging" {
   vpc_id                = var.vpc_id
   vpc_cidr              = data.aws_vpc.existing.cidr_block
   private_subnet_ids    = data.aws_subnets.private.ids
+  private_subnet_cidrs  = [for s in data.aws_subnet.private : s.cidr_block]
   instance_class        = var.postgresql_instance_class        # db.t3.micro
   allocated_storage     = var.postgresql_allocated_storage     # 20 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
@@ -154,6 +161,14 @@ module "redis_staging" {
   pvc_size      = var.redis_pvc_size # 5Gi
   storage_class = "gp2"              # Changed from gp3 (not available in cluster)
   common_tags   = local.common_tags
+
+  # Toleration for critical nodes (ADR-041 pattern)
+  tolerations = [{
+    key      = "workload"
+    operator = "Equal"
+    value    = "critical"
+    effect   = "NoSchedule"
+  }]
 }
 
 # RabbitMQ Operator - STAGING (1 replica, no quorum)
@@ -281,11 +296,19 @@ module "vault_staging" {
   namespace           = "vault-system"
   oidc_provider_arn   = data.aws_iam_openid_connect_provider.eks.arn
   vault_chart_version = "0.27.0"
-  replicas            = 1 # Cost-optimized for staging
+  replicas            = 3 # HA production-ready (ADR-041)
   storage_class       = "gp2"
   pvc_size            = "10Gi"
   enable_monitoring   = true
   common_tags         = local.common_tags
+
+  # Tolerate critical workload nodes (ADR-041 Option D)
+  tolerations = [{
+    key      = "workload"
+    operator = "Equal"
+    value    = "critical"
+    effect   = "NoSchedule"
+  }]
 }
 
 # External Secrets Operator - Vault Backend
@@ -367,10 +390,11 @@ module "finops_automation_staging" {
   environment  = local.environment
   cluster_name = local.cluster_name
 
-  # Schedule: shutdown 18h BRT, startup 8h BRT (Mon-Fri)
+  # Schedule: shutdown 20h BRT, startup 7h30 BRT (Mon-Fri)
+  # BRT (Brasil Time) = UTC-3
   enable_automation = true
-  shutdown_schedule = "cron(0 21 ? * MON-FRI *)" # 18h BRT = 21h UTC
-  startup_schedule  = "cron(0 11 ? * MON-FRI *)" # 08h BRT = 11h UTC
+  shutdown_schedule = "cron(0 23 ? * MON-FRI *)"  # 20h00 BRT = 23h00 UTC
+  startup_schedule  = "cron(30 10 ? * MON-FRI *)" # 07h30 BRT = 10h30 UTC
 
   # Resources to manage
   rds_instance_id = module.postgresql_staging.db_instance_id
@@ -380,7 +404,7 @@ module "finops_automation_staging" {
   circuit_breaker_threshold = 3
 
   # SNS notifications
-  enable_sns_notifications = false  # Usar apenas tópico externo (k8s-platform-prod-finops-alerts-staging)
+  enable_sns_notifications = false # Usar apenas tópico externo (k8s-platform-prod-finops-alerts-staging)
   sns_topic_arn            = aws_sns_topic.finops_alerts_staging.arn
 
   # Tags

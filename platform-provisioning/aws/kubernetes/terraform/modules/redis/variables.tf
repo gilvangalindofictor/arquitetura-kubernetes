@@ -37,3 +37,14 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "tolerations" {
+  description = "Tolerations for Redis pods (scheduling on tainted nodes)"
+  type = list(object({
+    key      = string
+    operator = string
+    effect   = string
+    value    = optional(string)
+  }))
+  default = []
+}

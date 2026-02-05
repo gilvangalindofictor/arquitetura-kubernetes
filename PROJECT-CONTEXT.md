@@ -135,19 +135,22 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **Marco 1** | Cluster EKS (7 nodes, 4 add-ons) | ✅ Completo | 1 dia | $547 |
 | **Marco 2** | Platform Services (8 fases) | ✅ Completo | 3 dias | +$66 |
 | **Marco 3 F1a/1b** | Workloads + Secrets (PostgreSQL, Redis, RabbitMQ, GitLab, Vault, ESO, Harbor) | ✅ Completo | 5 dias | +$58 |
+| **Marco 3 F1c** | PostgreSQL SG Fix (ADR-040) | ✅ Completo | 5min | $0 |
+| **Marco 3 F1c** | Vault HA Migration (ADR-041) | ⚠️ 67% | 27min | +$3/mês (pending) |
 | **TOTAL** | | | **~11 dias** | **~$671/mês** |
 
-### Marco 3 - Detalhamento (Fase 1a/1b)
+### Marco 3 - Detalhamento (Fase 1a/1b/1c)
 
 | Componente | Status | Observações |
 |------------|--------|-------------|
-| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 100GB → 500GB, Harbor database bootstrap |
-| Redis Operator | ✅ Completo | Chart v3.2.9, App v1.2.4, 3 sentinels + 1 master |
+| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 500GB, Harbor database bootstrap, SG least privilege (ADR-040) |
+| Redis Operator | ✅ Completo | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05) |
 | RabbitMQ Operator | ✅ Completo | Official operator, 1 replica staging, namespace data-services |
 | GitLab CE Staging | ✅ Completo | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage |
-| Vault HA | ✅ Completo | KMS auto-unseal, 3 replicas HA, namespace vault-system (ADR-031) |
+| Vault HA | ✅ Completo | 3 replicas operational, KMS auto-unseal, toleration critical, Raft cluster validated (ADR-041) |
 | External Secrets Operator | ✅ Completo | Vault backend integration, ClusterSecretStore (ADR-032) |
-| Harbor Registry | ✅ Completo | S3 IRSA storage, jobservice replicas=1 (ADR-039), metrics enabled |
+| Harbor Registry | ✅ Completo | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039) |
+| **Observability Stack** | ⚠️ **BLOQUEADO** | **Prometheus/Grafana/Alertmanager Pending (insufficient resources, toleration needed)** |
 
 ### Marcos Completos
 
@@ -162,21 +165,40 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 7. ✅ Test Applications (nginx + echo-server, validação end-to-end)
 8. ✅ FinOps Automation (Lambda + EventBridge, economia $1.092/ano)
 
-### Próximos Passos (Marco 3 - Fase 1c)
+### Próximos Passos (Marco 3 - Fase 2)
 
-1. **PostgreSQL Security Group Fix** (Bloqueio atual)
-   - Permitir pod CIDR → RDS porta 5432 para bootstrap automation
-   - Re-enable null_resource.bootstrap_databases em postgresql module
+1. ~~**PostgreSQL Security Group Fix**~~ ✅ **COMPLETO** (ADR-040, 2026-02-05)
+   - SG ingress: VPC CIDR → Private Subnet CIDRs (least privilege)
+   - Bootstrap automation pode ser reativado
 
-2. **Harbor Robot Accounts Setup**
-   - Executar script create-robot-account.sh
-   - Configurar GitLab CI/CD variables para Harbor integration
+2. ~~**Vault HA Completion**~~ ✅ **COMPLETO** (ADR-041, 2026-02-05)
+   - 3 replicas operational (vault-0/1/2)
+   - KMS auto-unseal ativo em todos os pods
+   - Toleration critical nodes aplicada
+   - Raft cluster validado + failover test OK
 
-3. **Metrics Validation**
-   - Verificar Prometheus scraping Harbor ServiceMonitor
-   - Validar dashboards Grafana
+3. ~~**Redis Operator Fix**~~ ✅ **COMPLETO** (2026-02-05, Sessão 2)
+   - rfr-redis-0: Pending → 1/1 Running (toleration pattern ADR-041)
+   - 3 sentinels operational
+   - Harbor recovery completo (conectado ao Redis)
 
-4. **ArgoCD + SonarQube** (Planejado)
+4. **Observability Stack Fix** ⚠️ **BLOQUEADO** (Próxima sessão)
+   - Prometheus: 0/2 Pending 17h (insufficient resources + taint critical)
+   - Alertmanager: 0/2 Pending 5d20h
+   - Grafana: 0/3 Pending 17h
+   - **Ação:** Aplicar tolerations pattern (15-20min)
+
+5. **Harbor Robot Accounts Setup** ⚠️ **BLOQUEADO** (Harbor API auth issue)
+   - Script create-robot-account.sh: 401 Unauthorized
+   - Admin lockout detectado
+   - **Ação:** Reset senha via PostgreSQL DB OU UI manual
+
+6. **Metrics Validation** ⚠️ **BLOQUEADO** (Depende de #4)
+   - ServiceMonitor exists (harbor-system/harbor)
+   - Não validado (Prometheus Pending)
+   - **Ação:** Validar após Prometheus operational
+
+7. **ArgoCD + SonarQube** (Planejado Marco 4)
    - GitOps deployment strategy
    - Code quality integration CI/CD pipeline
 
