@@ -1,7 +1,7 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-04
-**Versão:** 2.5 (Marco 3 GitLab Staging Deploy)
+**Última Atualização:** 2026-02-05
+**Versão:** 2.5.1 (Observability Recovery + Marco 3 GitLab Staging)
 **Status:** 🚀 FinOps ATIVA | 🚧 Marco 3 em progresso (GitLab Staging deployed)
 
 ---
@@ -105,6 +105,16 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
   - Alertmanager: 2Gi (gp3)
 - **Secrets:** Grafana admin password no AWS Secrets Manager
 - **Custo:** $2.56/mês (EBS + Secrets Manager)
+
+**Scheduling Strategy (Atualizado 2026-02-05):**
+- **Tolerations:**
+  - `node-type=system:NoSchedule` (system nodes)
+  - `workload=critical:NoSchedule` (critical nodes) ← **ADICIONADO**
+- **NodeSelector:** Removido (anteriormente restrito a `node-type=system`)
+- **Rationale:** Permitir observability em critical nodes para proximidade com databases
+- **Recovery:** 5+ dias Pending resolvidos em 7min31s via Helm upgrade
+- **Nodes Atuais:** Schedulados em `ip-10-0-134-10` e `ip-10-0-151-94` (node-type=critical)
+- **Reference:** [Logbook 2026-02-05](../logbook/2026-02-05-execution-observability-recovery.md)
 
 ### Fase 4: Logging (Loki + Fluent Bit)
 - **Loki Versão:** Chart v5.42.0 (SimpleScalable mode)
