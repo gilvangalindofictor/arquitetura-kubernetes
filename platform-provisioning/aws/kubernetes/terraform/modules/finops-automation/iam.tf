@@ -216,7 +216,7 @@ resource "aws_iam_role_policy" "cloudwatch_policy" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "sns_policy" {
-  count = var.enable_sns_notifications ? 1 : 0
+  count = var.enable_sns_notifications || var.sns_topic_arn != "" ? 1 : 0  # Criar se tópico interno OU externo
   name  = "finops-scheduler-sns-policy-v1"
   role  = aws_iam_role.lambda_role.id
 
@@ -243,16 +243,29 @@ resource "aws_iam_role_policy" "kms_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "DecryptEncryptedResources"
-      Effect = "Allow"
-      Action = [
-        "kms:Decrypt",
-        "kms:DescribeKey",
-        "kms:GenerateDataKey"
-      ]
-      Resource = aws_kms_key.dynamodb_finops.arn
-    }]
+    Statement = [
+      {
+        Sid    = "DecryptEncryptedResources"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey"
+        ]
+        Resource = aws_kms_key.dynamodb_finops.arn
+      },
+      {
+        Sid    = "DecryptLambdaEnvironment"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = [
+          aws_kms_key.dynamodb_finops.arn,
+          "arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/00aa4d95-d6d2-41db-bcd5-e409dce9f88c"
+        ]
+      }
+    ]
   })
 }
 

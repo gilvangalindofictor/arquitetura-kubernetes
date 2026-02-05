@@ -90,7 +90,7 @@ variable "lambda_memory" {
 variable "lambda_runtime" {
   description = "Lambda Python runtime version"
   type        = string
-  default     = "python3.12"
+  default     = "python3.11"
 }
 
 # -----------------------------------------------------------------------------

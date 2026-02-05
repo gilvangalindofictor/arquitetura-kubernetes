@@ -53,6 +53,7 @@ resource "aws_lambda_function" "finops_start" {
   memory_size = var.lambda_memory
 
   role = aws_iam_role.lambda_role.arn
+  kms_key_arn = aws_kms_key.dynamodb_finops.arn
 
   environment {
     variables = local.lambda_env_vars
@@ -84,6 +85,7 @@ resource "aws_lambda_function" "finops_stop" {
   memory_size = var.lambda_memory
 
   role = aws_iam_role.lambda_role.arn
+  kms_key_arn = aws_kms_key.dynamodb_finops.arn
 
   environment {
     variables = local.lambda_env_vars
