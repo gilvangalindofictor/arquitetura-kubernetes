@@ -1,13 +1,13 @@
 ```markdown
 # 📓 Diário de Bordo — Observability Stack Validation
 
-| Campo          | Valor                                    |
-|----------------|------------------------------------------|
-| **Data**       | 2026-02-05                               |
-| **Demanda**    | Validar e documentar fix observability stack |
-| **Impacto**    | alto (stack crítica operacional)         |
-| **Agentes**    | Orquestrador, AWS, Terraform             |
-| **Status**     | ✅ concluído                             |
+| Campo       | Valor                                        |
+| ----------- | -------------------------------------------- |
+| **Data**    | 2026-02-05                                   |
+| **Demanda** | Validar e documentar fix observability stack |
+| **Impacto** | alto (stack crítica operacional)             |
+| **Agentes** | Orquestrador, AWS, Terraform                 |
+| **Status**  | ✅ concluído                                  |
 
 ---
 
