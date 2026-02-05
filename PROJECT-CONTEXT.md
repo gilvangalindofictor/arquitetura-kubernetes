@@ -150,7 +150,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | Vault HA | ✅ Completo | 3 replicas operational, KMS auto-unseal, toleration critical, Raft cluster validated (ADR-041) |
 | External Secrets Operator | ✅ Completo | Vault backend integration, ClusterSecretStore (ADR-032) |
 | Harbor Registry | ✅ Completo | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039) |
-| **Observability Stack** | ⚠️ **BLOQUEADO** | **Prometheus/Grafana/Alertmanager Pending (insufficient resources, toleration needed)** |
+| **Observability Stack** | ✅ Completo | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas |
 
 ### Marcos Completos
 
@@ -182,21 +182,21 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - 3 sentinels operational
    - Harbor recovery completo (conectado ao Redis)
 
-4. **Observability Stack Fix** ⚠️ **BLOQUEADO** (Próxima sessão)
-   - Prometheus: 0/2 Pending 17h (insufficient resources + taint critical)
-   - Alertmanager: 0/2 Pending 5d20h
-   - Grafana: 0/3 Pending 17h
-   - **Ação:** Aplicar tolerations pattern (15-20min)
+4. ~~**Observability Stack Fix**~~ ✅ **COMPLETO** (2026-02-05, Sessão 3)
+   - Prometheus: 2/2 Running (tolerations ADR-041 já aplicadas)
+   - Alertmanager: 2/2 Running
+   - Grafana: 3/3 Running
+   - 28 ServiceMonitors ativos, stack 100% operacional
 
 5. **Harbor Robot Accounts Setup** ⚠️ **BLOQUEADO** (Harbor API auth issue)
    - Script create-robot-account.sh: 401 Unauthorized
    - Admin lockout detectado
    - **Ação:** Reset senha via PostgreSQL DB OU UI manual
 
-6. **Metrics Validation** ⚠️ **BLOQUEADO** (Depende de #4)
-   - ServiceMonitor exists (harbor-system/harbor)
-   - Não validado (Prometheus Pending)
-   - **Ação:** Validar após Prometheus operational
+6. ~~**Metrics Validation**~~ ✅ **COMPLETO** (2026-02-05, Sessão 3)
+   - ServiceMonitor harbor-system/harbor operacional
+   - 20+ métricas Harbor disponíveis (health, projects, artifacts, HTTP)
+   - Queries PromQL documentadas: [harbor-metrics-queries.md](docs/logbook/2026-02-05-harbor-metrics-queries.md)
 
 7. **ArgoCD + SonarQube** (Planejado Marco 4)
    - GitOps deployment strategy

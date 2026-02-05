@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-05
-**Versão:** 3.4 (FinOps Schedule Adjustment Staging)
+**Versão:** 3.5 (Harbor Robot Accounts + API Auth Issue)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -43,6 +43,7 @@
 | **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)** | **2026-02-05** | **🚀 Implementado (Harbor ✅)** | **Médio** |
 | **ADR-043** | **Policy Engine Selection (Kyverno)** | **2026-02-05** | **✅ Aprovado** | **Alto** |
 | **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)** | **2026-02-04** | **✅ Implementado** | **Crítico** |
+| **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)** | **2026-02-05** | **✅ Implementado** | **Médio** |
 
 ---
 
@@ -4602,4 +4603,104 @@ helm get values <release> -n <namespace> | yq '.server.tolerations'
 - [Helm Values Files](https://helm.sh/docs/chart_template_guide/values_files/)
 - [Terraform templatefile function](https://developer.hashicorp.com/terraform/language/functions/templatefile)
 - [ADR-023 Operators vs Helm](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/architecture/architecture.md)
+
+
+---
+
+## 📝 ADR-045: Harbor Robot Accounts UI Workaround (API Auth Issue)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-02-05 |
+| **Status** | ✅ Implementado (workaround) |
+| **Agentes** | Orquestrador, K8s, Security |
+| **Demanda** | [Logbook 2026-02-05-harbor-robot-accounts.md](../logbook/2026-02-05-harbor-robot-accounts.md) |
+| **Impacto** | Médio (CI/CD registry auth) |
+
+### Contexto
+
+Harbor robot accounts são necessários para autenticação de CI/CD pipelines (GitLab, ArgoCD) no registry. A criação programática via API é o método recomendado para automação e auditoria.
+
+### Problema Identificado
+
+Harbor v2.10.0 API endpoints para criação de robot accounts retornam **401 Unauthorized** mesmo com credenciais admin válidas:
+
+```bash
+# Working (public endpoint)
+curl -u admin:password /api/v2.0/systeminfo  # → HTTP 200 ✅
+
+# Failing (write operations)
+curl -u admin:password -X POST /api/v2.0/projects/library/robots  # → HTTP 401 ❌
+curl -u admin:password /api/v2.0/users/current  # → HTTP 401 ❌
+```
+
+**Root Cause Hypotheses:**
+1. Admin user `sysadmin_flag=false` no PostgreSQL (não confirmado - pg_hba.conf bloqueou investigação)
+2. Harbor v2.10.0 session-based auth requirement não documentado (cookie-based auth falhou)
+3. Password hash dessincronizado entre secret e PostgreSQL DB
+
+### Tentativas de Resolução
+
+| Abordagem | Resultado | Bloqueador |
+|-----------|-----------|------------|
+| PostgreSQL sysadmin_flag fix | ❌ | pg_hba.conf blocks external pods, no psql in harbor-core |
+| Cookie/session-based auth | ❌ | `/c/login` endpoint não retorna session cookie |
+| Harbor CLI internal | ❌ | CLI não existe no container |
+| Password reset via PostgreSQL | ❌ | Requer RDS console ou bastion access |
+
+### Decisão
+
+**Aceitar workaround via Harbor Web UI** para criação de robot accounts até que root cause seja investigado com acesso adequado ao RDS PostgreSQL.
+
+**Justificativa:**
+- ✅ Harbor UI funcional com credenciais admin
+- ✅ Least-privilege security model mantido
+- ✅ Robot account criado em 5min (pragmático)
+- ⚠️ Automação API bloqueada (backlog investigation)
+
+### Solução Implementada
+
+1. **Manual Guide**: [create-robot-manual-steps.md](../../platform-provisioning/aws/kubernetes/terraform/modules/harbor/scripts/create-robot-manual-steps.md)
+2. **Robot Created**: `robot$gitlab-ci` (library project, push/pull/delete permissions)
+3. **GitLab CI/CD**: Credentials stored as masked variables
+
+### Alternativas Consideradas
+
+| Alternativa | Avaliação |
+|-------------|-----------|
+| **Terraform Harbor Provider** | Requer API working (bloqueado mesmo problema) |
+| **kubectl exec + Python psycopg2** | Complex, requires deep PostgreSQL knowledge |
+| **Bitnami Harbor Chart switch** | Breaking change, requer migration (não justificado) |
+| **ArgoCD Vault Operator** | Overkill para single robot account |
+
+### Consequências
+
+**Positivas:**
+- ✅ Robot account operacional (objetivo alcançado)
+- ✅ Security least-privilege aplicado
+- ✅ Documentação manual detalhada para replicação
+
+**Negativas:**
+- ❌ Sem automação Terraform para robot accounts
+- ❌ Manual step required (quebra IaC ideal)
+- ⚠️ Root cause não resolvido
+
+### Backlog Items
+
+- [ ] **INFRA-001**: Investigate Harbor admin `sysadmin_flag` via RDS bastion or console query
+- [ ] **INFRA-002**: Document Harbor v2.10.0 auth behavior for write APIs
+- [ ] **INFRA-003**: Consider Harbor admin recreation via Helm `initContainer` with known hash
+
+### Lições Aprendidas
+
+1. **PostgreSQL pg_hba.conf:** External pod connections bloqueadas por default (SSL + host-based rules)
+2. **Harbor v2.10.0 Auth:** Possível divergência entre Basic Auth (public endpoints) e Session Auth (write endpoints)
+3. **Pragmatismo vs Pureza:** Workaround UI aceitável quando API blockeada e alternativas complexas
+4. **Documentation:** Manual steps guide previne knowledge loss e permite replicação
+
+### Referências
+
+- [Harbor Robot Account API Docs](https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/create-robot-accounts/)
+- [Logbook 2026-02-05-harbor-robot-accounts.md](../logbook/2026-02-05-harbor-robot-accounts.md)
+- [Harbor Module README](../../platform-provisioning/aws/kubernetes/terraform/modules/harbor/README.md)
 

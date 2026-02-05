@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-04
-**Versão:** 2.1 (Marco 3 GitLab Staging + Runner DNS Issue)
+**Última Atualização:** 2026-02-05
+**Versão:** 2.2 (Harbor API Auth Issue)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -29,6 +29,7 @@
 | R-017 | State drift Terraform vs Cluster Autoscaler | MÉDIO | BAIXO | 🟢 BAIXO | ✅ Mitigado | ignore_changes em desired_size |
 | **R-018** | **Licenciamento Bitnami → Tanzu Standard** | **ALTO** | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)** | **Migração para Operators** |
 | **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)** | **ALTO** | **BAIXO** | **🟢 BAIXO** | ✅ **Aceito** | **Resolvido ADR-021 Fase 2** |
+| **R-020** | **Harbor API Auth Issue (Robot Account Creation)** | **BAIXO** | **MÉDIO** | **🟡 MÉDIO** | ✅ **Mitigado (UI)** | **ADR-045 Workaround** |
 
 ---
 
@@ -1783,3 +1784,46 @@ Payback:                     1.3 meses
 
 **Última Atualização:** 2026-02-05
 **Próxima Revisão:** Após correções Marco 3 e 1 semana validação
+
+### R-020: Harbor API Auth Issue (Robot Account Creation)
+
+**Probabilidade:** BAIXO
+**Impacto:** MÉDIO
+**Severidade:** 🟡 MÉDIO
+**Status:** ✅ Mitigado (UI workaround)
+
+**Descrição:**
+Harbor v2.10.0 API endpoints para criação de robot accounts retornam 401 Unauthorized mesmo com credenciais admin válidas, bloqueando automação Terraform/API.
+
+**Cenário de Falha:**
+1. Tentativa de criar robot account via API (Terraform provider, scripts, CI/CD)
+2. Basic Auth com credenciais admin válidas
+3. Endpoint `/api/v2.0/projects/{project}/robots` retorna HTTP 401
+4. Criação bloqueada, CI/CD sem credenciais registry
+
+**Impacto:**
+- ❌ Automação Terraform bloqueada para robot accounts
+- ⚠️ Processo manual via UI necessário
+- ⚠️ Scaling de múltiplos robot accounts mais lento
+- ✅ Workaround funcional (UI) disponível
+
+**Root Cause Possível:**
+1. Admin user `sysadmin_flag=false` no PostgreSQL
+2. Harbor v2.10.0 session-based auth (não Basic Auth) para write endpoints
+3. Password hash dessincronizado PostgreSQL vs Kubernetes secret
+
+**Mitigação Implementada:**
+- ✅ Manual creation guide: [create-robot-manual-steps.md](../../platform-provisioning/aws/kubernetes/terraform/modules/harbor/scripts/create-robot-manual-steps.md)
+- ✅ Robot account `robot$gitlab-ci` criado via UI (5min)
+- ✅ GitLab CI/CD variables configuradas com least-privilege
+- ✅ ADR-045 documenta decisão e lições aprendidas
+
+**Monitoramento:**
+- Backlog: INFRA-001 (PostgreSQL investigation via RDS bastion)
+- Backlog: INFRA-002 (Harbor v2.10.0 auth behavior documentation)
+- Review: Próxima sprint (após acesso RDS console)
+
+**Decisão:** Aceitar workaround UI até root cause investigation (requer RDS bastion access). Impact limitado (robot accounts criados raramente, UI funcional).
+
+**Referência:** [ADR-045](decisions.md#adr-045), [Logbook 2026-02-05](../logbook/2026-02-05-harbor-robot-accounts.md)
+
