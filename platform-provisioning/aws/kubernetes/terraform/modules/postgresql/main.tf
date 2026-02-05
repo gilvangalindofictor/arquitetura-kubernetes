@@ -18,8 +18,8 @@ resource "aws_security_group" "postgresql" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-    description = "PostgreSQL from VPC"
+    cidr_blocks = var.private_subnet_cidrs
+    description = "PostgreSQL from private subnets (pods)"
   }
 
   egress {

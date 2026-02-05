@@ -64,3 +64,14 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "tolerations" {
+  description = "Tolerations for Vault server pods"
+  type = list(object({
+    key      = string
+    operator = string
+    value    = optional(string)
+    effect   = string
+  }))
+  default = []
+}

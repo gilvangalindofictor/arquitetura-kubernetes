@@ -112,6 +112,17 @@ server:
     runAsUser: 100
     fsGroup: 1000
 
+  # Tolerations
+  %{ if length(tolerations) > 0 }
+  tolerations:
+  %{ for t in tolerations }
+    - key: ${t.key}
+      operator: ${t.operator}
+      %{ if t.value != null }value: ${t.value}%{ endif }
+      effect: ${t.effect}
+  %{ endfor }
+  %{ endif }
+
   # Annotations for monitoring
   %{ if enable_monitoring }
   annotations:

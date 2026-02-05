@@ -244,6 +244,7 @@ resource "helm_release" "vault" {
     storage_class     = var.storage_class
     pvc_size          = var.pvc_size
     enable_monitoring = var.enable_monitoring
+    tolerations       = var.tolerations
   })]
 
   depends_on = [

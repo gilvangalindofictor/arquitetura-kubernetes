@@ -18,6 +18,11 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
+variable "private_subnet_cidrs" {
+  description = "Private subnet CIDRs for Security Group ingress (least privilege)"
+  type        = list(string)
+}
+
 variable "instance_class" {
   description = "RDS instance class"
   type        = string

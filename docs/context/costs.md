@@ -1,7 +1,7 @@
 # 💰 Análise de Custos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-04
-**Versão:** 3.1 (Marco 3 GitLab Staging Deployed: +$48.60/mês)
+**Última Atualização:** 2026-02-05
+**Versão:** 3.2 (FinOps Schedule Adjustment: 7h30-20h BRT)
 **Framework:** FinOps + TCO Analysis
 
 ---
@@ -402,9 +402,11 @@ Ambiente STAGING opera 24/7 mas é utilizado apenas **8h-18h Mon-Fri** (horário
 - IAM Role: finops-scheduler-role (least privilege, staging-only)
 
 **Schedule:**
-- **STARTUP:** 8:00 AM BRT (11:00 UTC) - Segunda a Sexta
-- **SHUTDOWN:** 6:00 PM BRT (21:00 UTC) - Segunda a Sexta
+- **STARTUP:** 7:30 AM BRT (10:30 UTC) - Segunda a Sexta
+- **SHUTDOWN:** 8:00 PM BRT (23:00 UTC) - Segunda a Sexta
 - **Feriados:** Automação SKIP (via BrasilAPI)
+
+**⚠️ Ajuste 2026-02-05:** Horários estendidos de 10h/dia para 12.5h/dia (+25% uptime) para maior flexibilidade operacional. Economia reduzida de R$ 4.320 para ~R$ 3.400/ano, mas mantém savings >40%. Ver [logbook](../logbook/2026-02-05-finops-schedule-adjustment.md).
 
 **Node Groups Strategy:**
 

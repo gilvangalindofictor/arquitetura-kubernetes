@@ -151,6 +151,27 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "NoSchedule"
   }
 
+  # Toleration for critical nodes (ADR-041 pattern)
+  set {
+    name  = "prometheus.prometheusSpec.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.tolerations[1].effect"
+    value = "NoSchedule"
+  }
+
   # Service Monitor selector (monitorar todos os namespaces)
   set {
     name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
@@ -238,6 +259,27 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "grafana.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-041 pattern)
+  set {
+    name  = "grafana.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "grafana.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "grafana.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "grafana.tolerations[1].effect"
     value = "NoSchedule"
   }
 
@@ -342,6 +384,27 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "alertmanager.alertmanagerSpec.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
+  # Toleration for critical nodes (ADR-041 pattern)
+  set {
+    name  = "alertmanager.alertmanagerSpec.tolerations[1].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.tolerations[1].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.tolerations[1].value"
+    value = "critical"
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.tolerations[1].effect"
     value = "NoSchedule"
   }
 

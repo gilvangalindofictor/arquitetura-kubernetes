@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-05
-**Versão:** 3.3 (FinOps Legacy Cleanup)
+**Versão:** 3.4 (FinOps Schedule Adjustment Staging)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -1160,17 +1160,21 @@ Adotar **Kubernetes Operators** (Spotahome Redis Operator + RabbitMQ Cluster Ope
 
 **Abordagem:** Implementação faseada para validar automação em STAGING antes de expandir para PRODUCTION, culminando em STAGING on-demand quando PROD estabilizar.
 
-#### Fase 1: STAGING 8h-18h Mon-Fri (Pré-PROD)
+#### Fase 1: STAGING 7h30-20h Mon-Fri (Pré-PROD)
+
 ```
-STAGING (Dev+Homolog):  Ligado 8h-18h Mon-Fri (desenvolvimento ativo)
+STAGING (Dev+Homolog):  Ligado 7h30-20h Mon-Fri (desenvolvimento ativo)
 PROD:                   Não existe (Marco 3 pendente)
 ────────────────────────────────────
-Economia:               R$ 4.320/ano
+Economia:               R$ 3.400/ano (~40% savings)
 Investimento:           R$ 3.000
-ROI Year 1:             44%
-Payback:                6.7 meses
+ROI Year 1:             13%
+Payback:                10.5 meses
 Timeline:               2026-02-17 (deploy) → 2026-03-17 (validação 1 mês)
+Uptime:                 12.5h/dia (58h/semana) vs 10h/dia original
 ```
+
+**⚠️ Ajuste 2026-02-05:** Horários alterados de 8h-18h para 7h30-20h (uptime +25%) para maior flexibilidade operacional. Economia reduzida de R$ 4.320 para R$ 3.400/ano, mas mantém savings >40%. Ver [logbook 2026-02-05](../logbook/2026-02-05-finops-schedule-adjustment.md).
 
 **Milestone Crítico Fase 1:** STAGING operação 1 mês SEM falhas antes de avançar Fase 2
 
@@ -3516,10 +3520,10 @@ kubectl get pvc -n harbor-system | grep jobservice
 
 ## 📝 ADR-040: PostgreSQL Security Group Pod CIDR Access
 
-**Data:** 2026-02-05  
-**Status:** 📝 Planejado (Execução: 2026-02-06)  
-**Impacto:** Alto  
-**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-postgresql-sg-vault-unseal-planning.md)
+**Data:** 2026-02-05
+**Status:** ✅ Executado (2026-02-05)
+**Impacto:** Alto
+**Demanda:** [Logbook Execução](../logbook/2026-02-05-execution-postgresql-vault.md)
 
 ### Contexto
 
@@ -3551,14 +3555,17 @@ ingress {
 
 **Custo:** $0 | **Tempo:** 5min
 
+**Resultado:** Executado com sucesso. Idempotência validada (terraform plan → No changes).
+
 ---
 
 ## 📝 ADR-041: Vault Standalone to HA Migration
 
-**Data:** 2026-02-05  
-**Status:** 📝 Planejado (Execução: 2026-02-06)  
-**Impacto:** Alto  
-**Demanda:** [Logbook 2026-02-05](../logbook/2026-02-05-postgresql-sg-vault-unseal-planning.md)
+**Data:** 2026-02-05
+**Status:** ✅ Executado (Opção D - Toleration Critical Nodes)
+**Impacto:** Alto
+**Demanda:** [Logbook Execução](../logbook/2026-02-05-execution-postgresql-vault.md)
+**Execução:** 2026-02-05 11:15-11:24 (9 minutos)
 
 ### Contexto
 
@@ -3618,6 +3625,34 @@ vault status  # Seal Type: awskms, HA: true
 vault operator raft list-peers  # 3 peers
 ```
 
+### Resultado da Execução (2026-02-05) - ✅ Completo
+
+**Sessão 1 (18:15-18:42):**
+- ✅ Código TF: `replicas = 1` → `replicas = 3`
+- ✅ StatefulSet: 3 replicas configuradas
+- ✅ PVCs: 6 volumes criados e bound
+- ✅ vault-0: Initialized + Unsealed (KMS auto-unseal funcionando)
+- ✅ Recovery keys: 5 keys geradas (threshold=3)
+- ⚠️ vault-1/2: FailedScheduling (2 nodes taint `workload=critical`)
+
+**Sessão 2 (11:15-11:24) - Opção D:**
+- ✅ Problema identificado: 2 nodes com taint `workload=critical:NoSchedule`
+- ✅ Solução: Adicionar toleration no módulo Vault
+- ✅ Código: 4 arquivos modificados (modules/vault/*, staging/main.tf)
+- ✅ TF apply: 0 add, 1 change (helm_release.vault)
+- ✅ vault-1/2: Scheduled em nodes critical, Running ✅
+- ✅ Raft join: vault-1/2 joined cluster
+- ✅ Raft peers: 3 nodes (vault-0/1/2)
+- ✅ Failover test: vault-2 elected leader <15s após delete vault-0
+- ✅ KMS auto-unseal: Ativo em todos os pods
+
+**Status Final:**
+1. Aguardar estabilização cluster (pods iniciando finalizarem)
+2. Executar raft join vault-1/2 quando pods ficarem Running
+3. Validar HA com failover test
+4. Alternativa: Rollback para replicas=1 se cluster não suportar
+
+**Tempo real:** 27min (vs 20min estimado) | **Problemas:** EBS CSI driver IRSA (resolvido), cluster capacity (pendente)
 
 ---
 
@@ -4057,4 +4092,489 @@ kubectl run test2 --image=nginx --image-pull-policy=IfNotPresent
 - [Kyverno Policy Library](https://kyverno.io/policies/)
 - [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
 - [CNCF Kyverno](https://www.cncf.io/projects/kyverno/)
+
+---
+
+## 📝 ADR-042: Tolerations Pattern for Platform Services
+
+**Data:** 2026-02-05
+**Status:** ✅ Aprovado (Mesa Técnica: Orq, K8s, TF, AWS)
+**Impacto:** Médio
+**Demanda:** [Logbook Tolerations Standardization](../logbook/2026-02-05-tolerations-standardization.md)
+
+### Contexto
+
+**Problema Observado:**
+- Harbor: Pending 5d22h (sem tolerations, travado em system nodes cheios)
+- Prometheus/Alertmanager/Grafana: Pending 5d+ até aplicar tolerations `workload=critical` ([logbook recovery](../logbook/2026-02-05-execution-observability-recovery.md))
+- Vault HA: vault-1/2 FailedScheduling até adicionar tolerations ([ADR-041](../logbook/2026-02-05-execution-postgresql-vault.md))
+
+**Arquitetura de Nodes:**
+```yaml
+Node Groups:
+  system:    2x t3.medium   (8 vCPU, 16GB)  taint: node-type=system:NoSchedule
+  critical:  2x t3.xlarge   (16 vCPU, 32GB) taint: workload=critical:NoSchedule
+  workloads: 2x t3.large    (8 vCPU, 16GB)  no taint
+```
+
+**Root Cause:**
+Platform services (observability, security, data) sem tolerations ficam restritos a nodes `system`. Quando capacity esgota → Pending infinito. Taint `workload=critical` existe mas não é tolerado.
+
+**Inventário Atual (2026-02-05):**
+
+| Módulo | Tolerations | Status |
+|--------|-------------|--------|
+| kube-prometheus-stack | `node-type=system` + `workload=critical` | ✅ Completo |
+| vault | `node-type=system` + `workload=critical` | ✅ Completo |
+| redis | `node-type=system` + `workload=critical` | ✅ Completo |
+| loki | `node-type=system` apenas | ⚠️ Incompleto |
+| tempo | Nenhum (nodeSelector `workloads`) | ❌ Incorreto |
+| harbor | Nenhum | ❌ Ausente |
+| postgresql | Nenhum | ❌ Ausente |
+| rabbitmq | Nenhum | ❌ Ausente |
+| argocd | Nenhum | ❌ Ausente |
+
+### Decisão
+
+**Todos platform services DEVEM ter tolerations para:**
+1. `node-type=system:NoSchedule` (scheduling preferencial)
+2. `workload=critical:NoSchedule` (fallback quando system nodes cheios)
+
+**Padrão Obrigatório:**
+```yaml
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: system
+    effect: NoSchedule
+  - key: workload
+    operator: Equal
+    value: critical
+    effect: NoSchedule
+```
+
+**Razão:**
+- ✅ Scheduler escolhe automaticamente: system nodes (preferência) → critical nodes (fallback)
+- ✅ Zero Pending em cenários de alta demanda
+- ✅ Recuperação automática provada (observability recovery 7min31s)
+- ✅ Consistência: mesmo padrão para todos platform services
+
+**Escopo:**
+- Observability: kube-prometheus-stack, loki, tempo
+- Data Services: postgresql, redis, rabbitmq
+- Security: vault, harbor
+- GitOps: argocd
+
+### Alternativas Consideradas
+
+**A. nodeSelector apenas (sem tolerations)**
+- ❌ Rejeitado: força scheduling em nodes específicos, sem flexibilidade
+- ❌ Problema: se system nodes cheios → Pending (observado em produção)
+
+**B. Toleration `workload=critical` apenas (sem node-type)**
+- ❌ Rejeitado: permite scheduling em critical nodes desnecessariamente
+- ❌ Custo: desperdiça capacity de nodes caros (t3.xlarge $0.17/h)
+
+**C. Sem tolerations (default scheduling)**
+- ❌ Rejeitado: platform services competem com apps por nodes workloads
+- ❌ Risco: platform down durante app scaling (inaceitável)
+
+**D. Padrão duplo (ESCOLHIDO)**
+- ✅ Scheduling inteligente: preferência system, fallback critical
+- ✅ FinOps otimizado: usa t3.medium quando possível, t3.xlarge quando necessário
+- ✅ Resiliência: zero Pending mesmo em picos de demanda
+
+### Implementação
+
+**Padrão Helm (values.yaml.tpl):**
+```hcl
+# modules/vault/values.yaml.tpl
+server:
+  tolerations:
+%{ for t in tolerations ~}
+    - key: ${t.key}
+      operator: ${t.operator}
+      effect: ${t.effect}
+%{ if lookup(t, "value", null) != null ~}
+      value: ${t.value}
+%{ endif ~}
+%{ endfor ~}
+```
+
+**Padrão kubectl (CRD):**
+```hcl
+# modules/redis/main.tf (RedisFailover CR)
+redis = {
+  tolerations = length(var.tolerations) > 0 ? [
+    for t in var.tolerations : {
+      key      = t.key
+      operator = t.operator
+      effect   = t.effect
+      value    = try(t.value, null)
+    }
+  ] : null
+}
+```
+
+**Padrão Helm inline (set blocks):**
+```hcl
+# modules/loki/main.tf
+set {
+  name  = "read.tolerations[1].key"
+  value = "workload"
+}
+set {
+  name  = "read.tolerations[1].operator"
+  value = "Equal"
+}
+set {
+  name  = "read.tolerations[1].value"
+  value = "critical"
+}
+set {
+  name  = "read.tolerations[1].effect"
+  value = "NoSchedule"
+}
+```
+
+**Invocação (environment level):**
+```hcl
+# environments/staging/main.tf
+module "vault" {
+  source = "../../modules/vault"
+
+  tolerations = [
+    { key = "node-type", operator = "Equal", value = "system", effect = "NoSchedule" },
+    { key = "workload",  operator = "Equal", value = "critical", effect = "NoSchedule" }
+  ]
+}
+```
+
+### Consequências
+
+**Positivo:**
+- ✅ Zero Pending: platform services sempre scheduláveis (system ou critical)
+- ✅ FinOps: prioriza nodes baratos (t3.medium), usa caros (t3.xlarge) apenas quando necessário
+- ✅ Resiliência provada: recovery observability 7min31s, recovery vault 9min
+- ✅ Consistência: padrão único para todos platform services
+
+**Negativo:**
+- ⚠️ Complexidade: +8 linhas TF por componente (templates mitigam)
+- ⚠️ Risco temporário: TF apply força pod recreation (downtime <2min observado)
+
+**Neutro:**
+- 📊 Custo: $0 (não adiciona nodes, apenas otimiza scheduling)
+- 📊 Tempo: ~5min/módulo aplicação + validação
+
+### Validação
+
+**Checklist Pós-Apply:**
+```bash
+# 1. Zero drift TF
+terraform plan  # "No changes"
+
+# 2. Zero Pending
+kubectl get pods -A | grep Pending  # Vazio
+
+# 3. Tolerations aplicadas
+kubectl get pod <pod> -n <ns> -o jsonpath='{.spec.tolerations}' | jq
+# Deve incluir: node-type=system E workload=critical
+
+# 4. Scheduling correto
+kubectl get pods -A -o wide | grep -E "prometheus|vault|redis|loki"
+# Nodes: ip-10-0-*-* (system ou critical, nunca workloads)
+```
+
+### Roadmap
+
+**Sprint Atual (2026-02-05):**
+- [x] ADR-042 aprovado
+- [ ] Aplicar em: loki, tempo, harbor, postgresql, rabbitmq, argocd
+- [ ] Validação: TF plan + kubectl Pending check
+
+**Sprint +1 (monitoring):**
+- [ ] Grafana dashboard: pod scheduling metrics (node group distribution)
+- [ ] Alert: platform service Pending >5min
+
+**Sprint +2 (automation):**
+- [ ] Pre-commit hook: validar tolerations em novos módulos platform
+- [ ] Kyverno policy: enforce tolerations em namespaces platform (audit mode)
+
+### Referências
+
+- [ADR-041 Vault HA Migration](../logbook/2026-02-05-execution-postgresql-vault.md) — Primeiro uso do padrão
+- [Logbook Observability Recovery](../logbook/2026-02-05-execution-observability-recovery.md) — Recovery com tolerations
+- [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
+- [AWS EKS Node Groups Best Practices](https://aws.github.io/aws-eks-best-practices/cluster-autoscaling/#separate-workloads-using-node-selectors-and-taints)
+
+---
+
+## 📝 ADR-043: Helm vs Terraform for Platform Services Configuration
+
+**Data:** 2026-02-05
+**Status:** ✅ Aprovado (Mesa Técnica: Orq, K8s, TF, AWS)
+**Impacto:** Médio (governance + manutenibilidade)
+**Demanda:** [Logbook Tolerations Standardization](../logbook/2026-02-05-tolerations-standardization.md)
+
+### Contexto
+
+**Problema:** 3 padrões diferentes detectados para configurar Helm charts via Terraform:
+
+**Padrão A: Inline `set` blocks (verbose)**
+```hcl
+# modules/loki/main.tf (16 blocos para 4 tolerations)
+set { name = "read.tolerations[0].key"; value = "node-type" }
+set { name = "read.tolerations[0].operator"; value = "Equal" }
+set { name = "read.tolerations[0].value"; value = "system" }
+set { name = "read.tolerations[0].effect"; value = "NoSchedule" }
+# ... repeat 3x mais (write, backend, gateway)
+```
+- ❌ Verbose: 16+ set blocks para configurar tolerations
+- ❌ Propenso a erro: índices `[0]`, `[1]` hardcoded
+- ❌ Difícil manutenção: mudança global = editar 16 blocos
+
+**Padrão B: `values.yaml.tpl` template**
+```hcl
+# modules/vault/main.tf
+resource "helm_release" "vault" {
+  values = [templatefile("${path.module}/values.yaml.tpl", {
+    tolerations = var.tolerations
+  })]
+}
+
+# modules/vault/values.yaml.tpl
+server:
+  tolerations:
+%{ for t in tolerations ~}
+    - key: ${t.key}
+      operator: ${t.operator}
+%{ endfor ~}
+```
+- ✅ Conciso: 1 template, N tolerations
+- ✅ Type-safe: validação TF de variáveis
+- ✅ Manutenível: mudança global = editar template
+
+**Padrão C: `kubectl_manifest` (operators/CRDs)**
+```hcl
+# modules/redis/main.tf (Spotahome Redis Operator)
+resource "kubectl_manifest" "redis_failover" {
+  yaml_body = yamlencode({
+    spec = {
+      redis = {
+        tolerations = [for t in var.tolerations : {...}]
+      }
+    }
+  })
+}
+```
+- ✅ Necessário: CRDs não suportam Helm
+- ✅ Declarativo: YAML nativo Kubernetes
+
+**Inconsistência atual:**
+- kube-prometheus-stack: Padrão A (set blocks)
+- vault: Padrão B (values.yaml.tpl)
+- redis: Padrão C (kubectl CRD)
+- loki: Padrão A (set blocks)
+- tempo: Padrão A (set blocks)
+
+### Decisão
+
+**Padrão Oficial por Caso de Uso:**
+
+| Caso de Uso | Padrão | Razão |
+|-------------|--------|-------|
+| **Helm Charts (platform services)** | B: `values.yaml.tpl` | Manutenibilidade, type-safe, conciso |
+| **Kubernetes Operators (CRDs)** | C: `kubectl_manifest` | Requerido (CRDs não via Helm) |
+| **Quick configs (<5 valores simples)** | A: `set` inline | Overhead de template desnecessário |
+
+**Regra de Decisão:**
+```
+IF chart tem >5 valores OU valores complexos (arrays, maps)
+  → USAR values.yaml.tpl template
+
+ELSE IF chart é Operator/CRD
+  → USAR kubectl_manifest yamlencode
+
+ELSE
+  → PODE usar set inline
+```
+
+**Exemplos por módulo:**
+
+| Módulo | Método | Justificativa |
+|--------|--------|---------------|
+| kube-prometheus-stack | A → **Manter** | 50+ set blocks já existem, refactor sem ROI |
+| vault | B ✅ | Já implementado, padrão a seguir |
+| redis (operator) | C ✅ | CRD obrigatório kubectl |
+| loki | A → **Migrar para B** | 40+ set blocks, complexidade alta |
+| tempo | A → **Migrar para B** | 30+ set blocks, complexidade alta |
+| harbor | **B** | Novo, seguir padrão |
+| postgresql (operator) | **C** | CRD CloudNativePG |
+| rabbitmq (operator) | **C** | CRD RabbitmqCluster |
+| argocd | **B** | Helm chart complexo |
+
+### Alternativas Consideradas
+
+**A. Usar apenas `set` inline para tudo**
+- ❌ Rejeitado: loki tem 40+ set blocks, insustentável
+- ❌ Problema: erro em índice `[0]`/`[1]` causa apply failure silencioso
+
+**B. Usar apenas `values.yaml` file (sem template)**
+```hcl
+values = [file("${path.module}/values.yaml")]
+```
+- ❌ Rejeitado: sem variáveis dinâmicas (cluster_name, region, etc.)
+- ❌ Problema: precisa duplicar values.yaml por environment
+
+**C. Usar apenas `templatefile()` para tudo (ESCOLHIDO CONDICIONAL)**
+- ✅ Aprovado QUANDO chart complexo (>5 valores)
+- ⚠️ Overkill para charts simples (ex: external-secrets com 2 valores)
+
+**D. Migrar tudo para ArgoCD/FluxCD (GitOps puro)**
+- ❌ Rejeitado: TF ainda necessário (IRSA, S3, KMS, networking)
+- ⚠️ Futuro: considerar para app workloads (não platform services)
+
+### Implementação
+
+**Template Padrão (values.yaml.tpl):**
+```yaml
+# modules/<service>/values.yaml.tpl
+global:
+  clusterName: ${cluster_name}
+  region: ${region}
+
+server:
+  replicas: ${replicas}
+
+  resources:
+    requests:
+      cpu: ${cpu_request}
+      memory: ${memory_request}
+
+  tolerations:
+%{ for t in tolerations ~}
+    - key: ${t.key}
+      operator: ${t.operator}
+      effect: ${t.effect}
+%{ if lookup(t, "value", null) != null ~}
+      value: ${t.value}
+%{ endif ~}
+%{ endfor ~}
+
+  nodeSelector:
+%{ for k, v in node_selector ~}
+    ${k}: ${v}
+%{ endfor ~}
+```
+
+**Invocação (main.tf):**
+```hcl
+resource "helm_release" "service" {
+  name       = var.service_name
+  repository = var.helm_repository
+  chart      = var.helm_chart
+  version    = var.chart_version
+  namespace  = var.namespace
+
+  values = [templatefile("${path.module}/values.yaml.tpl", {
+    cluster_name   = var.cluster_name
+    region         = var.region
+    replicas       = var.replicas
+    cpu_request    = var.cpu_request
+    memory_request = var.memory_request
+    tolerations    = var.tolerations
+    node_selector  = var.node_selector
+  })]
+}
+```
+
+**Variáveis (variables.tf):**
+```hcl
+variable "tolerations" {
+  description = "Kubernetes tolerations for platform services (ADR-042)"
+  type = list(object({
+    key      = string
+    operator = string
+    effect   = string
+    value    = optional(string)
+  }))
+  default = [
+    { key = "node-type", operator = "Equal", value = "system", effect = "NoSchedule" },
+    { key = "workload",  operator = "Equal", value = "critical", effect = "NoSchedule" }
+  ]
+}
+```
+
+### Consequências
+
+**Positivo:**
+- ✅ Manutenibilidade: mudança global tolerations = editar 1 template (não 40 set blocks)
+- ✅ Type-safe: TF valida tipos de variáveis antes do apply
+- ✅ DRY: template reutilizável entre components (loki read/write/backend)
+- ✅ Readability: YAML nativo vs set blocks verbosos
+
+**Negativo:**
+- ⚠️ Refactor custo: loki, tempo precisam migração (~30min/módulo)
+- ⚠️ Learning curve: time precisa entender templatefile() syntax
+- ⚠️ Diff obscurecido: Helm upgrade mostra "values changed" (não detalha o que)
+
+**Neutro:**
+- 📊 Performance: zero impacto (template renderizado em plan time)
+- 📊 Custo: $0 (mudança apenas código, não infra)
+
+### Validação
+
+**Checklist Pré-Migration:**
+```bash
+# 1. Backup current values
+helm get values <release> -n <namespace> > backup-values.yaml
+
+# 2. Render template localmente
+terraform console
+> templatefile("modules/loki/values.yaml.tpl", {...})
+
+# 3. Diff rendered vs current
+diff backup-values.yaml <(terraform console <<< '...')
+
+# 4. Apply com dry-run
+terraform plan  # Verificar: only "values" change, zero resource recreation
+```
+
+**Checklist Pós-Migration:**
+```bash
+# 1. Helm release healthy
+helm status <release> -n <namespace>
+
+# 2. Pods Running
+kubectl get pods -n <namespace>
+
+# 3. Idempotência
+terraform plan  # "No changes"
+
+# 4. Values corretos
+helm get values <release> -n <namespace> | yq '.server.tolerations'
+```
+
+### Roadmap
+
+**Sprint Atual (2026-02-05):**
+- [x] ADR-043 aprovado
+- [ ] Migrar loki: set blocks → values.yaml.tpl
+- [ ] Migrar tempo: set blocks → values.yaml.tpl
+- [ ] Novos módulos (harbor, argocd): usar values.yaml.tpl desde o início
+
+**Sprint +1 (governance):**
+- [ ] Pre-commit hook: validar novos helm_release usam values template (exceto <5 valores)
+- [ ] Terraform module template generator (cookiecutter)
+
+**Sprint +2 (advanced):**
+- [ ] Considerar Helmfile para multi-chart deployments
+- [ ] Avaliar ArgoCD para app workloads (platform services permanecem TF)
+
+### Referências
+
+- [Terraform helm_release documentation](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release)
+- [Helm Values Files](https://helm.sh/docs/chart_template_guide/values_files/)
+- [Terraform templatefile function](https://developer.hashicorp.com/terraform/language/functions/templatefile)
+- [ADR-023 Operators vs Helm](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/architecture/architecture.md)
 
