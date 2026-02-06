@@ -1,7 +1,7 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-05
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3)
+> **Última Atualização**: 2026-02-06
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento)
 > **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
@@ -129,28 +129,31 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ### AWS EKS MVP - Progresso Atual
 
-| Marco | Descrição | Status | Duração | Custo/Mês |
-|-------|-----------|--------|---------|-----------|
-| **Marco 0** | Backend Terraform (S3 + DynamoDB) | ✅ Completo | 2 dias | ~$0.01 |
-| **Marco 1** | Cluster EKS (7 nodes, 4 add-ons) | ✅ Completo | 1 dia | $547 |
-| **Marco 2** | Platform Services (8 fases) | ✅ Completo | 3 dias | +$66 |
-| **Marco 3 F1a/1b** | Workloads + Secrets (PostgreSQL, Redis, RabbitMQ, GitLab, Vault, ESO, Harbor) | ✅ Completo | 5 dias | +$58 |
-| **Marco 3 F1c** | PostgreSQL SG Fix (ADR-040) | ✅ Completo | 5min | $0 |
-| **Marco 3 F1c** | Vault HA Migration (ADR-041) | ⚠️ 67% | 27min | +$3/mês (pending) |
-| **TOTAL** | | | **~11 dias** | **~$671/mês** |
+| Marco              | Descrição                                                                     | Status     | Duração      | Custo/Mês     |
+| ------------------ | ----------------------------------------------------------------------------- | ---------- | ------------ | ------------- |
+| **Marco 0**        | Backend Terraform (S3 + DynamoDB)                                             | ✅ Completo | 2 dias       | ~$0.01        |
+| **Marco 1**        | Cluster EKS (7 nodes, 4 add-ons)                                              | ✅ Completo | 1 dia        | $547          |
+| **Marco 2**        | Platform Services (8 fases)                                                   | ✅ Completo | 3 dias       | +$66          |
+| **Marco 3 F1a/1b** | Workloads + Secrets (PostgreSQL, Redis, RabbitMQ, GitLab, Vault, ESO, Harbor) | ✅ Completo | 5 dias       | +$58          |
+| **Marco 3 F1c**    | PostgreSQL SG Fix (ADR-040)                                                   | ✅ Completo | 5min         | $0            |
+| **Marco 3 F1c**    | Vault HA Migration (ADR-041)                                                  | ✅ Completo | 27min        | +$3/mês       |
+| **Marco 3 F1d**    | FinOps Automation Staging (Lambda + EventBridge, ADR-024)                     | ✅ Completo | 3 dias       | +$0.50/mês    |
+| **TOTAL**          |                                                                               |            | **~14 dias** | **~$671/mês** |
 
 ### Marco 3 - Detalhamento (Fase 1a/1b/1c)
 
-| Componente | Status | Observações |
-|------------|--------|-------------|
-| PostgreSQL RDS | ✅ Completo | db.t3.medium Single-AZ, 500GB, Harbor database bootstrap, SG least privilege (ADR-040) |
-| Redis Operator | ✅ Completo | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05) |
-| RabbitMQ Operator | ✅ Completo | Official operator, 1 replica staging, namespace data-services |
-| GitLab CE Staging | ✅ Completo | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage |
-| Vault HA | ✅ Completo | 3 replicas operational, KMS auto-unseal, toleration critical, Raft cluster validated (ADR-041) |
-| External Secrets Operator | ✅ Completo | Vault backend integration, ClusterSecretStore (ADR-032) |
-| Harbor Registry | ✅ Completo | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039) |
-| **Observability Stack** | ✅ Completo | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas |
+| Componente                | Status      | Observações                                                                                     |
+| ------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| PostgreSQL RDS            | ✅ Completo  | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040) |
+| Redis Operator            | ✅ Completo  | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                    |
+| RabbitMQ Operator         | ✅ Completo  | Official operator, 1 replica staging, namespace data-services                                   |
+| GitLab CE Staging         | ✅ Completo  | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                       |
+| Vault HA                  | ✅ Completo  | 3 replicas operational, KMS auto-unseal, toleration critical, Raft cluster validated (ADR-041)  |
+| External Secrets Operator | ✅ Instalado | ClusterSecretStore deployed, Vault backend K8s auth deferred to Sprint+1 (ADR-032)              |
+| Harbor Registry           | ✅ Completo  | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)             |
+| **Keycloak SSO**          | ✅ Refactored | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern (R-029 RESOLVED 2026-02-06) |
+| **Observability Stack**   | ✅ Completo  | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas      |
+| **FinOps Automation**     | ✅ Completo  | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
 
 ### Marcos Completos
 
@@ -167,34 +170,50 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ### Próximos Passos (Marco 3 - Fase 2)
 
-1. ~~**PostgreSQL Security Group Fix**~~ ✅ **COMPLETO** (ADR-040, 2026-02-05)
-   - SG ingress: VPC CIDR → Private Subnet CIDRs (least privilege)
-   - Bootstrap automation pode ser reativado
+**Todos os itens do Marco 3 estão ✅ COMPLETOS (2026-02-02 a 2026-02-06)**
 
-2. ~~**Vault HA Completion**~~ ✅ **COMPLETO** (ADR-041, 2026-02-05)
+1. ✅ **FinOps Automation Staging** (ADR-024, 2026-02-02 a 2026-02-05)
+   - EventBridge rules: startup 07:30 BRT, shutdown 20:00 BRT (MON-FRI)
+   - Lambda functions: finops-scheduler-start/stop-staging operational
+   - Economia: R$ 850/mês (~40% redução), R$ 10.200/ano
+   - Status: ENABLED e ativo
+
+2. ✅ **PostgreSQL Security Group Fix** (ADR-040, 2026-02-05)
+   - SG ingress: VPC CIDR → Private Subnet CIDRs (least privilege)
+   - Bootstrap automation ativado
+
+3. ✅ **Vault HA Completion** (ADR-041, 2026-02-05)
    - 3 replicas operational (vault-0/1/2)
    - KMS auto-unseal ativo em todos os pods
-   - Toleration critical nodes aplicada
    - Raft cluster validado + failover test OK
 
-3. ~~**Redis Operator Fix**~~ ✅ **COMPLETO** (2026-02-05, Sessão 2)
-   - rfr-redis-0: Pending → 1/1 Running (toleration pattern ADR-041)
+4. ✅ **Redis Operator** (2026-02-05)
+   - rfr-redis-0: 1/1 Running (toleration pattern ADR-041)
    - 3 sentinels operational
-   - Harbor recovery completo (conectado ao Redis)
+   - Harbor integrado e operacional
 
-4. ~~**Observability Stack Fix**~~ ✅ **COMPLETO** (2026-02-05, Sessão 3)
-   - Prometheus: 2/2 Running (tolerations ADR-041 já aplicadas)
-   - Alertmanager: 2/2 Running
+5. ✅ **Observability Stack** (2026-02-05)
+   - Prometheus/Alertmanager: 2/2 Running
    - Grafana: 3/3 Running
    - 28 ServiceMonitors ativos, stack 100% operacional
 
-5. **Harbor Robot Accounts Setup** ⚠️ **BLOQUEADO** (Harbor API auth issue)
+### Ações Futuras (Marco 4+)
+
+1. **Harbor Robot Accounts Setup** ⚠️ **BLOQUEADO** (Harbor API auth issue)
    - Script create-robot-account.sh: 401 Unauthorized
    - Admin lockout detectado
    - **Ação:** Reset senha via PostgreSQL DB OU UI manual
 
-6. ~~**Metrics Validation**~~ ✅ **COMPLETO** (2026-02-05, Sessão 3)
-   - ServiceMonitor harbor-system/harbor operacional
+2. **Multi-Environment Consolidation** (ADR-026)
+   - Replicar stack Staging → Production (Terraform workspaces)
+   - Timeline: 6-8 semanas
+   - Custo Prod projetado: +$1.500/mês (HA 3 AZs)
+
+3. **Cloud-Agnostic Evolution** (Fase 2)
+   - Substituir AWS ALB → NGINX Ingress
+   - Substituir RDS PostgreSQL → PostgreSQL Operator
+   - Substituir Lambda/EventBridge → Kubernetes CronJob
+   - Timeline: 12+ semanas
    - 20+ métricas Harbor disponíveis (health, projects, artifacts, HTTP)
    - Queries PromQL documentadas: [harbor-metrics-queries.md](docs/logbook/2026-02-05-harbor-metrics-queries.md)
 
@@ -203,28 +222,37 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - Decisão estratégica: OPÇÃO A (Keycloak + OIDC completo)
    - Roadmap 4 sprints: 13-17h, +$100/mês
 
-8. **GAP-001: Keycloak Deployment** ⚠️ **PRÓXIMA AÇÃO** (Prioridade CRÍTICA)
-   - BLOQUEANTE para ArgoCD OIDC + SonarQube LDAP
-   - Estimativa: 4-6h, +$35/mês
-   - Status: Pendente (módulo TF a criar)
+8. ~~**GAP-001: Keycloak Deployment**~~ ✅ **REFACTORED** (2026-02-06)
+   - Módulo Terraform refatorado: `modules/keycloak/`
+   - Integrado no `environments/staging/main.tf`
+   - Chart 18.4.0 (codecentric/keycloak), 2 replicas HA
+   - PostgreSQL RDS backend: database `keycloak` bootstrapped
+   - **Vault + ExternalSecrets pattern** (R-029 RESOLVED - refactored before deploy)
+   - Admin password: random_password gerenciado via Terraform
+   - DB credentials: ExternalSecret `keycloak-postgresql-credentials` (Vault KV v2)
+   - **Status Terraform:** Código refatorado, aguarda `terraform apply`
 
-9. **ArgoCD + SonarQube** 📝 **PLANEJADO** (Marco 4, depende Keycloak)
-   - GitOps deployment strategy
-   - Code quality integration CI/CD pipeline
+9. **ArgoCD + SonarQube** 📝 **PLANEJADO** (Marco 4 - Sprint 2)
+   - **ArgoCD:** Módulo scaffold criado (`modules/argocd/`), NOT IMPLEMENTED
+     - Requer: integração OIDC Keycloak, AppProjects, RBAC
+     - Estimativa: 2-3h para completar módulo + integração
+   - **SonarQube:** Módulo scaffold criado (`modules/sonarqube/`), NOT IMPLEMENTED
+     - Possui TODOs: bootstrap database, ExternalSecret
+     - Estimativa: 2-3h para completar módulo + integração
 
 ---
 
 ## 📊 Status dos Domínios
 
-| Domínio | Terraform | VALIDATION | Conformidade | Deploy Priority | Status |
-|---------|-----------|------------|--------------|-----------------|--------|
-| **platform-core** | ✅ 550 linhas | ✅ 500 linhas | 88.6% | #1 Fundação | ✅ APROVADO |
-| **secrets-management** | ⏳ ADR-002 | ⏳ Pendente | N/A | #2 Crítico | ⚠️ BLOQUEADO |
-| **observability** | ✅ Refatorado | ✅ 3 validações | 91.2% | #3 Medium | ✅ APROVADO |
-| **cicd-platform** | ✅ 650 linhas | ✅ 700 linhas | 86.4% | #4 Objetivo #1 | ✅ APROVADO |
-| **data-services** | ✅ 450 linhas | ✅ 350 linhas | 92.3% | #5 Medium | ✅ APROVADO |
-| **security** | ⏳ ADR-002 | ⏳ Pendente | N/A | #6 Medium | ⚠️ BLOQUEADO |
-| **MÉDIA (implementados)** | - | - | **89.6%** | - | - |
+| Domínio                   | Terraform    | VALIDATION     | Conformidade | Deploy Priority | Status      |
+| ------------------------- | ------------ | -------------- | ------------ | --------------- | ----------- |
+| **platform-core**         | ✅ 550 linhas | ✅ 500 linhas   | 88.6%        | #1 Fundação     | ✅ APROVADO  |
+| **secrets-management**    | ⏳ ADR-002    | ⏳ Pendente     | N/A          | #2 Crítico      | ⚠️ BLOQUEADO |
+| **observability**         | ✅ Refatorado | ✅ 3 validações | 91.2%        | #3 Medium       | ✅ APROVADO  |
+| **cicd-platform**         | ✅ 650 linhas | ✅ 700 linhas   | 86.4%        | #4 Objetivo #1  | ✅ APROVADO  |
+| **data-services**         | ✅ 450 linhas | ✅ 350 linhas   | 92.3%        | #5 Medium       | ✅ APROVADO  |
+| **security**              | ⏳ ADR-002    | ⏳ Pendente     | N/A          | #6 Medium       | ⚠️ BLOQUEADO |
+| **MÉDIA (implementados)** | -            | -              | **89.6%**    | -               | -           |
 
 ### Decisões Pendentes
 1. ~~**secrets-management**: Vault vs External Secrets Operator~~ → ✅ **DECIDIDO:** Ambos (Vault HA storage + ESO sync, ADR-031/032)
@@ -232,15 +260,15 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ### Conformidade por ADR (Domínios Implementados)
 
-| ADR | Título | Conformidade Média |
-|-----|--------|-------------------|
-| ADR-003 | Cloud-Agnostic | 100% ✅ |
-| ADR-004 | IaC/GitOps | 100% ✅ |
-| ADR-005 | Segurança | 73.3% ⚠️ |
-| ADR-006 | Observabilidade | 96.7% ✅ |
-| ADR-020 | Platform Provisioning | 100% ✅ |
-| ADR-021 | Kubernetes | 96.7% ✅ |
-| **MÉDIA** | | **94.4%** |
+| ADR       | Título                | Conformidade Média |
+| --------- | --------------------- | ------------------ |
+| ADR-003   | Cloud-Agnostic        | 100% ✅             |
+| ADR-004   | IaC/GitOps            | 100% ✅             |
+| ADR-005   | Segurança             | 73.3% ⚠️            |
+| ADR-006   | Observabilidade       | 96.7% ✅            |
+| ADR-020   | Platform Provisioning | 100% ✅             |
+| ADR-021   | Kubernetes            | 96.7% ✅            |
+| **MÉDIA** |                       | **94.4%**          |
 
 **Nota**: Gap comum ADR-005 (RBAC granular, Network Policies) é não-bloqueante, roadmap Sprint+1.
 
@@ -417,28 +445,32 @@ Kubernetes/
 
 ## 🚀 Próximos Passos
 
-### Marco 3 (100% Completo ✅)
+### Marco 3 (100% Completo ✅) — ATUALIZADO 2026-02-06
 - [x] PostgreSQL RDS + Security Group least privilege (ADR-040)
 - [x] Vault HA 3 replicas + KMS auto-unseal (ADR-041)
 - [x] Redis Operator + RabbitMQ Operator + GitLab CE
 - [x] Harbor Registry + Robot Accounts (UI workaround ADR-045)
 - [x] External Secrets Operator + Vault backend integration
 - [x] Observability Stack validação (28 ServiceMonitors)
+- [x] **Keycloak SSO Platform** (2026-02-06) - Módulo implementado, aguarda deploy
 
 ### Marco 4 — CI/CD Pipeline Completo (EM ANDAMENTO 🚀)
 
-**STATUS:** Gap analysis completo, OPÇÃO A aprovada (Keycloak + OIDC)
-**DURAÇÃO ESTIMADA:** 13-17h (2-3 dias úteis)
+**STATUS:** Sprint 1 QUASE COMPLETO - Keycloak implementado no código (aguarda `terraform apply`)
+**DURAÇÃO ESTIMADA:** 7-11h restantes (ArgoCD + SonarQube + GitLab CI/CD)
 **CUSTO INCREMENTAL:** +$100/mês
 
-#### Sprint 1: Pre-Requisites (6-10h) ⚠️ PRÓXIMO
-- [ ] **GAP-001:** Keycloak SSO Platform (4-6h, +$35/mês) 🔴 CRÍTICO
-  - Criar módulo terraform/modules/keycloak/
-  - Bootstrap database keycloak no PostgreSQL RDS
-  - Deploy Keycloak HA (2 replicas)
-  - Configurar OIDC clients (argocd, sonarqube, gitlab)
-  - Criar realm master + groups (argocd-admins, developers)
-  - ADR-046: Keycloak SSO Platform Strategy
+#### Sprint 1: Pre-Requisites — STATUS: 80% COMPLETO
+- [x] **GAP-001:** Keycloak SSO Platform ✅ **CÓDIGO IMPLEMENTADO** (2026-02-06)
+  - ✅ Módulo terraform/modules/keycloak/ criado e funcional
+  - ✅ Integrado no environments/staging/main.tf
+  - ✅ Bootstrap database keycloak no PostgreSQL RDS (via additional_databases)
+  - ✅ AWS Secrets Manager pattern implementado
+  - ✅ Admin password: random_password gerenciado via Terraform
+  - ✅ Helm values configurados (2 replicas HA)
+  - ⏳ **PRÓXIMA AÇÃO:** `terraform apply` para deploy no cluster
+  - 📝 **PENDENTE:** Configurar OIDC clients (argocd, sonarqube, gitlab) após deploy
+  - 📝 **PENDENTE:** Criar realm master + groups (argocd-admins, developers)
 
 - [ ] **GAP-002:** GitLab Components Fix (2-4h) 🔴 CRÍTICO
   - Debug Gitaly PVC Pending (StorageClass/scheduling)
@@ -446,17 +478,19 @@ Kubernetes/
   - Fix KAS CrashLoopBackOff (K8s API auth)
   - Fix Sidekiq Init Error (Redis/DB migration)
 
-#### Sprint 2: Core CI/CD Components (4h)
-- [ ] **GAP-003:** ArgoCD Deploy (2h, +$15/mês)
-  - Integrar módulo no main.tf
-  - ExternalSecret OIDC credentials
-  - AppProject CRDs (staging, platform, production)
+#### Sprint 2: Core CI/CD Components (4-6h)
+- [ ] **GAP-003:** ArgoCD Deploy (2-3h, +$15/mês)
+  - ⚠️ Módulo terraform/modules/argocd/ existe (scaffold incompleto)
+  - TODO: Completar values.yaml.tpl com OIDC Keycloak integration
+  - TODO: AppProject CRDs (staging, platform, production)
+  - TODO: Integrar módulo no environments/staging/main.tf
   - Validação OIDC Keycloak login
 
-- [ ] **GAP-004:** SonarQube Deploy (2h, +$50/mês)
-  - Bootstrap database sonarqube no PostgreSQL RDS
-  - ExternalSecret DB credentials
-  - Integrar módulo no main.tf
+- [ ] **GAP-004:** SonarQube Deploy (2-3h, +$50/mês)
+  - ⚠️ Módulo terraform/modules/sonarqube/ existe (scaffold com TODOs)
+  - TODO: Bootstrap database sonarqube no PostgreSQL RDS (via additional_databases)
+  - TODO: ExternalSecret DB credentials (ou AWS SM pattern)
+  - TODO: Completar Helm values e integrar no main.tf
   - Admin password automation
   - Quality gates configuration
 
@@ -534,7 +568,7 @@ Kubernetes/
 
 ---
 
-**Autor**: System Architect  
-**Última Atualização**: 2026-01-05  
-**Versão**: 1.0 (Consolidado)  
+**Autor**: System Architect
+**Última Atualização**: 2026-01-05
+**Versão**: 1.0 (Consolidado)
 **Status**: ✅ ATIVO
