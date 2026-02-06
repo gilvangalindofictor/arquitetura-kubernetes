@@ -1,0 +1,29 @@
+# -----------------------------------------------------------------------------
+# Keycloak Module Outputs
+# -----------------------------------------------------------------------------
+
+output "namespace" {
+  description = "Keycloak namespace"
+  value       = kubernetes_namespace.keycloak.metadata[0].name
+}
+
+output "keycloak_url" {
+  description = "Keycloak URL (internal cluster DNS)"
+  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080"
+}
+
+output "keycloak_admin_url" {
+  description = "Keycloak admin console URL"
+  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080/admin"
+}
+
+output "admin_password_secret" {
+  description = "Keycloak admin password Kubernetes secret name"
+  value       = kubernetes_secret.keycloak_admin_password.metadata[0].name
+  sensitive   = true
+}
+
+output "realm_url" {
+  description = "Keycloak master realm URL (for OIDC issuer configuration)"
+  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080/realms/master"
+}

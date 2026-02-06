@@ -58,6 +58,8 @@ resource "helm_release" "external_secrets" {
 
 # -----------------------------------------------------------------------------
 # ClusterSecretStore - Vault Backend (Kubernetes Auth)
+# ServiceAccount "external-secrets" is created automatically by Helm chart
+# Vault K8s auth must be configured via vault-config module
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "vault_cluster_secret_store" {
@@ -85,46 +87,4 @@ resource "kubectl_manifest" "vault_cluster_secret_store" {
                 name: "external-secrets"
                 namespace: "${var.namespace}"
   YAML
-}
-
-# -----------------------------------------------------------------------------
-# ServiceAccount for ESO Vault auth
-# -----------------------------------------------------------------------------
-
-resource "kubernetes_service_account" "external_secrets_vault" {
-  metadata {
-    name      = "external-secrets-vault"
-    namespace = kubernetes_namespace.external_secrets.metadata[0].name
-
-    labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"     = "external-secrets"
-      "app.kubernetes.io/instance" = "${var.cluster_name}-external-secrets"
-      "app.kubernetes.io/component" = "vault-auth"
-    })
-  }
-}
-
-# -----------------------------------------------------------------------------
-# ClusterRole and ClusterRoleBinding for ESO
-# (ESO needs permissions to watch/update secrets in all namespaces)
-# -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# ConfigMap with Vault setup instructions
-# -----------------------------------------------------------------------------
-
-resource "kubernetes_config_map" "vault_setup" {
-  metadata {
-    name      = "vault-setup-instructions"
-    namespace = kubernetes_namespace.external_secrets.metadata[0].name
-
-    labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"     = "external-secrets"
-      "app.kubernetes.io/instance" = "${var.cluster_name}-external-secrets"
-    })
-  }
-
-  data = {
-    "setup-vault-k8s-auth.sh" = file("${path.module}/scripts/setup-vault-k8s-auth.sh")
-  }
 }
