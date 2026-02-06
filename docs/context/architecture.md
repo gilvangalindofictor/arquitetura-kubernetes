@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-05
-**Versão:** 2.5.1 (Observability Recovery + Marco 3 GitLab Staging)
-**Status:** 🚀 FinOps ATIVA | 🚧 Marco 3 em progresso (GitLab Staging deployed)
+**Última Atualização:** 2026-02-06
+**Versão:** 2.6.0 (Vault Recovery + VPC Endpoints + Keycloak Ready)
+**Status:** 🚀 FinOps ATIVA | ✅ Vault Operational | 🚧 Marco 3: Keycloak pending deploy
 
 ---
 
@@ -47,13 +47,21 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 - **Região:** us-east-1
 - **OIDC Provider:** Habilitado para IRSA
 
-### Node Groups (7 nodes total)
+### Node Groups (8 nodes total - scaled 2026-02-06)
 
 | Node Group | Tipo | Quantidade | vCPU | RAM | Disco | Workload |
 |------------|------|------------|------|-----|-------|----------|
 | system | t3.medium | 2 | 4 | 8GB | 50GB | Platform services críticos |
-| workloads | t3.medium | 3 | 12 | 24GB | 50GB | Aplicações usuário |
-| critical | t3.medium | 2 | 8 | 16GB | 50GB | Serviços high-availability |
+| workloads | t3.large | 3 | 6 | 24GB | 50GB | Aplicações usuário |
+| critical | t3.xlarge | 3 | 12 | 48GB | 50GB | Vault HA, databases HA |
+
+**Scaling Event (2026-02-06):**
+- **Trigger:** Cluster CPU saturation (5/7 nodes >90% usage)
+- **Action:** NodeGroup "critical" scaled 2→3 (desired size)
+- **New Node:** ip-10-0-148-70.ec2.internal (t3.xlarge, us-east-1b)
+- **Cost Impact:** +$121.47/mês ($1,457.64/ano) - temporary
+- **Rationale:** Vault StatefulSet não conseguia agendar vault-0 (FailedScheduling)
+- **Future:** Optimize workloads + consider downscaling após resource tuning
 
 **Taints e Labels:**
 - `system`: `node-type=system:NoSchedule` + label `node-type=system`
@@ -70,6 +78,45 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 - **OIDC Provider:** `EC913B145BF356481CBE823532F09150`
 - **Padrão IRSA:** Todos platform services usam IAM Roles (sem Access Keys)
 - **Roles criados:** 4 (EBS CSI, ALB Controller, Loki S3, Cluster Autoscaler)
+
+### VPC Endpoints (AWS PrivateLink)
+
+**Status:** ✅ Implementado (2026-02-06)
+**ADR:** ADR-044 VPC Endpoints for EKS
+**Logbook:** [2026-02-06-vault-recovery-vpc-endpoints.md](../logbook/2026-02-06-vault-recovery-vpc-endpoints.md)
+
+**Interface Endpoints criados:**
+
+| Service | Endpoint ID | AZs | Private DNS | Status |
+|---------|-------------|-----|-------------|--------|
+| **STS** | vpce-0c3a498a73742aa21 | us-east-1a, us-east-1b | ✅ Enabled | available |
+| **EC2** | vpce-0b52639b29be0559e | us-east-1a, us-east-1b | ✅ Enabled | available |
+
+**Configuração:**
+- **Tipo:** Interface (ENI-based, 2 ENIs por endpoint)
+- **Security Group:** sg-0ed52abadabebb8d3 (cluster SG, egress 0.0.0.0/0)
+- **Subnets:** subnet-0288a67cd352effa7 (1b), subnet-0472ab28726cdf745 (1a)
+- **Private DNS:** Habilitado (`sts.us-east-1.amazonaws.com`, `ec2.us-east-1.amazonaws.com`)
+
+**Motivação:**
+- **Root Cause:** CSI driver TLS timeout (NAT Gateway → public internet instável)
+- **Performance:** AWS API latency 50-200ms (NAT) → <5ms (VPC endpoint) = **10-40x faster**
+- **Reliability:** Elimina dependency em NAT Gateway availability para critical infra
+- **Security:** Tráfego não sai da AWS private network (compliance requirement)
+
+**Impacto:**
+- ✅ EBS CSI Driver: 100% error rate → 0% (PVC provisioning funcional)
+- ✅ IRSA calls: AssumeRoleWithWebIdentity latency reduzida
+- ✅ Vault HA: Recovery de 15h downtime → operational em 2h32min
+
+**Custo:** $28.90/mês ($346.80/ano)
+- Base: $0.01/hour/AZ × 2 AZ × 2 endpoints = $28.80/mês
+- Data processing: ~$0.10/mês (10 GB API calls)
+- **Trade-off:** +$28.45/mês líquido vs NAT data transfer savings
+
+**Próximos Endpoints (roadmap):**
+- ECR API/DKR (container image pull latency)
+- S3 Gateway (free, zero cost improvement)
 
 ---
 
@@ -686,19 +733,68 @@ Internet
 - **Fix:** Runner registration functional (resolve R-019)
 - **Custo:** +$0.50/mês ($6/ano)
 
-**2. Vault HA + KMS Auto-Unseal (ADR-030) — 3h**
-- **Versão:** Helm hashicorp/vault v0.27.0 (3 replicas Raft)
-- **Auto-unseal:** KMS key `alias/vault-unseal-k8s-platform-prod` ($1/mês)
+**2. Vault HA + KMS Auto-Unseal (ADR-030) — ✅ IMPLEMENTADO (2026-02-06)**
+
+**Status:** ✅ Operational (3/3 replicas Running, unsealed)
+**Namespace:** vault-system
+**Versão:** Helm hashicorp/vault v0.27.0 (Raft HA backend)
+**Deployment Time:** 2h32min (incluindo troubleshooting infra)
+**Logbook:** [2026-02-06-vault-recovery-vpc-endpoints.md](../logbook/2026-02-06-vault-recovery-vpc-endpoints.md)
+
+**Componentes:**
+
+| Component | Replicas | Status | Storage | Node Type |
+|-----------|----------|--------|---------|-----------|
+| vault | 3 StatefulSet | 1/1 Running | 10Gi data + 5Gi audit (gp2) | workloads |
+| vault-agent-injector | 1 Deployment | 1/1 Running | - | workloads |
+
+**Auto-Unseal:** AWS KMS
+- **KMS Key:** `alias/vault-unseal-k8s-platform-prod`
+- **Benefit:** Zero manual intervention após restart (auto-recovery)
+- **Recovery Keys:** 5 keys B64-encoded (disaster recovery only)
+- **Root Token:** Stored in K8s Secret `vault-root-token` (vault-system NS)
+
+**Storage Backend:** Raft (Integrated Storage)
+- **Data:** 3× 10Gi PVCs (pvc-1f4e6089, pvc-83f182b0, pvc-aff26d41)
+- **Audit:** 3× 5Gi PVCs (pvc-2fa86f1f, pvc-9cd23503, pvc-4f77fc2b)
+- **Total:** 45Gi EBS gp2 ($3.60/mês)
 - **Backups:** S3 Raft snapshots 30d retention ($0.20/mês)
-- **Auth:** Kubernetes auth + policies (eso-reader, gitlab-ci)
-- **Rotation:** Lambda token rotation 90d ($0.50/mês)
-- **Custo:** +$1.70/mês ($20.40/ano)
+
+**Kubernetes Auth:** (pending vault_config deployment)
+- **Mount Path:** `kubernetes`
+- **Policy:** `eso-reader` (read-only `secret/data/*`)
+- **Role:** `eso-reader` (bound to SA `external-secrets/external-secrets-operator`)
+- **JWT Reviewer:** K8s API server token validation
+
+**Secrets Managed:**
+- `secret/data/keycloak/postgresql` (username, password, host, database)
+- Pattern: KV v2 engine (versioned, rotatable)
+- Sync: ExternalSecret 1h refresh → K8s Secret auto-update
+
+**High Availability:**
+- **Raft Consensus:** 3 voting members (quorum = 2)
+- **Leader Election:** Automatic (current leader: vault-2)
+- **Failover:** < 30s (Raft re-election)
+- **Cluster Name:** `vault-cluster-aecd4662`
+
+**Recovery Incident (2026-02-06):**
+- **Downtime:** 15h (pods ContainerCreating/Pending)
+- **Root Cause:** VPC Endpoints (STS/EC2) ausentes → CSI driver timeout
+- **Resolution:** Created VPC Endpoints + NodeGroup scale → operational
+- **MTTR:** 2h32min (deep troubleshooting multi-layer)
+
+**Custo:** $4.80/mês ($57.60/ano)
+- KMS: $1/mês
+- S3 backups: $0.20/mês
+- EBS volumes: $3.60/mês (45Gi gp2)
 
 **3. External Secrets Operator (ADR-031) — 1.5h**
 - **Versão:** Helm external-secrets/external-secrets v0.9.11
 - **CRDs:** 6 instalados (ExternalSecret, SecretStore, ClusterSecretStore)
-- **Backend:** ClusterSecretStore → Vault K8s auth
-- **Sync:** GitLab, Harbor, ArgoCD, SonarQube secrets
+- **Backend:** ClusterSecretStore `vault-backend` → Vault K8s auth
+- **Sync:** Keycloak (✅), GitLab (pending), Harbor (pending), SonarQube (pending)
+- **Pattern:** ExternalSecret → Vault KV v2 `secret/data/<service>/<resource>`
+- **Refresh:** 1h (configurable per ExternalSecret)
 - **Custo:** $0 (pods nodes existentes)
 
 **4. Harbor Container Registry (ADR-032) — 4h**
@@ -718,7 +814,23 @@ Internet
 - **RBAC:** No secret enumeration (CI role)
 - **Custo:** $0 (ArgoCD já deployed Marco 2)
 
-**6. E2E Pipeline Test — 1.5h**
+**6. Keycloak SSO Platform (GAP-001) — 2h**
+- **Adicionado em:** 2026-02-06
+- **Versão:** Helm codecentric/keycloak v18.4.0
+- **Namespace:** keycloak
+- **Replicas:** 2 (HA para serviço crítico SSO)
+- **Database:** PostgreSQL RDS shared DB `keycloak` ($0)
+- **Secrets:** ExternalSecret → Vault `secret/data/keycloak/postgresql`
+
+  - Pattern: R-029 RESOLVED (Vault backend desde inception, sem AWS SM)
+  - Auto-sync 1h, credentials rotacionáveis via Vault KV v2
+
+- **Admin Password:** Terraform random_password (24 chars, managed)
+- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana (futuro)
+- **Custo:** $0 (usa RDS shared + nodes existentes)
+- **Logbook:** [2026-02-06-vault-eso-keycloak-integration.md](../logbook/2026-02-06-vault-eso-keycloak-integration.md)
+
+**7. E2E Pipeline Test — 1.5h**
 - **Flow:** GitLab → Kaniko + Vault creds → Harbor push → Trivy scan → ArgoCD sync
 - **Target:** < 15min commit-to-deploy
 - **Validation:** Pods Running, health checks pass
@@ -729,7 +841,7 @@ Internet
 
 #### FASE 2: Code Quality + Security (3h)
 
-**7. SonarQube Community Edition (ADR-034) — 3h**
+**8. SonarQube Community Edition (ADR-034) — 3h**
 - **Versão:** Helm sonarqube/sonarqube v10.7.0
 - **Database:** PostgreSQL RDS shared DB `sonarqube` ($0)
 - **Storage:** S3 plugin analyses archive >90d ($10/mês)

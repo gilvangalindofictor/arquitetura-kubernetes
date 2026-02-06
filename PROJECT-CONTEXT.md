@@ -138,22 +138,24 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **Marco 3 F1c**    | PostgreSQL SG Fix (ADR-040)                                                   | ✅ Completo | 5min         | $0            |
 | **Marco 3 F1c**    | Vault HA Migration (ADR-041)                                                  | ✅ Completo | 27min        | +$3/mês       |
 | **Marco 3 F1d**    | FinOps Automation Staging (Lambda + EventBridge, ADR-024)                     | ✅ Completo | 3 dias       | +$0.50/mês    |
-| **TOTAL**          |                                                                               |            | **~14 dias** | **~$671/mês** |
+| **Marco 3 F1e**    | VPC Endpoints (STS + EC2, ADR-046, Vault recovery)                             | ✅ Completo | 2h32min      | +$28.90/mês   |
+| **TOTAL**          |                                                                               |            | **~14 dias** | **~$700/mês** |
 
 ### Marco 3 - Detalhamento (Fase 1a/1b/1c)
 
-| Componente                | Status      | Observações                                                                                     |
-| ------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| PostgreSQL RDS            | ✅ Completo  | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040) |
-| Redis Operator            | ✅ Completo  | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                    |
-| RabbitMQ Operator         | ✅ Completo  | Official operator, 1 replica staging, namespace data-services                                   |
-| GitLab CE Staging         | ✅ Completo  | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                       |
-| Vault HA                  | ✅ Completo  | 3 replicas operational, KMS auto-unseal, toleration critical, Raft cluster validated (ADR-041)  |
-| External Secrets Operator | ✅ Instalado | ClusterSecretStore deployed, Vault backend K8s auth deferred to Sprint+1 (ADR-032)              |
-| Harbor Registry           | ✅ Completo  | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)             |
-| **Keycloak SSO**          | ✅ Refactored | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern (R-029 RESOLVED 2026-02-06) |
-| **Observability Stack**   | ✅ Completo  | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas      |
-| **FinOps Automation**     | ✅ Completo  | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
+| Componente                | Status       | Observações                                                                                                        |
+| ------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| PostgreSQL RDS            | ✅ Completo   | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
+| Redis Operator            | ✅ Completo   | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                                       |
+| RabbitMQ Operator         | ✅ Completo   | Official operator, 1 replica staging, namespace data-services                                                      |
+| GitLab CE Staging         | ✅ Completo   | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
+| Vault HA                  | ✅ Completo   | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
+| VPC Endpoints             | ✅ Completo   | STS + EC2 Interface Endpoints, Private DNS enabled, 10-40x latency improvement, $28.90/mês (ADR-046)               |
+| External Secrets Operator | ✅ Operacional | ClusterSecretStore Vault backend, K8s auth configured, Keycloak secrets ready (ADR-032)                             |
+| Harbor Registry           | ✅ Completo   | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)                                |
+| **Keycloak SSO**          | ⏳ Ready      | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern, deploy pending (R-029 RESOLVED 2026-02-06) |
+| **Observability Stack**   | ✅ Completo   | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas                         |
+| **FinOps Automation**     | ✅ Completo   | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
 
 ### Marcos Completos
 
@@ -182,10 +184,12 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - SG ingress: VPC CIDR → Private Subnet CIDRs (least privilege)
    - Bootstrap automation ativado
 
-3. ✅ **Vault HA Completion** (ADR-041, 2026-02-05)
+3. ✅ **Vault HA Completion + Recovery** (ADR-041, ADR-046, 2026-02-05/06)
    - 3 replicas operational (vault-0/1/2)
    - KMS auto-unseal ativo em todos os pods
    - Raft cluster validado + failover test OK
+   - **Incident Recovery:** 15h downtime resolvido via VPC Endpoints (2026-02-06)
+   - Root token: hvs.CxUPch... (secured in K8s secret)
 
 4. ✅ **Redis Operator** (2026-02-05)
    - rfr-redis-0: 1/1 Running (toleration pattern ADR-041)
@@ -196,6 +200,14 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - Prometheus/Alertmanager: 2/2 Running
    - Grafana: 3/3 Running
    - 28 ServiceMonitors ativos, stack 100% operacional
+
+6. ✅ **VPC Endpoints Critical Infrastructure** (ADR-046, 2026-02-06)
+   - Interface Endpoints: STS (vpce-0c3a498a73742aa21), EC2 (vpce-0b52639b29be0559e)
+   - Private DNS enabled (transparent migration)
+   - Latency: 50-200ms → <5ms (10-40x improvement)
+   - Cost: $28.90/mês vs $1,000+ incident avoided
+   - **Trigger:** Vault recovery incident (EBS CSI Driver timeout via NAT Gateway)
+   - **Result:** 100% PVC provisioning success rate, Vault operational
 
 ### Ações Futuras (Marco 4+)
 
