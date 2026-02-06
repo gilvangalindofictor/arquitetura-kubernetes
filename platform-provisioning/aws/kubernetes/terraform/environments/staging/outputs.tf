@@ -82,6 +82,50 @@ output "gitlab_s3_policy_arn" {
 }
 
 #------------------------------------------------------------------------------
+# Vault + External Secrets Outputs
+#------------------------------------------------------------------------------
+
+output "vault_k8s_auth_path" {
+  description = "Vault Kubernetes auth mount path"
+  value       = module.vault_config_staging.vault_k8s_auth_path
+}
+
+output "vault_eso_reader_role" {
+  description = "Vault role for ESO authentication"
+  value       = module.vault_config_staging.eso_reader_role
+}
+
+output "vault_keycloak_secret_path" {
+  description = "Vault path for Keycloak PostgreSQL credentials"
+  value       = module.vault_config_staging.keycloak_secret_path
+}
+
+#------------------------------------------------------------------------------
+# Keycloak SSO Platform Outputs
+#------------------------------------------------------------------------------
+
+output "keycloak_url" {
+  description = "Keycloak URL for OIDC integration"
+  value       = module.keycloak_staging.keycloak_url
+}
+
+output "keycloak_realm_url" {
+  description = "Keycloak master realm URL (OIDC issuer)"
+  value       = module.keycloak_staging.realm_url
+}
+
+output "keycloak_namespace" {
+  description = "Keycloak namespace"
+  value       = module.keycloak_staging.namespace
+}
+
+output "keycloak_admin_password_secret" {
+  description = "Keycloak admin password K8s secret name"
+  value       = module.keycloak_staging.admin_password_secret
+  sensitive   = true
+}
+
+#------------------------------------------------------------------------------
 # FinOps Automation Outputs
 #------------------------------------------------------------------------------
 

@@ -87,3 +87,24 @@ variable "finops_alert_email" {
   description = "Email for FinOps alerts"
   type        = string
 }
+
+#------------------------------------------------------------------------------
+# Vault Variables
+#------------------------------------------------------------------------------
+
+variable "vault_root_token" {
+  description = "Vault root token for initial configuration (from init or K8s secret)"
+  type        = string
+  sensitive   = true
+}
+
+#------------------------------------------------------------------------------
+# Keycloak Variables
+#------------------------------------------------------------------------------
+
+variable "keycloak_postgresql_password" {
+  description = "Keycloak PostgreSQL password (stored in Vault)"
+  type        = string
+  sensitive   = true
+  default     = "" # If empty, random password will be generated
+}

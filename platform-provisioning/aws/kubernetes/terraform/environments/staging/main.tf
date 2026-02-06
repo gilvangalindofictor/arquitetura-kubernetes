@@ -30,6 +30,10 @@ terraform {
       source  = "hashicorp/time"
       version = "~> 0.12"
     }
+    vault = {
+      source  = "hashicorp/vault"
+      version = "~> 3.25"
+    }
   }
 }
 
@@ -142,12 +146,17 @@ module "postgresql_staging" {
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
   common_tags           = local.common_tags
 
-  # Bootstrap additional databases (Harbor)
+  # Bootstrap additional databases (Harbor, Keycloak)
   additional_databases = [
     {
       name     = "harbor"
       username = "harbor_user"
       password = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+    },
+    {
+      name     = "keycloak"
+      username = "keycloak_user"
+      password = "PLACEHOLDER_VAULT_MANAGED" # Managed by Vault KV v2 + ExternalSecret
     }
   ]
 }
@@ -204,6 +213,11 @@ data "aws_secretsmanager_secret" "postgresql_password" {
 data "aws_secretsmanager_secret_version" "postgresql_password" {
   secret_id = data.aws_secretsmanager_secret.postgresql_password.id
 }
+
+# Keycloak PostgreSQL Password via Vault + ExternalSecrets
+# Decision: R-029 RESOLVED - Vault backend desde inception (refactored before deploy)
+# Secret managed by External Secrets Operator (ClusterSecretStore: vault-backend)
+# Vault path: secret/data/keycloak/postgresql
 
 resource "kubernetes_secret" "gitlab_postgresql_password" {
   metadata {
@@ -326,6 +340,35 @@ module "external_secrets_staging" {
   common_tags       = local.common_tags
 }
 
+# Vault Post-Deployment Configuration
+# K8s auth, policies, roles, and Keycloak secrets
+module "vault_config_staging" {
+  source = "../../modules/vault-config"
+
+  depends_on = [
+    module.vault_staging,
+    module.external_secrets_staging
+  ]
+
+  vault_addr  = "http://vault.vault-system.svc.cluster.local:8200"
+  vault_token = var.vault_root_token
+
+  cluster_name        = local.cluster_name
+  kubernetes_host     = data.aws_eks_cluster.cluster.endpoint
+  kubernetes_ca_cert  = data.aws_eks_cluster.cluster.certificate_authority[0].data
+  eso_namespace       = "external-secrets-system"
+  eso_service_account = "external-secrets"
+
+  # Keycloak PostgreSQL credentials
+  keycloak_postgresql_password = var.keycloak_postgresql_password
+  keycloak_postgresql_username = "keycloak_user"
+  keycloak_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  keycloak_postgresql_port     = "5432"
+  keycloak_postgresql_database = "keycloak"
+
+  common_tags = local.common_tags
+}
+
 # Harbor Container Registry - STAGING (IRSA S3 storage)
 module "harbor_staging" {
   source = "../../modules/harbor"
@@ -363,6 +406,43 @@ module "harbor_staging" {
   enable_trivy      = false # DISABLED: chart não aplica storageClass em volumeClaimTemplate
   enable_monitoring = true
   common_tags       = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# KEYCLOAK - SSO Platform (GAP-001)
+# OIDC provider for ArgoCD, SonarQube, GitLab
+# Pattern: Vault KV v2 + ExternalSecrets Operator (R-029 RESOLVED)
+#------------------------------------------------------------------------------
+
+module "keycloak_staging" {
+  source = "../../modules/keycloak"
+
+  depends_on = [
+    module.postgresql_staging,
+    module.external_secrets_staging,
+    module.vault_config_staging
+  ]
+
+  # Cluster info
+  cluster_name = local.cluster_name
+  aws_region   = var.aws_region
+  namespace    = "keycloak"
+
+  # Keycloak configuration
+  keycloak_chart_version = "18.4.0"
+  replicas               = 2 # HA for critical SSO service
+
+  # PostgreSQL (external - RDS via postgresql_staging module)
+  postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  postgresql_port     = 5432
+  postgresql_database = "keycloak"
+  postgresql_username = "keycloak_user"
+
+  # Monitoring
+  enable_monitoring = true
+
+  # Tags
+  common_tags = local.common_tags
 }
 
 #------------------------------------------------------------------------------
