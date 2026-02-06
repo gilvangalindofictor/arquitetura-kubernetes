@@ -1,0 +1,8 @@
+# Feedback Entries
+
+Este arquivo armazena feedback do usuário sobre tasks executadas.
+Formato: JSON Lines (um JSON por linha)
+
+Exemplo de entrada:
+{"task_id": "marco3-vault-eso", "agent": "devops", "rating": "up", "comment": "Implementação limpa e bem documentada", "timestamp": "2026-02-06T12:34:56Z"}
+{"task_id": "refactor-terraform", "agent": "terraform_specialist", "rating": "down", "comment": "Módulo muito acoplado, dificultar reutilização", "timestamp": "2026-02-06T14:20:00Z"}
