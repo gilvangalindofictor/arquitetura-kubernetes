@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-05
-**Versão:** 2.2 (Harbor API Auth Issue)
+**Versão:** 2.3 (Vault Fix + AWS SM Technical Debt)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -30,6 +30,8 @@
 | **R-018** | **Licenciamento Bitnami → Tanzu Standard** | **ALTO** | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)** | **Migração para Operators** |
 | **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)** | **ALTO** | **BAIXO** | **🟢 BAIXO** | ✅ **Aceito** | **Resolvido ADR-021 Fase 2** |
 | **R-020** | **Harbor API Auth Issue (Robot Account Creation)** | **BAIXO** | **MÉDIO** | **🟡 MÉDIO** | ✅ **Mitigado (UI)** | **ADR-045 Workaround** |
+| **R-026** | **Vault HA Degraded (vault-0 CrashLoop)** | **MÉDIO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido** | **Delete pod fix** |
+| **R-029** | **Keycloak Secrets via AWS SM (Technical Debt)** | **BAIXO** | **BAIXO** | **🟢 BAIXO** | ✅ **RESOLVED** | **Refactored 2026-02-06** |
 
 ---
 
@@ -1826,4 +1828,113 @@ Harbor v2.10.0 API endpoints para criação de robot accounts retornam 401 Unaut
 **Decisão:** Aceitar workaround UI até root cause investigation (requer RDS bastion access). Impact limitado (robot accounts criados raramente, UI funcional).
 
 **Referência:** [ADR-045](decisions.md#adr-045), [Logbook 2026-02-05](../logbook/2026-02-05-harbor-robot-accounts.md)
+
+
+---
+
+### R-026: Vault HA Degraded (vault-0 CrashLoop) ✅ RESOLVIDO
+
+**Probabilidade:** MÉDIO
+**Impacto:** ALTO
+**Severidade:** 🟢 BAIXO (resolvido)
+
+**Descrição:**
+Vault-0 pod em CrashLoopBackOff (67 restarts) com erro "NoCredentialProviders: no valid providers in chain" ao tentar acessar AWS KMS para auto-unseal.
+
+**Cenário de Falha:**
+1. Vault-0 criado 1m42s após vault-1/2 (timing race condition)
+2. IRSA token não disponível durante initial boot sequence
+3. KMS auto-unseal falhou sem credenciais AWS
+4. Pod stuck em CrashLoopBackOff loop infinito
+
+**Root Cause:**
+- Vault boot sequence iniciou antes do IRSA web identity token estar disponível
+- Pod não recuperou automaticamente após token disponibilizar
+- StatefulSet updateStrategy OnDelete = não recreate automático
+
+**Mitigações Implementadas:**
+- ✅ **Delete pod vault-0:** Force recreate via kubectl delete (2026-02-05)
+- ✅ **IRSA validado:** ServiceAccount annotation eks.amazonaws.com/role-arn presente
+- ✅ **Raft cluster:** 3/3 peers healthy (vault-2 leader)
+- ✅ **KMS auto-unseal:** Operational em todos os pods
+
+**Resultado:**
+- Vault-0: unsealed + Raft follower (22min fix)
+- HA cluster: 3/3 pods operational
+- ESO desbloqueado (parcialmente - K8s auth pending)
+
+**Monitoramento:**
+- Prometheus alert: VaultSealed + VaultDown
+- Pod restart count threshold: >5 restarts/hour
+
+**Referência:** [vault-fix logbook](../../logbook/2026-02-05-vault-fix.md)
+
+---
+
+### R-029: Keycloak Secrets via AWS Secrets Manager (Technical Debt) ✅ RESOLVED
+
+**Status**: ✅ **RESOLVED** (2026-02-06)
+
+**Descrição Original:**
+Keycloak deployment planejado para usar AWS Secrets Manager, gerando dívida técnica vs ADR-032 (Vault backend padrão).
+
+**Resolução:**
+Dívida técnica **eliminada ANTES do deploy** via refactoring proativo do código Terraform. Keycloak implementado diretamente com Vault KV v2 + ExternalSecrets Operator desde inception.
+
+**Estratégia Aplicada:**
+- **Cenário Planejado Original**: Deploy com AWS SM → Migrar depois (complexo)
+- **Cenário Executado**: Refactor código ANTES deploy → Zero dívida técnica ✅
+
+**Mudanças Implementadas:**
+1. ✅ **Module Keycloak** (`modules/keycloak/main.tf`):
+   - Removido: `data.aws_secretsmanager_secret` (AWS SM)
+   - Adicionado: `kubectl_manifest` (ExternalSecret CRD)
+   - Pattern: Vault KV v2 path `secret/data/keycloak/postgresql`
+
+2. ✅ **Values Template** (`modules/keycloak/values.yaml.tpl`):
+   - Modificado: DB env vars de `value:` → `valueFrom: secretKeyRef:`
+   - Secret source: `keycloak-postgresql-credentials` (managed by ESO)
+
+3. ✅ **Staging Environment** (`environments/staging/main.tf`):
+   - Removido: AWS SM data sources para Keycloak
+   - Adicionado: `module.external_secrets_staging` dependency
+   - PostgreSQL password: Placeholder (managed by Vault)
+
+4. ✅ **Module Vault Config** (`modules/vault-config/main.tf`) - **NOVO 2026-02-06**:
+   - Criado: Terraform provider Vault (codifica Vault config, não bash script)
+   - K8s auth: `vault_auth_backend.kubernetes` (mount path: "kubernetes")
+   - Policy: `vault_policy.eso_reader` (read-only `secret/*`)
+   - Role: `vault_kubernetes_auth_backend_role.eso_reader` (bound to ESO SA)
+   - Secret: `vault_kv_secret_v2.keycloak_postgresql` (auto-generated ou fornecido)
+   - **Idempotência:** 100% Terraform-managed (regra #11 executor-terraform.md)
+
+**Conformidade ADR-032:**
+- ✅ Vault como backend secreto (100% compliance)
+- ✅ ExternalSecrets Operator integrado
+- ✅ ClusterSecretStore `vault-backend` utilizado
+- ✅ Refresh interval: 1h (automatic rotation)
+
+**Custo Real vs Estimado:**
+- **Custo Operacional**: $0 (zero AWS SM usage)
+- **Custo Refactoring**: ~2h eng time (vs estimado 4-6h)
+- **Economia**: $1.20/mês × indefinido = ROI positivo imediato
+
+**Benefícios Obtidos:**
+- ✅ Zero downtime (refactored before deploy)
+- ✅ Zero migration complexity
+- ✅ Conformidade ADR-032 desde inception
+- ✅ Pattern estabelecido para futuros services
+
+**Evidência:**
+- Código refatorado: [modules/keycloak/main.tf](../../../platform-provisioning/aws/kubernetes/terraform/modules/keycloak/main.tf)
+- Logbook: [2026-02-06-r029-migration-keycloak-vault.md](../../logbook/2026-02-06-r029-migration-keycloak-vault.md)
+
+**Lições Aprendidas:**
+- ✅ Refactoring proativo > Migration reativa
+- ✅ "Technical debt" pode ser eliminada ANTES de criada
+- ✅ Validar deployment status antes planejar migration
+
+**Data Resolução:** 2026-02-06
+**Duração:** 2 horas (análise + refactoring + docs)
+**Status Final:** ✅ RESOLVED - Zero dívida técnica
 
