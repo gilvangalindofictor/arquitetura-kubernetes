@@ -4,6 +4,16 @@
 global:
   domain: ${domain}
 
+# External PostgreSQL Configuration
+configs:
+  secret:
+    # Database credentials from K8s secret
+    postgresPassword: $${argocd-postgresql-credentials:password}
+
+  params:
+    # Use external PostgreSQL
+    "server.insecure": "true"  # For internal cluster access
+
 server:
   replicas: ${replicas}
 
@@ -17,15 +27,42 @@ server:
       value: critical
       effect: NoSchedule
 
+  # External Database Configuration
+  envFrom:
+    - secretRef:
+        name: argocd-postgresql-credentials
+
+  env:
+    - name: ARGOCD_SERVER_POSTGRESQL_HOST
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: host
+    - name: ARGOCD_SERVER_POSTGRESQL_DATABASE
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: database
+    - name: ARGOCD_SERVER_POSTGRESQL_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: username
+    - name: ARGOCD_SERVER_POSTGRESQL_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: password
+
   config:
     url: https://${domain}
-    
+
     # Keycloak OIDC
     oidc.config: |
       name: Keycloak
-      issuer: ${keycloak_url}/realms/master
+      issuer: ${keycloak_url}/realms/platform
       clientID: ${keycloak_client}
-      clientSecret: $oidc.keycloak.clientSecret
+      clientSecret: $${argocd-oidc-credentials:client-secret}
       requestedScopes: ["openid", "profile", "email", "groups"]
   
   rbacConfig:

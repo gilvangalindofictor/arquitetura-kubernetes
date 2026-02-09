@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.12"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 
@@ -61,8 +65,24 @@ resource "helm_release" "argocd" {
 }
 
 # -----------------------------------------------------------------------------
-# AppProject: Data Engineering
+# AppProjects
+# Note: Using null_resource + local-exec instead of kubernetes_manifest
+# because CRDs are not available until ArgoCD Helm release completes
 # -----------------------------------------------------------------------------
 
-# TODO: Implement AppProject CRDs via kubectl_manifest
-# Example: projects/data-engineering.yaml
+resource "null_resource" "appprojects" {
+  triggers = {
+    platform_yaml     = filemd5("${path.module}/projects/platform.yaml")
+    applications_yaml = filemd5("${path.module}/projects/applications.yaml")
+    argocd_version    = helm_release.argocd.version
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      kubectl apply -f ${path.module}/projects/platform.yaml
+      kubectl apply -f ${path.module}/projects/applications.yaml
+    EOT
+  }
+
+  depends_on = [helm_release.argocd]
+}
