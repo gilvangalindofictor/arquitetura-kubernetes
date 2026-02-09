@@ -1,7 +1,7 @@
 # 💰 Análise de Custos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-06
-**Versão:** 3.4 (VPC Endpoints + Keycloak Vault Integration)
+**Última Atualização:** 2026-02-09
+**Versão:** 3.5 (Prod Environment + Network Security)
 **Framework:** FinOps + TCO Analysis
 
 ---
@@ -68,6 +68,64 @@ Marco 0: $0.07/mês → Marco 1: $550/mês → Marco 2: $666/mês → Marco 2 Fa
 | **TOTAL STAGING** | | **$48.60/mês** | **$583.20/ano** | ✅ Validado 2026-02-04 |
 
 **Comparação vs Projetado:** -$44.11/mês (-47.6% economia temporária até runner funcional)
+
+---
+
+## 🎯 Atualização 2026-02-09: Production Environment
+
+**Data:** 2026-02-09
+**Status:** ✅ **Implementado**
+**Logbook:** [2026-02-09-cluster-remediation.md](../logbook/2026-02-09-cluster-remediation.md#sessão-3)
+
+### Componentes Adicionados (Zero Custo Adicional)
+
+| Componente | Quantidade | Tipo | Custo/Mês | Observações |
+|------------|------------|------|-----------|-------------|
+| **Namespace** | 1 (data-services-prod) | Infrastructure | $0 | Logical isolation only |
+| **ServiceMonitors** | 2 (postgresql-prod, gitlab) | Observability | $0 | Prometheus CRD, no compute |
+| **NetworkPolicies** | 10 (1 prod + 9 gitlab) | Security | $0 | Calico policy engine (already deployed) |
+| **Helm Modification** | 1 (GitLab rev 5) | Config update | $0 | In-place upgrade |
+
+**TOTAL CUSTO ADICIONAL:** **$0/mês**
+
+### Justificativa Zero-Cost
+
+1. **Namespace:** Kubernetes logical construct (sem overhead de recursos)
+2. **ServiceMonitors:** CRDs que configuram scraping do Prometheus já existente
+3. **NetworkPolicies:** Utilizan Calico policy-only engine (deployed Fase 5 Marco 2, $0)
+4. **Helm Upgrade:** Configuração existente, sem novos pods ou recursos AWS
+
+### State Evolution
+
+| Métrica | Antes | Depois | Delta |
+|---------|-------|--------|-------|
+| **Terraform Resources** | 57 | 68 | +11 (+19%) |
+| **Infrastructure Cost** | $752.80/mês | $752.80/mês | $0 |
+| **Monthly Savings** | N/A | N/A | $0 |
+
+### Benefícios vs Custo
+
+| Benefício | Impacto | Custo |
+|-----------|---------|-------|
+| **Prod Monitoring** | PostgreSQL + GitLab métricas no Grafana | $0 |
+| **Network Security** | Zero-trust prod isolation (deny-from-staging) | $0 |
+| **Compliance** | GitLab prod traffic auditable (9 policies) | $0 |
+| **Drift Correction** | Terraform state sincronizado (idempotente) | $0 |
+
+**ROI:** ∞ (infinite return, zero investment)
+
+### Custo Total Atualizado
+
+```
+Marco 0+1+2: $685.70/mês
+Marco 3 Fase 1 (Redis): +$18.50/mês
+Marco 3 GitLab (Staging): +$48.60/mês
+Atualização 2026-02-09: +$0/mês
+────────────────────────────────────
+TOTAL: $752.80/mês ($9,033.60/ano)
+```
+
+**Sem alteração** vs previsão anterior.
 
 ---
 

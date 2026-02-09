@@ -1,10 +1,10 @@
 # Software Architecture Document (SAD) - Projeto Kubernetes
 
-> **Versão**: 1.2
+> **Versão**: 1.3
 > **Data de Criação**: 2025-12-30
-> **Última Atualização**: 2026-01-05
+> **Última Atualização**: 2026-02-09
 > **Status**: � **CONGELADO** (Freeze #3)
-> **Versão Anterior**: 1.1 (congelada 2026-01-05, descongelada para v1.2)
+> **Versão Anterior**: 1.2 (congelada 2026-01-05, descongelada para v1.3)
 > **Metodologia**: AI-First (Engenharia Reversa do iPaaS)
 > **Fonte Suprema**: Este documento é a autoridade máxima para decisões arquiteturais sistêmicas
 
@@ -38,6 +38,18 @@ O **Software Architecture Document (SAD)** define as **decisões arquiteturais s
 - Decisão fundamental que estava implícita agora documentada explicitamente
 - Justificativa: Kubernetes vs Swarm, Nomad, ECS, Cloud Run, Container Apps
 - Validação: Kubernetes é o Único que atende ADR-003 (cloud-agnostic) + ecossistema maduro
+
+**Mudanças v1.2 → v1.3**:
+- **CAMADA 2 (Aplicações Corporativas)** adicionada ao SAD
+- ADR-047 criado (Estrutura Corporativa de Domínios de Negócio)
+- ADR-048 criado (Naming Conventions Determinísticas)
+- ADR-049 criado (Governança e RBAC para Domínios Corporativos)
+- Clarificação: SAD v1.0-1.2 define Camada 1 (Domínios Técnicos - infraestrutura de plataforma)
+- Nova Camada 2: 5 domínios corporativos (Platform, Integration, Data, Operations, Shared Services)
+- Organização por produtos/linhas de negócio (Domain-Driven Design), não por categorias técnicas
+- Naming conventions determinísticas com regex (validáveis automaticamente)
+- RBAC consistente entre GitLab ↔ Kubernetes ↔ Backstage
+- Preparação para Backstage Software Catalog (Fase 4)
 
 ## 🏗️ Princípios Arquiteturais Sistêmicos
 
@@ -173,6 +185,148 @@ Cada domínio segue padrão isolado:
 
 ---
 
+## 🏢 Camada 2: Domínios Corporativos (Aplicações de Negócio)
+
+### Visão Geral
+
+**⚠️ NOVA CAMADA (v1.3)**: A partir do SAD v1.3, a arquitetura é organizada em **duas camadas complementares**:
+
+- **Camada 1 (Domínios Técnicos)**: Infraestrutura de plataforma (seção anterior) — observability, platform-core, cicd-platform, data-services, secrets-management, security
+- **Camada 2 (Domínios Corporativos)**: Aplicações de negócio organizadas por **produtos/linhas de negócio** (Domain-Driven Design)
+
+**Referência**: ADR-047 (Estrutura Corporativa de Domínios de Negócio)
+
+### Princípio de Organização: Domain-Driven Design (DDD)
+
+**Decisão**: Organizar aplicações por **domínios de negócio** (produtos/linhas de negócio), não por categorias técnicas (ETL, Gateway, Utils).
+
+**Justificativa**:
+- Alinhamento com estrutura organizacional da empresa
+- Ownership claro por domínio de negócio
+- Escalabilidade: adicionar novos produtos sem refatoração
+- Backstage-ready: catálogo reflete organização corporativa
+
+**Rejeita**: Categorias técnicas (gateway, etl, utils) que não refletem estrutura de negócio
+
+### 5 Domínios Corporativos
+
+#### Domain 1: PLATFORM
+**Descrição**: Infraestrutura compartilhada (herda Camada 1)
+**Responsabilidade**: Observabilidade, CI/CD, Secrets, Security
+**Namespaces**: `shared-observability`, `staging-platform-cicd`, `prod-platform-cicd`
+**Ownership**: Platform Team
+
+#### Domain 2: INTEGRATION
+**Descrição**: Domínio de Integrações - iPaaS (Integration Platform as a Service)
+**Responsabilidade**: Integrações entre sistemas SaaS, orquestração de workflows
+**Produtos**: iPaaS (9 microserviços: BFF REST/gRPC/SOAP, MS Core-Comm, Jobs, Notifications, Validation, Peers, Orchestrator)
+**Namespaces**: `staging-integration-ipaas`, `prod-integration-ipaas`
+**Ownership**: Integration Team
+
+#### Domain 3: DATA
+**Descrição**: Domínio de Dados - ETL, Data Warehouse, Analytics
+**Responsabilidade**: Extração, transformação, carga de dados; catálogo; qualidade; governança
+**Produtos**: Hatch ETL (151 extractors + API GraphQL + Web UI), VemSoft ETL, Data Platform (futuro)
+**Namespaces**: `staging-data-hatch`, `prod-data-hatch`, `staging-data-vemsoft`, `prod-data-vemsoft`
+**Ownership**: Data Team
+
+#### Domain 4: OPERATIONS
+**Descrição**: Domínio de Operações - Gestão de Processos, Execução, Fulfillment
+**Responsabilidade**: Orquestração de processos de negócio, execução de tarefas, fulfillment
+**Produtos**: Process Management (futuro), Fulfillment (futuro), Operational Monitoring (futuro)
+**Namespaces**: `staging-operations-process`, `prod-operations-process`, `staging-operations-fulfillment`, `prod-operations-fulfillment`
+**Ownership**: Operations Team
+
+#### Domain 5: SHARED-SERVICES
+**Descrição**: Serviços compartilhados universais consumidos por todos os domínios
+**Responsabilidade**: Files (S3, Generators), Notification (Email/Slack/Teams), Calendar, Automation (RPA)
+**Produtos**: BucketConnector, File Generators (Word/PDF/Excel/CSV), Notification Gateway, Calendar API, RPA Platform (futuro)
+**Namespaces**: `staging-shared-files`, `prod-shared-files`, `staging-shared-notification`, `prod-shared-notification`
+**Ownership**: Shared Services Team
+
+### Diferenciação: Camada 1 vs Camada 2
+
+| Aspecto | Camada 1: Domínios Técnicos | Camada 2: Domínios Corporativos |
+|---------|----------------------------|----------------------------------|
+| **Foco** | Infraestrutura de plataforma | Aplicações de negócio |
+| **Organização** | Por função técnica | Por produto/linha de negócio |
+| **Exemplos** | observability, cicd-platform | integration (iPaaS), data (Hatch) |
+| **Ownership** | Platform Team | Domain Teams (Integration, Data, etc) |
+| **Localização Git** | `/domains/{technical-domain}/` | `/corporate-domains/{business-domain}/` |
+| **Namespaces K8s** | `shared-*`, `*-platform-*` | `{env}-{business-domain}-{product}` |
+| **Consumidores** | Todas as aplicações | Usuários finais, outros domínios |
+| **Mudanças** | Raras, impacto alto | Frequentes, impacto isolado |
+
+### Naming Conventions (Determinísticas)
+
+**Referência**: ADR-048 (Naming Conventions Determinísticas)
+
+**GitLab**:
+```
+Formato: ^(domains|corporate-domains)/[a-z0-9-]+(/[a-z0-9-]+)*$
+Exemplos:
+  ✅ corporate-domains/integration/ipaas-bff-rest
+  ✅ corporate-domains/data/hatch/hatch-etl
+  ✅ corporate-domains/shared-services/files/bucketconnector
+```
+
+**Kubernetes Namespaces**:
+```
+Formato: ^(staging|prod|shared)-(platform|integration|data|operations|shared)(-[a-z0-9-]+)?$
+Exemplos:
+  ✅ staging-integration-ipaas
+  ✅ prod-data-hatch
+  ✅ staging-shared-files
+```
+
+**Labels Obrigatórias**:
+```yaml
+app.kubernetes.io/name: ^[a-z0-9-]+$
+app.kubernetes.io/part-of: ^[a-z0-9-]+-[a-z0-9-]+$
+domain: ^(platform|integration|data|operations|shared-services)$
+owner: ^[a-z0-9-]+-team$
+product: ^[a-z0-9-]+$
+```
+
+### RBAC e Governança
+
+**Referência**: ADR-049 (Governança e RBAC para Domínios Corporativos)
+
+**Princípio**: RBAC consistente entre GitLab ↔ Kubernetes ↔ Backstage
+
+**GitLab RBAC**:
+- Cada time tem **Maintainer** no seu domínio, **Reporter** nos demais
+- Exemplo: `integration-team` tem Maintainer em `corporate-domains/integration/*`
+
+**Kubernetes RBAC**:
+- Cada time tem **namespace-admin** nos seus namespaces, **viewer** nos demais
+- Exemplo: `integration-team` tem namespace-admin em `staging-integration-ipaas` e `prod-integration-ipaas`
+
+**Enforcement**:
+- Pre-push hooks (GitLab): Validam naming conventions
+- Kyverno policies (Kubernetes): Validam labels obrigatórias
+- CI/CD validation (Backstage): Valida catalog-info.yaml
+
+### Interação Camada 1 ↔ Camada 2
+
+**Exemplo: iPaaS BFF-REST** (Camada 2: Integration)
+
+```
+iPaaS BFF-REST (Application)
+├─ Usa: Prometheus + Grafana (Camada 1: observability)
+├─ Usa: ArgoCD para deploy (Camada 1: cicd-platform)
+├─ Usa: Vault para secrets (Camada 1: secrets-management)
+├─ Usa: PostgreSQL (Camada 1: data-services)
+└─ Usa: Notification API (Camada 2: Shared Services)
+```
+
+**Contratos**:
+- Camada 2 **CONSOME** serviços da Camada 1 (via contratos documentados)
+- Camada 2 **NÃO MODIFICA** Camada 1 (ownership separado)
+- Comunicação cross-domain via APIs REST, eventos, métricas (Service Mesh)
+
+---
+
 ## 🤝 Contratos entre Domínios
 
 ### Regras Gerais
@@ -273,8 +427,10 @@ Cada domínio segue padrão isolado:
 ## 📚 Referências
 
 ### ADRs Relacionados
+
+#### Camada 1: Domínios Técnicos
 - ADR-001: Setup, Governança e Método
-- ADR-002: Estrutura de Domínios
+- **ADR-002**: Estrutura de Domínios Técnicos (v1.3 - atualizado com referência à Camada 2)
 - **ADR-003**: Cloud-Agnostic e Portabilidade (v1.1 - atualizado)
 - **ADR-004**: IaC e GitOps (v1.1 - atualizado)
 - ADR-005: Segurança Sistêmica
@@ -288,7 +444,13 @@ Cada domínio segue padrão isolado:
 - ADR-017: Integrações Externas
 - ADR-018: Treinamento e Capacitação
 - ADR-019: FinOps e Otimização de Custos
-- **ADR-020**: Provisionamento de Clusters e Escopo de Domínios ✨ **NOVO**
+- ADR-020: Provisionamento de Clusters e Escopo de Domínios
+- ADR-021: Escolha do Orquestrador de Containers (Kubernetes)
+
+#### Camada 2: Domínios Corporativos (v1.3 - NOVO)
+- **ADR-047**: Estrutura Corporativa de Domínios de Negócio ✨ **NOVO**
+- **ADR-048**: Naming Conventions Determinísticas ✨ **NOVO**
+- **ADR-049**: Governança e RBAC para Domínios Corporativos ✨ **NOVO**
 
 ### Documentos de Contexto
 - [Context Generator](docs/context/context-generator.md)

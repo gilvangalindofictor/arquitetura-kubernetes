@@ -1,18 +1,23 @@
-# ADR 002 — Estrutura de Domínios Multi-Kubernetes
+# ADR 002 — Estrutura de Domínios Técnicos (Camada 1: Plataforma)
 
 ## Data
 2025-12-30
+
+## Atualização
+2026-02-09 — Clarificação: Este ADR define domínios **TÉCNICOS** (Camada 1: Infraestrutura de Plataforma). Para domínios **CORPORATIVOS** (Camada 2: Aplicações de Negócio), ver **ADR-047**.
 
 ## Status
 Aprovado ✅
 
 ## Contexto
-O projeto Kubernetes atua como **plataforma corporativa de engenharia**, gerenciando 6 domínios especializados: platform-core (fundação), cicd-platform (esteira DevOps), observability (monitoramento), data-services (databases/cache/mensageria), secrets-management (cofre), security (policies/runtime).
+O projeto Kubernetes atua como **plataforma corporativa de engenharia**, gerenciando 6 domínios **TÉCNICOS** especializados: platform-core (fundação), cicd-platform (esteira DevOps), observability (monitoramento), data-services (databases/cache/mensageria), secrets-management (cofre), security (policies/runtime).
 
 Cada domínio possui responsabilidades específicas e deve evoluir de forma independente, mantendo isolamento rigoroso e contratos explícitos.
 
+**⚠️ IMPORTANTE**: Este ADR define a **Camada 1 (Domínios Técnicos)** — infraestrutura de plataforma compartilhada. A **Camada 2 (Domínios Corporativos)** — aplicações de negócio organizadas por produtos/linhas de negócio (Integration, Data, Operations, Shared Services) — está definida no **ADR-047**.
+
 ## Problema
-Como organizar 6 domínios especializados de plataforma corporativa garantindo:
+Como organizar 6 domínios especializados de **plataforma técnica** garantindo:
 - Isolamento e autonomia
 - Integração via contratos explícitos
 - Padrões compartilhados (IaC, observabilidade, segurança)
@@ -200,6 +205,24 @@ Cada domínio evolui de forma independente:
 - ✅ Data services fornecem PostgreSQL/Redis/RabbitMQ com HA + backup
 - ✅ Secrets injetados automaticamente via cofre (secrets-management)
 - ✅ Policies OPA/Kyverno validam deploys em todos os domínios (security)
+
+## Relação com Outros ADRs
+
+### ADR-047: Estrutura Corporativa de Domínios de Negócio
+
+Este ADR (ADR-002) define **domínios TÉCNICOS** (Camada 1: Infraestrutura de Plataforma). Para organização de **aplicações de negócio** por produtos/linhas de negócio (Camada 2), consultar:
+
+📋 **[ADR-047: Estrutura Corporativa de Domínios de Negócio](./adr-047-estrutura-corporativa-dominios.md)**
+
+**Camadas Complementares**:
+- **Camada 1 (ADR-002)**: Domínios Técnicos (observability, platform-core, cicd-platform, data-services, secrets-management, security)
+- **Camada 2 (ADR-047)**: Domínios Corporativos (platform, integration, data, operations, shared-services)
+
+**Interação**:
+- Aplicações da Camada 2 **consomem** serviços da Camada 1
+- Exemplo: iPaaS (Camada 2: Integration) usa Prometheus (Camada 1: observability), ArgoCD (Camada 1: cicd-platform), Vault (Camada 1: secrets-management)
+
+---
 
 ## Aprovações
 - [x] Usuário (gilvangalindo)

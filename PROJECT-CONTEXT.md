@@ -1,8 +1,8 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-06
+> **Última Atualização**: 2026-02-09
 > **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento)
-> **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
+> **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
 
@@ -283,6 +283,89 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **MÉDIA** |                       | **94.4%**          |
 
 **Nota**: Gap comum ADR-005 (RBAC granular, Network Policies) é não-bloqueante, roadmap Sprint+1.
+
+---
+
+## 🏢 Status dos Domínios Corporativos (Camada 2)
+
+**⚠️ NOVO (SAD v1.3 - 2026-02-09)**: Organização de aplicações por produtos/linhas de negócio (Domain-Driven Design)
+
+### Diferenciação: Camada 1 vs Camada 2
+
+| Aspecto | Camada 1 (Domínios Técnicos) | Camada 2 (Domínios Corporativos) |
+|---------|------------------------------|----------------------------------|
+| **Foco** | Infraestrutura de plataforma | Aplicações de negócio |
+| **Status** | ✅ Implementados (Marco 0-3) | 📋 Planejamento (Marco 0) |
+| **Organização** | Por função técnica | Por produto/linha de negócio (DDD) |
+| **Referência** | ADR-002 | ADR-047, ADR-048, ADR-049 |
+
+### 5 Domínios Corporativos
+
+| Domínio | Produtos | Status Marco 0 | Próximos Passos | Fase Implementação |
+|---------|----------|----------------|-----------------|-------------------|
+| **PLATFORM** | Observability, CI/CD, Secrets, Security | ✅ Herda Camada 1 | Nenhum (já operacional) | ✅ Marco 0-3 |
+| **INTEGRATION** | iPaaS (9 microserviços) | 📋 Dockerfiles existem | Criar Helm charts, GitOps repos | Fase 1 (4 semanas) |
+| **DATA** | Hatch ETL (151 extractors), VemSoft ETL | 📋 docker-compose existente | Converter para K8s manifests | Fase 2 (4 semanas) |
+| **OPERATIONS** | Process Management, Fulfillment | 📋 Planejado (futuro) | Definir requisitos | Fase 3 (6 semanas) |
+| **SHARED-SERVICES** | Files (BucketConnector), Notification, Calendar, RPA | 📋 BucketConnector tem Helm chart | Deploy Files + Notification | Fase 1 (4 semanas) |
+
+### Documentação Criada (Marco 0)
+
+✅ **ADRs Criados** (2026-02-09):
+- **ADR-047**: Estrutura Corporativa de Domínios de Negócio
+- **ADR-048**: Naming Conventions Determinísticas (regex-based)
+- **ADR-049**: Governança e RBAC para Domínios Corporativos
+
+✅ **Atualizações**:
+- **ADR-002**: Atualizado para diferenciar Camada 1 (técnico) vs Camada 2 (corporativo)
+- **SAD v1.3**: Adicionada seção "Camada 2: Domínios Corporativos"
+- **README.md**: Adicionada arquitetura em duas camadas
+- **PROJECT-CONTEXT.md**: Esta seção (status corporativo)
+
+### Naming Conventions Definidas
+
+**GitLab**:
+```
+Formato: ^(corporate-domains)/(platform|integration|data|operations|shared-services)/[a-z0-9-]+$
+Exemplo: corporate-domains/integration/ipaas-bff-rest
+```
+
+**Kubernetes Namespaces**:
+```
+Formato: ^(staging|prod)-(integration|data|operations|shared)(-[a-z0-9-]+)?$
+Exemplos:
+  staging-integration-ipaas
+  prod-data-hatch
+  staging-shared-files
+```
+
+**Labels Obrigatórias**:
+```yaml
+domain: ^(platform|integration|data|operations|shared-services)$
+owner: ^[a-z0-9-]+-team$
+product: ^[a-z0-9-]+$
+```
+
+### RBAC Planejado
+
+**GitLab Groups** (criar no Marco 0, mesmo sem membros):
+- `platform-team` (você como Owner)
+- `integration-team` (você como Owner)
+- `data-team` (você como Owner)
+- `operations-team` (você como Owner)
+- `shared-services-team` (você como Owner)
+
+**Princípio**: Cada time tem **Maintainer** no seu domínio, **Reporter** nos demais
+
+### Timeline de Implementação
+
+- ✅ **Marco 0 (Atual)**: ADRs criados, governança definida, naming conventions documentadas
+- 📋 **Fase 1 (4 semanas)**: Deploy UTILS (Files, Notification) + INTEGRATION (iPaaS)
+- 📋 **Fase 2 (4 semanas)**: Deploy DATA (Hatch ETL, VemSoft ETL) + CORE TECH (RPA)
+- 📋 **Fase 3 (6 semanas)**: Deploy OPERATIONS (Process Management, Fulfillment)
+- 📋 **Fase 4 (8 semanas)**: Backstage Software Catalog, GitOps completo (ArgoCD)
+
+**Status Atual**: 📋 **Planejamento completo**, pronto para iniciar Fase 1
 
 ---
 

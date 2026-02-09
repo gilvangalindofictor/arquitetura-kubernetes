@@ -1,8 +1,29 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-06
-**Versão:** 2.6.0 (Vault Recovery + VPC Endpoints + Keycloak Ready)
-**Status:** 🚀 FinOps ATIVA | ✅ Vault Operational | 🚧 Marco 3: Keycloak pending deploy
+**Última Atualização:** 2026-02-09
+**Versão:** 2.7.0 (Prod Environment + Network Security + Monitoring)
+**Status:** 🚀 FinOps ATIVA | ✅ Vault Operational | ✅ Staging Quickstart Completo
+
+---
+
+## ⚠️ IMPORTANTE: Escopo Quickstart vs Produção
+
+**🎯 QUICKSTART (MVP - STAGING APENAS):**
+
+- **Escopo:** Marcos 0, 1, 2, 3 focados em **ambiente STAGING**
+- **Objetivo:** Plataforma funcional para desenvolvimento/testes
+- **Componentes:** GitLab staging, Keycloak, ArgoCD, Harbor, PostgreSQL RDS, Redis, RabbitMQ
+- **Timeline:** 6 semanas (completo)
+- **Custo:** ~R$ 2.500/mês (staging otimizado)
+
+**🏭 PRODUÇÃO (Expansão Posterior):**
+
+- **Escopo:** Componentes adicionados APÓS quickstart
+- **Namespace:** `data-services-prod`, network policies prod
+- **Timeline:** Implementação gradual pós-Marco 3
+- **Custo:** Adicional conforme demanda
+
+**Este documento descreve AMBOS os escopos.** Para foco exclusivo no quickstart staging, consulte: [aws-eks-gitlab-quickstart.md](../plan/quickstart/aws-eks-gitlab-quickstart.md)
 
 ---
 
@@ -652,13 +673,24 @@ Internet
 **Status:** 🚧 Em Progresso (GitLab Staging deployed 2026-02-04)
 **Estratégia:** 2 Fases - Fase 1 sem domínio (LoadBalancer), Fase 2 com TLS/SSO
 
-### ✅ IMPLEMENTADO (STAGING)
+**⚠️ Nota de Escopo:**
 
-#### GitLab CE - CI/CD Platform
+- **STAGING (gitlab-staging):** Parte do **Quickstart MVP** (6 semanas, completo)
+- **GitLab:** **Instância ÚNICA compartilhada** (Momento A: usa recursos staging, Momento B: migrará para recursos prod)
+- **PRODUCTION (data-services-prod):** Data services prod criados **posterior ao quickstart** (2026-02-09) para futura migração GitLab
+- **Outros componentes (Keycloak, ArgoCD, Harbor):** Terão instâncias **separadas** por ambiente (não compartilhados)
+
+---
+
+### ✅ IMPLEMENTADO (STAGING) - Quickstart MVP
+
+#### GitLab CE - CI/CD Platform (Instância Única Compartilhada)
+
 **Status:** ✅ Deployed (2026-02-04)
-**Namespace:** gitlab-staging
+**Namespace:** gitlab-staging (Momento A - usando recursos staging)
 **Versão:** 8.7.0 (Helm chart gitlab/gitlab)
 **ADR:** ADR-021 Fase 1 (HTTP-only, sem custom domain)
+**Estratégia:** Instância ÚNICA compartilhada - futuramente migrará para recursos prod (Momento B) conforme [gitlab-shared-architecture.md](../plan/quickstart/gitlab-shared-architecture.md)
 
 **Componentes:**
 
@@ -714,6 +746,69 @@ Internet
 **Referências:**
 - Logbook: [2026-02-04-execucao-pendente-staging.md](../logbook/2026-02-04-execucao-pendente-staging.md)
 - Deploy duration: 7m18s (438s)
+
+---
+
+---
+
+### ✅ IMPLEMENTADO (PRODUCTION) - Pós-Quickstart
+
+**⚠️ IMPORTANTE:** Componentes abaixo foram adicionados **APÓS** conclusão do Quickstart MVP (staging).
+
+#### Production Environment - Data Services
+**Status:** ✅ Deployed (2026-02-09)
+**Namespace:** data-services-prod
+**Logbook:** [2026-02-09-cluster-remediation.md](../logbook/2026-02-09-cluster-remediation.md)
+**Escopo:** Expansão para produção, **NÃO faz parte do quickstart**
+
+**Componentes:**
+
+| Componente | Tipo | Status | Função |
+|------------|------|--------|--------|
+| **data-services-prod** | Namespace | ✅ Created | Isolated prod data services |
+| **postgresql-prod** | ServiceMonitor | ✅ Active | Prometheus scraping PostgreSQL metrics |
+| **gitlab** | ServiceMonitor | ✅ Active | Prometheus scraping GitLab metrics |
+
+**Network Policies (10 total):**
+
+**Production Namespace Isolation:**
+- ✅ `deny-from-staging` - Blocks staging → prod traffic (zero-trust boundary)
+
+**GitLab Production Security (9 policies):**
+- ✅ `deny-default` - Default deny all ingress/egress
+- ✅ `allow-alb` - ALB Controller → GitLab pods (HTTP/HTTPS)
+- ✅ `allow-postgres` - GitLab → PostgreSQL RDS (port 5432)
+- ✅ `allow-redis` - GitLab → Redis Operator (port 6379)
+- ✅ `allow-monitoring` - Prometheus → GitLab metrics (port 8080)
+- ✅ `allow-internal` - GitLab pods inter-communication
+- ✅ `allow-dns` - All pods → CoreDNS (UDP 53)
+- ✅ `allow-api-server` - All pods → K8s API (TCP 443)
+- ✅ `allow-egress-s3` - GitLab → S3 IRSA (artifacts/uploads)
+
+**Deployment Details:**
+
+| Aspecto | Valor |
+|---------|-------|
+| **Adicionado em** | 2026-02-09 14:00 UTC |
+| **Demanda** | [Cluster Remediation](../logbook/2026-02-09-cluster-remediation.md#sessão-3) |
+| **Terraform State** | 57 → 68 recursos (+19%) |
+| **Drift Correction** | 13 add, 1 change → 0 (idempotente) |
+| **Apply Duration** | ~1h30min (3 attempts, AML monitoring) |
+| **GitLab Helm** | Revision 4 → 5 (network policies added) |
+
+**Observabilidade:**
+- ✅ ServiceMonitor postgresql-prod: scraping `/metrics` endpoint
+- ✅ ServiceMonitor gitlab: scraping `/-/metrics` endpoint
+- ✅ Grafana dashboards: PostgreSQL queries, GitLab CI/CD metrics
+- ✅ Network flow visibility: Calico policies + Prometheus metrics
+
+**Validações:**
+- ✅ Terraform idempotency: `terraform plan` → "No changes"
+- ✅ GitLab pods: sidekiq 1/1, webservice 2/2 Running
+- ✅ PostgreSQL connectivity: Verified via ServiceMonitor scrape success
+- ⚠️ GitLab runners: CrashLoopBackOff (known issue ADR-021 Fase 1)
+
+**Custo:** $0 adicional (ServiceMonitors + NetworkPolicies = infrastructure-only)
 
 ---
 

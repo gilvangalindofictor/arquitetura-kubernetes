@@ -47,6 +47,56 @@
 - ✅ Custos controlados e otimizados
 - ✅ 75-80% dos componentes já cloud-agnostic (ADR-023)
 
+#### 🔄 Arquitetura do GitLab: Instância Compartilhada com Migração Progressiva de Recursos
+
+**Decisão Estratégica**: GitLab será deployado como **instância única compartilhada entre ambientes**, com migração progressiva dos recursos de backend.
+
+##### Momento A - Fase Inicial (Validação)
+
+```text
+GitLab CE (namespace: cicd-gitlab)
+├── Aplicação GitLab (webservice, sidekiq, gitaly)
+├── GitLab Runners (configurados para múltiplos ambientes)
+└── Dependências Backend (Staging):
+    ├── PostgreSQL RDS: staging-gitlab-db (db.t3.small Multi-AZ)
+    ├── Redis: staging-redis (single instance)
+    ├── RabbitMQ: staging-rabbitmq (single instance)
+    └── Object Storage: S3 bucket staging-gitlab-artifacts
+```
+
+##### Momento B - Fase Produção (Após Validação)
+
+```text
+GitLab CE (namespace: cicd-gitlab)
+├── Aplicação GitLab (MESMA instância, sem downtime)
+├── GitLab Runners (MESMOS runners, reconfigurados)
+└── Dependências Backend (Produção):
+    ├── PostgreSQL RDS: prod-gitlab-db (db.t3.medium Multi-AZ) ✅ MIGRADO
+    ├── Redis: prod-redis HA (master-replica + sentinel) ✅ MIGRADO
+    ├── RabbitMQ: prod-rabbitmq (cluster mode) ✅ MIGRADO
+    └── Object Storage: S3 bucket prod-gitlab-artifacts ✅ MIGRADO
+```
+
+##### Benefícios desta abordagem
+
+- ✅ **Economia de custos**: Uma única instância do GitLab (reduz uso de recursos computacionais)
+- ✅ **Gestão simplificada**: Apenas um GitLab para administrar (usuários, permissões, configurações)
+- ✅ **Migração sem downtime**: Troca de backend via configuração, sem reinstalação
+- ✅ **Validação segura**: Iniciar com recursos staging (menor custo) e escalar para produção conforme necessário
+- ✅ **Isolamento lógico**: Branches, repositórios e runners podem ser organizados por ambiente
+
+##### Estratégia de Migração (Momento A → Momento B)
+
+1. **Backup completo** do GitLab (repositories, DB, uploads) → S3
+2. **Deploy recursos de produção** (RDS prod, Redis HA, RabbitMQ cluster)
+3. **Atualizar configuração GitLab** (Helm values) apontando para novos backends
+4. **Migrar dados** via ferramentas nativas (pg_dump/restore, redis-cli, rabbitmqctl)
+5. **Rollout GitLab** com nova configuração (zero downtime via rolling update)
+6. **Validação** e smoke tests
+7. **Descomissionar recursos staging** (opcional, pode manter para testes)
+
+**Referência**: Ver [Quickstart README](docs/plan/quickstart/README.md) para detalhes sobre recursos de staging e produção.
+
 ---
 
 ### 📋 Visão de Longo Prazo (Fases 2-4): Plataforma Cloud-Agnostic
@@ -64,7 +114,13 @@
 - 📋 Fase 3 (8 semanas): Validação em 2ª cloud (GCP/Azure staging)
 - 📋 Fase 4 (12 semanas): Platform Engineering Completo (Service Mesh, Vault, Backstage)
 
-**6 Domínios Especializados (Visão Final):**
+### Arquitetura em Duas Camadas (v1.3)
+
+**⚠️ ATUALIZAÇÃO v1.3**: A arquitetura é organizada em **duas camadas complementares**:
+
+#### Camada 1: Domínios Técnicos (Infraestrutura de Plataforma)
+
+**6 Domínios Especializados:**
 
 1. **platform-core**: Fundação (Kong, Keycloak, Service Mesh, cert-manager)
 2. **cicd-platform**: Esteira CI/CD (GitLab, SonarQube, ArgoCD, Backstage)
@@ -72,6 +128,27 @@
 4. **data-services**: DBaaS, CacheaaS, MQaaS (PostgreSQL, Redis, RabbitMQ com HA e backup)
 5. **secrets-management**: Cofre centralizado (Vault)
 6. **security**: Policies, runtime, compliance (OPA/Kyverno, Falco, Trivy)
+
+**Referência**: [ADR-002: Estrutura de Domínios Técnicos](docs/adr/adr-002-estrutura-de-dominios.md)
+
+#### Camada 2: Domínios Corporativos (Aplicações de Negócio)
+
+**5 Domínios Organizados por Produtos/Linhas de Negócio (Domain-Driven Design):**
+
+1. **PLATFORM**: Infraestrutura compartilhada (herda Camada 1)
+2. **INTEGRATION**: iPaaS - 9 microserviços para integrações SaaS (BFF REST/gRPC/SOAP, MS Core-Comm, Jobs, Notifications, Validation, Peers, Orchestrator)
+3. **DATA**: ETL Hatch (151 extractors + API GraphQL + Web UI), ETL VemSoft, Data Platform (catálogo, qualidade, governança)
+4. **OPERATIONS**: Process Management, Fulfillment, Operational Monitoring
+5. **SHARED-SERVICES**: Files (BucketConnector, Generators), Notification (Email/Slack/Teams), Calendar, RPA Platform
+
+**Referências**:
+- [ADR-047: Estrutura Corporativa de Domínios de Negócio](docs/adr/adr-047-estrutura-corporativa-dominios.md)
+- [ADR-048: Naming Conventions Determinísticas](docs/adr/adr-048-naming-conventions-deterministicas.md)
+- [ADR-049: Governança e RBAC](docs/adr/adr-049-governanca-rbac-dominios-corporativos.md)
+
+**Diferenciação**:
+- **Camada 1**: Infraestrutura técnica, mudanças raras, ownership Platform Team
+- **Camada 2**: Aplicações de negócio, mudanças frequentes, ownership por domínio (Integration Team, Data Team, etc)
 
 **Características:**
 

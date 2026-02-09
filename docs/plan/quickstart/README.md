@@ -38,6 +38,23 @@ Após mesa técnica completa (ver [technical-roundtable.md](technical-roundtable
 
 ---
 
+### 1.1 **[GitLab: Arquitetura Compartilhada](gitlab-shared-architecture.md)** 🔄
+
+**Para**: Arquitetos, Time de Implementação
+
+**Conteúdo**:
+
+- **Estratégia**: GitLab como instância única compartilhada
+- **Momento A**: GitLab usando recursos de staging (validação)
+- **Momento B**: Migração para recursos de produção (sem downtime)
+- Guia completo de migração (7 passos detalhados)
+- Comparativo: Instância única vs múltiplas instâncias
+- Economia: R$ 1.200/mês (30% de redução)
+
+**Use quando**: Precisa entender a arquitetura do GitLab ou planejar a migração A→B
+
+---
+
 ### 2. **[Mesa Técnica](technical-roundtable.md)** 💼
 **Para**: C-Level, Diretoria, Gestores
 
