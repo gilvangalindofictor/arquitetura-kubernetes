@@ -1,0 +1,251 @@
+# Kyverno Validation Rules - Domínios Corporativos
+# Referência: ADR-048, ADR-049, GOVERNANCE.md
+# Deploy: kubectl apply -f validation-rules.yaml
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-corporate-labels
+  annotations:
+    policies.kyverno.io/title: Require Corporate Governance Labels
+    policies.kyverno.io/category: Corporate Governance
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: |
+      Valida que todos os recursos em namespaces corporativos tenham labels obrigatórias.
+      Referência: ADR-048 (Naming Conventions Determinísticas)
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-corporate-labels
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - Service
+          namespaces:
+          - "staging-*"
+          - "prod-*"
+    validate:
+      message: |
+        ❌ Labels obrigatórias faltando ou inválidas (ADR-048).
+        Obrigatórias: domain, owner, environment, app.kubernetes.io/name, app.kubernetes.io/part-of
+        Ver: /docs/governance/naming-conventions.md
+      pattern:
+        metadata:
+          labels:
+            domain: "platform | integration | data | operations | shared-services"
+            owner: "*-team"
+            environment: "dev | staging | prod"
+            app.kubernetes.io/name: "?*"
+            app.kubernetes.io/part-of: "?*"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-namespace-naming
+  annotations:
+    policies.kyverno.io/title: Validate Namespace Naming Convention
+    policies.kyverno.io/category: Corporate Governance
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: |
+      Valida que namespaces corporativos sigam naming convention: {env}-{domain}-{product}
+      Referência: ADR-048
+spec:
+  validationFailureAction: enforce
+  background: false
+  rules:
+  - name: check-namespace-name
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    validate:
+      message: |
+        ❌ Namespace naming violado (ADR-048).
+        Esperado: {env}-{domain}-{product}
+        Formato: ^(dev|staging|prod|shared)-(platform|integration|data|operations|shared)(-[a-z0-9-]+)?$
+        Exemplos: staging-integration-ipaas, prod-data-hatch
+      pattern:
+        metadata:
+          name: "(dev|staging|prod|shared)-(platform|integration|data|operations|shared)-?*"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-service-naming
+  annotations:
+    policies.kyverno.io/title: Validate Service Naming Convention
+    policies.kyverno.io/category: Corporate Governance
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: audit  # Apenas alerta, não bloqueia
+  background: true
+  rules:
+  - name: check-service-name
+    match:
+      any:
+      - resources:
+          kinds:
+          - Service
+          namespaces:
+          - "staging-*"
+          - "prod-*"
+    validate:
+      message: |
+        ⚠️ Service naming não segue convenção: lowercase-kebab-case
+        Formato: ^[a-z0-9-]+$
+      pattern:
+        metadata:
+          name: "[a-z0-9-]*"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-label-values
+  annotations:
+    policies.kyverno.io/title: Validate Label Values Format
+    policies.kyverno.io/category: Corporate Governance
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+  - name: check-label-domain
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          namespaces:
+          - "staging-*"
+          - "prod-*"
+    validate:
+      message: |
+        ❌ Label 'domain' inválido.
+        Valores permitidos: platform, integration, data, operations, shared-services
+      pattern:
+        metadata:
+          labels:
+            domain: "platform | integration | data | operations | shared-services"
+
+  - name: check-label-owner
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          namespaces:
+          - "staging-*"
+          - "prod-*"
+    validate:
+      message: |
+        ❌ Label 'owner' inválido.
+        Formato: ^[a-z0-9-]+-team$
+        Exemplos: integration-team, data-team
+      pattern:
+        metadata:
+          labels:
+            owner: "*-team"
+
+  - name: check-label-environment
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          namespaces:
+          - "staging-*"
+          - "prod-*"
+    validate:
+      message: |
+        ❌ Label 'environment' inválido.
+        Valores permitidos: dev, staging, prod
+      pattern:
+        metadata:
+          labels:
+            environment: "dev | staging | prod"
+
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: allow-governance-exceptions
+  annotations:
+    policies.kyverno.io/title: Allow Governance Exceptions
+    policies.kyverno.io/category: Corporate Governance
+    policies.kyverno.io/severity: low
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+  - name: check-exception-expiration
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          - Deployment
+          - StatefulSet
+          selector:
+            matchLabels:
+              governance-exception: "true"
+    validate:
+      message: |
+        ⚠️ Recurso com governance-exception deve ter:
+        - governance-exception-issue: URL do Issue GitLab
+        - governance-exception-expires: Data de expiração (YYYY-MM-DD)
+      pattern:
+        metadata:
+          labels:
+            governance-exception: "true"
+            governance-exception-issue: "?*"
+            governance-exception-expires: "?*"
+
+---
+# OPA Gatekeeper Alternative (comentado)
+# Se preferir OPA Gatekeeper ao invés de Kyverno:
+#
+# apiVersion: templates.gatekeeper.sh/v1beta1
+# kind: ConstraintTemplate
+# metadata:
+#   name: k8srequirecorporatelabels
+# spec:
+#   crd:
+#     spec:
+#       names:
+#         kind: K8sRequireCorporateLabels
+#       validation:
+#         openAPIV3Schema:
+#           properties:
+#             labels:
+#               type: array
+#               items:
+#                 type: string
+#   targets:
+#     - target: admission.k8s.gatekeeper.sh
+#       rego: |
+#         package k8srequirecorporatelabels
+#
+#         violation[{"msg": msg}] {
+#           provided := {label | input.review.object.metadata.labels[label]}
+#           required := {label | label := input.parameters.labels[_]}
+#           missing := required - provided
+#           count(missing) > 0
+#           msg := sprintf("Missing required labels: %v", [missing])
+#         }
