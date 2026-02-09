@@ -4,25 +4,27 @@
 # PostgreSQL RDS Outputs
 #------------------------------------------------------------------------------
 
-output "postgresql_endpoint" {
-  description = "PostgreSQL RDS endpoint"
-  value       = module.postgresql_prod.endpoint
-}
+# TODO: Fix module outputs - these attributes don't exist in postgresql module
+# output "postgresql_endpoint" {
+#   description = "PostgreSQL RDS endpoint"
+#   value       = module.postgresql_prod.endpoint
+# }
 
-output "postgresql_service_name" {
-  description = "PostgreSQL Kubernetes service name"
-  value       = module.postgresql_prod.service_name
-}
+# TODO: Commented temporarily (module output commented)
+# output "postgresql_service_name" {
+#   description = "PostgreSQL Kubernetes service name"
+#   value       = module.postgresql_prod.service_name
+# }
 
-output "postgresql_database_name" {
-  description = "PostgreSQL database name"
-  value       = module.postgresql_prod.database_name
-}
+# output "postgresql_database_name" {
+#   description = "PostgreSQL database name"
+#   value       = module.postgresql_prod.database_name
+# }
 
-output "postgresql_instance_id" {
-  description = "RDS instance ID"
-  value       = module.postgresql_prod.db_instance_id
-}
+# output "postgresql_instance_id" {
+#   description = "RDS instance ID"
+#   value       = module.postgresql_prod.db_instance_id
+# }
 
 #------------------------------------------------------------------------------
 # Redis Operator Outputs
@@ -52,15 +54,16 @@ output "redis_password_secret_name" {
 # RabbitMQ Operator Outputs
 #------------------------------------------------------------------------------
 
-output "rabbitmq_service" {
-  description = "RabbitMQ service name"
-  value       = module.rabbitmq_prod.rabbitmq_service
-}
+# TODO: Fix module outputs
+# output "rabbitmq_service" {
+#   description = "RabbitMQ service name"
+#   value       = module.rabbitmq_prod.rabbitmq_service
+# }
 
-output "rabbitmq_namespace" {
-  description = "RabbitMQ namespace"
-  value       = module.rabbitmq_prod.namespace
-}
+# output "rabbitmq_namespace" {
+#   description = "RabbitMQ namespace"
+#   value       = module.rabbitmq_prod.namespace
+# }
 
 #------------------------------------------------------------------------------
 # S3 Buckets Outputs
@@ -95,15 +98,16 @@ output "gitlab_namespace" {
   value       = module.gitlab.namespace
 }
 
-output "gitlab_service_name" {
-  description = "GitLab webservice service name"
-  value       = module.gitlab.webservice_service_name
-}
+# TODO: Fix module outputs
+# output "gitlab_service_name" {
+#   description = "GitLab webservice service name"
+#   value       = module.gitlab.webservice_service_name
+# }
 
-output "gitlab_runner_token_secret" {
-  description = "GitLab Runner registration token secret name"
-  value       = module.gitlab.runner_token_secret_name
-}
+# output "gitlab_runner_token_secret" {
+#   description = "GitLab Runner registration token secret name"
+#   value       = module.gitlab.runner_token_secret_name
+# }
 
 output "gitlab_postgresql_database" {
   description = "GitLab PostgreSQL database name"

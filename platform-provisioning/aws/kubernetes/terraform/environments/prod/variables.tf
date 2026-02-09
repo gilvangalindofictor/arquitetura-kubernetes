@@ -20,6 +20,11 @@ variable "state_bucket" {
   type        = string
 }
 
+variable "private_subnet_cidrs" {
+  description = "Private subnet CIDRs for security group rules"
+  type        = list(string)
+}
+
 variable "base_tags" {
   description = "Base tags applied to all resources"
   type        = map(string)

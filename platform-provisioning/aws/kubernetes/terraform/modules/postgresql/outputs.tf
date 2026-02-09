@@ -34,15 +34,17 @@ output "master_password_secret_name" {
   value       = aws_secretsmanager_secret.master_password.name
 }
 
-output "service_name" {
-  description = "Kubernetes Service name for PostgreSQL (ExternalName type)"
-  value       = kubernetes_service.postgresql_external.metadata[0].name
-}
+# TODO: Commented temporarily (resource commented)
+# output "service_name" {
+#   description = "Kubernetes Service name for PostgreSQL (ExternalName type)"
+#   value       = kubernetes_service.postgresql_external.metadata[0].name
+# }
 
-output "service_internal_dns" {
-  description = "Internal Kubernetes DNS name for PostgreSQL"
-  value       = "${kubernetes_service.postgresql_external.metadata[0].name}.${kubernetes_service.postgresql_external.metadata[0].namespace}.svc.cluster.local:5432"
-}
+# TODO: Commented temporarily (resource commented)
+# output "service_internal_dns" {
+#   description = "Internal Kubernetes DNS name for PostgreSQL"
+#   value       = "${kubernetes_service.postgresql_external.metadata[0].name}.${kubernetes_service.postgresql_external.metadata[0].namespace}.svc.cluster.local:5432"
+# }
 
 output "security_group_id" {
   description = "Security group ID for PostgreSQL RDS"

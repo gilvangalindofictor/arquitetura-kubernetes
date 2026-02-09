@@ -293,45 +293,46 @@ resource "kubernetes_service" "rabbitmq_management_external" {
 # ServiceMonitor for Prometheus (if monitoring enabled)
 # -----------------------------------------------------------------------------
 
-resource "kubernetes_manifest" "rabbitmq_servicemonitor" {
-  count = var.enable_monitoring ? 1 : 0
-
-  manifest = {
-    apiVersion = "monitoring.coreos.com/v1"
-    kind       = "ServiceMonitor"
-
-    metadata = {
-      name      = "${var.cluster_name}-rabbitmq"
-      namespace = "monitoring"
-
-      labels = {
-        prometheus = "kube-prometheus-stack"
-        app        = "rabbitmq"
-      }
-    }
-
-    spec = {
-      selector = {
-        matchLabels = {
-          "app.kubernetes.io/name" = "${var.cluster_name}-rabbitmq"
-        }
-      }
-
-      namespaceSelector = {
-        matchNames = [var.namespace]
-      }
-
-      endpoints = [
-        {
-          port     = "prometheus"
-          interval = "30s"
-          path     = "/metrics"
-        }
-      ]
-    }
-  }
-
-  depends_on = [
-    kubernetes_manifest.rabbitmq_cluster
-  ]
-}
+# TODO: Commented temporarily due to provider cache issue
+# resource "kubernetes_manifest" "rabbitmq_servicemonitor" {
+#   count = var.enable_monitoring ? 1 : 0
+#
+#   manifest = {
+#     apiVersion = "monitoring.coreos.com/v1"
+#     kind       = "ServiceMonitor"
+#
+#     metadata = {
+#       name      = "${var.cluster_name}-rabbitmq"
+#       namespace = "monitoring"
+#
+#       labels = {
+#         prometheus = "kube-prometheus-stack"
+#         app        = "rabbitmq"
+#       }
+#     }
+#
+#     spec = {
+#       selector = {
+#         matchLabels = {
+#           "app.kubernetes.io/name" = "${var.cluster_name}-rabbitmq"
+#         }
+#       }
+#
+#       namespaceSelector = {
+#         matchNames = [var.namespace]
+#       }
+#
+#       endpoints = [
+#         {
+#           port     = "prometheus"
+#           interval = "30s"
+#           path     = "/metrics"
+#         }
+#       ]
+#     }
+#   }
+#
+#   depends_on = [
+#     kubernetes_manifest.rabbitmq_cluster
+#   ]
+# }

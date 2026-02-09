@@ -125,6 +125,7 @@ module "postgresql_prod" {
   vpc_id                = var.vpc_id
   vpc_cidr              = data.aws_vpc.existing.cidr_block
   private_subnet_ids    = data.aws_subnets.private.ids
+  private_subnet_cidrs  = var.private_subnet_cidrs
   instance_class        = var.postgresql_instance_class        # db.t3.medium
   allocated_storage     = var.postgresql_allocated_storage     # 100 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 500 GB
@@ -166,32 +167,35 @@ module "s3_buckets_prod" {
 # SECRETS MANAGEMENT (AWS Secrets Manager integration)
 #------------------------------------------------------------------------------
 
-# PostgreSQL Password from AWS Secrets Manager
-data "aws_secretsmanager_secret" "postgresql_password" {
-  name = "prod/postgresql/gitlab-password"
-}
+# TODO: Create secret in AWS Secrets Manager: prod/postgresql/gitlab-password
+# For now, using existing K8s secret gitlab-postgresql-password in gitlab namespace
 
-data "aws_secretsmanager_secret_version" "postgresql_password" {
-  secret_id = data.aws_secretsmanager_secret.postgresql_password.id
-}
+# # PostgreSQL Password from AWS Secrets Manager
+# data "aws_secretsmanager_secret" "postgresql_password" {
+#   name = "prod/postgresql/gitlab-password"
+# }
 
-resource "kubernetes_secret" "gitlab_postgresql_password" {
-  metadata {
-    name      = "gitlab-postgresql-password"
-    namespace = "data-services-prod"
+# data "aws_secretsmanager_secret_version" "postgresql_password" {
+#   secret_id = data.aws_secretsmanager_secret.postgresql_password.id
+# }
 
-    labels = merge(local.common_tags, {
-      "app.kubernetes.io/name"     = "postgresql"
-      "app.kubernetes.io/instance" = "${local.cluster_name}-postgresql-prod"
-    })
-  }
+# resource "kubernetes_secret" "gitlab_postgresql_password" {
+#   metadata {
+#     name      = "gitlab-postgresql-password"
+#     namespace = "data-services-prod"
 
-  data = {
-    password = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
-  }
+#     labels = merge(local.common_tags, {
+#       "app.kubernetes.io/name"     = "postgresql"
+#       "app.kubernetes.io/instance" = "${local.cluster_name}-postgresql-prod"
+#     })
+#   }
 
-  type = "Opaque"
-}
+#   data = {
+#     password = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+#   }
+
+#   type = "Opaque"
+# }
 
 #------------------------------------------------------------------------------
 # GITLAB CE (SHARED - One instance serving both STAGING and PROD)
@@ -204,8 +208,7 @@ module "gitlab" {
   depends_on = [
     module.postgresql_prod,
     module.redis_prod,
-    module.s3_buckets_prod,
-    kubernetes_secret.gitlab_postgresql_password
+    module.s3_buckets_prod
   ]
 
   # Cluster info
@@ -226,11 +229,12 @@ module "gitlab" {
   domain_name = ""
 
   # PostgreSQL (external - uses PROD RDS for GitLab metadata)
-  postgresql_host            = module.postgresql_prod.service_name
+  # Using RDS endpoint directly (ExternalName service temporarily commented)
+  postgresql_host            = module.postgresql_prod.rds_address
   postgresql_port            = 5432
   postgresql_database        = "gitlab"
   postgresql_username        = "gitlab_user"
-  postgresql_password_secret = kubernetes_secret.gitlab_postgresql_password.metadata[0].name
+  postgresql_password_secret = "gitlab-postgresql-password" # Existing K8s secret
 
   # Redis (external - uses PROD Redis for GitLab cache/sessions)
   redis_host            = "${module.redis_prod.redis_master_service}.${module.redis_prod.namespace}.svc.cluster.local"

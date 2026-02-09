@@ -235,6 +235,10 @@ gitlab-runner:
   install: true
   replicas: ${runner_replicas}
 
+  # Use internal Kubernetes DNS instead of external domain
+  # ADR-021 Fase 1: No external domain, use service DNS
+  gitlabUrl: http://gitlab-webservice-default.gitlab.svc.cluster.local:8080
+
   resources:
     requests:
       cpu: 100m

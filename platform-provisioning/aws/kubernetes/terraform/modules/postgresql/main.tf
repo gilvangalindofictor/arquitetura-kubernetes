@@ -146,30 +146,31 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 # This creates a DNS CNAME within the cluster pointing to the RDS endpoint
 # Internal apps can connect using: postgresql-external.default.svc.cluster.local:5432
 # External access: Use RDS endpoint directly (no NLB needed, saves $16.20/month)
-resource "kubernetes_service" "postgresql_external" {
-  metadata {
-    name      = "postgresql-external"
-    namespace = "default"
-
-    labels = {
-      app     = "postgresql"
-      service = "rds"
-    }
-  }
-
-  spec {
-    type          = "ExternalName"
-    external_name = split(":", aws_db_instance.postgresql.endpoint)[0] # Extract hostname without port
-
-    port {
-      name     = "postgresql"
-      port     = 5432
-      protocol = "TCP"
-    }
-  }
-
-  depends_on = [aws_db_instance.postgresql]
-}
+# TODO: Commented temporarily due to provider cache issue
+# resource "kubernetes_service" "postgresql_external" {
+#   metadata {
+#     name      = "postgresql-external"
+#     namespace = "default"
+#
+#     labels = {
+#       app     = "postgresql"
+#       service = "rds"
+#     }
+#   }
+#
+#   spec {
+#     type          = "ExternalName"
+#     external_name = split(":", aws_db_instance.postgresql.endpoint)[0] # Extract hostname without port
+#
+#     port {
+#       name     = "postgresql"
+#       port     = 5432
+#       protocol = "TCP"
+#     }
+#   }
+#
+#   depends_on = [aws_db_instance.postgresql]
+# }
 
 # -----------------------------------------------------------------------------
 # Bootstrap Additional Databases (DISABLED - network connectivity issue)

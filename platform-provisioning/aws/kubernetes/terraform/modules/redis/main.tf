@@ -263,7 +263,7 @@ resource "kubectl_manifest" "redis_failover" {
             effect   = t.effect
             value    = try(t.value, null)
           }
-        ] : null
+        ] : []
 
         storage = {
           persistentVolumeClaim = {
