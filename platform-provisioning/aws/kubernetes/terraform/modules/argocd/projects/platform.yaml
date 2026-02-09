@@ -1,0 +1,88 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: terraform
+spec:
+  description: Platform infrastructure components (Keycloak, SonarQube, Vault, etc.)
+
+  # Source repositories (where platform code lives)
+  sourceRepos:
+    - '*'  # Allow all repos (can be restricted later)
+
+  # Destinations (where apps can be deployed)
+  destinations:
+    - namespace: 'keycloak'
+      server: https://kubernetes.default.svc
+    - namespace: 'sonarqube'
+      server: https://kubernetes.default.svc
+    - namespace: 'vault-system'
+      server: https://kubernetes.default.svc
+    - namespace: 'gitlab'
+      server: https://kubernetes.default.svc
+    - namespace: 'harbor'
+      server: https://kubernetes.default.svc
+    - namespace: 'monitoring'
+      server: https://kubernetes.default.svc
+    - namespace: 'cert-manager'
+      server: https://kubernetes.default.svc
+    - namespace: 'external-secrets'
+      server: https://kubernetes.default.svc
+    - namespace: 'kube-system'
+      server: https://kubernetes.default.svc
+
+  # Cluster resources allowed
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+    - group: 'admissionregistration.k8s.io'
+      kind: MutatingWebhookConfiguration
+    - group: 'admissionregistration.k8s.io'
+      kind: ValidatingWebhookConfiguration
+    - group: 'storage.k8s.io'
+      kind: StorageClass
+
+  # Namespace resources allowed (all)
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # RBAC policies
+  roles:
+    # Platform admins (full access)
+    - name: admin
+      description: Full access to platform project
+      policies:
+        - p, proj:platform:admin, applications, *, platform/*, allow
+      groups:
+        - argocd-admins
+        - platform-admins
+
+    # Platform developers (read-only)
+    - name: developer
+      description: Read-only access to platform project
+      policies:
+        - p, proj:platform:developer, applications, get, platform/*, allow
+        - p, proj:platform:developer, applications, sync, platform/*, allow
+      groups:
+        - developers
+
+  # Sync windows (maintenance windows)
+  syncWindows:
+    - kind: allow
+      schedule: '0 0 * * *'  # Daily at midnight
+      duration: 1h
+      applications:
+        - '*'
+      manualSync: true

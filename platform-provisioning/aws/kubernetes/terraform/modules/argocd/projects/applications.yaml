@@ -1,0 +1,107 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: terraform
+spec:
+  description: Application workloads (microservices, APIs, frontends)
+
+  # Source repositories
+  sourceRepos:
+    - '*'  # Allow all repos (can be restricted to specific Git URLs)
+
+  # Destinations (application namespaces only)
+  destinations:
+    - namespace: 'default'
+      server: https://kubernetes.default.svc
+    - namespace: 'staging'
+      server: https://kubernetes.default.svc
+    - namespace: 'production'
+      server: https://kubernetes.default.svc
+    - namespace: 'development'
+      server: https://kubernetes.default.svc
+    - namespace: 'apps-*'  # Pattern for app namespaces
+      server: https://kubernetes.default.svc
+
+  # Cluster resources denied (apps should not create cluster-scoped resources)
+  clusterResourceBlacklist:
+    - group: '*'
+      kind: '*'
+
+  # Namespace resources allowed
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'apps'
+      kind: DaemonSet
+    - group: 'batch'
+      kind: Job
+    - group: 'batch'
+      kind: CronJob
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'rbac.authorization.k8s.io'
+      kind: Role
+    - group: 'rbac.authorization.k8s.io'
+      kind: RoleBinding
+
+  # Namespace resources denied (security sensitive)
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+
+  # RBAC policies
+  roles:
+    # Application owners (full access to their apps)
+    - name: owner
+      description: Full access to applications in this project
+      policies:
+        - p, proj:applications:owner, applications, *, applications/*, allow
+      groups:
+        - app-owners
+        - developers
+
+    # Application viewers (read-only)
+    - name: viewer
+      description: Read-only access to applications
+      policies:
+        - p, proj:applications:viewer, applications, get, applications/*, allow
+      groups:
+        - app-viewers
+        - qa-team
+
+  # Sync windows
+  syncWindows:
+    - kind: allow
+      schedule: '* * * * *'  # Always allow (applications can sync anytime)
+      duration: 24h
+      applications:
+        - '*'
+      manualSync: true
+
+  # Orphaned resources (what to do with resources not in Git)
+  orphanedResources:
+    warn: true  # Warn about orphaned resources but don't delete

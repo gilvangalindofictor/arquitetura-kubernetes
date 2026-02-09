@@ -46,3 +46,13 @@ extraEnv: |
 # Disable internal PostgreSQL
 postgresql:
   enabled: false
+
+# Startup probe configuration (Keycloak slow startup ~40s)
+startupProbe:
+  httpGet:
+    path: /auth/
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 12  # 30s + (12 * 10s) = 150s total

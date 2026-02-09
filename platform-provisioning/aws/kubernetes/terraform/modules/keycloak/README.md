@@ -4,14 +4,25 @@
 
 This module deploys **Keycloak** as a centralized SSO (Single Sign-On) platform for OIDC authentication across the platform components (ArgoCD, SonarQube, GitLab, Grafana).
 
+**Deployment Status**: ✅ **DEPLOYED** in staging (2026-02-06)
+
 **Key Features:**
-- ✅ High Availability (2 replicas with anti-affinity)
+
+- ✅ High Availability (2 replicas with anti-affinity) - **Note**: Currently 1 replica due to metrics subsystem issue
 - ✅ External PostgreSQL (RDS integration)
-- ✅ AWS Secrets Manager integration (R-029 technical debt)
-- ✅ Prometheus ServiceMonitor (ADR-006)
+- ⚠️ Vault KV v2 integration (temporary K8s secrets due to root token permissions)
+- ✅ Prometheus ServiceMonitor (ADR-006) - **Note**: Monitoring pending
 - ✅ System node tolerations (ADR-042)
-- ✅ Health probes (liveness, readiness, startup)
+- ⚠️ Health probes (startup/liveness probes removed due to timeout issues)
 - ✅ Pod Disruption Budget (minAvailable: 1)
+
+**Current Configuration**:
+
+- **Version**: Keycloak 17.0.1-legacy (Chart 18.4.0)
+- **Realm**: `platform`
+- **Groups**: platform-admins, argocd-admins, developers
+- **OIDC Clients**: argocd, sonarqube, gitlab, grafana
+- **Replicas**: 1 (HA disabled temporarily)
 
 ## Architecture
 
@@ -260,6 +271,57 @@ keycloak_sessions
 # Login failures
 keycloak_failed_login_attempts_total
 ```
+
+## Known Issues (2026-02-06)
+
+### Issue 1: HA StatefulSet Metrics Subsystem Error
+
+**Status**: 🔴 Active
+**Impact**: Cannot run 2+ replicas
+**Severity**: Medium (HA disabled)
+
+**Symptoms**:
+
+- Pod-1 crashes with `NullPointerException` in metrics subsystem
+- Error: `WFLYCTL0013: Operation ("add") failed - address: ([("subsystem" => "metrics")])`
+
+**Workaround**: Scaled down to 1 replica
+**Resolution**: Under investigation - may require Keycloak version upgrade
+
+### Issue 2: Vault Root Token Permissions
+
+**Status**: 🟡 Active
+**Impact**: OIDC secrets stored in K8s instead of Vault
+**Severity**: Low (security concern)
+
+**Symptoms**:
+
+- `vault kv put` returns 403 Permission Denied
+- Root token cannot write to `secret/keycloak/*` paths
+
+**Workaround**: Created direct Kubernetes secrets for OIDC clients
+**Resolution**: Debug Vault permissions, migrate secrets to Vault
+
+### Issue 3: ExternalSecret PostgreSQL Credentials
+
+**Status**: 🟡 Active
+**Impact**: DB credentials not synced from Vault
+**Severity**: Low (functional workaround)
+
+**Symptoms**:
+
+- ExternalSecret synced wrong password
+- Database authentication failed
+
+**Workaround**: Deleted ExternalSecret, created direct K8s secret
+**Resolution**: Fix Vault secret value, recreate ExternalSecret
+
+### Issue 4: Probe Timeouts
+
+**Status**: ✅ Resolved
+**Impact**: Pod crashloop during startup
+
+**Resolution**: Removed startup/liveness probes temporarily - Keycloak startup takes ~40s
 
 ## Troubleshooting
 
