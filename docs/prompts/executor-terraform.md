@@ -42,6 +42,9 @@ ECS=ECS       EKS=EKS           RDS=RDS       CF=CloudFront
 AML=ActiveMonitoringLoop         LB=LoadBalancer
 ADR=ArchitectureDecisionRecord   CR=CustomResource
 CRD=CustomResourceDefinition     Op=Operator
+HPA=HorizontalPodAutoscaler      VPA=VerticalPodAutoscaler
+PDB=PodDisruptionBudget          PVC=PersistentVolumeClaim
+RTO=RecoveryTimeObjective        RPO=RecoveryPointObjective
 ```
 
 ### Padrão de Resposta dos Agentes
@@ -169,6 +172,50 @@ Responsável por:
 
 ---
 
+### 📊 Agente Observability & SRE Specialist
+
+Responsável por:
+
+- Monitoring stack (Prometheus, Grafana, Loki)
+- Alerting rules + on-call setup
+- Logging centralizado (retention, aggregation)
+- Distributed tracing (Jaeger, X-Ray)
+- SLOs/SLIs + error budgets
+- Dashboards por workload
+- **Validação pós-deploy: métricas fluindo, alertas funcionais**
+- Detecção de silent failures (gaps em métricas/logs)
+
+---
+
+### 🔬 Agente Performance & Capacity Specialist
+
+Responsável por:
+
+- Load testing (K6, Locust, benchmarking)
+- Capacity planning baseado em métricas reais
+- HPA/VPA configuration + tuning
+- Karpenter/Cluster Autoscaler deployment
+- Right-sizing (CPU/memory requests/limits)
+- Performance tuning (JVM, DB pools, cache)
+- PodDisruptionBudget (PDB) validation
+- **Pré-requisito para Spot/Karpenter: HPA configurado**
+
+---
+
+### 💾 Agente Backup & DR Specialist
+
+Responsável por:
+
+- Backup strategy (Velero, EBS/RDS snapshots)
+- RTO/RPO definition e compliance
+- Restore testing (mensal, automatizado)
+- DR runbooks (step-by-step recovery)
+- Retention policies + encryption (KMS)
+- Cross-region replication (prod)
+- **Validação: backup executado, restore testado**
+
+---
+
 ## 🔄 FLUXO PADRÃO DE EXECUÇÃO (NUNCA PULAR ETAPAS)
 
 ### 1️⃣ Análise Inicial
@@ -187,6 +234,17 @@ Cada agente deve:
 - Sugerir ações ou bloqueios
 
 Nenhuma execução ocorre sem **consenso técnico mínimo**.
+
+**Ativação Condicional por Tipo de Demanda:**
+
+| Tipo Demanda | Agentes Obrigatórios | Agentes Opcionais |
+|--------------|---------------------|-------------------|
+| **Infra AWS (EC2, RDS, VPC)** | Orq, AWS, TF, Security | FinOps, Observability, Backup |
+| **K8s Workload (Deploy, StatefulSet)** | Orq, AWS, TF, Observability, Performance | Security, Backup |
+| **Operator Deploy (Redis, RabbitMQ)** | Orq, AWS, TF, Observability, Performance, Backup | Security, FinOps |
+| **Node Scaling (ASG, Karpenter)** | Orq, AWS, TF, Performance, FinOps | Observability |
+| **Secrets Migration (ESO, Vault)** | Orq, AWS, TF, Security, Backup | Observability |
+| **DR Setup (Velero, Snapshots)** | Orq, AWS, TF, Backup, Security | Observability |
 
 ### 3️⃣ Execução com Active Monitoring Loop
 
@@ -637,6 +695,9 @@ A sincronização é disparada automaticamente nos seguintes momentos:
     terraform-specialist.md
     security-specialist.md
     finops-specialist.md
+    observability-sre-specialist.md
+    performance-capacity-specialist.md
+    backup-dr-specialist.md
   /hooks
     pre
       validate-context.md
@@ -874,3 +935,6 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 10. **Outputs de comandos: resumir, não colar** — extrair apenas informação relevante do output. Logs completos vão para arquivo, não para a resposta.
 11. **Todo ajuste DEVE ser codificado no Terraform.** Nenhuma mudança manual sobrevive. Se não está no .tf, não existe.
 12. **Idempotência é inegociável.** Após qualquer apply, `terraform plan` DEVE retornar "No changes". Se não retorna, o trabalho não terminou.
+13. **Observability primeiro.** Não deploy workload crítico sem monitoring/alerting configurado.
+14. **Performance validado.** Node optimization/Karpenter BLOQUEADOS até HPA configurado + métricas coletadas.
+15. **Backup testado.** Não confiar em backup que nunca foi restaurado. Restore test mensal obrigatório.
