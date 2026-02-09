@@ -374,7 +374,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-  set {
     name  = "read.tolerations[0].key"
     value = "node-type"
   }
@@ -458,7 +457,6 @@ resource "helm_release" "loki" {
     value = var.write_pvc_size
   }
 
-  set {
   set {
     name  = "write.tolerations[0].key"
     value = "node-type"
@@ -544,7 +542,6 @@ resource "helm_release" "loki" {
   }
 
   set {
-  set {
     name  = "backend.tolerations[0].key"
     value = "node-type"
   }
@@ -618,7 +615,6 @@ resource "helm_release" "loki" {
     value = "128Mi"
   }
 
-  set {
   set {
     name  = "gateway.tolerations[0].key"
     value = "node-type"

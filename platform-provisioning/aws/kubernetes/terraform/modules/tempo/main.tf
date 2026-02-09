@@ -544,7 +544,6 @@ resource "helm_release" "tempo" {
     value = "512Mi"
   }
 
-  set {
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "querier.tolerations[0].key"
@@ -657,7 +656,6 @@ resource "helm_release" "tempo" {
     value = "256Mi"
   }
 
-  set {
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "queryFrontend.tolerations[0].key"
@@ -745,7 +743,6 @@ resource "helm_release" "tempo" {
     value = var.storage_class
   }
 
-  set {
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "compactor.tolerations[0].key"
@@ -868,7 +865,6 @@ resource "helm_release" "tempo" {
     value = "2"
   }
 
-  set {
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "gateway.tolerations[0].key"
