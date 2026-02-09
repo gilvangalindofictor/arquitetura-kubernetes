@@ -234,76 +234,49 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 13-14: Service Mesh + Observabilidade Avançada          │
+│ SEMANA 9+: Service Mesh + Chaos Avançado (45h) - OPCIONAL      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  GAP 4: Service Mesh/Network Specialist (20h) — TRILHA A       │
+│  Sprint 7: Service Mesh (20h)                                  │
 │  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Deploy Linkerd (cloud-agnostic)       │ 8h │ Dia 1-4 │   │
-│  │ 📋 mTLS automático entre workloads       │ 4h │ Dia 4-5 │   │
-│  │ 📋 Traffic splitting básico (canary)     │ 4h │ Dia 6-7 │   │
-│  │ 📋 Observability integration (Prom+Graf) │ 4h │ Dia 7-8 │   │
+│  │ 📋 Deploy Linkerd (cloud-agnostic)       │ 8h │ Sem 9   │   │
+│  │ 📋 mTLS automático entre workloads       │ 4h │ Sem 9   │   │
+│  │ 📋 Traffic splitting básico (canary)     │ 4h │ Sem 9   │   │
+│  │ 📋 Observability integration (Prom+Graf) │ 4h │ Sem 9   │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
-│  GAP 1: Observabilidade/SRE Specialist (8h) — TRILHA B         │
+│  Sprint 8: CI/CD + Chaos Avançado (25h)                        │
 │  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Service mesh observability (golden)   │ 4h │ Dia 5-6 │   │
-│  │ 📋 Distributed tracing completo          │ 4h │ Dia 7-8 │   │
+│  │ ✅ ArgoCD ApplicationSets                │ JÁ PRONTO    │   │
+│  │ ✅ Rollback automático                   │ JÁ EXISTS    │   │
+│  │ 📋 Preview envs config (ApplicationSets) │ 1h │ Sem 10  │   │
+│  │ 📋 Chaos: Validação HA Redis/RabbitMQ    │ 6h │ Sem 10  │   │
+│  │ 📋 Chaos: Game day completo              │ 6h │ Sem 10  │   │
+│  │ 📋 Chaos: Scheduled chaos (1x/semana)    │ 6h │ Sem 10  │   │
+│  │ 📋 Chaos: Experiments avançados (disk)   │ 4h │ Sem 10  │   │
+│  │ 📋 Chaos: Dashboard Grafana              │ 2h │ Sem 10  │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
 │  ENTREGAS:                                                      │
-│  • Linkerd operacional com mTLS                                │
-│  • Zero-trust networking habilitado                            │
-│  • Traffic metrics por serviço                                 │
-│  • Golden signals (latency, traffic, errors, saturation)       │
-│  • Tracing end-to-end GitLab → Harbor → ArgoCD                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Responsáveis:** Network Specialist (20h) + SRE Specialist (8h)
-**Bloqueantes:** Network Policies básicas, observabilidade intermediária
-**Paralelização:** Trilha B depende de Trilha A (deploy Linkerd primeiro)
-
----
-
-### Semana 15-16: Marco 3.5 Sprint 8 (CI/CD Avançado)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 15-16: CI/CD Avançado + Chaos Contínuo                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  GAP 5: CI/CD/DevEx Specialist (16h) — TRILHA A                │
-│  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Preview envs por PR (ApplicationSets) │ 8h │ Dia 1-4 │   │
-│  │ 📋 Rollback automático (health checks)   │ 4h │ Dia 4-6 │   │
-│  │ 📋 GitOps completo (auto-sync+self-heal) │ 4h │ Dia 6-8 │   │
-│  └──────────────────────────────────────────────────────┘      │
-│                                                                 │
-│  GAP 6: Chaos Engineering/Resilience (12h) — TRILHA B          │
-│  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Chaos experiments avançados (disk)    │ 4h │ Dia 1-2 │   │
-│  │ 📋 Scheduled chaos (1x/semana staging)   │ 2h │ Dia 3   │   │
-│  │ 📋 Chaos dashboard Grafana               │ 3h │ Dia 4-5 │   │
-│  │ 📋 Game day trimestral (multi-failure)   │ 3h │ Dia 6-8 │   │
-│  └──────────────────────────────────────────────────────┘      │
-│                                                                 │
-│  ENTREGAS:                                                      │
-│  • Preview environments ephemeral                              │
-│  • Zero-downtime deploys com rollback automático              │
+│  • Linkerd mTLS operacional                                    │
+│  • Zero-trust networking completo                              │
+│  • ✅ Preview envs (ApplicationSets config apenas - 1h)        │
+│  • ✅ Rollback automático (já existe via ArgoCD)               │
 │  • Chaos contínuo automatizado                                 │
-│  • Confidence score de resiliência                             │
+│  • Confidence score resiliência > 90%                          │
 │                                                                 │
 │  CHECKPOINT 3: ✅ Marco 3.5 Completo                            │
 │  Gate: Platform Engineering maturo, ready para multi-cloud     │
 │                                                                 │
+│  🎉 ECONOMIA: -15h (-25%) - ArgoCD/rollback já existem         │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Responsáveis:** DevEx Specialist (16h) + Resilience Specialist (12h)
-**Paralelização:** Trilha A e B independentes
-**Bloqueantes:** ArgoCD estável, service mesh operacional
+**Responsáveis:** Network Specialist (20h) + DevEx Specialist (1h) + Resilience Specialist (24h)
+**Paralelização:** Sprints 7 e 8 podem ser sequenciais ou paralelos
+**Bloqueantes:** ✅ Network Policies básicas, ✅ Observabilidade completa, ✅ ArgoCD operacional
+**Componentes já existentes:** ArgoCD ApplicationSets ready, health checks configurados
 
 ---
 
