@@ -345,12 +345,13 @@ module "external_secrets_staging" {
 module "vault_config_staging" {
   source = "../../modules/vault-config"
 
-  depends_on = [
-    module.vault_staging,
-    module.external_secrets_staging
-  ]
+  # FIXME: Removed depends_on due to legacy module with local providers
+  # depends_on = [
+  #   module.vault_staging,
+  #   module.external_secrets_staging
+  # ]
 
-  vault_addr  = "http://vault.vault-system.svc.cluster.local:8200"
+  vault_addr  = "http://localhost:8200" # Temporary: using port-forward for Terraform apply
   vault_token = var.vault_root_token
 
   cluster_name        = local.cluster_name
@@ -437,6 +438,45 @@ module "keycloak_staging" {
   postgresql_port     = 5432
   postgresql_database = "keycloak"
   postgresql_username = "keycloak_user"
+
+  # Monitoring
+  enable_monitoring = true
+
+  # Tags
+  common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# ARGOCD - GitOps Platform (GAP-003)
+# OIDC integration with Keycloak, external PostgreSQL, RBAC
+# Pattern: Following Keycloak deployment (K8s secrets due to Vault permissions issue)
+#------------------------------------------------------------------------------
+
+module "argocd_staging" {
+  source = "../../modules/argocd"
+
+  depends_on = [
+    module.keycloak_staging,
+    module.postgresql_staging
+  ]
+
+  # Cluster info
+  cluster_name = local.cluster_name
+  namespace    = "argocd"
+
+  # ArgoCD configuration
+  argocd_chart_version = "5.51.6"
+  replicas             = 2 # HA for critical GitOps service
+
+  # Keycloak OIDC integration
+  keycloak_url       = "http://keycloak-http.keycloak.svc.cluster.local/auth"
+  keycloak_client_id = "argocd"
+
+  # Domain (internal only for staging)
+  domain = "argocd.staging.local"
+
+  # Ingress (disabled for staging, use port-forward)
+  ingress_enabled = false
 
   # Monitoring
   enable_monitoring = true
