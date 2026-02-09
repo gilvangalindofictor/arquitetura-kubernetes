@@ -77,6 +77,24 @@ plugins:
   install: []
   # - https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/1.14.0/sonarqube-community-branch-plugin-1.14.0.jar
   
+# OIDC Authentication (Keycloak)
+env:
+  - name: SONAR_AUTH_OIDC_ENABLED
+    value: "true"
+  - name: SONAR_AUTH_OIDC_ISSUERURI
+    value: "http://keycloak-http.keycloak.svc.cluster.local/auth/realms/platform"
+  - name: SONAR_AUTH_OIDC_CLIENTID_SECURED
+    value: "sonarqube"
+  - name: SONAR_AUTH_OIDC_CLIENTSECRET_SECURED
+    valueFrom:
+      secretKeyRef:
+        name: sonarqube-oidc
+        key: client-secret
+  - name: SONAR_AUTH_OIDC_GROUPSSYNC
+    value: "true"
+  - name: SONAR_AUTH_OIDC_GROUPSSYNC_CLAIMNAME
+    value: "groups"
+
 # Quality Gates
 # TODO: Configure via API after deployment
 # Default: "Sonar way" (built-in)
