@@ -8,13 +8,13 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-06 (via bootstrap scaffold)
+**Última Atualização**: 2026-02-06 (Marco 4 - GAP-002 e GAP-004 deployados)
 
-**Estado do Projeto**: Desenvolvimento Ativo - Marco 3 em andamento
+**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 em andamento
 
-**Marco Atual**: Marco 3 Fase 1e (VPC Endpoints) - Concluído
+**Marco Atual**: Marco 4 - CI/CD Platform (75% completo)
 
-**Progresso Geral**: 67% ████████████████░░░░░░░░ (Marcos 0-3 / 0-6)
+**Progresso Geral**: 75% ██████████████████░░░░░░ (Marcos 0-3 + 75% Marco 4 / 0-6)
 
 ---
 
@@ -28,30 +28,33 @@
 | Marco 3 Fase 1a/1b | ✅ Completo     | 100%      | 5 dias  | +$58      | ✅             |
 | Marco 3 Fase 1c    | ✅ Completo     | 100%      | < 1h    | $0        | ✅             |
 | Marco 3 Fase 1d    | ✅ Completo     | 100%      | 3 dias  | +$0.50    | ✅             |
-| Marco 3 Fase 1e    | ✅ Completo     | 100%      | 2h32min | +$28.90   | ✅ 2026-02-06  |
-| Marco 4            | 🚧 Planejamento | 0%        | TBD     | TBD       | —             |
-| Marco 5            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
-| Marco 6            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
+| Marco 3 Fase 1e    | ✅ Completo      | 100%      | 2h32min | +$28.90   | ✅ 2026-02-06 |
+| Marco 4            | 🚧 Em andamento  | 75%       | ~10h    | +$100     | —             |
+| Marco 5            | ⏸️ Pendente      | 0%        | TBD     | TBD       | —             |
+| Marco 6            | ⏸️ Pendente      | 0%        | TBD     | TBD       | —             |
 
 **Legenda**: ✅ Completo | 🚧 Em andamento | ⏸️ Pendente | ⚠️ Bloqueado
 
 **Total até Marco 3**: ~14 dias de trabalho efetivo | ~$700/mês staging
+**Marco 4 Atual**: 4/8 GAPs completos (75% core features) | +$100/mês | ~$800/mês total
 
 ---
 
 ## Tasks Recentes
 
-**Marco 3 Fase 1e - VPC Endpoints (Concluída em 2026-02-06)**:
-- ✅ Criação VPC Endpoints (STS + EC2)
-- ✅ Recovery Vault após issue de unsealing
-- ✅ PostgreSQL migrado temporariamente para subnet pública (ADR-046)
-- ✅ Vault unsealing automatizado via Lambda
-- ✅ Keycloak + GitLab + Harbor reconectados ao PostgreSQL
+**Marco 4 - CI/CD Platform (Em andamento - 75% completo)**:
+
+- ✅ GAP-001: Keycloak SSO Platform Deploy (2026-02-06, ~6h)
+- ✅ GAP-003: ArgoCD GitOps Deploy (2026-02-06, ~2h)
+- 🟡 GAP-002: GitLab Components Fix (2026-02-06, ~2h, 90% completo)
+- ✅ GAP-004: SonarQube Code Quality Deploy (2026-02-06, ~2h)
 
 **Próximos Passos**:
-- [ ] Planejamento Marco 4 (GitLab pipeline CI/CD completa, SonarQube, ArgoCD, Backstage)
-- [ ] Gap analysis: Marco 4 vs implementado
-- [ ] Multi-environment structure (ADR-026)
+
+- [ ] Resolver GitLab runner registration (aguardar migrations ~30min)
+- [ ] Validar OIDC login (SonarQube + ArgoCD)
+- [ ] GAP-005: GitLab CI/CD Integration (3h)
+- [ ] GAP-006/007/008: Hardening (ApplicationSets, Network Policies, Dashboards)
 
 ---
 
@@ -96,7 +99,34 @@
 | GitLab         | ✅ Operacional | 16.7.0      | 1                      | gitlab        | PostgreSQL RDS         | Webservice + Sidekiq + Gitaly ok               |
 | Harbor         | ✅ Operacional | 2.9.1       | 1                      | harbor        | PostgreSQL RDS         | Registry funcional, robot accounts ok          |
 | Vault          | ✅ Operacional | 1.15.0      | 3 (HA)                 | vault         | PostgreSQL RDS         | HA injector + unsealing automatizado (ADR-041) |
-| Keycloak       | ✅ Operacional | 23.0.0      | 1                      | keycloak      | PostgreSQL RDS         | Integrado com Vault via ESO                    |
+
+---
+
+### CI/CD Platform (Marco 4) - 🚧 75% Completo
+
+| Aplicação | Status         | Versão            | Réplicas | Namespace      | Database       | Notas                                              |
+| --------- | -------------- | ----------------- | -------- | -------------- | -------------- | -------------------------------------------------- |
+| Keycloak  | ✅ Operacional | 23.0.0            | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube  |
+| ArgoCD    | ✅ Operacional | 2.9.3             | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running   |
+| SonarQube | ✅ Operacional | 10.3.0-community  | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi              |
+| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0)  | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)        |
+
+**GAPs Marco 4**:
+
+- ✅ GAP-001: Keycloak SSO (100% - deployed 2026-02-06)
+- 🟡 GAP-002: GitLab Fix (90% - core operacional, runner pendente)
+- ✅ GAP-003: ArgoCD GitOps (100% - deployed 2026-02-06)
+- ✅ GAP-004: SonarQube (100% - deployed 2026-02-06)
+- ⏸️ GAP-005: GitLab CI/CD Integration (0% - aguarda runner)
+- ⏸️ GAP-006: ApplicationSets GitOps Patterns (0%)
+- ⏸️ GAP-007: Network Policies Marco 4 (0%)
+- ⏸️ GAP-008: Monitoring & Dashboards Marco 4 (0%)
+
+**Known Issues Marco 4**:
+
+- 🟡 GitLab runner: Registration failing (GitLab API 500 - migrations pending)
+- ⚠️ SonarQube Prometheus exporter: Disabled (Maven Central timeout)
+- 🟡 OIDC testing: Pending manual validation (SonarQube + ArgoCD)
 
 ---
 
@@ -159,15 +189,17 @@
 **Última Análise**: 2026-02-05
 
 **Custo Atual Staging (mensal)**:
-| Categoria                   | Custo     | Percentual |
-| --------------------------- | --------- | ---------- |
-| EKS Cluster (control plane) | $73       | 10.4%      |
-| EC2 Nodes (7 nodes)         | $474      | 67.7%      |
-| PostgreSQL RDS              | $58       | 8.3%       |
-| VPC Endpoints               | $28.90    | 4.1%       |
-| EBS Volumes                 | $50       | 7.1%       |
-| Load Balancers              | $16       | 2.3%       |
-| **Total**                   | **~$700** | **100%**   |
+
+| Categoria                   | Custo      | Percentual |
+| --------------------------- | ---------- | ---------- |
+| EKS Cluster (control plane) | $73        | 9.1%       |
+| EC2 Nodes (7 nodes)         | $474       | 59.3%      |
+| PostgreSQL RDS              | $58        | 7.3%       |
+| VPC Endpoints               | $28.90     | 3.6%       |
+| EBS Volumes                 | $50        | 6.3%       |
+| Load Balancers              | $16        | 2.0%       |
+| **Marco 4 (Keycloak+Argo+Sonar)** | **+$100** | **12.5%** |
+| **Total Marco 0-4**         | **~$800**  | **100%**   |
 
 **Automação FinOps (ADR-024)**:
 - ✅ Lambda start/stop para RDS + ASGs
