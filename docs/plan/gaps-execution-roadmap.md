@@ -622,31 +622,34 @@ Economia: 28h → 16h (43% redução)
 
 ## 📊 Consolidação de Economia
 
-### Sem Paralelização
+### Sem Paralelização ✅ CORRIGIDO
 
-| Marco | Sprints | Esforço Total | Duração (1 eng) |
-|-------|---------|---------------|-----------------|
-| Marco 2 | 2-3 | 26h | 3,25 dias |
-| Marco 3 | 4-6 | 74h | 9,25 dias |
-| Marco 3.5 | 7-8 | 56h | 7 dias |
-| **TOTAL** | **6** | **156h** | **19,5 dias** |
+| Marco | Sprints | Esforço Total | Esforço Original | Economia |
+|-------|---------|---------------|------------------|----------|
+| Marco 2 | 2 | **9h** | 26h | **-17h (-65%)** |
+| Marco 3 | 4-6 | **36h** | 74h | **-38h (-51%)** |
+| Marco 3.5 | 7-8 | **44h** | 56h | **-12h (-21%)** |
+| **TOTAL** | **6** | **89h** | **156h** | **-67h (-43%)** |
+
+**Duração (1 engenheiro):** 11 dias (reduzido de 19,5 dias)
 
 ---
 
-### Com Paralelização (2 engenheiros)
+### Com Paralelização (2 engenheiros) ✅ CORRIGIDO
 
-| Marco | Sprints | Esforço Paralelo | Duração (2 eng) | Economia |
-|-------|---------|------------------|-----------------|----------|
-| Marco 2 | 2-3 | 26h | 3,25 dias | 0% |
-| Marco 3 | 4-6 | 40h | 5 dias | -46% |
-| Marco 3.5 | 7-8 | 36h | 4,5 dias | -36% |
-| **TOTAL** | **6** | **102h** | **12,75 dias** | **-35%** |
+| Marco | Sprints | Esforço Paralelo | Esforço Original | Duração (2 eng) | Economia |
+|-------|---------|------------------|------------------|-----------------|----------|
+| Marco 2 | 2 | **9h** | 26h | **1,1 dias** | **-65%** |
+| Marco 3 | 4-6 | **19h** | 40h | **2,4 dias** | **-53%** |
+| Marco 3.5 | 7-8 | **32h** | 36h | **4 dias** | **-11%** |
+| **TOTAL** | **6** | **60h** | **102h** | **7,5 dias** | **-41%** |
 
-**ROI Paralelização:**
-- Economia: 54 person-hours (-35%)
-- Redução calendar time: 6,75 dias (-35%)
-- Custo adicional: R$ 10.800 (2º engenheiro)
-- Time-to-market: 12,75 dias vs 19,5 dias
+**ROI Paralelização Corrigido:**
+- Economia person-hours: **-29h** vs original corrigido (-33% adicional)
+- Redução calendar time: **7,5 dias vs 11 dias** (1 eng)
+- Custo: R$ 17.800 (ambos eng) vs R$ 31.200 original (**-43%**)
+- Time-to-market: **7,5 dias vs 12,75 dias** original (-41%)
+- **Componentes já deployados:** ArgoCD, Harbor, GitLab, Keycloak, Prometheus, Grafana
 
 ---
 
@@ -707,7 +710,9 @@ Economia: 28h → 16h (43% redução)
 
 ---
 
-**Status:** 📋 Roadmap de execução aprovado
-**Próxima Ação:** Finalizar Marco 2 Fase 9 + Iniciar Gap 1 (SLIs/SLOs)
+**Status:** ✅ Roadmap de execução atualizado (v2.0)
+**Mudança Principal:** -43% esforço, -41% timeline, componentes já deployados
+**Próxima Ação:** Iniciar Gap 1 (SLIs/SLOs - 9h, não 12h)
 **Responsável:** Orquestrador + SRE Specialist
-**Última Atualização:** 2026-02-09
+**Componentes Implementados:** ArgoCD, Harbor, GitLab, Keycloak, Prometheus, Grafana, Loki, Tempo
+**Última Atualização:** 2026-02-09 (após reality check com código Terraform)
