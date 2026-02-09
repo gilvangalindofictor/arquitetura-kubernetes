@@ -66,75 +66,87 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 
 ---
 
-### Semana 5-6: Marco 2 Sprint 3 (Backup/DR + Hardening)
+### Semana 5-6: Marco 3 Sprint 4 (Backup/DR + CI/CD Optimization) ✅ CORRIGIDO
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 5-6: Backup/DR Completo + Validação                     │
+│ SEMANA 5-6: Backup/DR + CI/CD (10h - REDUZIDO DE 30h)          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  GAP 3: Backup/DR Specialist (14h)                             │
+│  GAP 3: Backup/DR Specialist (8h)                              │
 │  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ RDS automated backups                 │ JÁ COMPLETO  │   │
+│  │ ✅ S3 buckets para backups               │ JÁ COMPLETO  │   │
 │  │ 📋 Instalar Velero + S3 backend          │ 4h │ Dia 1-2 │   │
-│  │ 📋 Configurar backup schedules           │ 2h │ Dia 2   │   │
-│  │ 📋 DR Runbook documentado                │ 3h │ Dia 3   │   │
+│  │ 📋 DR Runbook documentado                │ 3h │ Dia 2-3 │   │
 │  │ 📋 Definir RTO/RPO targets               │ 1h │ Dia 3   │   │
-│  │ 📋 DR Drill: RDS restore                 │ 2h │ Dia 4   │   │
-│  │ 📋 DR Drill: K8s namespace restore       │ 2h │ Dia 5   │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  GAP 5: CI/CD/DevEx (2h)                                       │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ ArgoCD + ApplicationSets              │ JÁ DEPLOYADO │   │
+│  │ ✅ Harbor + robot accounts               │ JÁ DEPLOYADO │   │
+│  │ ✅ GitLab CE + runners                   │ JÁ DEPLOYADO │   │
+│  │ ✅ Keycloak SSO                          │ JÁ DEPLOYADO │   │
+│  │ 📋 Pipeline optimization (cache, parallel)│ 2h │ Dia 3  │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
 │  ENTREGAS:                                                      │
-│  • Velero backup diário de namespaces críticos                 │
-│  • RTO: 1h, RPO: 24h validados                                 │
-│  • DR drill completo documentado                               │
+│  • ✅ ArgoCD, Harbor, GitLab, Keycloak operacionais (COMPLETO) │
+│  • 📋 Velero instalado com S3 backend                          │
+│  • 📋 RTO/RPO documentados                                     │
+│  • 📋 Pipelines otimizados                                     │
 │                                                                 │
-│  CHECKPOINT 1: ✅ Marco 2 Completo                              │
-│  Gate: Observabilidade + Backup validados antes Marco 3        │
+│  🎉 ECONOMIA MASSIVA: -20h (-67%) - CI/CD já deployado!        │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Responsáveis:** Backup/DR Specialist (14h)
-**Bloqueantes:** S3 buckets criados, IRSA configurado
+**Responsáveis:** Backup Specialist (8h) + DevEx Specialist (2h)
+**Bloqueantes:** ✅ S3 buckets criados, ✅ IRSA configurado
+**Componentes já existentes:** ArgoCD 2 replicas HA, Harbor S3 IRSA, GitLab runners, Keycloak 2 replicas
 
 ---
 
-### Semana 7-8: Marco 3 Sprint 4 (Foundation)
+### Semana 7-8: Marco 3 Sprint 5 (Performance + Backup Testing) ✅ CORRIGIDO
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 7-8: CI/CD Baseline + Performance Foundation            │
+│ SEMANA 7-8: Performance + Backup Testing (13h - REDUZIDO)      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  GAP 5: CI/CD/DevEx Specialist (16h) — TRILHA A                │
+│  GAP 2: Performance/Capacity Specialist (10h) — TRILHA A       │
 │  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Deploy ArgoCD + ApplicationSets       │ 6h │ Dia 1-3 │   │
-│  │ 📋 Deploy Harbor + robot accounts        │ 4h │ Dia 3-4 │   │
-│  │ 📋 GitLab pipelines otimizados           │ 4h │ Dia 4-5 │   │
-│  │ 📋 Smoke tests pós-deploy                │ 2h │ Dia 5   │   │
+│  │ ✅ Metrics Server                        │ JÁ COMPLETO  │   │
+│  │ ✅ Prometheus metrics                    │ JÁ COMPLETO  │   │
+│  │ ✅ Grafana dashboards baseline           │ JÁ COMPLETO  │   │
+│  │ 📋 Instalar VPA (recommend mode)         │ 2h │ Dia 1   │   │
+│  │ 📋 Configurar HPA (GitLab, ArgoCD)       │ 4h │ Dia 1-2 │   │
+│  │ 📋 Baseline metrics review               │ 1h │ Dia 2   │   │
+│  │ 📋 Dashboards workload-specific          │ 3h │ Dia 3   │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
-│  GAP 2: Performance/Capacity Specialist (12h) — TRILHA B       │
+│  GAP 3: Backup/DR Specialist (3h) — TRILHA B                   │
 │  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Configurar HPA (GitLab, ArgoCD)       │ 4h │ Dia 1-2 │   │
-│  │ 📋 Configurar VPA (recommend mode)       │ 2h │ Dia 2   │   │
-│  │ 📋 Baseline performance metrics          │ 3h │ Dia 3-4 │   │
-│  │ 📋 Capacity dashboard Grafana            │ 3h │ Dia 4-5 │   │
+│  │ 📋 Automated restore testing (CronJob)   │ 3h │ Dia 1-2 │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
 │  ENTREGAS:                                                      │
-│  • ArgoCD operacional com OIDC ready                           │
-│  • Harbor registry com scanning habilitado                     │
-│  • Pipelines GitLab < 5min build time                          │
-│  • HPA configurado com métricas custom                         │
-│  • Baseline de performance estabelecido                        │
+│  • ✅ Prometheus metrics coletando tudo (JÁ COMPLETO)          │
+│  • 📋 VPA instalado                                            │
+│  • 📋 HPA configurado para 3+ workloads                        │
+│  • 📋 Dashboards específicos por workload                      │
+│  • 📋 Restore testing automatizado                             │
+│                                                                 │
+│  🎉 ECONOMIA: -15h (-54%) - Metrics/dashboards já existem      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Responsáveis:** DevEx Specialist (16h) + Performance Specialist (12h)
-**Paralelização:** Trilha A e B independentes (executar em paralelo)
-**Bloqueantes:** Marco 2 validado (Checkpoint 1)
+**Responsáveis:** Performance Specialist (10h) + Backup Specialist (3h)
+**Paralelização:** Trilha A e B independentes
+**Bloqueantes:** ✅ Prometheus operacional, ✅ Velero instalado
+**Componentes já existentes:** Metrics Server, Prometheus, Grafana, FinOps capacity mgmt
 
 ---
 
@@ -174,36 +186,37 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 
 ---
 
-### Semana 11-12: Marco 3 Sprint 6 (Validação & Hardening)
+### Semana 8-9: Marco 3 Sprint 6 (Load Testing + DR Drill + Chaos) ✅ CORRIGIDO
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 11-12: Performance Testing + Chaos Engineering          │
+│ SEMANA 8-9: Load Testing + DR Drill + Chaos (19h)              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  GAP 2: Performance/Capacity Specialist (14h) — TRILHA A       │
+│  GAP 2: Performance/Capacity Specialist (10h) — TRILHA A       │
 │  ┌──────────────────────────────────────────────────────┐      │
 │  │ 📋 Load testing K6 (GitLab/ArgoCD/Harbor)│ 6h │ Dia 1-3 │   │
-│  │ 📋 Benchmarking contínuo                 │ 3h │ Dia 3-4 │   │
-│  │ 📋 Capacity planning (6 meses projeção)  │ 3h │ Dia 4-5 │   │
-│  │ 📋 Tuning (JVM, DB connections)          │ 2h │ Dia 5   │   │
+│  │ 📋 Capacity planning (6 meses projeção)  │ 4h │ Dia 3-4 │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
-│  GAP 6: Chaos Engineering/Resilience (12h) — TRILHA B          │
+│  GAP 3: Backup/DR Specialist (6h) — TRILHA B                   │
 │  ┌──────────────────────────────────────────────────────┐      │
-│  │ 📋 Chaos experiments básicos (pod kill) │ 4h │ Dia 1-2 │   │
-│  │ 📋 Validação HA Redis (Sentinel failover)│ 3h │ Dia 3   │   │
-│  │ 📋 Validação HA RabbitMQ (quorum queue) │ 3h │ Dia 4   │   │
-│  │ 📋 Game day (node drain simulation)      │ 2h │ Dia 5   │   │
+│  │ 📋 DR Drill: RDS restore                 │ 3h │ Dia 1-2 │   │
+│  │ 📋 DR Drill: K8s namespace restore       │ 3h │ Dia 2-3 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  GAP 6: Chaos Engineering/Resilience (3h) — TRILHA C           │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ 📋 Instalar LitmusChaos                  │ 2h │ Dia 1   │   │
+│  │ 📋 Chaos experiments básicos (pod kill)  │ 1h │ Dia 2   │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
 │  ENTREGAS:                                                      │
-│  • K6 scripts executando em CI                                 │
-│  • Capacity report com projeção de 6 meses                     │
-│  • Tuning documentado com before/after metrics                 │
-│  • Chaos experiments automatizados (LitmusChaos)               │
-│  • HA validada na prática (não apenas teoria)                  │
-│  • Game day runbook documentado                                │
+│  • 📋 K6 scripts executando em CI                              │
+│  • 📋 Capacity report com projeção de 6 meses                  │
+│  • 📋 DR drill completo (RTO < 1h, RPO < 24h)                  │
+│  • 📋 LitmusChaos instalado                                    │
+│  • 📋 Chaos experiments básicos validando HA                   │
 │                                                                 │
 │  CHECKPOINT 2: ✅ Marco 3 Completo                              │
 │  Gate: Staging production-ready, pode promover para prod       │
@@ -211,13 +224,13 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Responsáveis:** Performance Specialist (14h) + Resilience Specialist (12h)
-**Paralelização:** Trilha A e B independentes
-**Bloqueantes:** Workloads estáveis, observabilidade completa
+**Responsáveis:** Performance Specialist (10h) + Backup Specialist (6h) + Resilience Specialist (3h)
+**Paralelização:** Trilhas A, B e C independentes
+**Bloqueantes:** ✅ Workloads estáveis, ✅ Observabilidade completa, ✅ Velero operacional
 
 ---
 
-### Semana 13-14: Marco 3.5 Sprint 7 (Service Mesh)
+### Semana 9+: Marco 3.5 Sprint 7-8 (Service Mesh + Chaos Avançado) - OPCIONAL
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
