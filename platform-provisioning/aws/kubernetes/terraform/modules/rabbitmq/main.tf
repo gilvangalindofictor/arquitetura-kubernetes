@@ -154,10 +154,10 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
       resources = {
         requests = {
           cpu    = "200m"
-          memory = "1Gi"  # MUST be equal to limit (RabbitMQ Operator requirement)
+          memory = "1Gi" # MUST be equal to limit (RabbitMQ Operator requirement)
         }
         limits = {
-          cpu    = "1"  # Normalized form (equivalent to 1000m)
+          cpu    = "1" # Normalized form (equivalent to 1000m)
           memory = "1Gi"
         }
       }

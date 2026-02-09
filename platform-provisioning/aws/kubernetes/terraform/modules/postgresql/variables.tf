@@ -26,7 +26,7 @@ variable "private_subnet_cidrs" {
 variable "instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.t3.small"  # FinOps: Start small, scale up when needed ($315.36/year saved)
+  default     = "db.t3.small" # FinOps: Start small, scale up when needed ($315.36/year saved)
 }
 
 variable "allocated_storage" {

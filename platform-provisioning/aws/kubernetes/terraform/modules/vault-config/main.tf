@@ -75,8 +75,8 @@ resource "vault_kubernetes_auth_backend_role" "eso_reader" {
   bound_service_account_names      = [var.eso_service_account]
   bound_service_account_namespaces = [var.eso_namespace]
 
-  token_ttl      = 900   # 15 min (Security: reduced exposure window)
-  token_max_ttl  = 3600  # 1 hour (was 24h)
+  token_ttl      = 900  # 15 min (Security: reduced exposure window)
+  token_max_ttl  = 3600 # 1 hour (was 24h)
   token_policies = [vault_policy.eso_reader.name]
 
   audience = null # Use default K8s audience

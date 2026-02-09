@@ -208,23 +208,23 @@ resource "helm_release" "harbor" {
   namespace  = kubernetes_namespace.harbor.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name                = var.cluster_name
-    namespace                   = var.namespace
-    service_account             = kubernetes_service_account.harbor.metadata[0].name
-    admin_password_secret       = kubernetes_secret.harbor_admin_password.metadata[0].name
-    postgresql_host             = var.postgresql_host
-    postgresql_port             = var.postgresql_port
-    postgresql_database         = var.postgresql_database
-    postgresql_username         = var.postgresql_username
-    postgresql_password         = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
-    redis_host                  = var.redis_host
-    redis_port                  = var.redis_port
-    redis_password_secret       = data.kubernetes_secret.redis_password.data["password"]
-    s3_bucket                   = var.s3_bucket_name
-    s3_region                   = var.aws_region
-    storage_class               = var.storage_class
-    enable_trivy                = var.enable_trivy
-    enable_monitoring           = var.enable_monitoring
+    cluster_name          = var.cluster_name
+    namespace             = var.namespace
+    service_account       = kubernetes_service_account.harbor.metadata[0].name
+    admin_password_secret = kubernetes_secret.harbor_admin_password.metadata[0].name
+    postgresql_host       = var.postgresql_host
+    postgresql_port       = var.postgresql_port
+    postgresql_database   = var.postgresql_database
+    postgresql_username   = var.postgresql_username
+    postgresql_password   = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+    redis_host            = var.redis_host
+    redis_port            = var.redis_port
+    redis_password_secret = data.kubernetes_secret.redis_password.data["password"]
+    s3_bucket             = var.s3_bucket_name
+    s3_region             = var.aws_region
+    storage_class         = var.storage_class
+    enable_trivy          = var.enable_trivy
+    enable_monitoring     = var.enable_monitoring
   })]
 
   depends_on = [

@@ -193,9 +193,9 @@ variable "tags" {
   description = "Base tags to apply to all resources"
   type        = map(string)
   default = {
-    Project     = "k8s-platform"
-    ManagedBy   = "terraform"
-    Component   = "finops-automation"
+    Project   = "k8s-platform"
+    ManagedBy = "terraform"
+    Component = "finops-automation"
   }
 }
 
@@ -234,14 +234,14 @@ locals {
   # Lambda common environment variables
   # Note: AWS_REGION is automatically provided by Lambda runtime (reserved key)
   lambda_env_vars = {
-    ENVIRONMENT           = var.environment
-    CLUSTER_NAME          = var.cluster_name
-    RDS_INSTANCE_ID       = var.rds_instance_id
-    ASG_NAMES             = join(",", var.asg_names)
-    DYNAMODB_TABLE_NAME   = aws_dynamodb_table.scheduler_state.name
-    BRASIL_API_URL        = "https://brasilapi.com.br/api/feriados/v1"
-    LOG_LEVEL             = "INFO"
-    SNS_TOPIC_ARN         = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? aws_sns_topic.finops_notifications[0].arn : var.sns_topic_arn
+    ENVIRONMENT               = var.environment
+    CLUSTER_NAME              = var.cluster_name
+    RDS_INSTANCE_ID           = var.rds_instance_id
+    ASG_NAMES                 = join(",", var.asg_names)
+    DYNAMODB_TABLE_NAME       = aws_dynamodb_table.scheduler_state.name
+    BRASIL_API_URL            = "https://brasilapi.com.br/api/feriados/v1"
+    LOG_LEVEL                 = "INFO"
+    SNS_TOPIC_ARN             = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? aws_sns_topic.finops_notifications[0].arn : var.sns_topic_arn
     CIRCUIT_BREAKER_THRESHOLD = tostring(var.circuit_breaker_threshold)
   }
 }

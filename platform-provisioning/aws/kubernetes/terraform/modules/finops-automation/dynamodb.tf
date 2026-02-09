@@ -60,10 +60,10 @@ resource "aws_dynamodb_table" "scheduler_state" {
   }
 
   tags = merge(local.security_tags, {
-    Name        = "finops-scheduler-state-${var.environment}"
-    Purpose     = "Circuit breaker state and holiday cache"
-    Compliance  = "LGPD-OK"
-    Encryption  = "KMS-managed"
+    Name       = "finops-scheduler-state-${var.environment}"
+    Purpose    = "Circuit breaker state and holiday cache"
+    Compliance = "LGPD-OK"
+    Encryption = "KMS-managed"
   })
 }
 

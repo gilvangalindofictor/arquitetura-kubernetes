@@ -158,8 +158,8 @@ resource "kubernetes_service" "postgresql_external" {
   }
 
   spec {
-    type = "ExternalName"
-    external_name = split(":", aws_db_instance.postgresql.endpoint)[0]  # Extract hostname without port
+    type          = "ExternalName"
+    external_name = split(":", aws_db_instance.postgresql.endpoint)[0] # Extract hostname without port
 
     port {
       name     = "postgresql"

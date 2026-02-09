@@ -10,7 +10,7 @@
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role" "lambda_role" {
-  name = "finops-scheduler-role-${var.environment}"
+  name        = "finops-scheduler-role-${var.environment}"
   description = "Execution role for FinOps scheduler Lambda functions (${var.environment})"
 
   assume_role_policy = jsonencode({
@@ -25,7 +25,7 @@ resource "aws_iam_role" "lambda_role" {
   })
 
   tags = merge(local.security_tags, {
-    Name = "finops-scheduler-role-${var.environment}"
+    Name    = "finops-scheduler-role-${var.environment}"
     Purpose = "Lambda execution with least privilege"
   })
 }
@@ -85,7 +85,7 @@ resource "aws_iam_role_policy" "rds_policy" {
         Action = [
           "rds:DescribeDBInstances"
         ]
-        Resource = "*"  # Describe is read-only, safe to allow on all resources
+        Resource = "*" # Describe is read-only, safe to allow on all resources
       },
       {
         Sid    = "ManageRDSInstance"
@@ -216,7 +216,7 @@ resource "aws_iam_role_policy" "cloudwatch_policy" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "sns_policy" {
-  count = var.enable_sns_notifications || var.sns_topic_arn != "" ? 1 : 0  # Criar se tópico interno OU externo
+  count = var.enable_sns_notifications || var.sns_topic_arn != "" ? 1 : 0 # Criar se tópico interno OU externo
   name  = "finops-scheduler-sns-policy-v1"
   role  = aws_iam_role.lambda_role.id
 

@@ -62,8 +62,8 @@ output "cloudwatch_log_group_stop" {
 output "cloudwatch_alarms" {
   description = "CloudWatch alarms created (if enabled)"
   value = var.enable_cloudwatch_alarms ? {
-    startup_duration = try(aws_cloudwatch_metric_alarm.startup_duration_high[0].arn, null)
-    startup_failures = try(aws_cloudwatch_metric_alarm.startup_failures[0].arn, null)
+    startup_duration  = try(aws_cloudwatch_metric_alarm.startup_duration_high[0].arn, null)
+    startup_failures  = try(aws_cloudwatch_metric_alarm.startup_failures[0].arn, null)
     shutdown_failures = try(aws_cloudwatch_metric_alarm.shutdown_failures[0].arn, null)
   } : {}
 }
@@ -76,7 +76,7 @@ output "manual_invocation_commands" {
   description = "AWS CLI commands for manual Lambda invocation (testing)"
   value = {
     start = "aws lambda invoke --function-name ${aws_lambda_function.finops_start.function_name} --payload '{\"action\":\"start\",\"environment\":\"${var.environment}\",\"triggered_by\":\"manual\"}' response.json"
-    stop = "aws lambda invoke --function-name ${aws_lambda_function.finops_stop.function_name} --payload '{\"action\":\"stop\",\"environment\":\"${var.environment}\",\"triggered_by\":\"manual\"}' response.json"
+    stop  = "aws lambda invoke --function-name ${aws_lambda_function.finops_stop.function_name} --payload '{\"action\":\"stop\",\"environment\":\"${var.environment}\",\"triggered_by\":\"manual\"}' response.json"
   }
 }
 
@@ -87,11 +87,11 @@ output "manual_invocation_commands" {
 output "cost_savings_estimation" {
   description = "Estimated cost savings with automation (based on Marco 2 validation)"
   value = {
-    monthly_usd = 177.61
-    monthly_brl = 177.61 * 6.0 # R$ 1,065.66
-    annual_brl  = 177.61 * 6.0 * 12 # R$ 12,787.92
+    monthly_usd       = 177.61
+    monthly_brl       = 177.61 * 6.0      # R$ 1,065.66
+    annual_brl        = 177.61 * 6.0 * 12 # R$ 12,787.92
     reduction_percent = 25.9
-    validated_date = "2026-01-30"
+    validated_date    = "2026-01-30"
   }
 }
 
@@ -101,7 +101,7 @@ output "cost_savings_estimation" {
 
 output "next_steps" {
   description = "Post-deployment actions required"
-  value = <<-EOT
+  value       = <<-EOT
     1. Validate Terraform deployment:
        terraform output
 

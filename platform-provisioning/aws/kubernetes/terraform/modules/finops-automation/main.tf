@@ -47,12 +47,12 @@ resource "aws_lambda_function" "finops_start" {
   filename         = data.archive_file.lambda_start.output_path
   source_code_hash = data.archive_file.lambda_start.output_base64sha256
 
-  runtime = var.lambda_runtime
-  handler = "lambda_start.lambda_handler"
-  timeout = var.lambda_timeout
+  runtime     = var.lambda_runtime
+  handler     = "lambda_start.lambda_handler"
+  timeout     = var.lambda_timeout
   memory_size = var.lambda_memory
 
-  role = aws_iam_role.lambda_role.arn
+  role        = aws_iam_role.lambda_role.arn
   kms_key_arn = aws_kms_key.dynamodb_finops.arn
 
   environment {
@@ -79,12 +79,12 @@ resource "aws_lambda_function" "finops_stop" {
   filename         = data.archive_file.lambda_stop.output_path
   source_code_hash = data.archive_file.lambda_stop.output_base64sha256
 
-  runtime = var.lambda_runtime
-  handler = "lambda_stop.lambda_handler"
-  timeout = var.lambda_timeout
+  runtime     = var.lambda_runtime
+  handler     = "lambda_stop.lambda_handler"
+  timeout     = var.lambda_timeout
   memory_size = var.lambda_memory
 
-  role = aws_iam_role.lambda_role.arn
+  role        = aws_iam_role.lambda_role.arn
   kms_key_arn = aws_kms_key.dynamodb_finops.arn
 
   environment {
@@ -146,8 +146,8 @@ resource "aws_cloudwatch_event_target" "startup_target" {
   arn       = aws_lambda_function.finops_start.arn
 
   input = jsonencode({
-    action      = "start"
-    environment = var.environment
+    action       = "start"
+    environment  = var.environment
     triggered_by = "eventbridge-scheduler"
   })
 }
@@ -170,8 +170,8 @@ resource "aws_cloudwatch_event_target" "shutdown_target" {
   arn       = aws_lambda_function.finops_stop.arn
 
   input = jsonencode({
-    action      = "stop"
-    environment = var.environment
+    action       = "stop"
+    environment  = var.environment
     triggered_by = "eventbridge-scheduler"
   })
 }

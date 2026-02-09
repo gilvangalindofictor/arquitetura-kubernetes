@@ -14,5 +14,5 @@ output "cluster_secret_store_name" {
 
 output "service_account_name" {
   description = "ServiceAccount name for Vault authentication"
-  value       = kubernetes_service_account.external_secrets_vault.metadata[0].name
+  value       = "external-secrets" # Created automatically by Helm chart
 }

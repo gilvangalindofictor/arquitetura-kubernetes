@@ -27,7 +27,7 @@ resource "kubectl_manifest" "gitlab_default_deny" {
     }
 
     spec = {
-      podSelector = {}  # Apply to all pods in namespace
+      podSelector = {} # Apply to all pods in namespace
 
       policyTypes = ["Ingress"]
 
@@ -284,7 +284,7 @@ resource "kubectl_manifest" "gitlab_allow_internet" {
               ipBlock = {
                 cidr = "0.0.0.0/0"
                 except = [
-                  "10.0.0.0/8",     # Exclude internal networks
+                  "10.0.0.0/8", # Exclude internal networks
                   "172.16.0.0/12",
                   "192.168.0.0/16"
                 ]
@@ -295,15 +295,15 @@ resource "kubectl_manifest" "gitlab_allow_internet" {
           ports = [
             {
               protocol = "TCP"
-              port     = 443  # HTTPS
+              port     = 443 # HTTPS
             },
             {
               protocol = "TCP"
-              port     = 80   # HTTP
+              port     = 80 # HTTP
             },
             {
               protocol = "TCP"
-              port     = 22   # Git over SSH
+              port     = 22 # Git over SSH
             }
           ]
         }
@@ -361,7 +361,7 @@ resource "kubectl_manifest" "gitlab_allow_monitoring" {
           ports = [
             {
               protocol = "TCP"
-              port     = 8083  # GitLab metrics
+              port     = 8083 # GitLab metrics
             }
           ]
         }
@@ -420,7 +420,7 @@ resource "kubectl_manifest" "gitlab_runner_allow_gitlab" {
           ports = [
             {
               protocol = "TCP"
-              port     = 8080  # Workhorse
+              port     = 8080 # Workhorse
             }
           ]
         },
@@ -514,7 +514,7 @@ resource "kubectl_manifest" "gitlab_allow_alb" {
           from = [
             {
               ipBlock = {
-                cidr = "10.0.0.0/16"  # VPC CIDR - adjust if needed
+                cidr = "10.0.0.0/16" # VPC CIDR - adjust if needed
               }
             }
           ]
@@ -522,11 +522,11 @@ resource "kubectl_manifest" "gitlab_allow_alb" {
           ports = [
             {
               protocol = "TCP"
-              port     = 8080  # Workhorse
+              port     = 8080 # Workhorse
             },
             {
               protocol = "TCP"
-              port     = 8181  # GitLab Shell
+              port     = 8181 # GitLab Shell
             }
           ]
         }
@@ -584,7 +584,7 @@ resource "kubectl_manifest" "gitlab_allow_aws_api" {
           ports = [
             {
               protocol = "TCP"
-              port     = 443  # AWS API uses HTTPS
+              port     = 443 # AWS API uses HTTPS
             }
           ]
         }

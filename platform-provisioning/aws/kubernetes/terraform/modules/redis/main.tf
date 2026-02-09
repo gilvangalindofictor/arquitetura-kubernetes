@@ -56,12 +56,12 @@ resource "kubernetes_namespace" "data_services" {
     name = var.namespace
 
     labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"                 = "data-services"
-      "app.kubernetes.io/managed-by"           = "terraform"
-      "pod-security.kubernetes.io/enforce"     = "restricted"
-      "pod-security.kubernetes.io/audit"       = "restricted"
-      "pod-security.kubernetes.io/warn"        = "restricted"
-      "kubernetes.io/metadata.name"            = var.namespace
+      "app.kubernetes.io/name"             = "data-services"
+      "app.kubernetes.io/managed-by"       = "terraform"
+      "pod-security.kubernetes.io/enforce" = "restricted"
+      "pod-security.kubernetes.io/audit"   = "restricted"
+      "pod-security.kubernetes.io/warn"    = "restricted"
+      "kubernetes.io/metadata.name"        = var.namespace
     })
   }
 }
@@ -104,9 +104,9 @@ resource "helm_release" "redis_operator" {
   version    = "3.3.0"
 
   # Configuração para idempotência
-  skip_crds       = true  # Não reinstala CRDs se já existirem
-  replace         = true  # Substitui release existente
-  force_update    = true  # Força update
+  skip_crds       = true # Não reinstala CRDs se já existirem
+  replace         = true # Substitui release existente
+  force_update    = true # Força update
   cleanup_on_fail = true
   atomic          = false # Desabilita atomic para permitir replace
   timeout         = 600
@@ -207,7 +207,7 @@ resource "kubectl_manifest" "redis_failover" {
 
         containerSecurityContext = {
           allowPrivilegeEscalation = false
-          readOnlyRootFilesystem   = true  # Keep readonly for security (working config)
+          readOnlyRootFilesystem   = true # Keep readonly for security (working config)
           capabilities = {
             drop = ["ALL"]
           }
@@ -249,7 +249,7 @@ resource "kubectl_manifest" "redis_failover" {
 
         containerSecurityContext = {
           allowPrivilegeEscalation = false
-          readOnlyRootFilesystem   = false  # Redis needs to write AOF/RDB
+          readOnlyRootFilesystem   = false # Redis needs to write AOF/RDB
           capabilities = {
             drop = ["ALL"]
           }

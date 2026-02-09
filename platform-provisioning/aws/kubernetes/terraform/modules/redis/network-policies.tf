@@ -91,11 +91,11 @@ resource "kubectl_manifest" "redis_allow_internal" {
           ports = [
             {
               protocol = "TCP"
-              port     = 6379  # Redis
+              port     = 6379 # Redis
             },
             {
               protocol = "TCP"
-              port     = 26379  # Sentinel
+              port     = 26379 # Sentinel
             }
           ]
         }
@@ -269,7 +269,7 @@ resource "kubectl_manifest" "redis_allow_monitoring" {
           ports = [
             {
               protocol = "TCP"
-              port     = 9121  # Redis exporter metrics
+              port     = 9121 # Redis exporter metrics
             }
           ]
         }

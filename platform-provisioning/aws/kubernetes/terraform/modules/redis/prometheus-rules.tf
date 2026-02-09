@@ -25,7 +25,7 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
     spec = {
       groups = [
         {
-          name = "redis.rules"
+          name     = "redis.rules"
           interval = "30s"
 
           rules = [
@@ -37,8 +37,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "2m"
 
               labels = {
-                severity = "critical"
-                service  = "redis"
+                severity  = "critical"
+                service   = "redis"
                 component = "sentinel"
               }
 
@@ -56,8 +56,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "1m"
 
               labels = {
-                severity = "critical"
-                service  = "redis"
+                severity  = "critical"
+                service   = "redis"
                 component = "sentinel"
               }
 
@@ -75,8 +75,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "1m"
 
               labels = {
-                severity = "critical"
-                service  = "redis"
+                severity  = "critical"
+                service   = "redis"
                 component = "master"
               }
 
@@ -94,8 +94,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "5m"
 
               labels = {
-                severity = "warning"
-                service  = "redis"
+                severity  = "warning"
+                service   = "redis"
                 component = "replica"
               }
 
@@ -113,8 +113,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "5m"
 
               labels = {
-                severity = "warning"
-                service  = "redis"
+                severity  = "warning"
+                service   = "redis"
                 component = "memory"
               }
 
@@ -132,8 +132,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "5m"
 
               labels = {
-                severity = "warning"
-                service  = "redis"
+                severity  = "warning"
+                service   = "redis"
                 component = "connections"
               }
 
@@ -151,8 +151,8 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
               for = "5m"
 
               labels = {
-                severity = "warning"
-                service  = "redis"
+                severity  = "warning"
+                service   = "redis"
                 component = "replication"
               }
 
