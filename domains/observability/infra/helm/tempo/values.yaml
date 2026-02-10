@@ -4,6 +4,14 @@
 # Use the simple scalable deployment mode
 distributor:
   replicas: 2
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
 
 ingester:
   replicas: 2

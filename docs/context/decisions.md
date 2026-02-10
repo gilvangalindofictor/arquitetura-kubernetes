@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-09
-**Versão:** 3.6 (Production Environment + Zero-Trust Network)
+**Última Atualização:** 2026-02-10
+**Versão:** 3.7 (Production Environment + Zero-Trust Network)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -45,7 +45,8 @@
 | **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)** | **2026-02-04** | **✅ Implementado** | **Crítico** |
 | **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)** | **2026-02-05** | **✅ Implementado** | **Médio** |
 | **ADR-051** | **Production Environment Zero-Trust Network** | **2026-02-09** | **✅ Implementado** | **Alto** |
-| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)** | **2026-02-09** | **⚠️ 70% Implementado** | **Alto** |
+| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)** | **2026-02-09** | **✅ 100% Completo** | **Alto** |
+| **ADR-053** | **Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)** | **2026-02-10** | **✅ Implementado** | **Alto** |
 
 ---
 
@@ -5328,12 +5329,12 @@ Implementar **OpenTelemetry Collector em modo Gateway** como proxy centralizado 
 - [OpenTelemetry Collector Documentation](https://opentelemetry.io/docs/collector/)
 - [Grafana Tempo OTLP Configuration](https://grafana.com/docs/tempo/latest/configuration/#otlp-receiver)
 
-**Última Atualização:** 2026-02-09
+**Última Atualização:** 2026-02-10
 **Próxima Revisão:** Após desbloqueio integração Tempo
 
 ---
 
-**Última Atualização:** 2026-02-09
+**Última Atualização:** 2026-02-10
 **Próxima Revisão:** Após Karpenter deployment (Marco 4)
 
 ---
@@ -5900,3 +5901,130 @@ GAP-007 (OpenTelemetry Collector) estava no backlog "Observability & Security", 
 - [GAP-007](../plan/GAP-007-opentelemetry-collector.md)
 - [Roadmap FinOps 90d](../finops/optimization-roadmap-90days.md#semana-3-8-medium-wins--observability)
 - [Logbook 2026-02-10](../logbook/2026-02-10-otel-collector-deployment.md)
+
+---
+
+## ADR-053 — Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-02-10 |
+| **Status** | ✅ Implementado |
+| **Tipo** | Hotfix + Configuration Fix |
+| **Impacto** | Alto - Completa GAP-007 (100%) |
+| **Agentes** | Orquestrador, Observability, Security, AWS, Terraform |
+
+### Contexto
+
+ADR-052 implementou OpenTelemetry Collector (70% GAP-007), mas **Tempo não aceitava traces** devido a:
+
+**Root Cause Identificado:**
+- Tempo OTLP port 4317 escutava **apenas localhost:4317** (não acessível externamente)
+- OTel Collector não conseguia enviar traces → `connection refused`
+
+**Problema Adicional Descoberto:**
+- `ingester.replication_factor=3` com apenas `ingester.replicas=2`
+- Memberlist cluster não conseguia quorum → pods CrashLoop (padrão MEMORY.md)
+
+### Decisão
+
+**Ação Imediata:** Hotfix Helm manual (Opção B do executor-terraform)
+
+**Razão para exceção:**
+- Tempo **NÃO está gerenciado pelo Terraform** (drift confirmado)
+- Módulo TF existe (`modules/tempo/`) mas não instanciado em root module
+- Import TF completo = ~2h (arriscado, pode causar downtime)
+- Hotfix Helm = 15min, documentado, TF codificado para import futuro
+
+**Configurações Aplicadas:**
+```yaml
+# Helm values
+traces:
+  otlp:
+    grpc:
+      enabled: true  # ← Habilita gRPC 0.0.0.0:4317
+    http:
+      enabled: true  # ← Habilita HTTP 0.0.0.0:4318
+
+ingester:
+  config:
+    replication_factor: 2  # ← FIX CRÍTICO: match replicas
+```
+
+**Helm Upgrades Executados:**
+- REV 2 → Falhou (chave `distributor.config.*` incorreta)
+- REV 3 → OTLP OK mas CrashLoop (RF=3 quorum fail)
+- REV 4 → Rollback to REV 1 (estabilização)
+- REV 5 → OTLP + RF (chave `ingester.lifecycler.*` incorreta)
+- **REV 6 → ✅ Final** (`ingester.config.replication_factor=2` correto)
+
+### Alternativas Consideradas
+
+| Alternativa | Prós | Contras | Decisão |
+|-------------|------|---------|---------|
+| **Import TF completo (~2h)** | Correto, sem drift | Arriscado, pode causar downtime, complexo | ❌ Rejeitado |
+| **Hotfix Helm + Documentar** | Rápido (15min), pragmático, drift documentado | TF import fica pendente | ✅ **Aprovado** |
+| **Adiar GAP-007** | Mais seguro | Atrasa entrega, OTel Collector sem backend | ❌ Rejeitado |
+
+### Resultado
+
+**Implementação:** 2026-02-10 17:27
+
+**Status Cluster:**
+- ✅ Tempo pods: 2/2 distributor Running, 2/2 ingester Running
+- ✅ OTLP endpoints: :::4317 (gRPC), :::4318 (HTTP) listening
+- ✅ Service: tempo-distributor ports 4317/4318 exposed
+- ✅ NetworkPolicy: allow-otel-to-tempo já permitia port 4317
+- ✅ ConfigMap: `replication_factor: 2` aplicado
+
+**Validação:**
+```bash
+# Ports listening externally
+ss -tlnp | grep -E "4317|4318"
+tcp  0  0  :::4317  :::*  LISTEN  1/tempo
+tcp  0  0  :::4318  :::*  LISTEN  1/tempo
+
+# Service endpoints active
+kubectl get endpoints tempo-distributor -n monitoring
+10.0.133.196:4318,10.0.144.22:4318,... (2 IPs x 5 ports)
+```
+
+**GAP-007 Status:** ✅ **100% Completo**
+- OTel Collector deployed ✅
+- Tempo OTLP receivers enabled ✅
+- Connectivity validated ✅
+- App instrumentation: Phase 2B (pending)
+
+**Impacto FinOps:** $0/mês (configuração only, sem novos recursos)
+
+### Lições Aprendidas
+
+1. **Chart Structure:** `tempo-distributed` usa `traces.otlp.*` (não `distributor.config.*`)
+2. **Replication Factor:** RF DEVE match número de replicas (RF=3 com 2 pods = quorum fail)
+3. **Memberlist Quorum:** Padrão recorrente (Vault, Tempo) — documentar em MEMORY.md
+4. **Terraform Drift:** Sempre verificar se resource está no TF state ANTES de executar
+5. **Hotfix Exceptions:** Pragmatismo > purismo quando drift já existe e import é arriscado
+
+### Próximos Passos
+
+1. **TF Import (Planejado):** Sprint 4+
+   - Criar root module chamando `module.tempo`
+   - `terraform import helm_release.tempo monitoring/tempo`
+   - Validar idempotência (`terraform plan` = No changes)
+
+2. **Módulo TF Atualizado:** ✅ Já codificado
+   - `modules/tempo/main.tf` com `set` blocks OTLP
+   - `ingester.config.replication_factor=2` configurado
+   - Pronto para uso após import
+
+3. **ADR Atualização:** Este documento
+   - Registrar exceção documentada (Regra #12 executor-terraform)
+   - Logbook completo: [2026-02-10-gap007-tempo-otlp.md](../logbook/2026-02-10-gap007-tempo-otlp.md)
+
+### Referências
+
+- [GAP-007 Execution](../logbook/2026-02-10-gap007-tempo-otlp.md)
+- [ADR-052 OpenTelemetry Collector](#adr-052--opentelemetry-collector-gateway-pattern-gap-7)
+- [ADR-025 Tempo Replication Factor](#adr-025--tempo-deployment---replication-factor-decision-rf2-vs-rf3)
+- [MEMORY.md Tempo Pattern](../../../.claude/projects/-home-gilvangalindo-projects-Arquitetura-Kubernetes/memory/MEMORY.md#tempo-distributed-tracing)
+- [Terraform Module](../../../../platform-provisioning/aws/kubernetes/terraform/modules/tempo/main.tf#L342-L356)

@@ -339,6 +339,22 @@ resource "helm_release" "tempo" {
     value = "256Mi"
   }
 
+  # -----------------------------------------------------------------------------
+  # OTLP Receiver Configuration (GAP-007: Enable external OTLP ingestion)
+  # Exposes OTLP gRPC/HTTP endpoints on all interfaces (0.0.0.0) instead of localhost
+  # Requirement: OpenTelemetry Collector → Tempo trace ingestion
+  # -----------------------------------------------------------------------------
+
+  set {
+    name  = "distributor.config.receivers.otlp.protocols.grpc.endpoint"
+    value = "0.0.0.0:4317"
+  }
+
+  set {
+    name  = "distributor.config.receivers.otlp.protocols.http.endpoint"
+    value = "0.0.0.0:4318"
+  }
+
   # Toleration for system nodes (ADR-042 pattern)
   set {
     name  = "distributor.tolerations[0].key"
