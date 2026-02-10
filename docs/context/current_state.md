@@ -8,13 +8,13 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-06 (Marco 4 - GAP-002 e GAP-004 deployados)
+**Última Atualização**: 2026-02-10 (Marco 2 Sprint 3 - GAP-001/007/009 completos)
 
-**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 em andamento
+**Estado do Projeto**: Desenvolvimento Ativo - Marco 2 Sprint 3 finalizado
 
-**Marco Atual**: Marco 4 - CI/CD Platform (75% completo)
+**Marco Atual**: Marco 2 Sprint 3 - Observability Baseline (98% completo)
 
-**Progresso Geral**: 75% ██████████████████░░░░░░ (Marcos 0-3 + 75% Marco 4 / 0-6)
+**Progresso Geral**: 45% █████████████░░░░░░░░░░░░░░ (Marco 0-2 completo / 0-6)
 
 ---
 
@@ -42,23 +42,33 @@
 
 ## Tasks Recentes
 
-**Marco 4 - CI/CD Platform (Em andamento - 75% completo)**:
+**Marco 2 Sprint 3 - Observability Baseline (98% completo - 2026-02-10)**:
 
-- ✅ GAP-001: Keycloak SSO Platform Deploy (2026-02-06, ~6h)
-- ✅ GAP-003: ArgoCD GitOps Deploy (2026-02-06, ~2h)
-- 🟡 GAP-002: GitLab Components Fix (2026-02-06, ~2h, 90% completo)
-- ✅ GAP-004: SonarQube Code Quality Deploy (2026-02-06, ~2h)
+- ✅ GAP-001: SLI/SLO Baseline Implementation (~3h, 98% completo)
+  - 5 SLIs documentados (Availability, Latency, Error Rate, Saturation, Throughput)
+  - 10/10 alertas críticos operacionais
+  - 6 dashboards Grafana SLI deployed
+  - Correlação traces↔logs 80% funcional
+- ✅ GAP-007: Tempo OTLP Integration (~45min, 100% completo)
+  - OTLP receivers 4317/4318 ativos
+  - Replication factor fix (RF=2)
+  - Trace generator operacional
+- ✅ GAP-009: Weekend Shutdown FinOps (~15min, 100% completo)
+  - EventBridge rule deployed e ENABLED
+  - Economia: -$240/mês (-$2,880/ano)
 
 **Próximos Passos**:
 
-**🔴 PRIORIDADE ALTA:**
-- [ ] **GAP-009: FinOps Weekend Shutdown** (15min, +$96/ano economia) ⚠️
+**Esta Semana (Sprint 3 Finalização):**
+- [ ] Configurar derived fields Loki → Tempo (30min)
+- [ ] Validar metrics generator exemplars (1h)
+- [ ] Documentar runbooks troubleshooting (30min)
 
-**Marco 4 Continuação:**
-- [ ] Resolver GitLab runner registration (aguardar migrations ~30min)
-- [ ] Validar OIDC login (SonarQube + ArgoCD)
-- [ ] GAP-005: GitLab CI/CD Integration (3h)
-- [ ] GAP-006/007/008: Hardening (ApplicationSets, Network Policies, Dashboards)
+**Sprint 4-6 (Marco 3 - Performance + DR):**
+- [ ] GAP-002: Performance (VPA, HPA) - 10h
+- [ ] GAP-003: Backup/DR com Velero - 8h
+- [ ] GAP-006: Chaos Engineering (LitmusChaos) - 3h
+- [ ] Instrumentar aplicações reais com OTLP
 
 ---
 
