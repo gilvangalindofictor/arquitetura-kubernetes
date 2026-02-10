@@ -49,14 +49,14 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 
 ## 📅 Roadmap Semanal Detalhado
 
-### Semana 3-4: Marco 2 Sprint 2 (Observabilidade Baseline) 🟡 70% COMPLETO
+### Semana 3-4: Marco 2 Sprint 3 (Observabilidade Baseline) ✅ 98% COMPLETO
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ SEMANA 3-4: Observabilidade/SRE (15h - CORRIGIDO)              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  GAP 1: Observabilidade/SRE (9h) — 🟡 70% COMPLETO             │
+│  GAP 1: Observabilidade/SRE (9h) — ✅ 98% COMPLETO             │
 │  ┌──────────────────────────────────────────────────────┐      │
 │  │ ✅ Prometheus + ServiceMonitors          │ JÁ COMPLETO  │   │
 │  │ ✅ Grafana + dashboards baseline         │ JÁ COMPLETO  │   │
@@ -88,9 +88,9 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 │  • 📋 Correlação traces → logs → metrics funcional (pendente)  │
 │                                                                 │
 │  ✅ GAP-7: COMPLETO (Tempo OTLP operacional, commit bf93577)   │
-│  🟡 GAP-1: 70% COMPLETO (SLIs OK, 7/10 alertas, dashboards P)  │
+│  ✅ GAP-1: 98% COMPLETO (SLIs ✅, 10/10 alertas ✅, 6 dashboards ✅)  │
 │  💰 CUSTO ADICIONAL: +$6/mês (OTel Collector)                  │
-│  📊 PROGRESSO GERAL: 70% (docs OK, alertas 70%, dashboards 0%) │
+│  📊 PROGRESSO GERAL: 98% (docs ✅, alertas ✅, dashboards ✅, correlation 80%) │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
