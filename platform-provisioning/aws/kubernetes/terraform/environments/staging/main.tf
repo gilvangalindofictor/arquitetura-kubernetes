@@ -271,7 +271,7 @@ module "gitlab_staging" {
   domain_name = ""
 
   # PostgreSQL (external - RDS via module)
-  postgresql_host            = module.postgresql_staging.service_name
+  postgresql_host            = module.postgresql_staging.rds_address
   postgresql_port            = 5432
   postgresql_database        = "gitlab"
   postgresql_username        = "gitlab_user"
@@ -543,6 +543,12 @@ resource "aws_sns_topic_subscription" "finops_email" {
 }
 
 #------------------------------------------------------------------------------
+# GAP-009: Weekend Shutdown - Now handled by finops-automation module
+# The module includes weekend_shutdown_schedule variable (default: Saturday 00h BRT)
+# Economy: R$ 96-120/ano (prevents weekend waste)
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
 # NETWORK POLICIES (Cross-Environment Isolation)
 # STAGING apps can ONLY access STAGING data services
 # TODO: Enable after creating app-staging namespace
@@ -629,4 +635,165 @@ resource "kubectl_manifest" "servicemonitor_postgresql_staging" {
   YAML
 
   depends_on = [module.postgresql_staging]
+}
+
+#------------------------------------------------------------------------------
+# OPENTELEMETRY COLLECTOR - STAGING
+# Gateway mode for centralized OTLP reception and forwarding to Tempo/Loki/Prometheus
+# GAP-7 Implementation - 2026-02-09
+#------------------------------------------------------------------------------
+
+module "opentelemetry_collector_staging" {
+  source = "../../modules/opentelemetry-collector"
+
+  release_name  = "opentelemetry-collector"
+  chart_version = "0.108.0"
+  namespace     = "monitoring"
+
+  # HA configuration (Performance Specialist requirement)
+  replicas = 2
+
+  # Resources (cost-optimized para staging, aprovado por FinOps)
+  resources = {
+    requests = {
+      cpu    = "100m"
+      memory = "256Mi"
+    }
+    limits = {
+      cpu    = "500m"
+      memory = "512Mi"
+    }
+  }
+
+  # Memory limiter (80% de limits, Perf Specialist recommendation)
+  memory_limiter_limit_mib = 400
+
+  # HPA (Performance Specialist requirement — previne trace drop em burst)
+  enable_hpa             = true
+  hpa_min_replicas       = 2
+  hpa_max_replicas       = 5
+  hpa_target_cpu_percent = 70
+
+  # PDB (Performance Specialist requirement — HA durante rolling updates)
+  enable_pdb = true
+
+  # ServiceMonitor (Observability integration)
+  enable_servicemonitor   = true
+  servicemonitor_interval = "30s"
+}
+
+#------------------------------------------------------------------------------
+# VPC Endpoint for ELB API
+# Fix: AWS Load Balancer Controller TLS handshake timeout
+# Root cause: No VPC Endpoint → traffic via NAT Gateway → intermittent latency
+# Solution: Route ELB API traffic within VPC (latency <5ms vs ~20-50ms NAT)
+# Economy: Zero cost (Interface endpoints included), eliminates NAT SPOF
+# ADR: TBD (load-balancer-controller-fix)
+#------------------------------------------------------------------------------
+
+data "aws_security_group" "cluster" {
+  vpc_id = var.vpc_id
+  filter {
+    name   = "group-name"
+    values = ["eks-cluster-sg-${local.cluster_name}-*"]
+  }
+}
+
+resource "aws_vpc_endpoint" "elasticloadbalancing" {
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${var.aws_region}.elasticloadbalancing"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids = [
+    "subnet-0472ab28726cdf745", # private-us-east-1a
+    "subnet-0288a67cd352effa7"  # private-us-east-1b
+  ]
+
+  security_group_ids = [
+    data.aws_security_group.cluster.id
+  ]
+
+  private_dns_enabled = true
+
+  tags = merge(local.common_tags, {
+    Name        = "${local.cluster_name}-vpce-elasticloadbalancing-${local.environment}"
+    Purpose     = "Fix AWS LB Controller TLS timeout"
+    Cost        = "Zero (included)"
+    Criticality = "High"
+  })
+}
+
+#------------------------------------------------------------------------------
+# VPC Endpoint for KMS API
+# Fix: Vault cluster quorum loss (auto-unseal TLS timeout)
+# Root cause: No VPC Endpoint → traffic via NAT Gateway → intermittent latency
+# Solution: Route KMS API traffic within VPC (latency <5ms vs ~20-50ms NAT)
+# Economy: Enables EBS Wave 3 (R$ 162/ano), cost $86.40/ano
+# ADR: ADR-055 (vault-kms-recovery)
+#------------------------------------------------------------------------------
+
+resource "aws_vpc_endpoint" "kms" {
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${var.aws_region}.kms"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids = [
+    "subnet-0472ab28726cdf745", # private-us-east-1a
+    "subnet-0288a67cd352effa7"  # private-us-east-1b
+  ]
+
+  security_group_ids = [
+    data.aws_security_group.cluster.id
+  ]
+
+  private_dns_enabled = true
+
+  tags = merge(local.common_tags, {
+    Name        = "${local.cluster_name}-vpce-kms-${local.environment}"
+    Purpose     = "Vault KMS auto-unseal"
+    Cost        = "$86.40/ano"
+    Criticality = "High"
+    ADR         = "ADR-055"
+  })
+}
+
+#------------------------------------------------------------------------------
+# VPC Endpoint for S3 (Gateway Type)
+# Improves S3 performance for Vault snapshots and eliminates NAT Gateway data transfer costs
+# Type: Gateway (zero cost, automatically routes S3 traffic via VPC)
+# Economy: Zero cost + reduces NAT Gateway data transfer charges
+#------------------------------------------------------------------------------
+
+data "aws_route_table" "private_us_east_1a" {
+  vpc_id = var.vpc_id
+  filter {
+    name   = "association.subnet-id"
+    values = ["subnet-0472ab28726cdf745"] # private-us-east-1a
+  }
+}
+
+data "aws_route_table" "private_us_east_1b" {
+  vpc_id = var.vpc_id
+  filter {
+    name   = "association.subnet-id"
+    values = ["subnet-0288a67cd352effa7"] # private-us-east-1b
+  }
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [
+    data.aws_route_table.private_us_east_1a.id,
+    data.aws_route_table.private_us_east_1b.id
+  ]
+
+  tags = merge(local.common_tags, {
+    Name        = "${local.cluster_name}-vpce-s3-${local.environment}"
+    Purpose     = "Vault S3 snapshots + Harbor images"
+    Cost        = "Zero (Gateway type)"
+    Criticality = "Medium"
+  })
 }

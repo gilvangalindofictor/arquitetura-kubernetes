@@ -55,6 +55,12 @@ variable "shutdown_schedule" {
   default     = "cron(0 21 ? * MON-FRI *)"
 }
 
+variable "weekend_shutdown_schedule" {
+  description = "Cron expression for weekend shutdown (UTC) - Default: 12:00 AM BRT Saturday (03:00 UTC)"
+  type        = string
+  default     = "cron(0 3 ? * SAT *)"
+}
+
 variable "enable_automation" {
   description = "Enable EventBridge rules (disable for testing)"
   type        = bool

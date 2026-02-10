@@ -176,6 +176,34 @@ resource "aws_cloudwatch_event_target" "shutdown_target" {
   })
 }
 
+# GAP-009: Weekend Shutdown (Identified 2026-02-09)
+# Purpose: Ensure nodes are off during weekends (Sat-Sun)
+# Savings: $8-10/month ($96-120/year)
+resource "aws_cloudwatch_event_rule" "weekend_shutdown" {
+  name                = "finops-weekend-shutdown-${var.environment}"
+  description         = "Stop ${var.environment} environment on Saturday midnight BRT (03:00 UTC Sat)"
+  schedule_expression = var.weekend_shutdown_schedule
+  state               = var.enable_automation ? "ENABLED" : "DISABLED"
+
+  tags = merge(local.security_tags, {
+    Name     = "finops-weekend-shutdown-${var.environment}"
+    Schedule = "00:00 BRT Saturday"
+    Purpose  = "GAP-009-weekend-cost-optimization"
+  })
+}
+
+resource "aws_cloudwatch_event_target" "weekend_shutdown_target" {
+  rule      = aws_cloudwatch_event_rule.weekend_shutdown.name
+  target_id = "lambda-finops-weekend-stop"
+  arn       = aws_lambda_function.finops_stop.arn
+
+  input = jsonencode({
+    action       = "stop"
+    environment  = var.environment
+    triggered_by = "eventbridge-weekend-scheduler"
+  })
+}
+
 # -----------------------------------------------------------------------------
 # Lambda Permissions for EventBridge
 # -----------------------------------------------------------------------------
@@ -194,6 +222,14 @@ resource "aws_lambda_permission" "allow_eventbridge_stop" {
   function_name = aws_lambda_function.finops_stop.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.shutdown.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_weekend_stop" {
+  statement_id  = "AllowExecutionFromEventBridgeWeekendShutdown"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.finops_stop.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weekend_shutdown.arn
 }
 
 # -----------------------------------------------------------------------------

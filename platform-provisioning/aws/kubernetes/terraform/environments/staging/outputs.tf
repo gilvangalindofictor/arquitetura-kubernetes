@@ -9,9 +9,15 @@ output "postgresql_endpoint" {
   value       = module.postgresql_staging.rds_endpoint
 }
 
-output "postgresql_service_name" {
-  description = "PostgreSQL Kubernetes service name"
-  value       = module.postgresql_staging.service_name
+# TODO: Commented - service_name output not available in postgresql module
+# output "postgresql_service_name" {
+#   description = "PostgreSQL Kubernetes service name"
+#   value       = module.postgresql_staging.service_name
+# }
+
+output "postgresql_address" {
+  description = "PostgreSQL RDS address (for direct connection)"
+  value       = module.postgresql_staging.rds_address
 }
 
 output "postgresql_database_name" {
