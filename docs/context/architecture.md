@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-09
-**Versão:** 2.7.0 (Prod Environment + Network Security + Monitoring)
-**Status:** 🚀 FinOps ATIVA | ✅ Vault Operational | ✅ Staging Quickstart Completo
+**Última Atualização:** 2026-02-10
+**Versão:** 2.8.0 (Sprint 3: Vault Recovery + VPC Endpoint KMS)
+**Status:** 🚀 FinOps ATIVA | ✅ Vault Cluster Healthy (3/3) | ✅ VPC Endpoints Complete
 
 ---
 
@@ -102,9 +102,9 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 
 ### VPC Endpoints (AWS PrivateLink)
 
-**Status:** ✅ Implementado (2026-02-06)
-**ADR:** ADR-044 VPC Endpoints for EKS
-**Logbook:** [2026-02-06-vault-recovery-vpc-endpoints.md](../logbook/2026-02-06-vault-recovery-vpc-endpoints.md)
+**Status:** ✅ Implementado (2026-02-06) + ELB (2026-02-10) + KMS (2026-02-10)
+**ADR:** ADR-044 VPC Endpoints for EKS, ADR-053 VPC Endpoint ELB, ADR-055 VPC Endpoint KMS
+**Logbook:** [2026-02-06-vault-recovery-vpc-endpoints.md](../logbook/2026-02-06-vault-recovery-vpc-endpoints.md), [2026-02-10-lb-controller-fix.md](../logbook/2026-02-10-lb-controller-fix.md), [2026-02-10-vault-kms-recovery.md](../logbook/2026-02-10-vault-kms-recovery.md)
 
 **Interface Endpoints criados:**
 
@@ -112,6 +112,8 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 |---------|-------------|-----|-------------|--------|
 | **STS** | vpce-0c3a498a73742aa21 | us-east-1a, us-east-1b | ✅ Enabled | available |
 | **EC2** | vpce-0b52639b29be0559e | us-east-1a, us-east-1b | ✅ Enabled | available |
+| **ELB** | vpce-01ac1aa08881b1977 | us-east-1a, us-east-1b | ✅ Enabled | available |
+| **KMS** | vpce-0ea3c1103ca34af51 | us-east-1a, us-east-1b | ✅ Enabled | available |
 
 **Configuração:**
 - **Tipo:** Interface (ENI-based, 2 ENIs por endpoint)
@@ -129,11 +131,14 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 - ✅ EBS CSI Driver: 100% error rate → 0% (PVC provisioning funcional)
 - ✅ IRSA calls: AssumeRoleWithWebIdentity latency reduzida
 - ✅ Vault HA: Recovery de 15h downtime → operational em 2h32min
+- ✅ AWS LB Controller: TLS timeout intermitente → 0% error rate (IngressGroup consolidation habilitado)
+- ✅ Vault KMS auto-unseal: Quorum loss (1/3) → 3/3 healthy (<15s recovery após VPCE KMS)
 
-**Custo:** $28.90/mês ($346.80/ano)
-- Base: $0.01/hour/AZ × 2 AZ × 2 endpoints = $28.80/mês
-- Data processing: ~$0.10/mês (10 GB API calls)
-- **Trade-off:** +$28.45/mês líquido vs NAT data transfer savings
+**Custo:** $43.35/mês ($520.20/ano)
+- Base: $0.01/hour/AZ × 2 AZ × 3 endpoints = $43.20/mês
+- Data processing: ~$0.15/mês (15 GB API calls)
+- **Trade-off:** +$43/mês líquido vs NAT data transfer savings
+- **ROI FinOps:** Endpoint ELB habilitou consolidação IngressGroup (economia R$ 1.949/ano = $325/ano)
 
 **Próximos Endpoints (roadmap):**
 - ECR API/DKR (container image pull latency)
@@ -228,55 +233,77 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 - **Custo:** $32.40/mês (2 ALBs × $16.20)
 
 ### Fase 8: Distributed Tracing (OpenTelemetry + Tempo)
-**Status:** 📝 Planejada (ADR-020 aprovado)
+**Status:** ⚠️ **70% Completo** (OTel deployado, integração Tempo BLOQUEADA)
+**Data:** 2026-02-09
+**ADR-020:** ✅ Aprovado | **ADR-052:** ⚠️ GAP-7 Implementation
 
 **Componentes:**
-- **Grafana Tempo:** Backend de traces distribuídos
+- **Grafana Tempo:** Backend de traces distribuídos ✅ OPERACIONAL
   - **Versão:** Chart v1.10.x (SimpleScalable mode)
   - **Namespace:** monitoring
-  - **Pods:** 6 total
-    - 2 × distributor (recebe traces do OTel Collector)
-    - 2 × ingester (processa + escreve S3)
-    - 1 × querier (queries via Grafana)
-    - 1 × compactor (compactação S3)
+  - **Pods:** 11 Running (distributor, ingester, querier, compactor, query-frontend)
   - **Storage:** S3 bucket `k8s-platform-tempo-891377105802`
   - **Retenção:** 30 dias (S3)
   - **IRSA:** Role TempoS3Role-k8s-platform-prod
+  - **⚠️ Limitação:** OTLP receiver não exposto externamente (localhost:4317 only)
 
-- **OpenTelemetry Collector:** Gateway de ingestão
-  - **Versão:** Chart v0.108.x
-  - **Pods:** 2 (Gateway mode, alta disponibilidade)
+- **OpenTelemetry Collector:** Gateway de ingestão ✅ DEPLOYADO (GAP-7)
+  - **Versão:** otel/opentelemetry-collector-contrib:0.145.0
+  - **Namespace:** monitoring
+  - **Pods:** 2/2 Running (Gateway mode, HA)
+  - **Resources:** requests 100m CPU/256Mi RAM, limits 500m/1Gi
   - **Receivers:** OTLP gRPC (4317), OTLP HTTP (4318)
-  - **Exporters:** Tempo (traces), Prometheus (metrics), Loki (logs)
-  - **Função:** Coleta traces de aplicações, processa, envia para backends
+  - **Exporters:**
+    - ⚠️ **Tempo:** otlphttp/tempo → BLOQUEADO (HTTP 404 /v1/traces)
+    - ✅ **Prometheus:** prometheusremotewrite → OPERACIONAL
+    - ✅ **Debug:** verbosity normal → OPERACIONAL
+  - **ServiceMonitor:** Integrado Prometheus (porta 8888)
+  - **PodDisruptionBudget:** minAvailable=1
+  - **Anti-affinity:** preferredDuringScheduling (kubernetes.io/hostname)
+  - **Terraform Module:** [`modules/opentelemetry-collector/`](../../../platform-provisioning/aws/kubernetes/terraform/modules/opentelemetry-collector/)
+
+**Trace Generator (Testing):** ✅ FUNCIONAL
+  - **Namespace:** otel-test
+  - **Pods:** 1/1 Running
+  - **Image:** curlimages/curl
+  - **Método:** OTLP JSON via HTTP POST
+  - **Status:** Gerando 3 traces a cada 20s, OTel recebendo HTTP 200
 
 **Integração:**
-- Grafana datasource Tempo configurado
-- Correlação traces ↔ logs (derived fields: trace_id → Loki query)
-- Correlação metrics ↔ traces (exemplars: Prometheus → Tempo)
-- Grafana Explore: TraceQL queries
+- ✅ Grafana datasource Tempo configurado
+- ⚠️ Correlação traces ↔ logs (PENDENTE: aguarda integração Tempo funcional)
+- ⚠️ Correlação metrics ↔ traces (PENDENTE: aguarda traces no Tempo)
+- ✅ Grafana Explore: TraceQL queries configurado
+
+**Bloqueio Identificado (2026-02-09):**
+- **Problema:** Tempo ConfigMap sem receiver OTLP externo (porta 4317 localhost only)
+- **Impacto:** OTel Collector recebe traces mas não consegue exportar para Tempo
+- **Tentativas:** 3 protocolos testados (OTLP gRPC 9095, Jaeger 14250, OTLP HTTP 3200) - todas falharam
+- **Soluções propostas:**
+  1. **Opção 1 (Recomendado):** Helm upgrade Tempo + OTLP receiver (45min, médio impacto)
+  2. **Opção 2 (Quick):** OTel Zipkin exporter → Tempo porta 9411 (15min, baixo impacto)
+  3. **Opção 3 (Completo):** Re-deploy Tempo via Helm oficial (2h, alto impacto)
+- **Referência:** [Logbook GAP-7](../logbook/2026-02-09-gaps-7-1-5-implementation.md)
 
 **Network Policies:**
-- 4 novas políticas (total Marco 2: 15)
+- 2 novas políticas (total Marco 2: 13)
   - allow-otel-collector-ingress (apps → collector:4317/4318)
-  - allow-otel-to-tempo (collector → tempo-distributor:3100)
-  - allow-grafana-to-tempo (grafana → tempo-query-frontend:3100)
-  - allow-tempo-to-s3 (tempo → S3 via IRSA, egress policy)
+  - allow-prometheus-otel (prometheus → otel-collector:8888)
 
-**Decisão Arquitetural (ADR-020):**
-- **Tempo escolhido vs Jaeger:** Economia $205.55/mês ($2,467/ano)
-  - Tempo S3 backend: $19.70/mês (S3 $11.50 + API $5.00 + EBS $3.20)
-  - Jaeger Cassandra: $210/mês (Cassandra $150 + Collector $30 + EBS $30)
+**Decisão Arquitetural (ADR-020 + ADR-052):**
+- **ADR-020:** Tempo escolhido vs Jaeger (economia $205.55/mês)
+- **ADR-052:** OTel Collector Gateway pattern (centraliza ingestão, reduz acoplamento apps)
 - **Padrão IRSA reutilizável:** Consistente com Loki S3 (mesmo padrão IAM)
 - **Grafana-native:** Integração zero-config com Prometheus + Loki
 
-**Benefícios:**
+**Benefícios Projetados:**
 - Observabilidade completa: **Métricas (Prometheus) + Logs (Loki) + Traces (Tempo)**
 - Troubleshooting distribuído: rastrear requests entre microserviços
 - Performance profiling: identificar latências por span
 - Root cause analysis: correlacionar erros com traces + logs
+- Gateway pattern: apps enviam para endpoint único (reduz config por app)
 
-**Custo:** $19.70/mês (S3 500GB + API requests + EBS 40Gi)
+**Custo:** $25.70/mês ($19.70 Tempo + $6.00 OTel Collector)
 
 ### Fase 9: FinOps Automation Multi-Ambiente (STAGING + PRODUCTION)
 **Status:** 🚀 **ATIVA EM STAGING** (desde 2026-02-02)
@@ -1025,3 +1052,30 @@ Internet
 **Mantenedor:** DevOps Team
 **Última Revisão:** 2026-01-29
 **Próxima Revisão:** Marco 3 Planning
+
+---
+
+## Fase 8: Distributed Tracing (Parcialmente Deployado)
+
+### OpenTelemetry Collector
+
+| Atributo | Valor |
+|----------|-------|
+| **Status** | ✅ Deployado (2026-02-09, antecipado para Semana 3 FinOps) |
+| **Namespace** | monitoring |
+| **Replicas** | 2/2 Running (HA) |
+| **Resources** | 100m CPU, 256Mi RAM requests / 500m, 512Mi limits (por pod) |
+| **OTLP Endpoints** | gRPC :4317, HTTP :4318 |
+| **Exporters** | Tempo (traces), Prometheus (metrics), Loki (logs) |
+| **Custo** | $0/mês (usa nodes existentes) |
+| **Integração FinOps** | Habilita trace validation para rightsizing decisions (VPA + latency correlation) |
+
+**Pendente:**
+- HPA deployment (manifest criado, aguarda import TF state)
+- PDB deployment (manifest criado, aguarda import TF state)
+- App instrumentation (Phase 2B — Dia 3-5 Semana 3)
+
+**Referências:**
+- [GAP-007](../plan/GAP-007-opentelemetry-collector.md)
+- [Roadmap FinOps 90d](../finops/optimization-roadmap-90days.md#semana-3-8-medium-wins--observability)
+- [Logbook 2026-02-10](../logbook/2026-02-10-otel-collector-deployment.md)

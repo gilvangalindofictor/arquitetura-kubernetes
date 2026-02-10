@@ -1,8 +1,25 @@
 # 🗺️ Roadmap de Execução — Gaps Críticos para Staging Eficiente
 
-**Versão:** 2.0 (Corrigido após auditoria)
+**Versão:** 2.1 (GAP-009 FinOps Weekend Shutdown adicionado)
 **Data:** 2026-02-09
 **Status:** ✅ Atualizado com Dados Reais
+
+---
+
+## 🔴 NOVO GAP IDENTIFICADO: GAP-009 FinOps Weekend Shutdown
+
+**Data:** 2026-02-09
+**Prioridade:** 🔴 **ALTA** (quick win, alto ROI)
+**Esforço:** 15 minutos
+**Economia:** +$96-120/ano
+**Responsável:** DevOps Team
+**Deadline:** 2026-02-15 (antes próximo weekend)
+
+**Problema:** EventBridge schedule atual (MON-FRI) não cobre weekends. Nodes podem religar automaticamente sábado/domingo, desperdiçando $8-10/mês.
+
+**Solução:** Adicionar EventBridge rule para garantir shutdown Sábado 00:00 BRT.
+
+**Ação Imediata:** Implementar antes de continuar outros GAPs (ROI altíssimo: 15min = $100/ano)
 
 ---
 
@@ -36,7 +53,7 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SEMANA 3-4: Observabilidade/SRE (9h - REDUZIDO DE 12h)         │
+│ SEMANA 3-4: Observabilidade/SRE (15h - CORRIGIDO)              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  GAP 1: Observabilidade/SRE (9h)                               │
@@ -49,13 +66,29 @@ Este documento complementa o [Critical Gaps Distribution](critical-gaps-distribu
 │  │ 📋 Dashboards específicos (workloads)    │ 4h │ Dia 2-3 │   │
 │  └──────────────────────────────────────────────────────┘      │
 │                                                                 │
+│  GAP 7: OpenTelemetry Collector (6h) — ⚠️ 70% COMPLETO         │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ Tempo deployado (11 pods Running)     │ COMPLETO     │   │
+│  │ ✅ Deploy OTel Collector (Gateway mode)  │ 3h │ FEITO   │   │
+│  │ ✅ Instrumentação app de teste           │ 2h │ FEITO   │   │
+│  │ ⚠️ Integração Tempo BLOQUEADA            │ PENDENTE     │   │
+│  │ 📋 Validação correlação traces↔logs      │ 1h │ Dia 3   │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
 │  ENTREGAS:                                                      │
-│  • ✅ Stack observabilidade operacional (JÁ COMPLETO)          │
+│  • ✅ Stack observabilidade operacional (Prometheus+Loki+Tempo)│
+│  • ✅ OpenTelemetry Collector 2 pods Running (2026-02-09)      │
+│  • ✅ Aplicações enviando traces via OTLP (trace generator)    │
+│  • ⚠️ Tempo integration BLOQUEADA (HTTP 404 /v1/traces)        │
 │  • 📋 SLIs/SLOs documentados para staging                      │
 │  • 📋 10 alertas críticos validados                            │
 │  • 📋 Dashboards específicos por workload                      │
+│  • 📋 Correlação traces → logs → metrics funcional             │
 │                                                                 │
-│  🎉 ECONOMIA: -3h (-25%) - Stack já operacional                │
+│  ⚠️ BLOQUEIO GAP-7: Tempo não expõe OTLP externamente          │
+│  📋 PRÓXIMA AÇÃO: Helm upgrade Tempo (45min) ou Zipkin (15min) │
+│  💰 CUSTO ADICIONAL: +$6/mês (OTel Collector)                  │
+│  📊 PROGRESSO: 70% (OTel operacional, aguarda Tempo fix)       │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -319,76 +352,76 @@ LEGENDA:
 
 ### Marco 2: Platform Services
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Definir SLIs/SLOs** | R,A | C | C | I | I | I | I |
-| **Configurar alertas** | R,A | C | I | I | I | I | I |
-| **Instalar Velero** | C | R,A | I | I | I | I | I |
-| **DR Drill execution** | C | R,A | I | I | I | I | A |
-| **RTO/RPO definition** | C | R,A | I | I | I | I | A |
+| Tarefa                 | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| ---------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Definir SLIs/SLOs**  | R,A | C      | C    | I       | I     | I     | I   |
+| **Configurar alertas** | R,A | C      | I    | I       | I     | I     | I   |
+| **Instalar Velero**    | C   | R,A    | I    | I       | I     | I     | I   |
+| **DR Drill execution** | C   | R,A    | I    | I       | I     | I     | A   |
+| **RTO/RPO definition** | C   | R,A    | I    | I       | I     | I     | A   |
 
 ---
 
 ### Marco 3 Sprint 4: Foundation
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Deploy ArgoCD** | C | I | I | C | R,A | I | I |
-| **Deploy Harbor** | C | I | I | C | R,A | I | I |
-| **Otimizar pipelines** | I | I | I | I | R,A | I | I |
-| **Configurar HPA** | C | I | R,A | I | C | I | I |
-| **Configurar VPA** | C | I | R,A | I | I | I | I |
-| **Baseline metrics** | C | I | R,A | I | I | I | I |
+| Tarefa                 | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| ---------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Deploy ArgoCD**      | C   | I      | I    | C       | R,A   | I     | I   |
+| **Deploy Harbor**      | C   | I      | I    | C       | R,A   | I     | I   |
+| **Otimizar pipelines** | I   | I      | I    | I       | R,A   | I     | I   |
+| **Configurar HPA**     | C   | I      | R,A  | I       | C     | I     | I   |
+| **Configurar VPA**     | C   | I      | R,A  | I       | I     | I     | I   |
+| **Baseline metrics**   | C   | I      | R,A  | I       | I     | I     | I   |
 
 ---
 
 ### Marco 3 Sprint 5: Data Services
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Velero PVC schedules** | C | R,A | I | I | I | I | I |
-| **Automated restore test** | C | R,A | I | I | I | I | I |
-| **Dashboards workloads** | R,A | I | C | I | C | I | I |
-| **SLO tracking** | R,A | I | C | I | I | I | I |
-| **Alertas operadores** | R,A | I | I | I | C | I | I |
+| Tarefa                     | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| -------------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Velero PVC schedules**   | C   | R,A    | I    | I       | I     | I     | I   |
+| **Automated restore test** | C   | R,A    | I    | I       | I     | I     | I   |
+| **Dashboards workloads**   | R,A | I      | C    | I       | C     | I     | I   |
+| **SLO tracking**           | R,A | I      | C    | I       | I     | I     | I   |
+| **Alertas operadores**     | R,A | I      | I    | I       | C     | I     | I   |
 
 ---
 
 ### Marco 3 Sprint 6: Validação
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Load testing K6** | C | I | R,A | I | C | I | I |
-| **Capacity planning** | C | I | R,A | I | I | I | A |
-| **Tuning (JVM, DB)** | C | I | R,A | I | C | I | I |
-| **Chaos pod kill** | C | I | I | I | I | R,A | I |
-| **HA validation** | C | C | C | C | I | R,A | I |
-| **Game day** | C | C | C | C | C | R,A | A |
+| Tarefa                | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| --------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Load testing K6**   | C   | I      | R,A  | I       | C     | I     | I   |
+| **Capacity planning** | C   | I      | R,A  | I       | I     | I     | A   |
+| **Tuning (JVM, DB)**  | C   | I      | R,A  | I       | C     | I     | I   |
+| **Chaos pod kill**    | C   | I      | I    | I       | I     | R,A   | I   |
+| **HA validation**     | C   | C      | C    | C       | I     | R,A   | I   |
+| **Game day**          | C   | C      | C    | C       | C     | R,A   | A   |
 
 ---
 
 ### Marco 3.5 Sprint 7: Service Mesh
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Deploy Linkerd** | C | I | I | R,A | C | I | I |
-| **mTLS config** | C | I | I | R,A | I | I | I |
-| **Traffic splitting** | C | I | C | R,A | C | I | I |
-| **Golden signals** | R,A | I | C | C | I | I | I |
-| **Distributed tracing** | R,A | I | I | C | I | I | I |
+| Tarefa                  | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| ----------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Deploy Linkerd**      | C   | I      | I    | R,A     | C     | I     | I   |
+| **mTLS config**         | C   | I      | I    | R,A     | I     | I     | I   |
+| **Traffic splitting**   | C   | I      | C    | R,A     | C     | I     | I   |
+| **Golden signals**      | R,A | I      | C    | C       | I     | I     | I   |
+| **Distributed tracing** | R,A | I      | I    | C       | I     | I     | I   |
 
 ---
 
 ### Marco 3.5 Sprint 8: CI/CD Avançado
 
-| Tarefa | SRE | Backup | Perf | Network | DevEx | Chaos | PM |
-|--------|-----|--------|------|---------|-------|-------|-----|
-| **Preview envs PR** | C | I | I | C | R,A | I | I |
-| **Rollback automático** | C | I | I | I | R,A | I | I |
-| **GitOps completo** | C | I | I | I | R,A | I | A |
-| **Chaos avançado** | C | I | I | I | I | R,A | I |
-| **Scheduled chaos** | C | I | I | I | C | R,A | I |
-| **Game day trimestral** | C | C | C | C | C | R,A | A |
+| Tarefa                  | SRE | Backup | Perf | Network | DevEx | Chaos | PM  |
+| ----------------------- | --- | ------ | ---- | ------- | ----- | ----- | --- |
+| **Preview envs PR**     | C   | I      | I    | C       | R,A   | I     | I   |
+| **Rollback automático** | C   | I      | I    | I       | R,A   | I     | I   |
+| **GitOps completo**     | C   | I      | I    | I       | R,A   | I     | A   |
+| **Chaos avançado**      | C   | I      | I    | I       | I     | R,A   | I   |
+| **Scheduled chaos**     | C   | I      | I    | I       | C     | R,A   | I   |
+| **Game day trimestral** | C   | C      | C    | C       | C     | R,A   | A   |
 
 **LEGENDA RACI:**
 - **R** (Responsible): Executa a tarefa
@@ -624,12 +657,12 @@ Economia: 28h → 16h (43% redução)
 
 ### Sem Paralelização ✅ CORRIGIDO
 
-| Marco | Sprints | Esforço Total | Esforço Original | Economia |
-|-------|---------|---------------|------------------|----------|
-| Marco 2 | 2 | **9h** | 26h | **-17h (-65%)** |
-| Marco 3 | 4-6 | **36h** | 74h | **-38h (-51%)** |
-| Marco 3.5 | 7-8 | **44h** | 56h | **-12h (-21%)** |
-| **TOTAL** | **6** | **89h** | **156h** | **-67h (-43%)** |
+| Marco     | Sprints | Esforço Total | Esforço Original | Economia        |
+| --------- | ------- | ------------- | ---------------- | --------------- |
+| Marco 2   | 2       | **9h**        | 26h              | **-17h (-65%)** |
+| Marco 3   | 4-6     | **36h**       | 74h              | **-38h (-51%)** |
+| Marco 3.5 | 7-8     | **44h**       | 56h              | **-12h (-21%)** |
+| **TOTAL** | **6**   | **89h**       | **156h**         | **-67h (-43%)** |
 
 **Duração (1 engenheiro):** 11 dias (reduzido de 19,5 dias)
 
@@ -637,12 +670,12 @@ Economia: 28h → 16h (43% redução)
 
 ### Com Paralelização (2 engenheiros) ✅ CORRIGIDO
 
-| Marco | Sprints | Esforço Paralelo | Esforço Original | Duração (2 eng) | Economia |
-|-------|---------|------------------|------------------|-----------------|----------|
-| Marco 2 | 2 | **9h** | 26h | **1,1 dias** | **-65%** |
-| Marco 3 | 4-6 | **19h** | 40h | **2,4 dias** | **-53%** |
-| Marco 3.5 | 7-8 | **32h** | 36h | **4 dias** | **-11%** |
-| **TOTAL** | **6** | **60h** | **102h** | **7,5 dias** | **-41%** |
+| Marco     | Sprints | Esforço Paralelo | Esforço Original | Duração (2 eng) | Economia |
+| --------- | ------- | ---------------- | ---------------- | --------------- | -------- |
+| Marco 2   | 2       | **9h**           | 26h              | **1,1 dias**    | **-65%** |
+| Marco 3   | 4-6     | **19h**          | 40h              | **2,4 dias**    | **-53%** |
+| Marco 3.5 | 7-8     | **32h**          | 36h              | **4 dias**      | **-11%** |
+| **TOTAL** | **6**   | **60h**          | **102h**         | **7,5 dias**    | **-41%** |
 
 **ROI Paralelização Corrigido:**
 - Economia person-hours: **-29h** vs original corrigido (-33% adicional)
