@@ -948,7 +948,167 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 
 ---
 
-## 📂 ESTRUTURA DE PASTAS (SE NÃO EXISTIR, CRIAR)
+## � VALIDAÇÃO DE ESTRUTURA E GOVERNANÇA DE ARQUIVOS
+
+### Princípio: Estrutura Organizada = Projeto Escalável
+
+```
+❌ PROIBIDO: Arquivos em locais arbitrários
+❌ PROIBIDO: Commitar sem validação de estrutura
+❌ PROIBIDO: Relatórios de custos na raiz do projeto
+✅ OBRIGATÓRIO: Toda operação DEVE respeitar naming conventions (ADR-048)
+✅ OBRIGATÓRIO: Hooks Git validam estrutura automaticamente
+✅ OBRIGATÓRIO: Scripts de validação executados antes de commits
+```
+
+### Scripts de Validação
+
+**Script Principal:** `scripts/validate-project-structure.sh`
+
+**Validações realizadas:**
+- ✅ Arquivos de custos em `reports/aws-costs/` (ADR-022)
+- ✅ Credenciais NUNCA commitadas (bloqueio crítico)
+- ✅ Scripts `.sh` com permissão de execução
+- ✅ ADRs seguindo padrão `adr-XXX-titulo.md` (ADR-048)
+- ✅ Terraform em `platform-provisioning/` ou `domains/`
+- ✅ Documentação em `docs/`, `SAD/`, ou dentro de domínios
+- ✅ Helm charts em estrutura correta
+
+**Executar validação manual:**
+```bash
+bash scripts/validate-project-structure.sh
+```
+
+### Hooks Git Automatizados
+
+**Pre-commit Hook** (`docs/hooks/pre/validate-project-structure.sh`)
+- Executa ANTES de cada commit
+- Bloqueia commit se houver violações
+- Permite avisos (warnings) sem bloquear
+
+**Post-commit Hook** (`docs/hooks/post/update-structure-report.sh`)
+- Executa DEPOIS de cada commit
+- Gera relatório de validação
+- Informa sobre possíveis melhorias
+
+**Instalação dos hooks:**
+```bash
+bash docs/hooks/install-hooks.sh
+```
+
+### Estrutura de Arquivos Obrigatória
+
+| Tipo de Arquivo               | Localização Correta                            | Referência     |
+| ----------------------------- | ---------------------------------------------- | -------------- |
+| **Relatórios de Custos JSON** | `reports/aws-costs/*.json`                     | ADR-022        |
+| **Relatórios Consolidados**   | `reports/aws-costs-consolidated.md`            | ADR-022        |
+| **ADRs**                      | `docs/adr/adr-XXX-titulo.md`                   | ADR-048        |
+| **Terraform**                 | `platform-provisioning/` ou `domains/*/infra/` | ADR-002        |
+| **Helm Charts**               | `domains/*/infra/helm/`                        | ADR-004        |
+| **Scripts**                   | `scripts/` ou `scripts/finops/`                | -              |
+| **Documentação**              | `docs/`, `SAD/`, `domains/*/docs/`             | ADR-001        |
+| **Credenciais**               | `access/` (gitignored)                         | NUNCA commitar |
+
+### Integração com Fluxo do Orquestrador
+
+**Durante Análise Inicial (Etapa 1):**
+```bash
+# Validar estrutura antes de iniciar demanda
+bash scripts/validate-project-structure.sh
+
+# Se violações encontradas → corrigir ANTES de prosseguir
+# Registrar no logbook: [HH:MM:SS] Validação | Orq | Estrutura validada | ✅
+```
+
+**Durante Sincronização de Documentos (Etapa 4):**
+```bash
+# Após atualizar documentos, hooks Git validarão automaticamente
+git add docs/context/*.md reports/aws-costs/*.json
+git commit -m "feat(infra): <descrição>"
+
+# Hook pre-commit executa automaticamente
+# Se bloqueado → corrigir arquivo + tentar novamente
+```
+
+**Tratamento de Violações:**
+```
+[VALIDAÇÃO] 🔍 Estrutura
+VIOLAÇÕES: <N> encontradas
+DETALHES:
+  • cost-new.json na raiz → mover para reports/aws-costs/
+  • script.sh sem permissão → chmod +x
+  • adr-nova-feature.md → renomear para adr-025-nova-feature.md
+AÇÃO: corrigir + re-executar validação
+REFERÊNCIAS: ADR-022 (custos), ADR-048 (naming)
+```
+
+### Regras de Naming (ADR-048)
+
+**Formato geral:** `lowercase-kebab-case`
+**Regex:** `^[a-z0-9-]+$`
+
+**Exemplos válidos:**
+- ✅ `adr-022-finops-automation-strategy.md`
+- ✅ `reports/aws-costs/costs.json`
+- ✅ `scripts/validate-project-structure.sh`
+- ✅ `domains/observability/infra/helm/prometheus/`
+
+**Exemplos inválidos:**
+- ❌ `ADR-022-FINOPS.md` (uppercase)
+- ❌ `cost_report.json` (underscore)
+- ❌ `ValidateScript.sh` (camelCase)
+- ❌ `costs.json` (na raiz, fora de reports/)
+
+### Arquivos Ignorados (.gitignore)
+
+**Arquivos gerados automaticamente por FinOps:**
+```gitignore
+# Relatórios de Custos AWS (gerados por scripts)
+reports/aws-costs/*.json
+reports/aws-costs-daily.csv
+
+# Manter versionados:
+!reports/aws-costs/README.md
+!reports/aws-costs-consolidated.md
+```
+
+**Justificativa:** Scripts de FinOps geram arquivos JSON diariamente. Versionamento desnecessário — apenas README e relatórios consolidados são versionados.
+
+### Checklist de Validação Estrutural (antes de commit)
+
+```
+[ ] Nenhum arquivo de custo JSON na raiz
+[ ] Nenhuma credencial sendo commitada
+[ ] Todos os scripts têm permissão de execução
+[ ] ADRs seguem nomenclatura correta
+[ ] Arquivos Terraform em locais apropriados
+[ ] Documentação em diretórios corretos
+[ ] Hooks Git instalados e funcionando
+[ ] validate-project-structure.sh retorna 0 violações
+```
+
+### Integração com STOP-AND-FIX
+
+Quando STOP-AND-FIX é ativado e correções são aplicadas:
+
+```
+5b. SINCRONIZAR DOCUMENTOS (OBRIGATÓRIO PÓS-FIX)
+    ├─ Atualizar TODOS os docs impactados
+    ├─ Executar validate-project-structure.sh
+    ├─ Corrigir violações se encontradas
+    ├─ Confirmar estrutura OK antes de retomar
+    └─ Registrar: [HH:MM:SS] Validação-Fix | estrutura ok | ✅
+```
+
+**Referências:**
+- ADR-022: FinOps Automation Strategy (localização de custos)
+- ADR-048: Naming Conventions Determinísticas (padrões de nomenclatura)
+- `scripts/validate-project-structure.sh`: Script de validação
+- `docs/hooks/README.md`: Documentação completa dos hooks
+
+---
+
+## �📂 ESTRUTURA DE PASTAS (SE NÃO EXISTIR, CRIAR)
 
 ```text
 /infra
@@ -1215,4 +1375,7 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 15. **Observability primeiro.** Não deploy workload crítico sem monitoring/alerting configurado.
 16. **Performance validado.** Node optimization/Karpenter BLOQUEADOS até HPA configurado + métricas coletadas.
 17. **Backup testado.** Não confiar em backup que nunca foi restaurado. Restore test mensal obrigatório.
-18. **Sync de docs a cada resolução é inegociável.** Cada STOP-AND-FIX DEVE atualizar TODOS os docs impactados ANTES de retomar. Freshness check obrigatório no CTX-RESTORE. Nenhuma etapa avança com documentos desatualizados.
+18. **Sync de docs a cada resolução é inegociável.** Cada STOP-AND-FIX DEVE atualizar TODOS os docs impactados ANTES de retomar. Freshness check obrigatório no CTX-RESTORE. Nenhuma etapa avança com documentos desatualizados.19. **Estrutura de arquivos é inviolável.** Arquivos DEVEM estar nos locais corretos (ADR-022, ADR-048). Hooks Git validam automaticamente. Violações bloqueiam commits.
+20. **Validação de estrutura é obrigatória.** Executar `scripts/validate-project-structure.sh` antes de iniciar demandas. Corrigir violações antes de prosseguir.
+
+---
