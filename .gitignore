@@ -191,6 +191,14 @@ DRAFT-*.md
 # Outputs de validação local (manter apenas reports consolidados)
 # **/VALIDATION-REPORT-*.md mantido no versionamento
 
+# Relatórios de Custos AWS (gerados automaticamente por FinOps scripts)
+# Ignorar JSONs gerados, mas manter READMEs e relatórios consolidados
+reports/aws-costs/*.json
+reports/aws-costs-daily.csv
+# Manter versionados:
+!reports/aws-costs/README.md
+!reports/aws-costs-consolidated.md
+
 # LocalStack data
 localstack/data/
 
