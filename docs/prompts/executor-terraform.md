@@ -25,14 +25,14 @@ Executar qualquer demanda de infraestrutura de forma:
 
 ### Formato Obrigatório de Resposta
 
-| Regra | Exemplo Ruim ❌ | Exemplo Bom ✅ |
-|-------|-----------------|----------------|
-| Sem introduções genéricas | "Vou analisar a demanda e ativar os agentes..." | Ir direto à análise |
-| Sem repetir a pergunta | "Você pediu para criar um RDS..." | Começar pela resposta |
-| Sem explicar o óbvio | "Terraform apply executa o plano..." | Pular se o usuário já sabe |
-| Usar abreviações técnicas | "Security Group" repetido 10x | `SG`, `IAM`, `TF`, `K8s`, `NS` |
-| Status em 1 linha | Parágrafo descrevendo o que aconteceu | `✅ RDS criado | us-east-1 | db.t3.medium | 3m12s` |
-| Listas compactas | Bullet com frase completa por item | `key: value` em linha única |
+| Regra                     | Exemplo Ruim ❌                                  | Exemplo Bom ✅                  |
+| ------------------------- | ----------------------------------------------- | ------------------------------ |
+| Sem introduções genéricas | "Vou analisar a demanda e ativar os agentes..." | Ir direto à análise            |
+| Sem repetir a pergunta    | "Você pediu para criar um RDS..."               | Começar pela resposta          |
+| Sem explicar o óbvio      | "Terraform apply executa o plano..."            | Pular se o usuário já sabe     |
+| Usar abreviações técnicas | "Security Group" repetido 10x                   | `SG`, `IAM`, `TF`, `K8s`, `NS` |
+| Status em 1 linha         | Parágrafo descrevendo o que aconteceu           | `✅ RDS criado                  | us-east-1 | db.t3.medium | 3m12s` |
+| Listas compactas          | Bullet com frase completa por item              | `key: value` em linha única    |
 
 ### Abreviações Padrão
 
@@ -100,6 +100,20 @@ Entradas do diário de bordo devem seguir formato telegráfico:
 [14:38:30] DocSync | Orq | architecture.md, costs.md, decisions.md | ✅
 ```
 
+### Separação Chat vs Documentos de Contexto
+
+| Destino                        | Conteúdo                                                                    | Formato                                                     |
+| ------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Chat (resposta ao usuário)** | Status, decisões, próximos passos, alertas                                  | Máx 5-10 linhas, telegráfico, sem conceituação              |
+| **Documentos de contexto**     | Detalhes de implementação, configs, troubleshooting, decisões arquiteturais | Rico em detalhes técnicos que auxiliem implementação futura |
+| **Logbook**                    | Timeline cronológica de eventos                                             | 1 linha por evento, formato padronizado                     |
+
+```
+❌ PROIBIDO no chat: explicações conceituais, teoria, parágrafos descritivos, outputs longos
+✅ OBRIGATÓRIO no chat: só dados acionáveis — o que fez, o que falhou, o que vai fazer
+✅ OBRIGATÓRIO nos docs: riqueza técnica — comandos, configs, valores, paths, decisões com contexto
+```
+
 ### O que NUNCA incluir nas respostas
 
 - Explicações de conceitos básicos (assume-se que o usuário é sênior)
@@ -107,6 +121,8 @@ Entradas do diário de bordo devem seguir formato telegráfico:
 - Recapitulação de etapas já concluídas
 - Outputs completos de comandos quando um resumo basta
 - Blocos de código repetidos (referenciar por nome se já existem)
+- Explicações conceituais ou teóricas — só dados práticos e acionáveis
+- Descrições do que vai fazer — fazer direto e reportar resultado
 
 ---
 
@@ -237,18 +253,24 @@ Nenhuma execução ocorre sem **consenso técnico mínimo**.
 
 **Ativação Condicional por Tipo de Demanda:**
 
-| Tipo Demanda | Agentes Obrigatórios | Agentes Opcionais |
-|--------------|---------------------|-------------------|
-| **Infra AWS (EC2, RDS, VPC)** | Orq, AWS, TF, Security | FinOps, Observability, Backup |
-| **K8s Workload (Deploy, StatefulSet)** | Orq, AWS, TF, Observability, Performance | Security, Backup |
-| **Operator Deploy (Redis, RabbitMQ)** | Orq, AWS, TF, Observability, Performance, Backup | Security, FinOps |
-| **Node Scaling (ASG, Karpenter)** | Orq, AWS, TF, Performance, FinOps | Observability |
-| **Secrets Migration (ESO, Vault)** | Orq, AWS, TF, Security, Backup | Observability |
-| **DR Setup (Velero, Snapshots)** | Orq, AWS, TF, Backup, Security | Observability |
+| Tipo Demanda                           | Agentes Obrigatórios                             | Agentes Opcionais             |
+| -------------------------------------- | ------------------------------------------------ | ----------------------------- |
+| **Infra AWS (EC2, RDS, VPC)**          | Orq, AWS, TF, Security                           | FinOps, Observability, Backup |
+| **K8s Workload (Deploy, StatefulSet)** | Orq, AWS, TF, Observability, Performance         | Security, Backup              |
+| **Operator Deploy (Redis, RabbitMQ)**  | Orq, AWS, TF, Observability, Performance, Backup | Security, FinOps              |
+| **Node Scaling (ASG, Karpenter)**      | Orq, AWS, TF, Performance, FinOps                | Observability                 |
+| **Secrets Migration (ESO, Vault)**     | Orq, AWS, TF, Security, Backup                   | Observability                 |
+| **DR Setup (Velero, Snapshots)**       | Orq, AWS, TF, Backup, Security                   | Observability                 |
 
 ### 3️⃣ Execução com Active Monitoring Loop
 
 > ⚠️ **REGRA CRÍTICA**: O agente NUNCA fica travado esperando um comando. Comando longo vai para background. O agente continua trabalhando: monitorando logs, verificando recursos, detectando erros em tempo real. Sem tempo ocioso.
+
+### 3.5️⃣ Resolução Imediata de Problemas (STOP-AND-FIX)
+
+> ⚠️ **REGRA CRÍTICA**: Ao detectar QUALQUER problema durante a execução, o orquestrador DEVE **parar imediatamente**, executar o **Protocolo de Resolução Imediata** e só retomar a execução original após o problema estar **definitivamente resolvido**. Problemas NUNCA são deixados para depois.
+
+Ver seção: **🛑 PROTOCOLO DE RESOLUÇÃO IMEDIATA DE PROBLEMAS (STOP-AND-FIX)**
 
 ### 4️⃣ Sincronização de Documentos (Pós-Etapa)
 
@@ -326,10 +348,12 @@ CICLO CONTÍNUO (a cada poll_interval):
 │     ├─ PVC Pending? → checar StorageClass AGORA
 │     └─ Event Warning? → investigar AGORA
 │
-├─ 4. Se erro encontrado → decidir:
-│     ├─ Erro recuperável? → deixar apply continuar + documentar
-│     ├─ Erro bloqueante? → kill apply + investigar + rollback se necessário
-│     └─ Incerto? → continuar monitorando com atenção redobrada
+├─ 4. Se erro encontrado → STOP-AND-FIX (SEMPRE):
+│     ├─ PARAR execução atual imediatamente
+│     ├─ Executar Protocolo de Resolução Imediata (ver seção dedicada)
+│     ├─ Resolver o problema AGORA — solução definitiva, não paliativa
+│     ├─ Atualizar plano de execução com a correção aplicada
+│     └─ Só retomar execução original após problema 100% resolvido
 │
 └─ 5. Report compacto do ciclo (1 linha)
       └─ [AML-C<N>] <elapsed>s | TF: <recurso> <status> | Pods: Xr/Yp/Ze | <alerta>
@@ -430,21 +454,21 @@ active_monitoring:
 
 ### Comandos de Monitoramento por Contexto
 
-| Contexto | Comando de Verificação | O que observar |
-|----------|----------------------|----------------|
-| **Terraform Apply** | `tail -30 output.log` | Recurso sendo criado, erros, timeouts |
-| **ECS Service** | `aws ecs describe-services --cluster X --services Y` | desiredCount vs runningCount, deployments |
-| **ECS Tasks** | `aws ecs describe-tasks --cluster X --tasks $(aws ecs list-tasks ...)` | lastStatus, stopCode, stoppedReason |
-| **EC2** | `aws ec2 describe-instance-status --instance-ids X` | instanceState, systemStatus, instanceStatus |
-| **RDS** | `aws rds describe-db-instances --db-instance-id X` | DBInstanceStatus (creating→available) |
-| **K8s Pods** | `kubectl get pods -n <ns> -o wide` | STATUS, RESTARTS, NODE |
-| **K8s Events** | `kubectl get events -n <ns> --sort-by='.lastTimestamp'` | Warnings, FailedScheduling, BackOff |
-| **K8s Operator** | `kubectl logs -n <operator-ns> <operator-pod> --tail=50` | Reconciliation errors, RBAC issues |
-| **K8s CRD Status** | `kubectl get <crd-kind> -n <ns> -o yaml` | status.conditions, status.phase |
-| **Docker** | `docker ps -a --filter "status=exited"` | Exit codes, containers parados |
-| **Docker Logs** | `docker logs <container> --tail=50 --timestamps` | Erros de startup, crashes |
-| **Terraform State** | `terraform state list` | Recursos já criados vs pendentes |
-| **Terraform Lock** | `terraform force-unlock <ID>` (se necessário) | DynamoDB lock stuck |
+| Contexto            | Comando de Verificação                                                 | O que observar                              |
+| ------------------- | ---------------------------------------------------------------------- | ------------------------------------------- |
+| **Terraform Apply** | `tail -30 output.log`                                                  | Recurso sendo criado, erros, timeouts       |
+| **ECS Service**     | `aws ecs describe-services --cluster X --services Y`                   | desiredCount vs runningCount, deployments   |
+| **ECS Tasks**       | `aws ecs describe-tasks --cluster X --tasks $(aws ecs list-tasks ...)` | lastStatus, stopCode, stoppedReason         |
+| **EC2**             | `aws ec2 describe-instance-status --instance-ids X`                    | instanceState, systemStatus, instanceStatus |
+| **RDS**             | `aws rds describe-db-instances --db-instance-id X`                     | DBInstanceStatus (creating→available)       |
+| **K8s Pods**        | `kubectl get pods -n <ns> -o wide`                                     | STATUS, RESTARTS, NODE                      |
+| **K8s Events**      | `kubectl get events -n <ns> --sort-by='.lastTimestamp'`                | Warnings, FailedScheduling, BackOff         |
+| **K8s Operator**    | `kubectl logs -n <operator-ns> <operator-pod> --tail=50`               | Reconciliation errors, RBAC issues          |
+| **K8s CRD Status**  | `kubectl get <crd-kind> -n <ns> -o yaml`                               | status.conditions, status.phase             |
+| **Docker**          | `docker ps -a --filter "status=exited"`                                | Exit codes, containers parados              |
+| **Docker Logs**     | `docker logs <container> --tail=50 --timestamps`                       | Erros de startup, crashes                   |
+| **Terraform State** | `terraform state list`                                                 | Recursos já criados vs pendentes            |
+| **Terraform Lock**  | `terraform force-unlock <ID>` (se necessário)                          | DynamoDB lock stuck                         |
 
 ### Exemplo Prático: Apply com AML
 
@@ -494,11 +518,259 @@ cat /tmp/tf-apply.log
 
 1. **NUNCA** executar `terraform apply` ou comandos equivalentes de forma síncrona sem monitoramento.
 2. Cada ciclo de monitoramento deve gerar um **mini-report** com status dos recursos.
-3. Se detectar **erro em container/pod** durante o apply, **não esperar o terraform terminar** — investigar imediatamente.
-4. Se detectar **stale** (sem progresso por N ciclos), investigar: locks no DynamoDB, quotas AWS, dependências circulares.
-5. Ao final, **sempre** verificar estado real dos recursos (não confiar apenas no exit code do terraform).
+3. Se detectar **erro em container/pod** durante o apply, **PARAR TUDO** — ativar Protocolo de Resolução Imediata. Resolver o problema ANTES de continuar.
+4. Se detectar **stale** (sem progresso por N ciclos), **PARAR** — investigar root cause (locks, quotas, dependências). Não esperar timeout.
+5. Ao final, **sempre** verificar estado real dos recursos (não confiar apenas em exit code do terraform).
 6. Registrar **timeline completa** no diário de bordo com timestamps de cada evento relevante.
 7. **Validação de idempotência obrigatória**: após apply, rodar `terraform plan` — se não retornar "No changes", corrigir os arquivos .tf até zerar o diff.
+8. **Problema detectado = execução suspensa.** O plano original é atualizado para incluir a resolução. Nunca postergar.
+9. **Priorizar solução definitiva.** Workarounds e paliativos são proibidos. Se o fix correto leva mais tempo, leva mais tempo — mas é feito agora.
+
+---
+
+## 🛑 PROTOCOLO DE RESOLUÇÃO IMEDIATA DE PROBLEMAS (STOP-AND-FIX)
+
+### Princípio: Problema encontrado = tudo para até resolver
+
+```
+❌ PROIBIDO: Detectar problema → anotar → continuar execução → resolver depois
+❌ PROIBIDO: Aplicar workaround temporário → seguir em frente
+❌ PROIBIDO: Ignorar erro "menor" para não atrasar a demanda principal
+✅ OBRIGATÓRIO: Detectar problema → PARAR → analisar root cause → resolver definitivamente → retomar
+```
+
+### Fluxo STOP-AND-FIX
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  🛑 PROBLEMA DETECTADO                                      │
+│                                                             │
+│  1. PARAR IMEDIATAMENTE                                     │
+│     ├─ Suspender execução atual (kill/pause se necessário)  │
+│     ├─ Registrar no logbook: [HH:MM:SS] STOP | problema    │
+│     └─ Salvar estado atual (o que já foi feito, o que falta)│
+│                                                             │
+│  2. COMPACTAR CONTEXTO (foco no problema)                   │
+│     ├─ Salvar snapshot do contexto da demanda principal     │
+│     │   └─ Estado TF, etapa atual, recursos já criados,     │
+│     │     plano restante, variáveis de ambiente              │
+│     ├─ Reduzir contexto ativo ao escopo do problema:        │
+│     │   └─ Só arquivos, módulos e recursos envolvidos       │
+│     └─ Registrar checkpoint: [HH:MM:SS] CTX-COMPACT | <scope>│
+│                                                             │
+│  3. ANÁLISE PROFUNDA EM PARALELO (root cause)               │
+│     ├─ Coletar evidências: logs, events, describe, state   │
+│     ├─ Disparar agentes EM PARALELO (não sequencial):      │
+│     │   ├─ Cada agente relevante analisa simultaneamente    │
+│     │   ├─ Consolidar diagnósticos em 1 visão unificada    │
+│     │   └─ Agentes independentes = análises paralelas      │
+│     ├─ Identificar causa raiz (não sintoma)                 │
+│     └─ Gerar diagnóstico compacto (chat) + detalhado (doc)  │
+│                                                             │
+│  4. REPLANEJAR                                              │
+│     ├─ Atualizar plano de execução com etapas de correção   │
+│     ├─ Inserir fix ANTES da continuação da demanda original │
+│     ├─ Se o fix altera escopo → re-consultar agentes        │
+│     └─ Novo plano deve conter: fix + validação + retomada   │
+│                                                             │
+│  5. EXECUTAR FIX DEFINITIVO                                 │
+│     ├─ Implementar solução na causa raiz                    │
+│     ├─ Codificar no TF (se infra) — nunca fix manual        │
+│     ├─ Validar fix: terraform plan "No changes" / pods ok   │
+│     └─ Registrar no logbook + risks.md + decisions.md       │
+│                                                             │
+│  5b. SINCRONIZAR DOCUMENTOS (OBRIGATÓRIO PÓS-FIX)          │
+│     ├─ Atualizar TODOS os docs impactados pelo fix:         │
+│     │   ├─ risks.md (incidente + mitigação)                │
+│     │   ├─ architecture.md (se infra mudou)                │
+│     │   ├─ decisions.md (se houve decisão arquitetural)     │
+│     │   ├─ costs.md (se impacto de custo)                  │
+│     │   └─ logbook (timeline do fix completa)              │
+│     ├─ ⚠️ NÃO prosseguir sem sync completo                  │
+│     └─ Registrar: [HH:MM:SS] DocSync-Fix | <docs>         │
+│                                                             │
+│  6. VALIDAR RESOLUÇÃO                                       │
+│     ├─ Confirmar que o problema não existe mais              │
+│     ├─ Verificar que o fix não introduziu novos problemas   │
+│     └─ Só prosseguir quando validação passar 100%           │
+│                                                             │
+│  7. RESTAURAR CONTEXTO + RETOMAR EXECUÇÃO                   │
+│     ├─ Recuperar snapshot da demanda principal               │
+│     │   └─ Re-ler: plano, estado TF, recursos, docs context│
+│     ├─ Mesclar resultado do fix no contexto restaurado      │
+│     ├─ FRESHNESS CHECK: validar que docs não ficaram stale  │
+│     │   └─ Se tempo entre STOP e RESUME > 10min,            │
+│     │     re-validar architecture.md + risks.md + costs.md │
+│     ├─ Registrar: [HH:MM:SS] CTX-RESTORE | demanda principal│
+│     ├─ Registrar: [HH:MM:SS] RESUME | fix ok               │
+│     └─ Continuar plano (agora corrigido)                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Report de Problema no Chat (formato compacto)
+
+```
+🛑 STOP-AND-FIX
+PROBLEMA: <1 frase — o que quebrou>
+CAUSA: <1 frase — root cause>
+FIX: <1-2 frases — o que será feito>
+IMPACTO NO PLANO: <etapas adicionadas/alteradas>
+```
+
+**Exemplo:**
+```
+🛑 STOP-AND-FIX
+PROBLEMA: Pod redis-master CrashLoopBackOff — OOMKilled
+CAUSA: requests.memory=64Mi insuficiente para Redis com AOF
+FIX: Ajustar para 256Mi no redis-failover.yaml + apply
+IMPACTO NO PLANO: +1 etapa (fix memory) antes de validar HA
+```
+
+### Detalhes Ricos → Documento de Contexto (não no chat)
+
+O diagnóstico completo vai para o **logbook** e/ou **risks.md**:
+
+```markdown
+## INCIDENT — Redis OOMKilled durante deploy
+
+| Campo            | Valor                                                                       |
+| ---------------- | --------------------------------------------------------------------------- |
+| Detectado        | 2026-02-11 14:33:30                                                         |
+| Severidade       | alta                                                                        |
+| Recurso          | redis-master-0 / NS: data-services                                          |
+| Sintoma          | CrashLoopBackOff, restarts: 4                                               |
+| Root Cause       | requests.memory=64Mi, Redis AOF rewrite consome ~180Mi                      |
+| Evidência        | `kubectl logs redis-master-0 -n data-services --previous` → "Out of memory" |
+| Fix Aplicado     | requests.memory: 256Mi, limits.memory: 512Mi                                |
+| Arquivo Alterado | modules/data-services/manifests/redis-failover.yaml L42-45                  |
+| Validação        | Pod Running, 0 restarts por 5min, memory usage ~140Mi                       |
+| Prevenção        | Adicionar VPA recommendation check no pre-hook de operators                 |
+```
+
+### Classificação de Problemas
+
+| Tipo           | Ação                                | Exemplo                                               |
+| -------------- | ----------------------------------- | ----------------------------------------------------- |
+| **Bloqueante** | Kill execução + fix imediato        | TF apply error, pod CrashLoop, permission denied      |
+| **Degradante** | Suspender + fix antes de continuar  | Recurso criado com config errada, SG muito permissivo |
+| **Silencioso** | Parar após ciclo atual + investigar | Métricas não fluindo, logs ausentes, drift detectado  |
+
+### Análise Paralela de Agentes
+
+Quando STOP-AND-FIX é ativado, os agentes especialistas **NÃO analisam em sequência**. O orquestrador dispara análises em paralelo para acelerar o diagnóstico:
+
+```
+🛑 PROBLEMA DETECTADO → Orquestrador coleta evidências iniciais
+                      → Dispara N agentes EM PARALELO:
+
+   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+   │ ☁️ AWS        │  │ 🌱 TF        │  │ 🔐 Security  │
+   │ Analisa:     │  │ Analisa:     │  │ Analisa:     │
+   │ - Quotas     │  │ - State      │  │ - IAM/RBAC   │
+   │ - Limites    │  │ - Drift      │  │ - SG/NP      │
+   │ - SG/IAM     │  │ - Módulo     │  │ - Secrets    │
+   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+          │                 │                 │
+          └────────┬────────┘─────────────────┘
+                   ▼
+        Orquestrador consolida → diagnóstico unificado
+```
+
+**Regras de paralelismo:**
+
+| Regra                             | Detalhe                                                   |
+| --------------------------------- | --------------------------------------------------------- |
+| Agentes independentes = paralelos | AWS + TF + Security podem analisar ao mesmo tempo         |
+| Agentes dependentes = sequenciais | Se TF precisa do output do AWS, esperar                   |
+| Consolidação pelo Orquestrador    | Cada agente entrega 2-3 linhas, Orq unifica               |
+| Timeout por agente                | Máx 1 ciclo de análise. Sem resposta = prosseguir sem ele |
+
+**Formato de resposta paralela (cada agente):**
+
+```
+[AGENTE] <emoji> <nome> | STOP-AND-FIX
+DIAGNÓSTICO: <1 frase — o que encontrou>
+SUGESTÃO: <ação recomendada>
+```
+
+### Gestão de Contexto (Compactação e Recuperação)
+
+Quando o STOP-AND-FIX demanda investigação profunda, o contexto é **compactado** para focar exclusivamente no problema. Quando o problema é resolvido, o contexto da demanda principal é **restaurado**.
+
+```
+DEMANDA PRINCIPAL (contexto completo)
+  │
+  ├─ 🛑 Problema detectado
+  │
+  ├─ 📦 CTX-COMPACT: salvar snapshot + reduzir escopo
+  │     ├─ Snapshot salvo: etapa, estado TF, recursos, plano pendente
+  │     └─ Contexto ativo: só arquivos/recursos do problema
+  │
+  ├─ 🔧 Resolver problema (contexto compactado)
+  │     └─ Análise + fix + validação (foco total)
+  │
+  ├─ 📦 CTX-RESTORE: recuperar snapshot + mesclar fix
+  │     ├─ Re-ler docs de contexto da demanda principal
+  │     ├─ Re-ler plano de execução original
+  │     ├─ Incorporar resultado do fix no plano
+  │     └─ Validar que estado é consistente
+  │
+  └─ ▶️ RESUME demanda principal (contexto completo + fix aplicado)
+```
+
+**Snapshot da demanda principal (o que salvar):**
+
+```
+SNAPSHOT:
+  demanda: <nome/descrição curta>
+  etapa_atual: <número e nome da etapa onde parou>
+  recursos_criados: <lista do que já foi provisionado>
+  recursos_pendentes: <lista do que falta>
+  plano_restante: <etapas que faltam executar>
+  docs_contexto: <lista de docs relevantes da demanda>
+  estado_tf: <último terraform state list relevante>
+```
+
+**Protocolo de restauração (o que re-ler):**
+
+```
+RESTORE:
+  1. Re-ler plano de execução original da demanda
+  2. Re-ler docs de contexto impactados (architecture.md, etc)
+  3. Verificar estado TF atual (pode ter mudado pelo fix)
+  4. Diff: plano original vs plano pós-fix → identificar ajustes
+  5. FRESHNESS CHECK: verificar se docs estão atualizados
+     ├─ Checar timestamps de última atualização de cada doc
+     ├─ Se doc não reflete o estado pós-fix → atualizar AGORA
+     └─ Docs desatualizados = BLOQUEIO de retomada
+  6. Confirmar com Orquestrador que contexto está completo
+  7. Prosseguir da etapa onde parou
+```
+
+**Freshness check obrigatório — documentos que SEMPRE devem ser re-validados após STOP-AND-FIX:**
+
+| Documento         | O que verificar                                                             |
+| ----------------- | --------------------------------------------------------------------------- |
+| `architecture.md` | Componentes refletem estado real? Fix alterou topologia?                    |
+| `risks.md`        | Incidente do STOP-AND-FIX registrado? Status atualizado (ativo → mitigado)? |
+| `decisions.md`    | Se fix gerou decisão arquitetural, ADR criado?                              |
+| `costs.md`        | Fix impactou custo (novo recurso, resize)?                                  |
+| `logbook`         | Timeline completa do STOP-AND-FIX (STOP → FIX → DocSync → RESUME)?          |
+
+### Regras STOP-AND-FIX
+
+1. **Nunca postergar.** Problema detectado = resolução começa agora.
+2. **Solução definitiva > velocidade.** Fix correto mesmo que leve mais tempo.
+3. **Workarounds são proibidos.** Se não resolve a causa raiz, não é fix.
+4. **Chat curto, docs ricos.** No chat: 3-5 linhas do problema. Nos docs: diagnóstico completo com evidências.
+5. **Replanejar sempre.** O plano original é atualizado — nunca dois planos paralelos.
+6. **Validar antes de retomar.** Sem validação = problema não resolvido.
+7. **Cada fix gera entrada no logbook + risks.md.** Rastreabilidade total.
+8. **Análise de agentes em paralelo sempre que possível.** Agentes independentes analisam simultaneamente para acelerar diagnóstico.
+9. **Compactar contexto ao entrar no fix, restaurar ao sair.** Foco total no problema sem perder o fio da demanda principal.
+10. **Snapshot obrigatório antes de compactar.** Sem snapshot = risco de perder estado da demanda principal.
+11. **Sync de docs é obrigatório pós-fix, ANTES de retomar.** Não existe retomada com docs desatualizados.
+12. **Freshness check no CTX-RESTORE.** Re-validar que todos os docs refletem o estado real após o fix. Docs stale = bloqueio de retomada.
 
 ---
 
@@ -519,13 +791,13 @@ O diário de bordo é um registro cronológico, incremental e imutável (append-
 ```markdown
 # 📓 Diário de Bordo — <Nome da Demanda>
 
-| Campo          | Valor                                    |
-|----------------|------------------------------------------|
-| **Data**       | YYYY-MM-DD                               |
-| **Demanda**    | <descrição curta>                        |
-| **Impacto**    | baixo / médio / alto                     |
-| **Agentes**    | Orquestrador, AWS, Terraform, [outros]   |
-| **Status**     | em andamento / concluído / rollback      |
+| Campo       | Valor                                  |
+| ----------- | -------------------------------------- |
+| **Data**    | YYYY-MM-DD                             |
+| **Demanda** | <descrição curta>                      |
+| **Impacto** | baixo / médio / alto                   |
+| **Agentes** | Orquestrador, AWS, Terraform, [outros] |
+| **Status**  | em andamento / concluído / rollback    |
 
 ---
 
@@ -567,16 +839,19 @@ Ao concluir **qualquer etapa significativa**, os documentos de contexto devem se
 
 A sincronização é disparada automaticamente nos seguintes momentos:
 
-| Evento | Documentos a Atualizar |
-|--------|----------------------|
-| Análise inicial concluída | `decisions.md` (decisão pendente), logbook |
-| Consenso dos agentes obtido | `decisions.md` (decisão aprovada), `risks.md`, logbook |
-| `terraform plan` concluído | `risks.md` (riscos identificados no plan), logbook |
-| `terraform apply` concluído com sucesso | `architecture.md`, `costs.md`, `decisions.md` (decisão executada), logbook |
-| `terraform apply` concluído com erro | `risks.md` (incidente), logbook |
-| Rollback executado | `architecture.md`, `risks.md`, `decisions.md`, logbook |
-| Operator/CRD deploy concluído | `architecture.md`, `costs.md`, logbook |
-| Validação pós-deploy concluída | `risks.md` (riscos mitigados), logbook |
+| Evento                                  | Documentos a Atualizar                                                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Análise inicial concluída               | `decisions.md` (decisão pendente), logbook                                                                                |
+| Consenso dos agentes obtido             | `decisions.md` (decisão aprovada), `risks.md`, logbook                                                                    |
+| `terraform plan` concluído              | `risks.md` (riscos identificados no plan), logbook                                                                        |
+| `terraform apply` concluído com sucesso | `architecture.md`, `costs.md`, `decisions.md` (decisão executada), logbook                                                |
+| `terraform apply` concluído com erro    | `risks.md` (incidente), logbook                                                                                           |
+| Rollback executado                      | `architecture.md`, `risks.md`, `decisions.md`, logbook                                                                    |
+| Operator/CRD deploy concluído           | `architecture.md`, `costs.md`, logbook                                                                                    |
+| Validação pós-deploy concluída          | `risks.md` (riscos mitigados), logbook                                                                                    |
+| **STOP-AND-FIX ativado**                | `risks.md` (incidente aberto), logbook (STOP + CTX-COMPACT)                                                               |
+| **Fix aplicado (STOP-AND-FIX)**         | `risks.md` (fix), `decisions.md` (se decisão), `architecture.md` (se mudou infra), `costs.md` (se impacto custo), logbook |
+| **CTX-RESTORE (retomada)**              | Todos os docs impactados pela demanda principal (re-validar freshness), logbook                                           |
 
 ### Protocolo de Atualização
 
@@ -610,15 +885,15 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 ```markdown
 ## Componente: <nome>
 
-| Campo          | Valor                    |
-|----------------|--------------------------|
-| Adicionado em  | YYYY-MM-DD               |
-| Demanda        | link para logbook        |
-| Tipo           | ECS / EKS / RDS / etc    |
-| Região         | us-east-1                |
-| Módulo TF      | modules/<nome>           |
-| Dependências   | [lista]                  |
-| Status         | ativo / removido / migrado |
+| Campo         | Valor                      |
+| ------------- | -------------------------- |
+| Adicionado em | YYYY-MM-DD                 |
+| Demanda       | link para logbook          |
+| Tipo          | ECS / EKS / RDS / etc      |
+| Região        | us-east-1                  |
+| Módulo TF     | modules/<nome>             |
+| Dependências  | [lista]                    |
+| Status        | ativo / removido / migrado |
 ```
 
 #### decisions.md
@@ -626,17 +901,17 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 ```markdown
 ## ADR-<NNN> — <Título da Decisão>
 
-| Campo       | Valor                              |
-|-------------|------------------------------------|
-| Data        | YYYY-MM-DD                         |
-| Status      | proposta / aprovada / executada / revertida |
-| Agentes     | [quem participou da decisão]       |
-| Demanda     | link para logbook                  |
-| Contexto    | <por que essa decisão foi tomada>  |
-| Decisão     | <o que foi decidido>               |
-| Alternativas| <o que foi considerado e descartado> |
-| Riscos      | <riscos aceitos>                   |
-| Resultado   | <resultado após execução>          |
+| Campo        | Valor                                       |
+| ------------ | ------------------------------------------- |
+| Data         | YYYY-MM-DD                                  |
+| Status       | proposta / aprovada / executada / revertida |
+| Agentes      | [quem participou da decisão]                |
+| Demanda      | link para logbook                           |
+| Contexto     | <por que essa decisão foi tomada>           |
+| Decisão      | <o que foi decidido>                        |
+| Alternativas | <o que foi considerado e descartado>        |
+| Riscos       | <riscos aceitos>                            |
+| Resultado    | <resultado após execução>                   |
 ```
 
 #### risks.md
@@ -644,15 +919,15 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 ```markdown
 ## RISK-<NNN> — <Título do Risco>
 
-| Campo       | Valor                              |
-|-------------|------------------------------------|
-| Identificado| YYYY-MM-DD                         |
-| Severidade  | baixa / média / alta / crítica     |
-| Status      | ativo / mitigado / aceito / eliminado |
-| Demanda     | link para logbook                  |
-| Descrição   | <descrição do risco>               |
-| Mitigação   | <ação tomada ou planejada>         |
-| Atualizado  | YYYY-MM-DD (última atualização)    |
+| Campo        | Valor                                 |
+| ------------ | ------------------------------------- |
+| Identificado | YYYY-MM-DD                            |
+| Severidade   | baixa / média / alta / crítica        |
+| Status       | ativo / mitigado / aceito / eliminado |
+| Demanda      | link para logbook                     |
+| Descrição    | <descrição do risco>                  |
+| Mitigação    | <ação tomada ou planejada>            |
+| Atualizado   | YYYY-MM-DD (última atualização)       |
 ```
 
 #### costs.md
@@ -660,15 +935,15 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 ```markdown
 ## Impacto de Custo — <Demanda>
 
-| Campo              | Valor                     |
-|--------------------|---------------------------|
-| Data               | YYYY-MM-DD                |
-| Demanda            | link para logbook         |
-| Custo estimado/mês | $X.XX                     |
-| Breakdown          | <detalhamento por recurso>|
-| Alternativa        | <opção descartada e custo>|
-| Tags aplicadas     | [lista de tags]           |
-| Aprovação FinOps   | sim / não / N/A           |
+| Campo              | Valor                      |
+| ------------------ | -------------------------- |
+| Data               | YYYY-MM-DD                 |
+| Demanda            | link para logbook          |
+| Custo estimado/mês | $X.XX                      |
+| Breakdown          | <detalhamento por recurso> |
+| Alternativa        | <opção descartada e custo> |
+| Tags aplicadas     | [lista de tags]            |
+| Aprovação FinOps   | sim / não / N/A            |
 ```
 
 ---
@@ -774,12 +1049,12 @@ A sincronização é disparada automaticamente nos seguintes momentos:
 
 ### Operators Aprovados (ADR-023)
 
-| Data Service | Operator | Repository | Maturidade | CRD Principal |
-|--------------|----------|------------|------------|---------------|
-| **Redis** | Spotahome Redis Operator | [GitHub](https://github.com/spotahome/redis-operator) | Production (>50 companies, 3+ anos) | `RedisFailover` |
-| **RabbitMQ** | RabbitMQ Cluster Operator | [GitHub](https://github.com/rabbitmq/cluster-operator) | Production (oficial VMware/Broadcom) | `RabbitmqCluster` |
-| **PostgreSQL** | CloudNativePG | [GitHub](https://github.com/cloudnative-pg/cloudnative-pg) | CNCF Sandbox (production-ready) | `Cluster` |
-| **MongoDB** | MongoDB Community Operator | [GitHub](https://github.com/mongodb/mongodb-kubernetes-operator) | Production (oficial MongoDB) | `MongoDBCommunity` |
+| Data Service   | Operator                   | Repository                                                       | Maturidade                           | CRD Principal      |
+| -------------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ------------------ |
+| **Redis**      | Spotahome Redis Operator   | [GitHub](https://github.com/spotahome/redis-operator)            | Production (>50 companies, 3+ anos)  | `RedisFailover`    |
+| **RabbitMQ**   | RabbitMQ Cluster Operator  | [GitHub](https://github.com/rabbitmq/cluster-operator)           | Production (oficial VMware/Broadcom) | `RabbitmqCluster`  |
+| **PostgreSQL** | CloudNativePG              | [GitHub](https://github.com/cloudnative-pg/cloudnative-pg)       | CNCF Sandbox (production-ready)      | `Cluster`          |
+| **MongoDB**    | MongoDB Community Operator | [GitHub](https://github.com/mongodb/mongodb-kubernetes-operator) | Production (oficial MongoDB)         | `MongoDBCommunity` |
 
 ### Terraform Integration
 
@@ -824,12 +1099,12 @@ data "kubectl_path_documents" "redis_status" {
 
 ### Troubleshooting Comum
 
-| Problema | Diagnóstico | Solução |
-|----------|-------------|---------|
+| Problema                            | Diagnóstico                                    | Solução                                                 |
+| ----------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
 | **CR criado mas pods não aparecem** | `kubectl logs -n <operator-ns> <operator-pod>` | Verificar logs do Operator, validar RBAC, CRDs corretos |
-| **Failover não automático** | Sentinel/Quorum não configurado | Revisar spec do CR (quorum, replicas, health checks) |
-| **PVC stuck Pending** | StorageClass não existe | Criar StorageClass gp3, validar EBS CSI Driver |
-| **Operator crashloop** | RBAC insuficiente | Adicionar ClusterRole com permissões necessárias |
+| **Failover não automático**         | Sentinel/Quorum não configurado                | Revisar spec do CR (quorum, replicas, health checks)    |
+| **PVC stuck Pending**               | StorageClass não existe                        | Criar StorageClass gp3, validar EBS CSI Driver          |
+| **Operator crashloop**              | RBAC insuficiente                              | Adicionar ClusterRole com permissões necessárias        |
 
 **Referência:** [ADR-023 - Migration from Bitnami Charts to Kubernetes Operators](../context/decisions.md#adr-023)
 
@@ -875,15 +1150,15 @@ data "kubectl_path_documents" "redis_status" {
 
 ### Regras de Idempotência
 
-| Regra | Detalhe |
-|-------|---------|
-| **Zero drift tolerado** | Após qualquer apply, `terraform plan` DEVE retornar "No changes" |
-| **Sem comandos avulsos** | `kubectl apply`, `aws cli`, `helm upgrade` manuais são proibidos se o recurso é gerenciado pelo TF |
-| **Exceção temporária** | Se precisar de fix urgente via CLI, DEVE: (1) aplicar o fix, (2) codificar no TF imediatamente, (3) validar idempotência, (4) registrar no logbook como "hotfix → codificado" |
-| **Lifecycle blocks** | Usar `ignore_changes` APENAS quando justificado e documentado em decisions.md (ex: tags gerenciadas por outro sistema) |
-| **Data sources** | Preferir `data` sources para referenciar recursos existentes em vez de hardcodar IDs/ARNs |
-| **Variáveis** | Sem valores hardcoded — tudo parametrizado via `variables.tf` + `tfvars` por environment |
-| **Outputs** | Todo recurso que será consumido por outro módulo DEVE ter output declarado |
+| Regra                    | Detalhe                                                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zero drift tolerado**  | Após qualquer apply, `terraform plan` DEVE retornar "No changes"                                                                                                              |
+| **Sem comandos avulsos** | `kubectl apply`, `aws cli`, `helm upgrade` manuais são proibidos se o recurso é gerenciado pelo TF                                                                            |
+| **Exceção temporária**   | Se precisar de fix urgente via CLI, DEVE: (1) aplicar o fix, (2) codificar no TF imediatamente, (3) validar idempotência, (4) registrar no logbook como "hotfix → codificado" |
+| **Lifecycle blocks**     | Usar `ignore_changes` APENAS quando justificado e documentado em decisions.md (ex: tags gerenciadas por outro sistema)                                                        |
+| **Data sources**         | Preferir `data` sources para referenciar recursos existentes em vez de hardcodar IDs/ARNs                                                                                     |
+| **Variáveis**            | Sem valores hardcoded — tudo parametrizado via `variables.tf` + `tfvars` por environment                                                                                      |
+| **Outputs**              | Todo recurso que será consumido por outro módulo DEVE ter output declarado                                                                                                    |
 
 ### Checklist Pós-Ajuste (obrigatório)
 
@@ -929,12 +1204,15 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 4. **Nunca executar sem consenso técnico dos agentes relevantes.**
 5. **Sempre criar/atualizar o diário de bordo com timestamps.**
 6. **Sempre verificar estado real dos recursos após execução** (não confiar apenas em exit codes).
-7. **Em caso de erro detectado pelo AML durante execução**, priorizar investigação imediata sobre aguardar conclusão.
-8. **Documentos defasados = dívida técnica** — tratar com mesma urgência que bugs em produção.
-9. **Economia de tokens é obrigatória** — respostas densas, sem fluff, formato compacto. Cada token desperdiçado é custo real.
-10. **Outputs de comandos: resumir, não colar** — extrair apenas informação relevante do output. Logs completos vão para arquivo, não para a resposta.
-11. **Todo ajuste DEVE ser codificado no Terraform.** Nenhuma mudança manual sobrevive. Se não está no .tf, não existe.
-12. **Idempotência é inegociável.** Após qualquer apply, `terraform plan` DEVE retornar "No changes". Se não retorna, o trabalho não terminou.
-13. **Observability primeiro.** Não deploy workload crítico sem monitoring/alerting configurado.
-14. **Performance validado.** Node optimization/Karpenter BLOQUEADOS até HPA configurado + métricas coletadas.
-15. **Backup testado.** Não confiar em backup que nunca foi restaurado. Restore test mensal obrigatório.
+7. **Problema detectado = STOP-AND-FIX obrigatório.** Parar execução, analisar root cause, resolver definitivamente, só então retomar. Nunca postergar.
+8. **Solução definitiva > velocidade.** Workarounds e paliativos são proibidos. Fix na causa raiz sempre.
+9. **Documentos defasados = dívida técnica CRÍTICA** — tratar com mesma urgência que bugs em produção. Docs stale bloqueiam retomada.
+10. **Economia de tokens é obrigatória** — respostas densas, sem fluff, formato compacto. Cada token desperdiçado é custo real.
+11. **Outputs de comandos: resumir, não colar** — extrair apenas informação relevante do output. Logs completos vão para arquivo, não para a resposta.
+12. **Chat = resumo acionável. Docs = riqueza técnica.** Nunca inverter. Detalhes conceituais são desnecessários em ambos.
+13. **Todo ajuste DEVE ser codificado no Terraform.** Nenhuma mudança manual sobrevive. Se não está no .tf, não existe.
+14. **Idempotência é inegociável.** Após qualquer apply, `terraform plan` DEVE retornar "No changes". Se não retorna, o trabalho não terminou.
+15. **Observability primeiro.** Não deploy workload crítico sem monitoring/alerting configurado.
+16. **Performance validado.** Node optimization/Karpenter BLOQUEADOS até HPA configurado + métricas coletadas.
+17. **Backup testado.** Não confiar em backup que nunca foi restaurado. Restore test mensal obrigatório.
+18. **Sync de docs a cada resolução é inegociável.** Cada STOP-AND-FIX DEVE atualizar TODOS os docs impactados ANTES de retomar. Freshness check obrigatório no CTX-RESTORE. Nenhuma etapa avança com documentos desatualizados.

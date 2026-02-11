@@ -1,7 +1,7 @@
 # Git Hooks - Projeto Kubernetes
 
-> **Propósito**: Hooks para validação automática de governança e consistência arquitetural  
-> **Método**: pre-commit e post-commit hooks (validação antes e depois do commit)  
+> **Propósito**: Hooks para validação automática de governança e consistência arquitetural
+> **Método**: pre-commit e post-commit hooks (validação antes e depois do commit)
 > **Status**: 4 hooks implementados (atualizado 2026-02-11)
 
 ---
@@ -132,7 +132,7 @@ Arquivos sendo validados:
 
 **Disparo**: Após qualquer commit
 
-**Ação**: 
+**Ação**:
 - Executa `scripts/validate-project-structure.sh`
 - Gera relatório de validação (opcional)
 - Informa sobre possíveis melhorias
@@ -158,22 +158,22 @@ Arquivos sendo validados:
 ```mermaid
 graph LR
     DEV[Developer: git commit] --> HOOK{Pre-commit Hook}
-    
+
     HOOK -->|Mudança Estratégica| VALIDATE[Validate Architecture Diagrams]
     VALIDATE -->|Diagrams NOT Updated| BLOCK[❌ Commit Bloqueado]
     VALIDATE -->|Diagrams Updated| ALLOW
-    
+
     HOOK -->|Mudança em Domain| SAD[Validate SAD Compliance]
     SAD -->|Not Compliant| BLOCK
     SAD -->|Compliant| ALLOW
-    
+
     HOOK -->|Mudança Normal| ALLOW[✅ Commit Permitido]
-    
+
     BLOCK --> FIX[Fix Issues]
     FIX --> DEV
-    
+
     ALLOW --> PUSH[git push]
-    
+
     style BLOCK fill:#F44336,stroke:#C62828,color:#fff
     style ALLOW fill:#4CAF50,stroke:#2E7D32,color:#fff
     style VALIDATE fill:#2196F3,stroke:#1565C0,color:#fff
@@ -184,18 +184,18 @@ graph LR
 
 ## 📊 Mapeamento: Arquivos → Diagramas
 
-| Arquivo Modificado | Diagrama(s) a Atualizar |
-|-------------------|-------------------------|
-| `SAD/docs/sad.md` | #1 Visão Geral, #2 Ordem de Deploy |
-| `SAD/docs/adrs/adr-*.md` | #1 Visão Geral (se novo domínio/decisão) |
-| `domains/platform-core/infra/terraform/main.tf` | #3 Platform-Core |
-| `domains/cicd-platform/infra/terraform/main.tf` | #4 CI/CD Platform |
-| `domains/observability/infra/terraform/main.tf` | #5 Observability |
-| `domains/data-services/infra/terraform/main.tf` | #6 Data Services |
-| `domains/secrets-management/docs/adr/adr-002-*.md` | #7 Secrets Management |
-| `domains/security/docs/adr/adr-002-*.md` | #8 Security |
-| `PROJECT-CONTEXT.md` (seção Contratos) | #9 Comunicação Entre Domínios |
-| Novos domínios criados | #1 Visão Geral, #2 Ordem de Deploy, #10 Fluxo de Deploy |
+| Arquivo Modificado                                 | Diagrama(s) a Atualizar                                 |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `SAD/docs/sad.md`                                  | #1 Visão Geral, #2 Ordem de Deploy                      |
+| `SAD/docs/adrs/adr-*.md`                           | #1 Visão Geral (se novo domínio/decisão)                |
+| `domains/platform-core/infra/terraform/main.tf`    | #3 Platform-Core                                        |
+| `domains/cicd-platform/infra/terraform/main.tf`    | #4 CI/CD Platform                                       |
+| `domains/observability/infra/terraform/main.tf`    | #5 Observability                                        |
+| `domains/data-services/infra/terraform/main.tf`    | #6 Data Services                                        |
+| `domains/secrets-management/docs/adr/adr-002-*.md` | #7 Secrets Management                                   |
+| `domains/security/docs/adr/adr-002-*.md`           | #8 Security                                             |
+| `PROJECT-CONTEXT.md` (seção Contratos)             | #9 Comunicação Entre Domínios                           |
+| Novos domínios criados                             | #1 Visão Geral, #2 Ordem de Deploy, #10 Fluxo de Deploy |
 
 ---
 
@@ -313,6 +313,6 @@ STRATEGIC_FILES=(
 
 ---
 
-**Autor**: System Architect  
-**Data**: 2026-01-05  
+**Autor**: System Architect
+**Data**: 2026-01-05
 **Versão**: 1.0
