@@ -1,0 +1,128 @@
+{
+    "LoadBalancers": [
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:891377105802:loadbalancer/net/k8s-dataserv-rabbitmq-c857f3f6f5/198ce26609d3e0a5",
+            "DNSName": "k8s-dataserv-rabbitmq-c857f3f6f5-198ce26609d3e0a5.elb.us-east-1.amazonaws.com",
+            "CanonicalHostedZoneId": "Z26RNL4JYFTOTI",
+            "CreatedTime": "2026-02-03T16:56:09.553000+00:00",
+            "LoadBalancerName": "k8s-dataserv-rabbitmq-c857f3f6f5",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "network",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "us-east-1b",
+                    "SubnetId": "subnet-07dca8ceb9882ba66",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "us-east-1a",
+                    "SubnetId": "subnet-0b5e0cae5658ea993",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-05be7680bbffb5cb3",
+                "sg-085649a00470c6a0b"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:891377105802:loadbalancer/net/k8s-default-rabbitmq-16e656e3c8/f51c46165b600e62",
+            "DNSName": "k8s-default-rabbitmq-16e656e3c8-f51c46165b600e62.elb.us-east-1.amazonaws.com",
+            "CanonicalHostedZoneId": "Z26RNL4JYFTOTI",
+            "CreatedTime": "2026-02-09T14:26:02.299000+00:00",
+            "LoadBalancerName": "k8s-default-rabbitmq-16e656e3c8",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "network",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "us-east-1a",
+                    "SubnetId": "subnet-0b5e0cae5658ea993",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "us-east-1b",
+                    "SubnetId": "subnet-07dca8ceb9882ba66",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-05be7680bbffb5cb3",
+                "sg-090e4b5d920c8cb7c"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:891377105802:loadbalancer/app/k8s-testapps-nginxtes-bf6521357f/6063ee6a39fd4b82",
+            "DNSName": "k8s-testapps-nginxtes-bf6521357f-1504108299.us-east-1.elb.amazonaws.com",
+            "CanonicalHostedZoneId": "Z35SXDOTRQ7X7K",
+            "CreatedTime": "2026-02-10T17:55:33.266000+00:00",
+            "LoadBalancerName": "k8s-testapps-nginxtes-bf6521357f",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "us-east-1b",
+                    "SubnetId": "subnet-07dca8ceb9882ba66",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "us-east-1a",
+                    "SubnetId": "subnet-0b5e0cae5658ea993",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-02b2cb109901532d7",
+                "sg-05be7680bbffb5cb3"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:891377105802:loadbalancer/app/k8s-gitlabstaging-da5a4e8c6d/88696a4fab2665c3",
+            "DNSName": "k8s-gitlabstaging-da5a4e8c6d-950374463.us-east-1.elb.amazonaws.com",
+            "CanonicalHostedZoneId": "Z35SXDOTRQ7X7K",
+            "CreatedTime": "2026-02-10T17:55:36.652000+00:00",
+            "LoadBalancerName": "k8s-gitlabstaging-da5a4e8c6d",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "us-east-1b",
+                    "SubnetId": "subnet-07dca8ceb9882ba66",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "us-east-1a",
+                    "SubnetId": "subnet-0b5e0cae5658ea993",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-035605afdb18e33b1",
+                "sg-05be7680bbffb5cb3"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        }
+    ]
+}

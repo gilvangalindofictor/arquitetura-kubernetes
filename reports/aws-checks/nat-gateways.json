@@ -1,0 +1,58 @@
+{
+    "NatGateways": [
+        {
+            "CreateTime": "2025-10-04T15:40:02+00:00",
+            "NatGatewayAddresses": [
+                {
+                    "AllocationId": "eipalloc-0a6d1fe3ec8ba217e",
+                    "NetworkInterfaceId": "eni-0eff9986eb7d654e7",
+                    "PrivateIp": "10.0.6.101",
+                    "PublicIp": "52.204.176.103",
+                    "AssociationId": "eipassoc-009d5c6b9ca749a1e",
+                    "IsPrimary": true,
+                    "Status": "succeeded"
+                }
+            ],
+            "NatGatewayId": "nat-03512e5ee0642dcf2",
+            "State": "available",
+            "SubnetId": "subnet-0b5e0cae5658ea993",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-nat-public1-us-east-1a"
+                }
+            ],
+            "ConnectivityType": "public",
+            "AvailabilityMode": "zonal",
+            "AttachedAppliances": []
+        },
+        {
+            "CreateTime": "2025-10-04T15:40:02+00:00",
+            "NatGatewayAddresses": [
+                {
+                    "AllocationId": "eipalloc-01ff089c963971903",
+                    "NetworkInterfaceId": "eni-080cb77d6f38e8a02",
+                    "PrivateIp": "10.0.31.152",
+                    "PublicIp": "98.90.225.155",
+                    "AssociationId": "eipassoc-057151da78e00420d",
+                    "IsPrimary": true,
+                    "Status": "succeeded"
+                }
+            ],
+            "NatGatewayId": "nat-0be570edfb2eff63e",
+            "State": "available",
+            "SubnetId": "subnet-07dca8ceb9882ba66",
+            "VpcId": "vpc-0b1396a59c417c1f0",
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fictor-nat-public2-us-east-1b"
+                }
+            ],
+            "ConnectivityType": "public",
+            "AvailabilityMode": "zonal",
+            "AttachedAppliances": []
+        }
+    ]
+}

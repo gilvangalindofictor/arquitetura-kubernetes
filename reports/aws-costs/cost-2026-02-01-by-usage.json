@@ -1,0 +1,637 @@
+{
+    "GroupDefinitions": [
+        {
+            "Type": "DIMENSION",
+            "Key": "USAGE_TYPE"
+        }
+    ],
+    "ResultsByTime": [
+        {
+            "TimePeriod": {
+                "Start": "2026-02-01",
+                "End": "2026-02-02"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "NoUsageType"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "48.26",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "BoxUsage:t3.large"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "3.9936",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "BoxUsage:t3.medium"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "1.9968",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "BoxUsage:t3.micro"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.2496",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "BoxUsage:t3.xlarge"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "7.9872",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "CW:AlarmMonitorUsage"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "DataTransfer-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "DataTransfer-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "DataTransfer-Regional-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.2659546241",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "EBS:VolumeUsage.gp2"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.3678571392",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "EBS:VolumeUsage.gp3"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "1.4685714336",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "EBSOptimized:t3.micro"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Global-Bucket-Hrs-FreeTier"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "LCUUsage"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0001728589",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "LoadBalancerUsage"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "1.08",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "NatGateway-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0067198474",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "NatGateway-Hours"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "2.16",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "RDS:GP3-Storage"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.4107142848",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Requests-Tier1"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.00576",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "SAE1-TimedStorage-ByteHrs"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.1971784692",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "TimedStorage-ByteHrs"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0007590371",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APE1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APE1-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000000007",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APN1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APS1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APS2-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APS2-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000000468",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APS3-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-APS3-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.00000006",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-AWSSecretsManager-Secrets"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0285714288",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-AmazonEKS-Hours:extendedSupport"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "12",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-AmazonEKS-Hours:perCluster"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "2.4",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-CAN1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-Catalog-Request"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-CloudFront-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-CloudFront-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-DataProcessing-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-DataStorage"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000783947",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-ESC1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-EU-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-EU-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000001388",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-EUC1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-EUC1-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.000000022",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-EUW3-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-PublicIPv4:InUseAddress"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.84",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-SAE1-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-SAE1-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000000126",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-TimedStorage-ByteHrs"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-USE2-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-USE2-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.000000185",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-USW2-AWS-In-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-USW2-AWS-Out-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000000077",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE1-VendedLog-Bytes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "USE2-Catalog-Request"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "us-east-1-KMS-Keys"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.178571424",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "us-east-1-KMS-Requests"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        }
+    ],
+    "DimensionValueAttributes": []
+}

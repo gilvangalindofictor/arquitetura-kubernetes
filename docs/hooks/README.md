@@ -1,12 +1,32 @@
 # Git Hooks - Projeto Kubernetes
 
 > **Propósito**: Hooks para validação automática de governança e consistência arquitetural  
-> **Método**: pre-commit hooks (validação antes do commit)  
-> **Status**: 2 hooks implementados
+> **Método**: pre-commit e post-commit hooks (validação antes e depois do commit)  
+> **Status**: 4 hooks implementados (atualizado 2026-02-11)
 
 ---
 
 ## 📋 Hooks Disponíveis
+
+### 0. **Instalação Automática** 🆕
+
+**Script**: `install-hooks.sh`
+
+**Objetivo**: Instalar ou atualizar todos os hooks Git automaticamente.
+
+**Uso**:
+```bash
+bash docs/hooks/install-hooks.sh
+```
+
+**Ações**:
+- ✅ Cria backup dos hooks existentes
+- ✅ Instala/atualiza pre-commit hook (combina validações)
+- ✅ Instala post-commit hook
+- ✅ Configura permissões de execução
+- ✅ Testa hooks instalados
+
+---
 
 ### 1. validate-architecture-diagrams.sh
 
@@ -59,7 +79,69 @@ git commit --no-verify
 
 ---
 
-### 2. validate-sad-compliance.sh (Existente)
+### 2. pre/validate-project-structure.sh 🆕
+
+**Objetivo**: Validar estrutura e organização dos arquivos no projeto antes de permitir o commit.
+
+**Disparo**: Qualquer arquivo sendo commitado
+
+**Validações**:
+- ✅ **Custos**: Arquivos `cost*.json` devem estar em `reports/aws-costs/` (ADR-022)
+- ✅ **Credenciais**: Arquivos sensíveis nunca devem ser commitados (bloqueio crítico)
+- ✅ **Scripts**: Arquivos `.sh` devem ter permissão de execução
+- ✅ **ADRs**: Devem seguir nomenclatura `adr-XXX-titulo.md` (ADR-048)
+- ✅ **Terraform**: Arquivos `.tf` devem estar em `platform-provisioning/` ou `domains/`
+- ✅ **Documentação**: Arquivos `.md` devem estar em `docs/`, `SAD/`, ou dentro de domínios
+- ✅ **Helm**: Charts devem estar em estrutura correta
+
+**Comportamento**:
+- ❌ **Violações (errors)**: Bloqueiam o commit
+- ⚠️ **Avisos (warnings)**: Não bloqueiam, mas alertam
+
+**Output exemplo**:
+```bash
+🔍 Validando estrutura do projeto...
+
+Arquivos sendo validados:
+  • costs.json
+  • docs/adr/adr-025-new-feature.md
+
+📊 Validando localização de relatórios de custos...
+❌ VIOLAÇÃO: costs.json
+   Motivo: Arquivos de custos devem estar em reports/aws-costs/ (ADR-022)
+
+📝 Validando nomenclatura de ADRs...
+✅ docs/adr/adr-025-new-feature.md
+
+═══════════════════════════════════════════════════════
+📊 RESUMO DA VALIDAÇÃO
+═══════════════════════════════════════════════════════
+❌ Violações (bloqueiam commit): 1
+⚠️  Avisos (não bloqueiam): 0
+
+❌ COMMIT BLOQUEADO - VIOLAÇÕES DE ESTRUTURA
+```
+
+**Instalação**: Automática via `install-hooks.sh`
+
+---
+
+### 3. post/update-structure-report.sh 🆕
+
+**Objetivo**: Executar validação completa após o commit (não bloqueante) e gerar relatório.
+
+**Disparo**: Após qualquer commit
+
+**Ação**: 
+- Executa `scripts/validate-project-structure.sh`
+- Gera relatório de validação (opcional)
+- Informa sobre possíveis melhorias
+
+**Status**: ℹ️ Informativo (não bloqueia)
+
+---
+
+### 4. validate-sad-compliance.sh (Existente)
 
 **Objetivo**: Validar conformidade com SAD antes de commits em domínios.
 

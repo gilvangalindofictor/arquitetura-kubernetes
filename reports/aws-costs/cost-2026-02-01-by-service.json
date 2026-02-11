@@ -1,0 +1,175 @@
+{
+    "GroupDefinitions": [
+        {
+            "Type": "DIMENSION",
+            "Key": "SERVICE"
+        }
+    ],
+    "ResultsByTime": [
+        {
+            "TimePeriod": {
+                "Start": "2026-02-01",
+                "End": "2026-02-02"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "AWS Amplify"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0000783947",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "AWS Glue"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "AWS Key Management Service"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.178571424",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "AWS Secrets Manager"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0285714288",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon EC2 Container Registry (ECR)"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.0007295976",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "EC2 - Other"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "4.2691029498",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Elastic Compute Cloud - Compute"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "14.2272",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Elastic Container Service for Kubernetes"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "14.4",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Elastic Load Balancing"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "1.080173427",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Relational Database Service"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.4107142848",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Simple Storage Service"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.2029679087",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Amazon Virtual Private Cloud"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0.84",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "AmazonCloudWatch"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "0",
+                            "Unit": "USD"
+                        }
+                    }
+                },
+                {
+                    "Keys": [
+                        "Tax"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "48.26",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        }
+    ],
+    "DimensionValueAttributes": []
+}

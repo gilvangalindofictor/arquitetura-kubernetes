@@ -1,0 +1,1964 @@
+{
+    "Volumes": [
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-f4f4f6c1-c19b-42e6-92ed-2272b5fc1941"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "data-services"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-f4f4f6c1-c19b-42e6-92ed-2272b5fc1941"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "redis-data-rfr-redis-0"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-f4f4f6c1-c19b-42e6-92ed-2272b5fc1941"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0f027d6ab2f7cecd0",
+            "Size": 8,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-02T14:36:46.798000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0f027d6ab2f7cecd0",
+                    "InstanceId": "i-05d6ec29fb80909b3",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:23+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-c129cffa-cff7-42a7-85ac-18536e2993ae"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "persistence-k8s-platform-prod-rabbitmq-server-0"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "default"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-c129cffa-cff7-42a7-85ac-18536e2993ae"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-c129cffa-cff7-42a7-85ac-18536e2993ae"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0b357582c62f6ce9c",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T14:26:00.334000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0b357582c62f6ce9c",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdai",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T14:37:04+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-06f9b881bb22a5541",
+            "Size": 30,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:30:27.688000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-06f9b881bb22a5541",
+                    "InstanceId": "i-0319262bac04b9bf8",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:30:27+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-09e3b1dc43b18e005",
+            "Size": 30,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:30:27.722000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-09e3b1dc43b18e005",
+                    "InstanceId": "i-04ac6d0fa91c55cce",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:30:27+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-03cd9c3b48ee23db9",
+            "Size": 20,
+            "SnapshotId": "snap-05ebf17f9a0bc77de",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2025-10-06T15:01:03.865000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-03cd9c3b48ee23db9",
+                    "InstanceId": "i-045f9251936acec3a",
+                    "Device": "/dev/sda1",
+                    "State": "attached",
+                    "AttachTime": "2025-10-06T15:01:03+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-53774a52-907f-47a5-bd10-34546e190a45"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-53774a52-907f-47a5-bd10-34546e190a45"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "audit-vault-0"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-53774a52-907f-47a5-bd10-34546e190a45"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-044cb5848f1ac03b3",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.733000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-044cb5848f1ac03b3",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdae",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:54+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-afa8a235-348b-4ce0-8ad0-629ac226526e"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-afa8a235-348b-4ce0-8ad0-629ac226526e"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-afa8a235-348b-4ce0-8ad0-629ac226526e"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0c93529c6f1f8c21b",
+            "Size": 20,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-01-28T18:58:04.373000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0c93529c6f1f8c21b",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdag",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-7d50e478-00f2-46e7-aef1-c382c50afbe2"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "repo-data-gitlab-gitaly-0"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "gitlab-staging"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-7d50e478-00f2-46e7-aef1-c382c50afbe2"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-7d50e478-00f2-46e7-aef1-c382c50afbe2"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-06a7c6542f20e6843",
+            "Size": 50,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-03T18:15:02.343000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-06a7c6542f20e6843",
+                    "InstanceId": "i-04ac6d0fa91c55cce",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:46+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-04f242214f575fd29",
+            "Size": 50,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:32:05.986000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-04f242214f575fd29",
+                    "InstanceId": "i-05d6ec29fb80909b3",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:32:05+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-0cb1e67b-2eaf-4ddc-b631-e3cb2a58350b"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-0cb1e67b-2eaf-4ddc-b631-e3cb2a58350b"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "default"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-0cb1e67b-2eaf-4ddc-b631-e3cb2a58350b"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "persistence-k8s-platform-prod-rabbitmq-server-2"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0da55a8fba84d0a8b",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T14:26:00.283000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0da55a8fba84d0a8b",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdab",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:54+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-3ee6d819-e53d-4175-aefc-91b6774703a8"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-3ee6d819-e53d-4175-aefc-91b6774703a8"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-3ee6d819-e53d-4175-aefc-91b6774703a8"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-vault-2"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0e2159119e12829ff",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.825000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0e2159119e12829ff",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:15+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-c69c2865-a7f3-4544-a026-2a959c0a69d3"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "data-services"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-c69c2865-a7f3-4544-a026-2a959c0a69d3"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-c69c2865-a7f3-4544-a026-2a959c0a69d3"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "persistence-k8s-platform-prod-rabbitmq-server-0"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-03d3dbad022cbc0c1",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-03T16:56:07.785000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-03d3dbad022cbc0c1",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:54+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0564c025f04e27bb8",
+            "Size": 100,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:30:44.014000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0564c025f04e27bb8",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:30:43+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-5cd9c046-79ba-4288-9ab9-a03c9608c8a4"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-loki-write-1"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-5cd9c046-79ba-4288-9ab9-a03c9608c8a4"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-5cd9c046-79ba-4288-9ab9-a03c9608c8a4"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0c5a7e8d6246af0d3",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:19:47.595000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0c5a7e8d6246af0d3",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdaf",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-1d73e259-ca3b-488f-9459-5d527a684b2b"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-1d73e259-ca3b-488f-9459-5d527a684b2b"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-1d73e259-ca3b-488f-9459-5d527a684b2b"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-vault-0"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-012a9ddbdcc3d528a",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.778000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-012a9ddbdcc3d528a",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdad",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:54+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-2a24690b-b383-4490-8029-6cfd5c095341"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "gitlab"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-2a24690b-b383-4490-8029-6cfd5c095341"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-2a24690b-b383-4490-8029-6cfd5c095341"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "repo-data-gitlab-gitaly-0"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-04a6188d87e1b61b5",
+            "Size": 50,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T14:46:15.635000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-04a6188d87e1b61b5",
+                    "InstanceId": "i-0320fa4c220a7b8ec",
+                    "Device": "/dev/xvdac",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:55+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-loki-write-0"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-1d2c13fd-1eee-4e04-afe5-fdd47a26466f"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-1d2c13fd-1eee-4e04-afe5-fdd47a26466f"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-1d2c13fd-1eee-4e04-afe5-fdd47a26466f"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-046ddaa100a176f46",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:18:00.871000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-046ddaa100a176f46",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdag",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:58+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-c4ceae45-82d6-459f-88c4-d1ebf588d222"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-loki-backend-1"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-c4ceae45-82d6-459f-88c4-d1ebf588d222"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-c4ceae45-82d6-459f-88c4-d1ebf588d222"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0bfd9f8aeba863ea8",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:16:58.296000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0bfd9f8aeba863ea8",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdad",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-a047d368-1eed-4620-a96e-cde8a53208f6"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-a047d368-1eed-4620-a96e-cde8a53208f6"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-a047d368-1eed-4620-a96e-cde8a53208f6"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-tempo-ingester-0"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-02c0763fa754b7b64",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-01-31T02:13:53.896000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-02c0763fa754b7b64",
+                    "InstanceId": "i-0320fa4c220a7b8ec",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:44+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-loki-backend-0"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-2b14ac39-401e-4318-8250-fbda2497e72f"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-2b14ac39-401e-4318-8250-fbda2497e72f"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-2b14ac39-401e-4318-8250-fbda2497e72f"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0cd00cc8868b0d8e6",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:16:58.319000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0cd00cc8868b0d8e6",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdaf",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:55+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-486f7426-c4b4-489a-829c-d7e847191774"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-486f7426-c4b4-489a-829c-d7e847191774"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-486f7426-c4b4-489a-829c-d7e847191774"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "redis-data-rfr-redis-1"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "data-services"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-06bec8fd90e4ed1b8",
+            "Size": 8,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T16:33:52.121000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-06bec8fd90e4ed1b8",
+                    "InstanceId": "i-0320fa4c220a7b8ec",
+                    "Device": "/dev/xvdab",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:45+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "harbor-system"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-1a10d059-f265-43a3-965b-0d439231b9e9"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-1a10d059-f265-43a3-965b-0d439231b9e9"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-1a10d059-f265-43a3-965b-0d439231b9e9"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "harbor-jobservice"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-07cb281d26e92e3d1",
+            "Size": 1,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-04T18:36:45.891000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-07cb281d26e92e3d1",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdac",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:31:54+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 100,
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-d83cc295-1101-42c7-93ca-fa546c820734"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-d83cc295-1101-42c7-93ca-fa546c820734"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-tempo-ingester-1"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-d83cc295-1101-42c7-93ca-fa546c820734"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                }
+            ],
+            "VolumeType": "gp2",
+            "MultiAttachEnabled": false,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0f25de46c0a911f85",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T20:15:03.141000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0f25de46c0a911f85",
+                    "InstanceId": "i-01b9b8099ca5bea1a",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T20:15:06+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-3097b933-5437-4ae2-88c1-d18bd6fe7caf"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-3097b933-5437-4ae2-88c1-d18bd6fe7caf"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "data-vault-1"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-3097b933-5437-4ae2-88c1-d18bd6fe7caf"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0241687bfddf6b860",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.844000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0241687bfddf6b860",
+                    "InstanceId": "i-0551541a43655ba8a",
+                    "Device": "/dev/xvdaa",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:34:22+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0406cb91984c3802b",
+            "Size": 50,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T14:36:58.602000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0406cb91984c3802b",
+                    "InstanceId": "i-01b9b8099ca5bea1a",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T14:36:58+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-088407e5e04c220ec",
+            "Size": 50,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:30:32.452000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-088407e5e04c220ec",
+                    "InstanceId": "i-0e97b9db35db0ea16",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:30:32+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "kube-prometheus-stack-grafana"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-2ee28d21-f3bd-4db0-acd7-e92748b6aaed"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-2ee28d21-f3bd-4db0-acd7-e92748b6aaed"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-2ee28d21-f3bd-4db0-acd7-e92748b6aaed"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0dfa57df94300b4af",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-01-28T18:58:04.402000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0dfa57df94300b4af",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdae",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-a52c5e1a-7d3d-4ca4-ac53-3338d9d1e033"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "sonarqube-sonarqube"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-a52c5e1a-7d3d-4ca4-ac53-3338d9d1e033"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-a52c5e1a-7d3d-4ca4-ac53-3338d9d1e033"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "sonarqube"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-04fcd44f4ac758f9b",
+            "Size": 20,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-06T21:54:53.384000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-04fcd44f4ac758f9b",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdai",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:49+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0ec0191cd1fb99e7b",
+            "Size": 50,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:32:43.599000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0ec0191cd1fb99e7b",
+                    "InstanceId": "i-0320fa4c220a7b8ec",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:32:43+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-e03a942c-2866-499e-89fd-41ae5e8b6721"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "persistence-k8s-platform-prod-rabbitmq-server-1"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "default"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-e03a942c-2866-499e-89fd-41ae5e8b6721"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-e03a942c-2866-499e-89fd-41ae5e8b6721"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0d67b50203df170d0",
+            "Size": 10,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T14:26:00.272000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0d67b50203df170d0",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdah",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:46+00:00"
+                }
+            ],
+            "Encrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-1:891377105802:key/57dc41ac-7342-4dc2-805f-596699826942"
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-d8b8739d-841b-4248-b4c0-a8c407de1dae"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "harbor-system"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-d8b8739d-841b-4248-b4c0-a8c407de1dae"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "harbor-registry"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-d8b8739d-841b-4248-b4c0-a8c407de1dae"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0c6d443a4e59b543e",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-04T17:56:28.533000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0c6d443a4e59b543e",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdac",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az4",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "monitoring"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-967113df-d3b7-46da-8b55-b380343b3bd8"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-967113df-d3b7-46da-8b55-b380343b3bd8"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-967113df-d3b7-46da-8b55-b380343b3bd8"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0a4116ee02b02f30c",
+            "Size": 2,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1a",
+            "State": "in-use",
+            "CreateTime": "2026-01-28T18:58:04.376000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0a4116ee02b02f30c",
+                    "InstanceId": "i-05e0c52855ce88f9a",
+                    "Device": "/dev/xvdah",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T14:36:47+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0845cde5e5758e287",
+            "Size": 50,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:33:11.759000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0845cde5e5758e287",
+                    "InstanceId": "i-0551541a43655ba8a",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:11+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "audit-vault-2"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-6ed38760-0b78-4ece-b221-84f71cf52bc8"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-6ed38760-0b78-4ece-b221-84f71cf52bc8"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-6ed38760-0b78-4ece-b221-84f71cf52bc8"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-086d07390ca0fcea2",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.782000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-086d07390ca0fcea2",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvdab",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:15+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-4995b89f-dda2-494c-8786-8a9d4bbe43ea"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "audit-vault-1"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-4995b89f-dda2-494c-8786-8a9d4bbe43ea"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "vault-system"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-4995b89f-dda2-494c-8786-8a9d4bbe43ea"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0603f60255b28b4b3",
+            "Size": 5,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T13:59:40.852000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0603f60255b28b4b3",
+                    "InstanceId": "i-0551541a43655ba8a",
+                    "Device": "/dev/xvdab",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:34:22+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "Tags": [
+                {
+                    "Key": "CSIVolumeName",
+                    "Value": "pvc-bf884835-832b-4c96-b6d5-19edc257564f"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/namespace",
+                    "Value": "data-services"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "k8s-platform-prod-dynamic-pvc-bf884835-832b-4c96-b6d5-19edc257564f"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pv/name",
+                    "Value": "pvc-bf884835-832b-4c96-b6d5-19edc257564f"
+                },
+                {
+                    "Key": "kubernetes.io/cluster/k8s-platform-prod",
+                    "Value": "owned"
+                },
+                {
+                    "Key": "kubernetes.io/created-for/pvc/name",
+                    "Value": "redis-data-rfr-redis-2"
+                },
+                {
+                    "Key": "ebs.csi.aws.com/cluster",
+                    "Value": "true"
+                },
+                {
+                    "Key": "KubernetesCluster",
+                    "Value": "k8s-platform-prod"
+                }
+            ],
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-0e703fe3c3c466881",
+            "Size": 8,
+            "SnapshotId": "",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-09T16:33:52.279000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": false,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-0e703fe3c3c466881",
+                    "InstanceId": "i-05d6ec29fb80909b3",
+                    "Device": "/dev/xvdab",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:33:24+00:00"
+                }
+            ],
+            "Encrypted": false
+        },
+        {
+            "AvailabilityZoneId": "use1-az6",
+            "Iops": 3000,
+            "VolumeType": "gp3",
+            "MultiAttachEnabled": false,
+            "Throughput": 125,
+            "Operator": {
+                "Managed": false
+            },
+            "VolumeId": "vol-036ecc1c8d32c756b",
+            "Size": 100,
+            "SnapshotId": "snap-08642c13a48996a40",
+            "AvailabilityZone": "us-east-1b",
+            "State": "in-use",
+            "CreateTime": "2026-02-10T10:30:44.146000+00:00",
+            "Attachments": [
+                {
+                    "DeleteOnTermination": true,
+                    "EbsCardIndex": 0,
+                    "VolumeId": "vol-036ecc1c8d32c756b",
+                    "InstanceId": "i-04df1d4258dcb603e",
+                    "Device": "/dev/xvda",
+                    "State": "attached",
+                    "AttachTime": "2026-02-10T10:30:44+00:00"
+                }
+            ],
+            "Encrypted": false
+        }
+    ]
+}

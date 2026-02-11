@@ -1,0 +1,6 @@
+{
+    "name": "k8s-platform-prod",
+    "arn": "arn:aws:eks:us-east-1:891377105802:cluster/k8s-platform-prod",
+    "createdAt": "2026-01-28T14:29:48.546000-03:00",
+    "status": "ACTIVE"
+}

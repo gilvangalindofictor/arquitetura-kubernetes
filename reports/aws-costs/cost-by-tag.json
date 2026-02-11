@@ -1,0 +1,242 @@
+{
+    "GroupDefinitions": [
+        {
+            "Type": "TAG",
+            "Key": "Environment"
+        }
+    ],
+    "ResultsByTime": [
+        {
+            "TimePeriod": {
+                "Start": "2026-01-29",
+                "End": "2026-01-30"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "37.3894872253",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": false
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-01-30",
+                "End": "2026-01-31"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "32.0125315461",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": false
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-01-31",
+                "End": "2026-02-01"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "34.5243597666",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": false
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-01",
+                "End": "2026-02-02"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "83.8981094154",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-02",
+                "End": "2026-02-03"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "39.6352251515",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-03",
+                "End": "2026-02-04"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "47.1703450341",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-04",
+                "End": "2026-02-05"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "47.3557501086",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-05",
+                "End": "2026-02-06"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "41.059020396",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-06",
+                "End": "2026-02-07"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "38.5258095143",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-07",
+                "End": "2026-02-08"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "25.7434417567",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-02-08",
+                "End": "2026-02-09"
+            },
+            "Total": {},
+            "Groups": [
+                {
+                    "Keys": [
+                        "Environment$"
+                    ],
+                    "Metrics": {
+                        "UnblendedCost": {
+                            "Amount": "25.7434594385",
+                            "Unit": "USD"
+                        }
+                    }
+                }
+            ],
+            "Estimated": true
+        }
+    ],
+    "DimensionValueAttributes": []
+}
