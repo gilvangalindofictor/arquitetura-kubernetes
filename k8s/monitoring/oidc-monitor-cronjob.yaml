@@ -1,0 +1,401 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-monitor-script
+  namespace: monitoring
+data:
+  oidc-monitor.sh: |
+    #!/usr/bin/env bash
+    # This script is embedded in the ConfigMap
+    # For updates, modify scripts/oidc-monitor.sh and redeploy
+    # NOTE: This is a placeholder - actual script should be injected during deployment
+    echo "ERROR: Script not properly injected. Please update ConfigMap with actual script content."
+    exit 1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oidc-monitor
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oidc-monitor-reader
+rules:
+  # Allow reading pods in all namespaces
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  # Allow reading namespaces
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-monitor-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oidc-monitor-reader
+subjects:
+  - kind: ServiceAccount
+    name: oidc-monitor
+    namespace: monitoring
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oidc-monitor-logs
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidc-monitor-slack
+  namespace: monitoring
+type: Opaque
+stringData:
+  # IMPORTANT: Replace with actual Slack webhook URL
+  # Create webhook at: https://api.slack.com/messaging/webhooks
+  webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oidc-monitor-hourly
+  namespace: monitoring
+  labels:
+    app: oidc-monitor
+    purpose: security-monitoring
+spec:
+  # Run every hour
+  schedule: "0 * * * *"
+
+  # Keep last 48 jobs (48 hours of history)
+  successfulJobsHistoryLimit: 48
+  failedJobsHistoryLimit: 10
+
+  # Allow concurrent runs (in case previous job is still running)
+  concurrencyPolicy: Allow
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: oidc-monitor
+    spec:
+      # Keep job pods for 24 hours for debugging
+      ttlSecondsAfterFinished: 86400
+
+      template:
+        metadata:
+          labels:
+            app: oidc-monitor
+        spec:
+          serviceAccountName: oidc-monitor
+          restartPolicy: OnFailure
+
+          containers:
+          - name: oidc-monitor
+            # Using official kubectl image with bash and standard tools
+            image: bitnami/kubectl:1.29
+
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              # Install jq (required for JSON processing)
+              echo "Installing dependencies..."
+              apt-get update -qq && apt-get install -y -qq jq curl > /dev/null 2>&1 || \
+                (apk add --no-cache jq curl > /dev/null 2>&1) || true
+
+              # Copy script to writable location
+              cp /scripts/oidc-monitor.sh /tmp/oidc-monitor.sh
+              chmod +x /tmp/oidc-monitor.sh
+
+              # Run monitoring script
+              echo "Starting OIDC monitoring..."
+              /tmp/oidc-monitor.sh --single
+
+              echo "Monitoring completed successfully"
+
+            env:
+            # Monitoring configuration
+            - name: LOG_DIR
+              value: "/var/log/oidc-monitor"
+            - name: REPORT_DIR
+              value: "/var/log/oidc-monitor/reports"
+            - name: ERROR_THRESHOLD
+              value: "10"
+            - name: CHECK_INTERVAL
+              value: "3600"  # Check logs from last hour
+            - name: MONITORING_DURATION
+              value: "60"    # Single check mode ignores this
+
+            # Namespace configuration
+            - name: KEYCLOAK_NAMESPACE
+              value: "keycloak"
+            - name: GITLAB_NAMESPACE
+              value: "gitlab-staging"
+            - name: ARGOCD_NAMESPACE
+              value: "argocd"
+
+            # Slack webhook from secret
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oidc-monitor-slack
+                  key: webhook-url
+                  optional: true
+
+            volumeMounts:
+            - name: logs
+              mountPath: /var/log/oidc-monitor
+            - name: script
+              mountPath: /scripts
+
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+
+          volumes:
+          - name: logs
+            persistentVolumeClaim:
+              claimName: oidc-monitor-logs
+          - name: script
+            configMap:
+              name: oidc-monitor-script
+              defaultMode: 0755
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oidc-monitor-daily-report
+  namespace: monitoring
+  labels:
+    app: oidc-monitor
+    purpose: daily-report
+spec:
+  # Run daily at 9 AM UTC (6 AM BRT)
+  schedule: "0 9 * * *"
+
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: oidc-monitor
+        report-type: daily
+    spec:
+      ttlSecondsAfterFinished: 172800  # Keep for 2 days
+
+      template:
+        metadata:
+          labels:
+            app: oidc-monitor
+        spec:
+          serviceAccountName: oidc-monitor
+          restartPolicy: OnFailure
+
+          containers:
+          - name: daily-report
+            image: bitnami/kubectl:1.29
+
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "Generating daily OIDC monitoring report..."
+
+              # Install jq
+              apt-get update -qq && apt-get install -y -qq jq > /dev/null 2>&1 || \
+                apk add --no-cache jq > /dev/null 2>&1
+
+              REPORT_DIR="/var/log/oidc-monitor/reports"
+              YESTERDAY=$(date -d "yesterday" +%Y%m%d)
+              DAILY_REPORT="${REPORT_DIR}/daily-summary-${YESTERDAY}.json"
+
+              # Aggregate all reports from yesterday
+              echo "{\"date\": \"${YESTERDAY}\", \"reports\": [" > "$DAILY_REPORT"
+
+              first=true
+              for report in ${REPORT_DIR}/oidc-report-${YESTERDAY}*.json; do
+                if [ -f "$report" ]; then
+                  if [ "$first" = false ]; then
+                    echo "," >> "$DAILY_REPORT"
+                  fi
+                  cat "$report" >> "$DAILY_REPORT"
+                  first=false
+                fi
+              done
+
+              echo "]}" >> "$DAILY_REPORT"
+
+              # Calculate daily statistics
+              total_errors=$(jq '[.reports[].total_errors] | add // 0' "$DAILY_REPORT")
+              total_checks=$(jq '.reports | length' "$DAILY_REPORT")
+
+              echo ""
+              echo "========================================="
+              echo "Daily OIDC Monitoring Summary"
+              echo "Date: ${YESTERDAY}"
+              echo "========================================="
+              echo "Total Checks: ${total_checks}"
+              echo "Total Errors: ${total_errors}"
+              echo "Average Errors per Check: $(echo "scale=2; $total_errors / $total_checks" | bc)"
+              echo ""
+              echo "Report saved to: ${DAILY_REPORT}"
+
+              # Send daily summary to Slack if configured
+              if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+                curl -X POST -H 'Content-type: application/json' \
+                  --data "{
+                    \"text\": \":bar_chart: Daily OIDC Monitoring Report - ${YESTERDAY}\",
+                    \"blocks\": [{
+                      \"type\": \"section\",
+                      \"fields\": [{
+                        \"type\": \"mrkdwn\",
+                        \"text\": \"*Total Checks:*\\n${total_checks}\"
+                      }, {
+                        \"type\": \"mrkdwn\",
+                        \"text\": \"*Total Errors:*\\n${total_errors}\"
+                      }]
+                    }]
+                  }" \
+                  "$SLACK_WEBHOOK_URL" || true
+              fi
+
+            env:
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oidc-monitor-slack
+                  key: webhook-url
+                  optional: true
+
+            volumeMounts:
+            - name: logs
+              mountPath: /var/log/oidc-monitor
+
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "50m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+
+          volumes:
+          - name: logs
+            persistentVolumeClaim:
+              claimName: oidc-monitor-logs
+---
+# Optional: Job to run immediate check (manually trigger with kubectl create job)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oidc-monitor-manual
+  namespace: monitoring
+  labels:
+    app: oidc-monitor
+    run-type: manual
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: oidc-monitor
+    spec:
+      serviceAccountName: oidc-monitor
+      restartPolicy: Never
+
+      containers:
+      - name: oidc-monitor
+        image: bitnami/kubectl:1.29
+
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+
+          apt-get update -qq && apt-get install -y -qq jq curl > /dev/null 2>&1 || \
+            apk add --no-cache jq curl > /dev/null 2>&1
+
+          cp /scripts/oidc-monitor.sh /tmp/oidc-monitor.sh
+          chmod +x /tmp/oidc-monitor.sh
+
+          echo "Running manual OIDC check..."
+          /tmp/oidc-monitor.sh --single
+
+        env:
+        - name: LOG_DIR
+          value: "/var/log/oidc-monitor"
+        - name: REPORT_DIR
+          value: "/var/log/oidc-monitor/reports"
+        - name: ERROR_THRESHOLD
+          value: "5"
+        - name: CHECK_INTERVAL
+          value: "300"  # Last 5 minutes
+        - name: KEYCLOAK_NAMESPACE
+          value: "keycloak"
+        - name: GITLAB_NAMESPACE
+          value: "gitlab-staging"
+        - name: ARGOCD_NAMESPACE
+          value: "argocd"
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: oidc-monitor-slack
+              key: webhook-url
+              optional: true
+
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/oidc-monitor
+        - name: script
+          mountPath: /scripts
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: oidc-monitor-logs
+      - name: script
+        configMap:
+          name: oidc-monitor-script
+          defaultMode: 0755
