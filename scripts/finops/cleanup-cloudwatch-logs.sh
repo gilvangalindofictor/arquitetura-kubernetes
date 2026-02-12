@@ -59,7 +59,7 @@ echo "--- [1/4] Log Groups Without Retention Policy ---"
 
 NO_RETENTION=$(echo "$ALL_LOGS" | jq '[.logGroups[] | select(.retentionInDays == null) | {
   name: .logGroupName,
-  size_mb: (.storedBytes // 0 / 1048576 | floor),
+  size_gb: ((.storedBytes // 0) / 1073741824 | floor * 100 / 100),
   created: (.creationTime / 1000 | todate)
 }]')
 
@@ -67,13 +67,13 @@ NO_RETENTION_COUNT=$(echo "$NO_RETENTION" | jq '. | length')
 echo "Found: $NO_RETENTION_COUNT log groups with infinite retention"
 
 if [ "$NO_RETENTION_COUNT" -gt 0 ]; then
-  echo "$NO_RETENTION" | jq -r '.[] | "  \(.name) | \(.size_mb)MB | created: \(.created)"' | head -20
+  echo "$NO_RETENTION" | jq -r '.[] | "  \(.name) | \(.size_gb)GB | created: \(.created)"' | head -20
 
   if [ "$NO_RETENTION_COUNT" -gt 20 ]; then
     echo "  ... and $((NO_RETENTION_COUNT - 20)) more"
   fi
 
-  TOTAL_SIZE_GB=$(echo "$NO_RETENTION" | jq '[.[].size_mb] | add // 0 | . / 1024')
+  TOTAL_SIZE_GB=$(echo "$NO_RETENTION" | jq '[.[].size_gb] | add // 0')
   SAVINGS=$(echo "$TOTAL_SIZE_GB * 0.50 * 12 * 6.0 * 0.5" | bc | xargs printf "%.0f")
 
   echo ""
