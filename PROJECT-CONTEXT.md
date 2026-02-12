@@ -138,24 +138,24 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **Marco 3 F1c**    | PostgreSQL SG Fix (ADR-040)                                                   | ✅ Completo | 5min         | $0            |
 | **Marco 3 F1c**    | Vault HA Migration (ADR-041)                                                  | ✅ Completo | 27min        | +$3/mês       |
 | **Marco 3 F1d**    | FinOps Automation Staging (Lambda + EventBridge, ADR-024)                     | ✅ Completo | 3 dias       | +$0.50/mês    |
-| **Marco 3 F1e**    | VPC Endpoints (STS + EC2, ADR-046, Vault recovery)                             | ✅ Completo | 2h32min      | +$28.90/mês   |
+| **Marco 3 F1e**    | VPC Endpoints (STS + EC2, ADR-046, Vault recovery)                            | ✅ Completo | 2h32min      | +$28.90/mês   |
 | **TOTAL**          |                                                                               |            | **~14 dias** | **~$700/mês** |
 
 ### Marco 3 - Detalhamento (Fase 1a/1b/1c)
 
-| Componente                | Status       | Observações                                                                                                        |
-| ------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| PostgreSQL RDS            | ✅ Completo   | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
-| Redis Operator            | ✅ Completo   | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                                       |
-| RabbitMQ Operator         | ✅ Completo   | Official operator, 1 replica staging, namespace data-services                                                      |
-| GitLab CE Staging         | ✅ Completo   | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
-| Vault HA                  | ✅ Completo   | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
-| VPC Endpoints             | ✅ Completo   | STS + EC2 Interface Endpoints, Private DNS enabled, 10-40x latency improvement, $28.90/mês (ADR-046)               |
-| External Secrets Operator | ✅ Operacional | ClusterSecretStore Vault backend, K8s auth configured, Keycloak secrets ready (ADR-032)                             |
-| Harbor Registry           | ✅ Completo   | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)                                |
-| **Keycloak SSO**          | ⏳ Ready      | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern, deploy pending (R-029 RESOLVED 2026-02-06) |
-| **Observability Stack**   | ✅ Completo   | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas                         |
-| **FinOps Automation**     | ✅ Completo   | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
+| Componente                | Status        | Observações                                                                                                        |
+| ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| PostgreSQL RDS            | ✅ Completo    | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
+| Redis Operator            | ✅ Completo    | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                                       |
+| RabbitMQ Operator         | ✅ Completo    | Official operator, 1 replica staging, namespace data-services                                                      |
+| GitLab CE Staging         | ✅ Completo    | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
+| Vault HA                  | ✅ Completo    | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
+| VPC Endpoints             | ✅ Completo    | STS + EC2 Interface Endpoints, Private DNS enabled, 10-40x latency improvement, $28.90/mês (ADR-046)               |
+| External Secrets Operator | ✅ Operacional | ClusterSecretStore Vault backend, K8s auth configured, Keycloak secrets ready (ADR-032)                            |
+| Harbor Registry           | ✅ Completo    | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)                                |
+| **Keycloak SSO**          | ⏳ Ready       | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern, deploy pending (R-029 RESOLVED 2026-02-06) |
+| **Observability Stack**   | ✅ Completo    | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas                         |
+| **FinOps Automation**     | ✅ Completo    | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
 
 ### Marcos Completos
 
@@ -292,22 +292,22 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ### Diferenciação: Camada 1 vs Camada 2
 
-| Aspecto | Camada 1 (Domínios Técnicos) | Camada 2 (Domínios Corporativos) |
-|---------|------------------------------|----------------------------------|
-| **Foco** | Infraestrutura de plataforma | Aplicações de negócio |
-| **Status** | ✅ Implementados (Marco 0-3) | 📋 Planejamento (Marco 0) |
-| **Organização** | Por função técnica | Por produto/linha de negócio (DDD) |
-| **Referência** | ADR-002 | ADR-047, ADR-048, ADR-049 |
+| Aspecto         | Camada 1 (Domínios Técnicos) | Camada 2 (Domínios Corporativos)   |
+| --------------- | ---------------------------- | ---------------------------------- |
+| **Foco**        | Infraestrutura de plataforma | Aplicações de negócio              |
+| **Status**      | ✅ Implementados (Marco 0-3)  | 📋 Planejamento (Marco 0)           |
+| **Organização** | Por função técnica           | Por produto/linha de negócio (DDD) |
+| **Referência**  | ADR-002                      | ADR-047, ADR-048, ADR-049          |
 
 ### 5 Domínios Corporativos
 
-| Domínio | Produtos | Status Marco 0 | Próximos Passos | Fase Implementação |
-|---------|----------|----------------|-----------------|-------------------|
-| **PLATFORM** | Observability, CI/CD, Secrets, Security | ✅ Herda Camada 1 | Nenhum (já operacional) | ✅ Marco 0-3 |
-| **INTEGRATION** | iPaaS (9 microserviços) | 📋 Dockerfiles existem | Criar Helm charts, GitOps repos | Fase 1 (4 semanas) |
-| **DATA** | Hatch ETL (151 extractors), VemSoft ETL | 📋 docker-compose existente | Converter para K8s manifests | Fase 2 (4 semanas) |
-| **OPERATIONS** | Process Management, Fulfillment | 📋 Planejado (futuro) | Definir requisitos | Fase 3 (6 semanas) |
-| **SHARED-SERVICES** | Files (BucketConnector), Notification, Calendar, RPA | 📋 BucketConnector tem Helm chart | Deploy Files + Notification | Fase 1 (4 semanas) |
+| Domínio             | Produtos                                             | Status Marco 0                   | Próximos Passos                 | Fase Implementação |
+| ------------------- | ---------------------------------------------------- | -------------------------------- | ------------------------------- | ------------------ |
+| **PLATFORM**        | Observability, CI/CD, Secrets, Security              | ✅ Herda Camada 1                 | Nenhum (já operacional)         | ✅ Marco 0-3        |
+| **INTEGRATION**     | iPaaS (9 microserviços)                              | 📋 Dockerfiles existem            | Criar Helm charts, GitOps repos | Fase 1 (4 semanas) |
+| **DATA**            | Hatch ETL (151 extractors), VemSoft ETL              | 📋 docker-compose existente       | Converter para K8s manifests    | Fase 2 (4 semanas) |
+| **OPERATIONS**      | Process Management, Fulfillment                      | 📋 Planejado (futuro)             | Definir requisitos              | Fase 3 (6 semanas) |
+| **SHARED-SERVICES** | Files (BucketConnector), Notification, Calendar, RPA | 📋 BucketConnector tem Helm chart | Deploy Files + Notification     | Fase 1 (4 semanas) |
 
 ### Documentação Criada (Marco 0)
 
@@ -444,10 +444,12 @@ product: ^[a-z0-9-]+$
 **Contratos Providos**: Metrics Storage (99.9% SLA), Visualization, Log Aggregation, Trace Storage
 
 ### data-services (Operators)
-- **Zalando Postgres Operator** 1.10.1 - PostgreSQL HA (Patroni + Spilo)
-- **Redis Cluster Operator** 0.15.1 - Redis HA (cluster mode)
+- **Zalando Postgres Operator** 1.10.1 - PostgreSQL HA (Patroni + Spilo) ⚠️ _Ver [VERSION-CONTROL](domains/data-services/docs/VERSION-CONTROL.md)_
+- **Redis Cluster Operator** 0.15.1 - Redis HA (cluster mode) ⚠️ _Ver [VERSION-CONTROL](domains/data-services/docs/VERSION-CONTROL.md)_
 - **RabbitMQ Cluster Operator** 3.12.0 - RabbitMQ HA (quorum queues)
 - **Velero** 5.2.0 - Kubernetes Backup/Restore (S3-compatible)
+
+> **📋 Controle de Versões**: Versões desatualizadas verificadas em 2026-02-11. Consulte [VERSION-CONTROL.md](domains/data-services/docs/VERSION-CONTROL.md) para plano de atualização.
 
 **Contratos Providos**: PostgreSQL as a Service (99.9% SLA), Redis as a Service, RabbitMQ as a Service, Backup/Restore (RPO 24h, RTO <1h)
 
@@ -655,10 +657,39 @@ Kubernetes/
 - **Desenvolvedor**: [/docs/agents/desenvolvedor.md](docs/agents/desenvolvedor.md)
 - **Arquiteto**: [/docs/agents/arquiteto.md](docs/agents/arquiteto.md)
 
+### 🚨 ACHADOS CRÍTICOS EM PRODUÇÃO (2026-02-11)
+
+**✅ TERRAFORM = FONTE VERDADE. Produção matches Terraform 100%**
+
+Auditoria revelou: **Produção está correta**, mas **Documentação Arquitetural está desincronizada**.
+
+LEITURA OBRIGATÓRIA para CTO e Architecture Team:
+
+1. **[TERRAFORM-SOURCE-OF-TRUTH.md](domains/data-services/docs/TERRAFORM-SOURCE-OF-TRUTH.md)** - PostgreSQL=RDS✅ Redis=Spotahome✅ RabbitMQ=Official✅ Velero=Not impl✅
+2. [STAGING-ANALYSIS-FINDINGS.md](domains/data-services/docs/STAGING-ANALYSIS-FINDINGS.md) - Sumário executivo STAGING
+3. [STAGING-INVENTORY.md](domains/data-services/docs/STAGING-INVENTORY.md) - Reconciliação STAGING
+4. [STAGING-BACKUP-STRATEGY.md](domains/data-services/docs/STAGING-BACKUP-STRATEGY.md) - Análise de gaps STAGING
+
+**Verdade do Terraform (para STAGING):**
+- ✅ PostgreSQL: AWS RDS 16.4 db.t3.micro (not Zalando Operator)
+- ✅ Redis: Spotahome 3.3.0 with 1 replica (not OT-Container-Kit)
+- ✅ RabbitMQ: Official 2.19.0 with 1 replica (confirmed)
+- ✅ Velero: Not declared in Terraform (deliberate, zero implementation)
+
+- ✅ Velero: Intencional não implementado (futuro)
+
+**Próximas Ações:**
+- [ ] CTO: Ler TERRAFORM-SOURCE-OF-TRUTH.md (5 min)
+- [ ] Decidir: Implementar Velero vs aceitar gap
+- [ ] Atualizar VERSION-CONTROL.md + ADRs
+
+---
+
 ### VALIDATION-REPORTs
 - **platform-core**: [/domains/platform-core/docs/VALIDATION-REPORT.md](domains/platform-core/docs/VALIDATION-REPORT.md) (88.6%)
 - **cicd-platform**: [/domains/cicd-platform/docs/VALIDATION-REPORT.md](domains/cicd-platform/docs/VALIDATION-REPORT.md) (86.4%)
 - **data-services**: [/domains/data-services/docs/VALIDATION-REPORT.md](domains/data-services/docs/VALIDATION-REPORT.md) (92.3%)
+  - *⚠️ NOTA: Veja achados críticos acima*
 - **observability**: [/domains/observability/docs/VALIDATION-REPORT.md](domains/observability/docs/VALIDATION-REPORT.md) (91.2%)
 
 ---
