@@ -17,6 +17,14 @@ Executar qualquer demanda de infraestrutura de forma:
 - Documentada automaticamente (pré e pós execução)
 - **Econômica em tokens** — respostas densas, sem redundância, formato telegráfico
 
+## 📚 Consulta de Documentação Oficial
+
+- Regra: Todos os agentes devem validar intenções e comandos contra a documentação oficial do fornecedor (ex.: AWS, Terraform, Helm, Kubernetes) a partir da versão que está sendo usada no projeto.
+- Procedimento: consultar primeiro o contexto local referenciado (`ai-contexts/official-docs.md` e `docs/vendor/`), que deverá conter trechos-chave e links com as versões pinadas; só recorrer à web se o contexto local não cobrir o tópico/versão.
+- Motivação: garante precisão de comportamento por versão, evita quebra por mudanças upstream e reduz consultas web repetidas.
+
+Nota: mantenha `ai-contexts/official-docs.md` e `docs/vendor/` atualizados quando for feita upgrade de providers/tools.
+
 ---
 
 ## 💬 ECONOMIA DE TOKENS (REGRA GLOBAL)
@@ -139,6 +147,7 @@ Responsável por:
 - Gerenciar hooks de documentação
 - **Coordenar o Active Monitoring Loop durante execuções**
 - **Disparar sincronização de documentos ao final de cada etapa**
+CONSULTA: validar sempre decisões e comandos contra a documentação oficial na versão usada; checar contexto local `ai-contexts/official-docs.md` antes da web.
 
 ---
 
@@ -150,6 +159,7 @@ Responsável por:
 - IAM, Security Groups, KMS, Logs, Networking
 - Resiliência, custos e observabilidade
 - Validação de riscos AWS antes e depois da execução
+CONSULTA: validar ações com documentação AWS na versão do service API/CLI usada; preferir trechos pinados em `ai-contexts/official-docs.md`.
 
 ---
 
@@ -163,6 +173,7 @@ Responsável por:
 - Plan, apply, destroy seguros
 - **Monitoramento ativo de recursos durante apply/destroy**
 - Detecção de falhas silenciosas (containers, pipelines, locks)
+CONSULTA: sempre consultar docs do `terraform` e providers na versão do projeto; use `docs/vendor/terraform/` ou `ai-contexts/official-docs.md` primeiro.
 
 ---
 
@@ -174,6 +185,7 @@ Responsável por:
 - Compliance (ISO, SOC2, LGPD quando aplicável)
 - Análise de superfícies de ataque
 - Revisão de mudanças críticas
+CONSULTA: confirmar controles e configurações com docs oficiais (IAM, KMS, etc.) na versão relevante.
 
 ---
 
@@ -185,6 +197,7 @@ Responsável por:
 - Detectar overprovisioning
 - Propor alternativas mais econômicas
 - Garantir tagging obrigatória
+CONSULTA: validar preços e limites com docs/offers oficiais (versão do pricing API quando aplicável).
 
 ---
 
@@ -200,6 +213,7 @@ Responsável por:
 - Dashboards por workload
 - **Validação pós-deploy: métricas fluindo, alertas funcionais**
 - Detecção de silent failures (gaps em métricas/logs)
+CONSULTA: confirmar configurações e APIs com docs oficiais das ferramentas (Prometheus, Grafana, AWS X-Ray) na versão em uso.
 
 ---
 
@@ -215,6 +229,7 @@ Responsável por:
 - Performance tuning (JVM, DB pools, cache)
 - PodDisruptionBudget (PDB) validation
 - **Pré-requisito para Spot/Karpenter: HPA configurado**
+CONSULTA: checar comportamento e flags com docs oficiais das ferramentas/versões usadas (Karpenter, HPA, k8s) antes de aplicar mudanças.
 
 ---
 
@@ -229,6 +244,7 @@ Responsável por:
 - Retention policies + encryption (KMS)
 - Cross-region replication (prod)
 - **Validação: backup executado, restore testado**
+CONSULTA: validar APIs e procedimentos com docs oficiais (Velero, AWS RDS snapshots, KMS) na versão do ambiente.
 
 ---
 
