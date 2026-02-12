@@ -69,6 +69,30 @@
 [15:30:00] Blocker Final | Obs | Migrations wait-for-deps timeout (PostgreSQL/Redis connection) | ❌
 [15:31:00] Decisão | Orq | Parar STOP-AND-FIX (2h30min), documentar, próxima sessão approach incremental | ✅
 
+## Task#2: Node Groups Upgrade v1.34 (Sessão 2)
+
+[11:36:00] Task#2 Start | Orq | Node Groups v1.34 Upgrade | 1h30min estimado
+[11:36:35] Backup | Orq | Cluster state backup (18MB, 7 arquivos) | ✅
+[11:38:00] AWS Login | Orq | SSO authentication (manual browser) | ✅
+[11:46:20] Upgrade Start | AWS | 3 node groups upgrade iniciado (system, workloads, critical) | ✅
+[11:47:00] AML-C1 | AWS | 7 v1.31 → 2 novos v1.34 apareceram (rolling replacement) | ok
+[11:48:17] AML-C3 | AWS | 7 v1.34 + 6 v1.31 = 13 nodes | progresso
+[12:00:00] Blocker | AWS | Upgrade travado (7 v1.34 + 4 v1.31, sem progresso 7.5min) | ⚠️
+[12:01:00] Diagnóstico | AWS | system ✅ ACTIVE v1.34, workloads/critical UPDATING v1.31 | ✅
+[12:03:00] Force Drain | Orq | Nodes v1.31 SchedulingDisabled, pods com PDB bloqueando | 🔄
+[12:04:00] Force Delete | Orq | rfr-redis-0, loki-read pods (PDB blockers) | ✅
+[12:08:00] Problema | K8s | Novos pods scheduled em v1.31 (gitlab-gitaly-0!) | ❌
+[12:08:30] Cordon | Orq | Nodes v1.31 re-cordoned | ✅
+[12:10:00] Update Failed | AWS | workloads PodEvictionFailure (max retries ip-10-0-137-123) | ❌
+[12:11:00] ASG Issue | AWS | ASG desired=7, EKS nodegroup=3 (mismatch!) | ✅ identificado
+[12:11:30] ASG Fix | AWS | ASG desired capacity → 3 | ✅
+[12:18:57] Retry Upgrade | AWS | workloads upgrade --force flag (novo update ID) | ✅
+[12:20:00] Blocker #2 | K8s | 2 nodes v1.31 empacados (PDB tempo-ingester, tempo-query-frontend) | ⚠️
+[12:21:00] PDB Delete | Orq | tempo-ingester, tempo-query-frontend PDBs removidos | ✅
+[12:23:00] Progress | AWS | Workloads 6 nodes (4 v1.34 + 2 v1.31) | ok
+[12:24:00] Final Node | AWS | 1 node v1.34 NotReady,SchedulingDisabled (sendo removido) | 🔄
+[12:25:00] Task#2 Complete | ✅ | 7 nodes v1.34 (system=2, critical=2, workloads=3) | ✅ 50min
+
 ---
 
 ## Próximos Passos
