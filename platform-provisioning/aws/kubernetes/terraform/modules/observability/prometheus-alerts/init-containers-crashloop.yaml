@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-init-crashloop
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: alerting-rules
+data:
+  init-crashloop.rules: |
+    groups:
+      - name: kubernetes.init_containers
+        interval: 30s
+        rules:
+          - alert: InitContainerCrashLoop
+            expr: |
+              sum by (namespace, pod, container) (
+                kube_pod_init_container_status_restarts_total
+              ) > 3
+            for: 5m
+            labels:
+              severity: warning
+              component: kubernetes
+              alertgroup: init-containers
+            annotations:
+              summary: "Init container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is in CrashLoopBackOff"
+              description: |
+                Init container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value }} times in the last 5 minutes.
+
+                This indicates a persistent initialization failure that requires immediate investigation.
+
+                Troubleshooting steps:
+                1. Check init container logs: `kubectl logs -n {{ $labels.namespace }} {{ $labels.pod }} -c {{ $labels.container }}`
+                2. Check previous logs: `kubectl logs -n {{ $labels.namespace }} {{ $labels.pod }} -c {{ $labels.container }} --previous`
+                3. Describe pod for events: `kubectl describe pod -n {{ $labels.namespace }} {{ $labels.pod }}`
+                4. Check for common issues:
+                   - Database connectivity (DNS, SG, credentials)
+                   - Missing secrets or configmaps
+                   - Network policies blocking traffic
+                   - Resource quotas exceeded
+
+                Runbook: /docs/runbooks/init-container-crashloop.md
+              dashboard_url: "https://grafana.example.com/d/init-containers/init-containers-dashboard?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
+
+          - alert: InitContainerHighRestartRate
+            expr: |
+              rate(kube_pod_init_container_status_restarts_total[10m]) > 0.1
+            for: 5m
+            labels:
+              severity: critical
+              component: kubernetes
+              alertgroup: init-containers
+            annotations:
+              summary: "Init container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has high restart rate"
+              description: |
+                Init container {{ $labels.container }} is restarting frequently (rate: {{ $value | humanize }} restarts/sec).
+
+                This indicates a severe initialization issue preventing pod startup.
+
+                IMMEDIATE ACTION REQUIRED:
+                1. STOP-AND-FIX protocol activated
+                2. Investigate root cause immediately
+                3. Do not proceed with deployments until resolved
+
+                Runbook: /docs/runbooks/init-container-crashloop.md
+
+          - alert: GitLabInitContainerFailing
+            expr: |
+              sum by (namespace, pod, container) (
+                kube_pod_init_container_status_restarts_total{namespace="gitlab-staging", container=~"dependencies|certificates|configure"}
+              ) > 3
+            for: 3m
+            labels:
+              severity: critical
+              component: gitlab
+              alertgroup: init-containers
+              oncall: platform-team
+            annotations:
+              summary: "GitLab init container {{ $labels.container }} failing in {{ $labels.namespace }}"
+              description: |
+                GitLab init container {{ $labels.container }} in pod {{ $labels.pod }} has restarted {{ $value }} times.
+
+                Common GitLab init failures:
+                - Database "gitlab" does not exist (migrations container)
+                - PostgreSQL connection refused (DNS/SG/credentials)
+                - Redis connection refused (password mismatch)
+                - S3 bucket access denied (IRSA misconfigured)
+
+                CRITICAL: This blocks GitLab webservice/sidekiq/runner startup
+
+                Immediate actions:
+                1. Check init logs: `kubectl logs -n gitlab-staging {{ $labels.pod }} -c {{ $labels.container }}`
+                2. Verify database exists: See docs/analysis/TASK1-GITLAB-OIDC-MIGRATIONS-CRASHLOOP-ANALYSIS.md
+                3. Check PostgreSQL/Redis connectivity
+                4. Validate secrets: gitlab-postgresql-password, redis-password
+
+                Runbook: /docs/runbooks/gitlab-init-failures.md
+              grafana_dashboard: "https://grafana.example.com/d/gitlab-logs/gitlab-logs?var-namespace=gitlab-staging&var-pod={{ $labels.pod }}"

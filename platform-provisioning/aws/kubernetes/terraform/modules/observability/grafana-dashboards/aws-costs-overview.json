@@ -1,0 +1,540 @@
+{
+  "uid": "aws-costs-overview",
+  "title": "AWS Costs Overview",
+  "tags": [
+    "finops",
+    "aws",
+    "costs"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "1h",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Monthly Cost Trend (Estimated Charges)",
+      "description": "AWS estimated charges over time, broken down by service",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "fillOpacity": 20,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonEKS"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "EKS"
+        },
+        {
+          "refId": "B",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonEC2"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "EC2"
+        },
+        {
+          "refId": "C",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonRDS"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "RDS"
+        },
+        {
+          "refId": "D",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonS3"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "S3"
+        },
+        {
+          "refId": "E",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "ElasticLoadBalancing"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "ALB/NLB"
+        },
+        {
+          "refId": "F",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonVPC"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "VPC (NAT)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Total Estimated Charges (Current Month)",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 600
+              },
+              {
+                "color": "red",
+                "value": 900
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "Currency": [
+              "USD"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "Total"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Daily Cost Rate",
+      "description": "Estimated daily cost based on billing metrics",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "Currency": [
+              "USD"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "Daily"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "diff"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cost Breakdown by Service",
+      "type": "piechart",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonEKS"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "EKS"
+        },
+        {
+          "refId": "B",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonEC2"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "EC2"
+        },
+        {
+          "refId": "C",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonRDS"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "RDS"
+        },
+        {
+          "refId": "D",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonS3"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "S3"
+        },
+        {
+          "refId": "E",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "ElasticLoadBalancing"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "ALB/NLB"
+        },
+        {
+          "refId": "F",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonVPC"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "VPC (NAT)"
+        },
+        {
+          "refId": "G",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AWSLambda"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "Lambda"
+        },
+        {
+          "refId": "H",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "ServiceName": [
+              "AmazonDynamoDB"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "2592000",
+          "label": "DynamoDB"
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Savings Realized (R$/ano)",
+      "description": "Cost optimizations documented in costs.md",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [],
+      "targets": [],
+      "pluginVersion": "9.5.0",
+      "custom": {
+        "data": [
+          [
+            "Optimization",
+            "Saving (R$/ano)",
+            "Status"
+          ],
+          [
+            "EKS Upgrade Extended → Standard",
+            "18468",
+            "Done"
+          ],
+          [
+            "EC2 Rightsizing (t3.xlarge → t3.large)",
+            "13104",
+            "Done"
+          ],
+          [
+            "RDS Shutdown non-business hours",
+            "2890",
+            "Done"
+          ],
+          [
+            "ALB IngressGroup consolidation",
+            "5847",
+            "Planned"
+          ],
+          [
+            "EBS gp2 → gp3 migration",
+            "1520",
+            "Planned"
+          ],
+          [
+            "Delete test ALBs",
+            "1952",
+            "Planned"
+          ],
+          [
+            "TOTAL",
+            "43781",
+            "-"
+          ]
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "Cost per Node Group",
+      "description": "Estimated compute cost allocation per node group",
+      "type": "bargauge",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 200
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (label_eks_amazonaws_com_nodegroup) (kube_node_labels) * 24 * 30 * 0.0416",
+          "legendFormat": "{{label_eks_amazonaws_com_nodegroup}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      }
+    }
+  ]
+}

@@ -60,3 +60,55 @@ output "additional_databases" {
   description = "List of additional databases created"
   value       = [for db in var.additional_databases : db.name]
 }
+
+# -----------------------------------------------------------------------------
+# Application Database Credentials
+# -----------------------------------------------------------------------------
+
+output "gitlab_user_password" {
+  description = "GitLab user password"
+  value       = random_password.gitlab_user.result
+  sensitive   = true
+}
+
+output "gitlab_database_name" {
+  description = "GitLab database name"
+  value       = postgresql_database.gitlab.name
+}
+
+output "gitlab_username" {
+  description = "GitLab username"
+  value       = postgresql_role.gitlab_user.name
+}
+
+output "keycloak_user_password" {
+  description = "Keycloak user password"
+  value       = random_password.keycloak_user.result
+  sensitive   = true
+}
+
+output "keycloak_database_name" {
+  description = "Keycloak database name"
+  value       = postgresql_database.keycloak.name
+}
+
+output "keycloak_username" {
+  description = "Keycloak username"
+  value       = postgresql_role.keycloak_user.name
+}
+
+output "sonarqube_user_password" {
+  description = "SonarQube user password"
+  value       = random_password.sonarqube_user.result
+  sensitive   = true
+}
+
+output "sonarqube_database_name" {
+  description = "SonarQube database name"
+  value       = postgresql_database.sonarqube.name
+}
+
+output "sonarqube_username" {
+  description = "SonarQube username"
+  value       = postgresql_role.sonarqube_user.name
+}

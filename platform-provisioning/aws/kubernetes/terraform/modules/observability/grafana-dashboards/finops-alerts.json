@@ -1,0 +1,418 @@
+{
+  "uid": "finops-alerts",
+  "title": "FinOps Alerts",
+  "tags": [
+    "finops",
+    "alerts",
+    "cost-optimization"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Monthly Budget Usage",
+      "description": "Current month spend vs monthly budget ($900). Thresholds: 80% warning, 95% critical",
+      "type": "gauge",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "Currency": [
+              "USD"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "86400",
+          "label": "Budget %"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "reduce": {
+              "reducer": "lastNotNull"
+            },
+            "binary": {
+              "left": "Budget %",
+              "operator": "/",
+              "right": "900"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "options": {
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "Cost Spike Detection (Hourly Increase)",
+      "description": "Detects unusual cost increases. Alert when hourly increase exceeds $5",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "cloudwatch"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "dimensions": {
+            "Currency": [
+              "USD"
+            ]
+          },
+          "statistics": [
+            "Maximum"
+          ],
+          "period": "3600",
+          "label": "Hourly Cost"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Pods with Low CPU Usage (<5% for 1h)",
+      "description": "Pods that may be idle or oversized - candidates for right-sizing",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\"}[1h])) < 0.05",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background-solid"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "steps": [
+                    {
+                      "color": "orange",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.05
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "pod": "Pod",
+              "Value": "CPU (cores)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "PVCs Not Mounted (Orphan Volumes)",
+      "description": "PersistentVolumeClaims that exist but are not mounted to any pod",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kube_persistentvolumeclaim_status_phase{phase=\"Bound\"} * on (namespace, persistentvolumeclaim) group_left() (kube_persistentvolumeclaim_info) unless on (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes > 0)",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "endpoint": true,
+              "service": true,
+              "phase": true
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "persistentvolumeclaim": "PVC",
+              "storageclass": "StorageClass"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Active Prometheus Alerts",
+      "description": "Current active alerts from Prometheus AlertManager",
+      "type": "alertlist",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "showOptions": "current",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": false
+        },
+        "folder": {},
+        "alertInstanceLabelFilter": ""
+      }
+    },
+    {
+      "id": 6,
+      "title": "Nodes Count by Node Group",
+      "description": "Number of nodes per EKS node group - detect overprovisioning",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 4
+              },
+              {
+                "color": "red",
+                "value": 6
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (label_eks_amazonaws_com_nodegroup) (kube_node_labels)",
+          "legendFormat": "{{label_eks_amazonaws_com_nodegroup}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "title": "EBS Volume Type Distribution",
+      "description": "gp2 vs gp3 volumes - gp2 should be migrated to gp3 for cost savings",
+      "type": "piechart",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (storageclass) (kube_persistentvolumeclaim_info)",
+          "legendFormat": "{{storageclass}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      }
+    }
+  ]
+}

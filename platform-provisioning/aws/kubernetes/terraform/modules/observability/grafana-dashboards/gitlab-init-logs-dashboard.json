@@ -1,0 +1,95 @@
+{
+  "dashboard": {
+    "title": "GitLab Init Containers Logs",
+    "tags": ["gitlab", "init-containers", "troubleshooting"],
+    "timezone": "browser",
+    "schemaVersion": 36,
+    "version": 1,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Init Containers Restart Count",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (pod, container) (kube_pod_init_container_status_restarts_total{namespace=\"gitlab-staging\"})",
+            "legendFormat": "{{pod}}/{{container}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Init Container Status",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (pod, container) (kube_pod_init_container_status_ready{namespace=\"gitlab-staging\"})",
+            "legendFormat": "{{pod}}/{{container}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Init Container Logs (dependencies)",
+        "type": "logs",
+        "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+        "datasource": {"type": "loki", "uid": "loki"},
+        "targets": [
+          {
+            "expr": "{namespace=\"gitlab-staging\", container=\"dependencies\"}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Database Connection Errors",
+        "type": "logs",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "datasource": {"type": "loki", "uid": "loki"},
+        "targets": [
+          {
+            "expr": "{namespace=\"gitlab-staging\"} |~ \"(?i)(database|postgresql|connection|refused)\"",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Redis Connection Errors",
+        "type": "logs",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "datasource": {"type": "loki", "uid": "loki"},
+        "targets": [
+          {
+            "expr": "{namespace=\"gitlab-staging\"} |~ \"(?i)(redis|connection refused|ECONNREFUSED)\"",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Init Container Events",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 24, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "kube_pod_init_container_info{namespace=\"gitlab-staging\"}",
+            "refId": "A",
+            "format": "table"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

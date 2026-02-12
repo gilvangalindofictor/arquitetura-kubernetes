@@ -222,7 +222,7 @@ data "aws_secretsmanager_secret_version" "postgresql_password" {
 resource "kubernetes_secret" "gitlab_postgresql_password" {
   metadata {
     name      = "gitlab-postgresql-password"
-    namespace = "data-services"
+    namespace = "gitlab-staging" # Changed from data-services to gitlab-staging
 
     labels = merge(local.common_tags, {
       "app.kubernetes.io/name"     = "postgresql"
@@ -231,7 +231,7 @@ resource "kubernetes_secret" "gitlab_postgresql_password" {
   }
 
   data = {
-    password = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+    password = module.postgresql_staging.gitlab_user_password # Changed from master password
   }
 
   type = "Opaque"
@@ -799,4 +799,17 @@ resource "aws_vpc_endpoint" "s3" {
     Cost        = "Zero (Gateway type)"
     Criticality = "Medium"
   })
+}
+
+#------------------------------------------------------------------------------
+# FinOps Observability — Grafana Dashboards + Prometheus Alerts
+# Deploys ConfigMaps with Grafana sidecar label for auto-discovery.
+# Dashboards: AWS Costs Overview, Resource Utilization, FinOps Alerts
+# Prometheus Alerts: Init container CrashLoop detection
+#------------------------------------------------------------------------------
+
+module "observability_staging" {
+  source = "../../modules/observability"
+
+  monitoring_namespace = "monitoring"
 }

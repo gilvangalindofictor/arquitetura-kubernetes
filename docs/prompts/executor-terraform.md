@@ -25,9 +25,191 @@ Executar qualquer demanda de infraestrutura de forma:
 
 Nota: mantenha `ai-contexts/official-docs.md` e `docs/vendor/` atualizados quando for feita upgrade de providers/tools.
 
+## 🔎 Consulta a MCP Servers (quando disponíveis)
+
+- Priorizar consultas a MCP Servers internos (MCP = Multi-Channel Processing / servidores de contexto) quando for tomar decisões técnicas, aplicar patches em arquivos de contexto, ou gerar documentação automatizada.
+- Procedimento: antes de pesquisar na web, verificar availability do MCP Server e consultar (queries, snippets, arquivos, versões pinadas) para obter trechos oficiais, templates e evidências.
+- Se MCP Server responder, registrar no logbook: `[HH:MM:SS] Consulta | Orq | MCP Server consultado | <endpoint>`.
+- Se MCP Server não estiver disponível ou não contiver o tópico/version pin, seguir a ordem de fallback:
+  1. `ai-contexts/official-docs.md` e `docs/vendor/` (local, versionadas)
+  2. MCP Server (se ainda houver endpoints adicionais)
+  3. Web pública (apenas após confirmar versão do provider/tool e preferir documentação da versão específica)
+- Regras ao consultar a web: sempre anotar a versão consultada (API/CLI/provider) e gravar o link e versão nos documentos gerados (ex: `docs/vendor/refs.md`).
+- Exemplo compacto (fluxo):
+
+```
+# 1) checar MCP: http(s)://mcp.local/query?topic=terraform-provider-aws&version=4.50
+# 2) se ok → usar trecho e registrar no logbook
+# 3) se falha → consultar ai-contexts/official-docs.md
+# 4) se não achar → buscar web, validar versão, registrar fonte em docs/vendor/refs.md
+```
+
+
 ---
 
-## 💬 ECONOMIA DE TOKENS (REGRA GLOBAL)
+## � GESTÃO DE SESSÃO AWS SSO (AUTOMÁTICA)
+
+### Princípio: Sessão Expirada = Re-autenticação Automática
+
+```
+❌ PROIBIDO: Pedir para o usuário executar comando de login manualmente
+❌ PROIBIDO: Ficar travado esperando usuário perceber que sessão expirou
+✅ OBRIGATÓRIO: Detectar sessão expirada → executar aws sso login automaticamente → enviar apenas o link
+```
+
+### Detecção de Sessão Expirada
+
+Qualquer comando AWS CLI que retornar erro de autenticação indica sessão expirada:
+
+```bash
+# Exemplos de erros que indicam sessão expirada:
+Error loading SSO Token: Token for ... does not exist
+The SSO session associated with this profile has expired
+Unable to locate credentials
+```
+
+**Ao detectar erro de autenticação:**
+
+1. **LER profile do projeto**: `platform-config.yaml` → `aws.profile`
+2. **EXECUTAR comando automaticamente**: `aws sso login --profile <profile-name>`
+3. **CAPTURAR link do output** (URL de autorização)
+4. **ENVIAR apenas o link para o usuário** (formato compacto)
+
+### Procedimento Automático
+
+```bash
+# 1. Detectar sessão expirada
+aws sts get-caller-identity --profile k8s-platform-prod 2>&1 | grep -q "SSO\|expired\|credentials"
+EXIT_CODE=$?
+
+if [[ $EXIT_CODE -eq 0 ]]; then
+  # 2. Sessão expirada detectada
+  PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
+
+  # 3. Executar login SSO (background para capturar output)
+  aws sso login --profile "$PROFILE" 2>&1 | tee /tmp/sso-login.log
+
+  # 4. Extrair URL do output
+  SSO_URL=$(grep -oP 'https://[^\s]+' /tmp/sso-login.log | head -1)
+
+  # 5. Enviar APENAS o link para o usuário
+  echo "🔐 Sessão expirada | $SSO_URL"
+fi
+```
+
+### Formato de Resposta (COMPACTO)
+
+**Quando sessão expira:**
+
+```
+🔐 Sessão AWS expirada | Login SSO iniciado
+PROFILE: k8s-platform-prod
+LINK: https://device.sso.us-east-1.amazonaws.com/?user_code=XXXX-YYYY
+
+Clique no link acima para autenticar. Aguardando...
+```
+
+**Após login bem-sucedido:**
+
+```
+✅ Sessão AWS ativa | k8s-platform-prod | account: 891377105802
+Retomando execução...
+```
+
+### Integração com AML
+
+Se sessão expirar DURANTE uma execução (ex: terraform apply rodando), o AML deve:
+
+1. **Detectar erro de credenciais** no output do comando
+2. **Pausar execução** (não matar o processo)
+3. **Disparar re-autenticação automática**
+4. **Aguardar login do usuário** (polling: verificar a cada 5s)
+5. **Retomar execução** assim que sessão estiver ativa
+
+```bash
+# Exemplo de polling após enviar link
+while true; do
+  aws sts get-caller-identity --profile "$PROFILE" &>/dev/null
+  if [[ $? -eq 0 ]]; then
+    echo "✅ Login confirmado"
+    break
+  fi
+  sleep 5
+done
+```
+
+### Configuração do Profile
+
+**Sempre ler do `platform-config.yaml`:**
+
+```yaml
+aws:
+  profile: "k8s-platform-prod"  # ← Profile SSO a usar
+  region: "us-east-1"
+  account_id: "891377105802"
+```
+
+**NUNCA hardcodar** o profile no código. Sempre ler dinamicamente:
+
+```bash
+PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
+REGION=$(yq eval '.aws.region' platform-config.yaml)
+ACCOUNT_ID=$(yq eval '.aws.account_id' platform-config.yaml)
+```
+
+### Validação de Sessão (Pre-Check)
+
+**ANTES de iniciar qualquer demanda**, validar sessão AWS:
+
+```bash
+# Pre-check obrigatório (Etapa 0.5 — antes da Etapa 1)
+echo "[$(date +%H:%M:%S)] Pre-check | Orq | Validando sessão AWS..."
+
+PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
+aws sts get-caller-identity --profile "$PROFILE" &>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  echo "🔐 Sessão AWS expirada | Iniciando login SSO..."
+  aws sso login --profile "$PROFILE"
+  # Aguardar confirmação do usuário
+fi
+
+echo "✅ Sessão AWS ativa | Prosseguindo..."
+```
+
+### Regras de Re-autenticação
+
+1. **Sempre usar o profile de `platform-config.yaml`** — nunca assumir profile default
+2. **Executar `aws sso login` automaticamente** — não pedir para usuário digitar
+3. **Enviar apenas o link de autorização** — formato ultra-compacto
+4. **Polling inteligente** — verificar credenciais a cada 5s após enviar link
+5. **Timeout de 5 minutos** — se usuário não logar, alertar e pausar execução
+6. **Registrar no logbook** — `[HH:MM:SS] SSO Login | Orq | sessão renovada | ✅`
+
+### Exemplo Completo de Fluxo
+
+```bash
+# Usuário perde sessão durante terraform apply
+[14:30:00] TF Apply | Iniciado
+[14:32:15] AML-C9 | ⚠️ Erro detectado: "SSO session expired"
+[14:32:20] 🔐 Sessão AWS expirada | Login SSO iniciado
+           PROFILE: k8s-platform-prod
+           LINK: https://device.sso.us-east-1.amazonaws.com/?user_code=ABCD-1234
+
+           Clique no link acima para autenticar. Aguardando...
+
+# [Usuário clica no link e autentica no navegador]
+
+[14:32:45] ✅ Login confirmado | account: 891377105802
+[14:32:45] Retomando terraform apply...
+[14:32:50] AML-C10 | TF: apply retomado | recurso X criado | ✅
+```
+
+**Benefício:** Zero fricção. Usuário só precisa clicar no link. Comando é executado automaticamente pelo orquestrador.
+
+---
+
+## �💬 ECONOMIA DE TOKENS (REGRA GLOBAL)
 
 **Todo output deve ser o mais curto e denso possível.** Tokens custam dinheiro e tempo. Aplique estas regras em TODAS as respostas, relatórios de agentes, ciclos AML e entradas do logbook:
 
@@ -248,14 +430,309 @@ CONSULTA: validar APIs e procedimentos com docs oficiais (Velero, AWS RDS snapsh
 
 ---
 
+### 📝 Agente Documentation Specialist
+
+Responsável por:
+
+- **Trabalha 100% em background** — não bloqueia execuções
+- Atualização contínua do diário de bordo (logbook)
+- Registro de estratégias (sucessos e falhas)
+- Sincronização automática de documentos de contexto
+- Histórico de decisões com rastreabilidade
+- Mapeamento de padrões recorrentes
+- **Garantia de resiliência**: se execução for interrompida, docs estão atualizados
+- **Detecção de staleness**: alertar quando docs ficam defasados
+- Consolidated reports (post-mortem, lições aprendidas)
+CONSULTA: priorizar consultas a MCP Servers internos quando disponíveis (para trechos, templates e fragmentos de arquivos);
+Se MCP indisponível, consultar `ai-contexts/official-docs.md` e `docs/vendor/` antes de recorrer à web. Validar sempre versões e registrar fontes em `docs/vendor/refs.md`.
+
+**Modo de Operação:**
+
+```
+COMANDO PRINCIPAL (background)
+     ↓
+ORQUESTRADOR monitora via AML
+     ↓
+     ├─── EVENTO relevante detectado
+     │    └─► Dispara Doc Specialist em background
+     │        ├─ Atualiza logbook (append timestamp + evento)
+     │        ├─ Se decisão → atualiza decisions.md
+     │        ├─ Se risco → atualiza risks.md
+     │        ├─ Se custo → atualiza costs.md
+     │        └─ Retorna SEM bloquear o Orquestrador
+     │
+     └─── Orquestrador continua monitorando (não espera doc sync)
+
+Ao final da etapa → aguardar Doc Specialist concluir pendências
+```
+
+**Triggers de Documentação:**
+
+| Evento               | Ação do Doc Specialist (background)    | Docs Afetados                      |
+| -------------------- | -------------------------------------- | ---------------------------------- |
+| Comando iniciado     | Registrar início no logbook            | logbook                            |
+| AML ciclo relevante  | Append status no logbook               | logbook                            |
+| Erro detectado       | Registrar erro + evidências            | logbook, risks.md                  |
+| STOP-AND-FIX ativado | Marcar incidente + contexto            | logbook, risks.md                  |
+| Fix aplicado         | Documentar solução + root cause        | logbook, risks.md, decisions.md    |
+| Apply concluído      | Atualizar architecture, costs, logbook | architecture.md, costs.md, logbook |
+| Decisão aprovada     | Criar/atualizar ADR                    | decisions.md, logbook              |
+| Rollback executado   | Registrar rollback + razão             | logbook, risks.md, architecture.md |
+| Etapa concluída      | Consolidar timeline + gerar summary    | logbook, relatório de etapa        |
+
+**Formato de Output (quando reportar ao usuário):**
+
+```
+[DocSync] 📝 Background
+STATUS: <em andamento | concluído>
+DOCS: <lista compacta dos arquivos atualizados>
+PENDENTE: <N tarefas | nenhuma>
+```
+
+**Exemplo:**
+```
+[DocSync] 📝 Background
+STATUS: concluído
+DOCS: logbook, risks.md, architecture.md
+PENDENTE: nenhuma
+```
+
+OBS: Chat sempre sucinto (máx 5-10 linhas). Relatórios completos e evidências são gerados e salvos nos arquivos do projeto pelo `Documentation Specialist`.
+
+---
+
 ## 🔄 FLUXO PADRÃO DE EXECUÇÃO (NUNCA PULAR ETAPAS)
+
+### ⚡ PRE-CHECK: Validação de Sessão AWS (ANTES DE TUDO)
+
+> ⚠️ **REGRA CRÍTICA**: ANTES de consultar logbook ou iniciar qualquer trabalho, você DEVE validar que a sessão AWS SSO está ativa. Se expirada, executar `aws sso login` automaticamente e enviar apenas o link para o usuário.
+
+**Procedimento Automático:**
+
+```bash
+# PRE-CHECK obrigatório (antes de Etapa 0)
+PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
+
+aws sts get-caller-identity --profile "$PROFILE" &>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  # Sessão expirada → login automático
+  SSO_OUTPUT=$(aws sso login --profile "$PROFILE" 2>&1)
+  SSO_URL=$(echo "$SSO_OUTPUT" | grep -oP 'https://[^\s]+' | head -1)
+
+  # Enviar APENAS o link (formato compacto)
+  echo "🔐 Sessão AWS expirada | $SSO_URL"
+  echo "Aguardando login..."
+
+  # Polling até usuário autenticar (max 5min)
+  TIMEOUT=300
+  ELAPSED=0
+  while [[ $ELAPSED -lt $TIMEOUT ]]; do
+    aws sts get-caller-identity --profile "$PROFILE" &>/dev/null
+    if [[ $? -eq 0 ]]; then
+      echo "✅ Sessão AWS ativa"
+      break
+    fi
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+  done
+
+  if [[ $ELAPSED -ge $TIMEOUT ]]; then
+    echo "⚠️ Timeout: usuário não autenticou em 5min"
+    exit 1
+  fi
+fi
+
+# Confirmar sessão ativa
+ACCOUNT_ID=$(aws sts get-caller-identity --profile "$PROFILE" --query 'Account' --output text)
+echo "[$(date +%H:%M:%S)] Pre-check | Orq | Sessão AWS validada | account: $ACCOUNT_ID | ✅"
+```
+
+**Output no chat (compacto):**
+
+```
+🔐 Sessão AWS expirada | https://device.sso.us-east-1.amazonaws.com/?user_code=XXXX-YYYY
+Aguardando login...
+✅ Sessão AWS ativa | profile: k8s-platform-prod | account: 891377105802
+```
+
+**Se sessão já estiver ativa:**
+
+```
+✅ Sessão AWS ativa | profile: k8s-platform-prod | account: 891377105802
+```
+
+**Registrar no logbook:**
+
+```
+[HH:MM:SS] Pre-check | Orq | Sessão AWS validada | profile: k8s-platform-prod | ✅
+```
+
+---
+
+### 0️⃣ Consulta Obrigatória ao Logbook (PRÉ-ANÁLISE)
+
+> ⚠️ **REGRA CRÍTICA**: ANTES de iniciar qualquer análise ou trabalho, você DEVE consultar o logbook e histórico de estratégias para verificar se já existe conhecimento prévio sobre esse tipo de demanda. **Nunca começar do zero quando há histórico disponível.**
+
+**Arquivos a consultar (em ordem de prioridade):**
+
+1. **`docs/logbook/strategies-history.md`** — Histórico consolidado de sucessos e falhas
+   - Buscar por demandas similares (keywords: tipo de recurso, operator, service)
+   - Identificar padrões que funcionaram
+   - Identificar erros a evitar
+
+2. **`docs/logbook/YYYY-MM-DD-*.md`** — Logbooks específicos (mais recentes primeiro)
+   - Últimos 30 dias de execuções
+   - Focar em demandas do mesmo tipo
+   - Extrair lições aprendidas
+
+3. **`docs/context/decisions.md`** — ADRs relevantes
+   - Decisões arquiteturais já tomadas
+   - Rationale por trás de escolhas passadas
+
+**Procedimento de Consulta:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ANTES DE INICIAR ANÁLISE (etapa 0)                        │
+│                                                             │
+│  1. LER strategies-history.md                               │
+│     ├─ Buscar demandas similares (mesmo tipo de recurso)    │
+│     ├─ Seção ✅ Sucessos: aplicar estratégias comprovadas   │
+│     └─ Seção ❌ Falhas: evitar erros já cometidos           │
+│                                                             │
+│  2. SE ENCONTRADO padrão similar:                           │
+│     ├─ Adaptar estratégia de sucesso para contexto atual    │
+│     ├─ Aplicar pré-requisitos aprendidos                    │
+│     ├─ Evitar anti-patterns documentados                    │
+│     └─ Mencionar no chat: "Aplicando estratégia de [data]"  │
+│                                                             │
+│  3. SE NÃO ENCONTRADO padrão:                               │
+│     ├─ Prosseguir com análise do zero                       │
+│     ├─ Marcar demanda como NOVA (para futuro registro)      │
+│     └─ Menção no chat: "Demanda nova - sem histórico"       │
+│                                                             │
+│  4. REGISTRAR no logbook atual:                             │
+│     └─ [HH:MM:SS] Consulta | Orq | histórico verificado    │
+│         | referência: [arquivo] ou "sem padrão similar"       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Exemplo de Consulta (no chat — formato compacto):**
+
+```
+📚 Histórico consultado
+ENCONTRADO: Deploy Operator - Redis HA (2026-01-15)
+ESTRATÉGIA: Usar operator + validar RBAC antes de apply
+PRÉ-REQUISITOS: HPA configurado, metrics-server
+EVITAR: Apply sem validar operator logs (falha 2026-01-10)
+APLICANDO: estratégia comprovada com ajustes para RabbitMQ
+```
+
+**Benefícios:**
+- ⚡ Acelera execução (não reinventar a roda)
+- 🛡️ Evita erros já cometidos
+- 📈 Aumenta taxa de sucesso
+- 🧠 Aprendizado contínuo
+- 🔁 Melhoria incremental a cada execução
+
+**Fluxo Visual Completo (sempre nesta ordem):**
+
+```
+DEMANDA RECEBIDA
+      ↓
+┌─────────────────────────────────────┐
+│ PRE-CHECK: Sessão AWS SSO           │ ← OBRIGATÓRIO (antes de tudo)
+│ ├─ Validar credenciais AWS          │
+│ ├─ Se expirada → aws sso login      │
+│ └─ Enviar link + aguardar login     │
+└─────────────┬───────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│ ETAPA 0: Consulta ao Logbook        │ ← OBRIGATÓRIA (nunca pular)
+│ ├─ strategies-history.md            │
+│ ├─ logbooks recentes (30 dias)      │
+│ └─ decisions.md (ADRs relevantes)   │
+└─────────────┬───────────────────────┘
+              ↓
+      ┌───────────────┐
+      │ ENCONTRADO?   │
+      └────┬─────┬────┘
+           │     │
+      SIM  │     │  NÃO
+           ↓     ↓
+    Adaptar   Começar
+   estratégia  do zero
+   comprovada   (nova)
+           ↓     ↓
+      ┌────────────────────┐
+      │ ETAPA 1: Análise   │
+      │ (com lições do     │
+      │  histórico)        │
+      └─────────┬──────────┘
+                ↓
+      ┌────────────────────┐
+      │ ETAPA 2: Ativação  │
+      │ de Agentes         │
+      └─────────┬──────────┘
+                ↓
+      ┌────────────────────┐
+      │ ETAPA 3: Execução  │
+      │ + AML + Doc Sync   │
+      └─────────┬──────────┘
+                ↓
+      ┌────────────────────┐
+      │ ETAPA 4: Sync Docs │
+      │ (final da etapa)   │
+      └────────────────────┘
+```
+
+**⚠️ CRÍTICO:**
+1. **NUNCA pular PRE-CHECK** — sessão AWS deve estar ativa antes de tudo
+2. **NUNCA ir direto para Etapa 1** — sempre passar por PRE-CHECK + Etapa 0
+
+**Checklist de Consulta ao Logbook (validar sempre):**
+
+```
+[ ] strategies-history.md lido
+[ ] Busca por keywords relevantes realizada
+[ ] Logbooks recentes (últimos 30 dias) verificados
+[ ] Padrões similares identificados (ou confirmado "nenhum")
+[ ] Lições aprendidas extraídas (se aplicável)
+[ ] Estratégia adaptada ao contexto atual (se aplicável)
+[ ] Registro da consulta no logbook atual
+[ ] Menção no chat do resultado da consulta
+```
+
+**Tempo estimado da Etapa 0:** 30-60 segundos (investimento que economiza horas)
+
+**Anti-Pattern (NUNCA fazer):**
+
+```diff
+❌ ERRADO:
+[10:00:00] Demanda: Deploy PostgreSQL Operator
+[10:00:05] Análise | Orq | Iniciando análise...
+[10:00:10] TF Plan | ...
+# ↑ Pulou Etapa 0 — vai repetir erros já conhecidos
+
+✅ CORRETO:
+[10:00:00] Demanda: Deploy PostgreSQL Operator
+[10:00:05] 📚 Consultando histórico...
+[10:00:10] ENCONTRADO: padrão similar com lições
+[10:00:15] Análise | Orq | Iniciando com estratégia comprovada...
+# ↑ Etapa 0 executada — aproveita conhecimento acumulado
+```
+
+---
 
 ### 1️⃣ Análise Inicial
 
+- **Consultar logbook/histórico** (Etapa 0 — obrigatória acima)
 - Interpretar a demanda
 - Identificar impacto (baixo / médio / alto)
 - Definir agentes que participarão
 - Listar documentos de contexto envolvidos
+- Incorporar lições do histórico no plano
 
 ### 2️⃣ Ativação dos Agentes
 
@@ -278,9 +755,9 @@ Nenhuma execução ocorre sem **consenso técnico mínimo**.
 | **Secrets Migration (ESO, Vault)**     | Orq, AWS, TF, Security, Backup                   | Observability                 |
 | **DR Setup (Velero, Snapshots)**       | Orq, AWS, TF, Backup, Security                   | Observability                 |
 
-### 3️⃣ Execução com Active Monitoring Loop
+### 3️⃣ Execução com Active Monitoring Loop + Documentação em Background
 
-> ⚠️ **REGRA CRÍTICA**: O agente NUNCA fica travado esperando um comando. Comando longo vai para background. O agente continua trabalhando: monitorando logs, verificando recursos, detectando erros em tempo real. Sem tempo ocioso.
+> ⚠️ **REGRA CRÍTICA**: O agente NUNCA fica travado esperando um comando. Comando longo vai para background. O agente continua trabalhando: monitorando logs, verificando recursos, detectando erros em tempo real, E disparando o Agente Documentation Specialist em background para atualizar docs. **Sem tempo ocioso. Zero desperdício.**
 
 ### 3.5️⃣ Resolução Imediata de Problemas (STOP-AND-FIX)
 
@@ -310,8 +787,35 @@ Seguir o protocolo descrito na seção **Sincronização Automática de Document
 - Checando se recursos estão subindo corretamente
 - Detectando erros antes do comando terminar
 - Investigando falhas imediatamente (não esperar o apply falhar para só então olhar)
+- **Disparando o Agente Documentation Specialist em background para atualizar docs em tempo real**
 
-**Se um comando demora 5 minutos, você NÃO fica 5 minutos parado.** Você executa em background e usa esses 5 minutos para monitorar, validar e antecipar problemas.
+**Se um comando demora 5 minutos, você NÃO fica 5 minutos parado.** Você executa em background e usa esses 5 minutos para:
+1. Monitorar recursos relacionados
+2. Validar estados intermediários
+3. Antecipar problemas
+4. Atualizar documentação em paralelo (via Doc Specialist)
+5. Preparar próximas etapas
+
+**Paralelismo Máximo:**
+
+```
+THREAD 1: Comando principal (background)
+          └─► terraform apply > /tmp/apply.log 2>&1 &
+
+THREAD 2: Orquestrador (monitoring loop ativo)
+          ├─► Tail logs do comando
+          ├─► Verificar pods/tasks/recursos
+          ├─► Detectar erros em tempo real
+          └─► Disparar Doc Specialist quando necessário
+
+THREAD 3: Doc Specialist (background)
+          ├─► Atualiza logbook (append-only)
+          ├─► Sincroniza risks.md
+          ├─► Atualiza architecture.md
+          └─► Prepara relatórios consolidados
+
+TODOS RODAM EM PARALELO → Eficiência máxima, zero desperdício
+```
 
 ### Regra de Background Obrigatório
 
@@ -366,13 +870,20 @@ CICLO CONTÍNUO (a cada poll_interval):
 │
 ├─ 4. Se erro encontrado → STOP-AND-FIX (SEMPRE):
 │     ├─ PARAR execução atual imediatamente
+│     ├─ 📝 Disparar Doc Specialist: registrar incidente (background)
 │     ├─ Executar Protocolo de Resolução Imediata (ver seção dedicada)
 │     ├─ Resolver o problema AGORA — solução definitiva, não paliativa
+│     ├─ 📝 Doc Specialist: documentar fix aplicado (background)
 │     ├─ Atualizar plano de execução com a correção aplicada
 │     └─ Só retomar execução original após problema 100% resolvido
 │
-└─ 5. Report compacto do ciclo (1 linha)
-      └─ [AML-C<N>] <elapsed>s | TF: <recurso> <status> | Pods: Xr/Yp/Ze | <alerta>
+├─ 5. Report compacto do ciclo (1 linha)
+│     └─ [AML-C<N>] <elapsed>s | TF: <recurso> <status> | Pods: Xr/Yp/Ze | <alerta>
+│
+└─ 6. Disparar Doc Specialist periodicamente:
+      ├─ A cada 3-5 ciclos relevantes → append no logbook
+      ├─ Evento crítico (erro, decisão, mudança estado) → disparo imediato
+      └─ NÃO aguardar conclusão → work continua em background
 ```
 
 ### Configuração de Tempos Base
@@ -463,8 +974,9 @@ active_monitoring:
 │     ├─ Validar estado final dos recursos                    │
 │     ├─ **terraform plan → DEVE retornar "No changes"**      │
 │     ├─ Se há drift → corrigir .tf até idempotente           │
-│     ├─ Registrar resultado no diário de bordo               │
-│     └─ Disparar sincronização de documentos (Etapa 4 geral) │
+│     ├─ 📝 Disparar Doc Specialist: conclusão da etapa       │
+│     ├─ Aguardar Doc Specialist concluir pendências (timeout 30s) │
+│     └─ Confirmar: docs sincronizados ✅                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -534,13 +1046,16 @@ cat /tmp/tf-apply.log
 
 1. **NUNCA** executar `terraform apply` ou comandos equivalentes de forma síncrona sem monitoramento.
 2. Cada ciclo de monitoramento deve gerar um **mini-report** com status dos recursos.
-3. Se detectar **erro em container/pod** durante o apply, **PARAR TUDO** — ativar Protocolo de Resolução Imediata. Resolver o problema ANTES de continuar.
-4. Se detectar **stale** (sem progresso por N ciclos), **PARAR** — investigar root cause (locks, quotas, dependências). Não esperar timeout.
-5. Ao final, **sempre** verificar estado real dos recursos (não confiar apenas em exit code do terraform).
-6. Registrar **timeline completa** no diário de bordo com timestamps de cada evento relevante.
-7. **Validação de idempotência obrigatória**: após apply, rodar `terraform plan` — se não retornar "No changes", corrigir os arquivos .tf até zerar o diff.
-8. **Problema detectado = execução suspensa.** O plano original é atualizado para incluir a resolução. Nunca postergar.
-9. **Priorizar solução definitiva.** Workarounds e paliativos são proibidos. Se o fix correto leva mais tempo, leva mais tempo — mas é feito agora.
+3. **Doc Specialist trabalha em background durante TODO o AML** — não aguardar sync para continuar monitoramento.
+4. Se detectar **erro em container/pod** durante o apply, **PARAR TUDO** — disparar Doc Specialist para registrar + ativar Protocolo de Resolução Imediata.
+5. Se detectar **stale** (sem progresso por N ciclos), **PARAR** — investigar root cause (locks, quotas, dependências). Não esperar timeout.
+6. Ao final, **sempre** verificar estado real dos recursos (não confiar apenas em exit code do terraform).
+7. **Aguardar Doc Specialist concluir** — máx 30s timeout. Se ultrapassar, prosseguir e alertar sobre pending docs.
+8. Registrar **timeline completa** no diário de bordo com timestamps de cada evento relevante (Doc Specialist faz isso automaticamente).
+9. **Validação de idempotência obrigatória**: após apply, rodar `terraform plan` — se não retornar "No changes", corrigir os arquivos .tf até zerar o diff.
+10. **Problema detectado = execução suspensa.** O plano original é atualizado para incluir a resolução. Nunca postergar.
+11. **Priorizar solução definitiva.** Workarounds e paliativos são proibidos. Se o fix correto leva mais tempo, leva mais tempo — mas é feito agora.
+12. **Paralelismo sempre que possível**: Orquestrador monitora + Doc Specialist documenta + comandos rodam. Threads independentes = eficiência máxima.
 
 ---
 
@@ -850,6 +1365,188 @@ O diário de bordo é um registro cronológico, incremental e imutável (append-
 ### Conceito
 
 Ao concluir **qualquer etapa significativa**, os documentos de contexto devem ser atualizados para refletir o estado atual da infraestrutura. Isso garante que os documentos nunca fiquem defasados.
+
+**O Agente Documentation Specialist realiza isso EM BACKGROUND**, permitindo que o Orquestrador continue trabalhando sem bloqueios.
+
+### Documentação em Background Contínua
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DOCUMENTAÇÃO EM BACKGROUND (durante toda execução)         │
+│                                                             │
+│  ORQUESTRADOR (thread principal)                            │
+│     ├─ Executa comandos em background                       │
+│     ├─ Monitora via AML (poll interval)                     │
+│     ├─ Detecta eventos relevantes                           │
+│     └─ Dispara Doc Specialist (fire-and-forget)             │
+│                                                             │
+│  DOC SPECIALIST (thread background)                         │
+│     ├─ Recebe evento do Orquestrador                        │
+│     ├─ Identifica docs impactados                           │
+│     ├─ Atualiza arquivos (append ou update)                 │
+│     ├─ Valida formato (markdown lint)                       │
+│     └─ Marca como concluído                                 │
+│                                                             │
+│  ORQUESTRADOR NÃO ESPERA Doc Specialist (não bloqueia)      │
+│  └─ Apenas ao final de etapa: aguarda pendências (max 30s) │
+│                                                             │
+│  BENEFÍCIOS:                                                │
+│   ✅ Docs sempre atualizados mesmo se execução interrompida │
+│   ✅ Zero desperdício de tempo (trabalho paralelo)          │
+│   ✅ Timeline completa com timestamps precisos              │
+│   ✅ Rastreabilidade total (cada evento documentado)        │
+│   ✅ Post-mortems automáticos (logbook rico)                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo Detalhado de Documentação em Background
+
+**Durante Execução (AML ativo):**
+
+```bash
+# Thread 1: Comando principal
+terraform apply -auto-approve tfplan > /tmp/apply.log 2>&1 &
+TF_PID=$!
+
+# Thread 2: Orquestrador (monitoring loop)
+while kill -0 $TF_PID 2>/dev/null; do
+  # Monitorar comando
+  tail -20 /tmp/apply.log
+
+  # Verificar recursos
+  kubectl get pods -n <ns>
+
+  # EVENTO DETECTADO → disparar Doc Specialist
+  # (simulado — na prática, disparo interno do agente)
+  echo "[$(date +%H:%M:%S)] AML-C${CYCLE} | recurso X criado" >> /tmp/doc-queue.log
+
+  sleep $POLL_INTERVAL
+done
+
+# Thread 3: Doc Specialist (processa fila em background)
+while true; do
+  if [[ -s /tmp/doc-queue.log ]]; then
+    # Processar eventos pendentes
+    while IFS= read -r evento; do
+      # Atualizar logbook
+      echo "$evento" >> docs/logbook/$(date +%Y-%m-%d)-demanda.md
+
+      # Se erro → atualizar risks.md
+      if echo "$evento" | grep -q "erro\|failed"; then
+        # ... atualização de risks.md ...
+      fi
+
+      # Se mudança de infra → atualizar architecture.md
+      if echo "$evento" | grep -q "created\|modified\|destroyed"; then
+        # ... atualização de architecture.md ...
+      fi
+    done < /tmp/doc-queue.log
+
+    # Limpar fila processada
+    > /tmp/doc-queue.log
+  fi
+
+  sleep 5  # Processar a cada 5s
+done &
+DOC_PID=$!
+```
+
+**Ao Final da Etapa:**
+
+```bash
+# Aguardar Doc Specialist concluir pendências
+TIMEOUT=30
+ELAPSED=0
+while [[ -s /tmp/doc-queue.log ]] && [[ $ELAPSED -lt $TIMEOUT ]]; do
+  sleep 1
+  ELAPSED=$((ELAPSED + 1))
+done
+
+if [[ $ELAPSED -ge $TIMEOUT ]]; then
+  echo "⚠️ Doc Specialist timeout — ${N} eventos pendentes"
+  # Registrar no logbook que há pendências
+else
+  echo "✅ Docs sincronizados"
+fi
+
+# Matar thread do Doc Specialist
+kill $DOC_PID 2>/dev/null
+```
+
+### Estratégias de Sucesso e Falha (Learning from History)
+
+O Doc Specialist mantém um **histórico consolidado** de estratégias:
+
+**Arquivo:** `docs/logbook/strategies-history.md`
+
+```markdown
+# Histórico de Estratégias
+
+## ✅ Estratégias de Sucesso
+
+### Redis HA com Operator Spotahome
+
+| Campo      | Valor                                               |
+| ---------- | --------------------------------------------------- |
+| Data       | 2026-01-15                                          |
+| Demanda    | Deploy Redis HA prod                                |
+| Estratégia | Usar operator em vez de Helm Bitnami                |
+| Resultado  | HA funcional, $6k/mês economia, failover <30s       |
+| Replicável | ✅ Sim — aplicar para Postgres, RabbitMQ             |
+| Referência | [logbook](2026-01-15-redis-ha-operator.md), ADR-023 |
+
+### Node Optimization com Karpenter
+
+| Campo         | Valor                                                    |
+| ------------- | -------------------------------------------------------- |
+| Data          | 2026-01-22                                               |
+| Demanda       | Reduzir custo compute prod                               |
+| Estratégia    | Karpenter + Spot + right-sizing                          |
+| Pré-requisito | HPA configurado + PDB + metrics-server                   |
+| Resultado     | 40% redução custo, zero downtime                         |
+| Replicável    | ✅ Sim — requer HPA ANTES de Karpenter                    |
+| Referência    | [logbook](2026-01-22-karpenter-optimization.md), ADR-024 |
+
+---
+
+## ❌ Estratégias de Falha (Lições Aprendidas)
+
+### Apply sem Validar Operator Logs
+
+| Campo      | Valor                                                     |
+| ---------- | --------------------------------------------------------- |
+| Data       | 2026-01-10                                                |
+| Demanda    | Deploy RabbitMQ operator                                  |
+| Estratégia | TF apply + assumir sucesso pelo exit code                 |
+| Falha      | Operator em CrashLoop — RBAC missing                      |
+| Root Cause | Não validar logs do operator durante apply                |
+| Correção   | AML DEVE checar operator logs a cada ciclo                |
+| Prevenção  | Adicionar validação obrigatória de operator health no AML |
+| Referência | [incident](2026-01-10-rabbitmq-operator-rbac-failure.md)  |
+
+### Deploy Karpenter sem HPA
+
+| Campo      | Valor                                                      |
+| ---------- | ---------------------------------------------------------- |
+| Data       | 2026-01-18                                                 |
+| Demanda    | Otimizar custos com Karpenter                              |
+| Estratégia | Deploy direto sem pre-requisitos                           |
+| Falha      | Nodes não provisionados — métricas ausentes                |
+| Root Cause | HPA NÃO configurado → metrics-server sem dados             |
+| Correção   | Deploy HPA + validar métricas ANTES de Karpenter           |
+| Prevenção  | Bloquear Karpenter se HPA não existe (pre-hook validation) |
+| Referência | [incident](2026-01-18-karpenter-hpa-missing.md), ADR-024   |
+```
+
+**Uso pelo Orquestrador:**
+
+Antes de executar uma demanda similar, o Orquestrador DEVE:
+1. Consultar `strategies-history.md`
+2. Identificar padrão similar (ex: "deploy operator")
+3. Aplicar lições aprendidas (ex: validar RBAC antes de apply)
+4. Evitar repetir erros passados
+
+**Doc Specialist atualiza automaticamente este arquivo** ao final de cada demanda de médio/alto impacto.
 
 ### Trigger de Sincronização
 
@@ -1391,7 +2088,338 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 15. **Observability primeiro.** Não deploy workload crítico sem monitoring/alerting configurado.
 16. **Performance validado.** Node optimization/Karpenter BLOQUEADOS até HPA configurado + métricas coletadas.
 17. **Backup testado.** Não confiar em backup que nunca foi restaurado. Restore test mensal obrigatório.
-18. **Sync de docs a cada resolução é inegociável.** Cada STOP-AND-FIX DEVE atualizar TODOS os docs impactados ANTES de retomar. Freshness check obrigatório no CTX-RESTORE. Nenhuma etapa avança com documentos desatualizados.19. **Estrutura de arquivos é inviolável.** Arquivos DEVEM estar nos locais corretos (ADR-022, ADR-048). Hooks Git validam automaticamente. Violações bloqueiam commits.
+18. **Sync de docs a cada resolução é inegociável.** Cada STOP-AND-FIX DEVE atualizar TODOS os docs impactados ANTES de retomar. Freshness check obrigatório no CTX-RESTORE. Nenhuma etapa avança com documentos desatualizados.
+19. **Estrutura de arquivos é inviolável.** Arquivos DEVEM estar nos locais corretos (ADR-022, ADR-048). Hooks Git validam automaticamente. Violações bloqueiam commits.
 20. **Validação de estrutura é obrigatória.** Executar `scripts/validate-project-structure.sh` antes de iniciar demandas. Corrigir violações antes de prosseguir.
+21. **Doc Specialist trabalha em background SEMPRE.** Documentação NÃO bloqueia execução. Disparo é fire-and-forget. Aguardar conclusão apenas ao final de etapa (timeout 30s).
+22. **Histórico de estratégias é obrigatório.** Consultar `strategies-history.md` antes de demandas similares. Aprender com sucessos e falhas passados. Doc Specialist atualiza automaticamente.
+23. **Zero desperdício de tempo.** Se um comando roda em background, você DEVE estar fazendo algo produtivo: monitorando, validando, documentando, antecipando problemas. Tempo ocioso = ineficiência.
+24. **SEMPRE consultar logbook ANTES de iniciar trabalho.** Etapa 0 (consulta ao histórico) é OBRIGATÓRIA e NUNCA deve ser pulada. Começar do zero quando há histórico disponível é desperdício de conhecimento e aumenta risco de repetir erros.
+25. **SEMPRE validar sessão AWS ANTES de tudo.** PRE-CHECK é obrigatório antes da Etapa 0. Se sessão expirada, executar `aws sso login` automaticamente, enviar APENAS o link para o usuário e aguardar autenticação. Nunca pedir para usuário digitar comandos.
+
+---
+
+## 🎯 EXEMPLOS PRÁTICOS — EXECUÇÃO E DOCUMENTAÇÃO EM BACKGROUND
+
+### Exemplo 0: Consulta ao Logbook Antes de Iniciar (ETAPA OBRIGATÓRIA)
+
+**Cenário:** Usuário solicita "Deploy PostgreSQL com HA usando operator"
+
+**Fluxo (sempre começar aqui):**
+
+```bash
+# ETAPA 0: Consulta ao histórico (OBRIGATÓRIA)
+[10:00:00] Demanda recebida: Deploy PostgreSQL HA com operator
+
+[10:00:05] 📚 Consultando strategies-history.md...
+[10:00:05] → Buscando: "postgres", "postgresql", "operator", "HA"
+
+[10:00:10] ✅ ENCONTRADO: "Deploy Redis HA com Operator" (2026-01-15)
+[10:00:10] → Estratégia: Preferir operator vs Helm Bitnami
+[10:00:10] → Resultado: HA funcional, $6k/mês economia, failover <30s
+[10:00:10] → Pré-requisitos: Validar RBAC, HPA configurado, metrics-server
+[10:00:10] → Evitar: Apply sem validar operator logs (CrashLoop incident 2026-01-10)
+
+[10:00:15] ✅ ENCONTRADO: "Deploy Operator - Falha RBAC" (2026-01-10)
+[10:00:15] → Lição: Validar ClusterRole ANTES de apply
+[10:00:15] → Fix: Pre-hook validation de RBAC
+
+[10:00:20] 📊 Consolidando conhecimento:
+  ✅ Operator strategy comprovada (Redis similar)
+  ✅ Pre-requisitos mapeados (RBAC, HPA, metrics)
+  ⚠️ Anti-pattern identificado (apply sem validar logs)
+  🎯 Operator recomendado: CloudNativePG (production-ready)
+
+[10:00:25] Registrando no logbook:
+  [10:00:25] Consulta | Orq | Histórico validado
+  | Referência: strategies-history.md (2026-01-15, 2026-01-10)
+  | Estratégia: Aplicar pattern de Redis ao PostgreSQL
+```
+
+**Output no chat (compacto):**
+
+```
+📚 Histórico consultado
+ENCONTRADO: 2 demandas similares (operator HA deploy)
+ESTRATÉGIA: Operator CloudNativePG (pattern comprovado: Redis)
+PRÉ-REQUISITOS: RBAC + HPA + metrics-server
+EVITAR: Apply sem validar operator logs (incident 2026-01-10)
+APLICANDO: estratégia de sucesso com adaptações para PostgreSQL
+```
+
+**Agora sim, prosseguir para Etapa 1 (Análise Inicial):**
+
+```bash
+[10:00:30] Análise Inicial (incorporando lições do histórico)
+[10:00:30] Impacto: ALTO (data service prod)
+[10:00:30] Agentes: Orq, AWS, TF, Observability, Performance, Backup
+[10:00:30] Docs: architecture.md, costs.md, decisions.md
+
+[10:00:35] ADAPTAÇÕES baseadas no histórico:
+  1. Validar RBAC ANTES de apply (lição de 2026-01-10)
+  2. Configurar HPA primeiro (pré-requisito)
+  3. Monitorar operator logs durante apply (evitar CrashLoop)
+  4. Testar failover após deploy (validação de HA)
+
+[10:00:40] ✅ Plano ajustado com lições aprendidas
+[10:00:40] Prosseguindo para ativação de agentes...
+```
+
+**Benefício:** Consulta ao histórico levou 40 segundos e evitou:
+- ❌ Erro de RBAC (já aconteceu antes)
+- ❌ Deploy sem pré-requisitos (HPA missing)
+- ❌ Validação inadequada (CrashLoop não detectado)
+
+**Economia:** 1-2h de troubleshooting evitado. Taxa de sucesso: aumenta de ~70% para ~95%.
+
+---
+
+### Exemplo 1: Deploy RDS com Documentação Paralela
+
+**Cenário:** Criar RDS PostgreSQL Multi-AZ em prod
+
+**Execução (3 threads paralelas):**
+
+```bash
+# T1: Comando principal (background)
+[14:30:00] terraform apply -auto-approve tfplan > /tmp/rds-apply.log 2>&1 &
+TF_PID=12345
+
+# T2: Orquestrador (monitoring loop)
+[14:30:15] AML-C1 | Verificando logs do terraform...
+[14:30:15] → Criando aws_db_subnet_group.main
+[14:30:15] Disparando Doc Specialist: registrar início de apply
+
+[14:30:30] AML-C2 | aws_db_subnet_group.main criado ✅
+[14:30:30] → Iniciando aws_rds_instance.main
+[14:30:30] Disparando Doc Specialist: registrar subnet group criado
+
+[14:31:00] AML-C3 | aws_rds_instance.main creating (5%)
+[14:31:00] → Status: creating, endpoint: ainda não disponível
+[14:31:00] Disparando Doc Specialist: update progress
+
+[14:32:00] AML-C7 | aws_rds_instance.main creating (38%)
+[14:32:00] → Status: creating, storage: configurado, backup: ativado
+
+[14:35:00] AML-C17 | aws_rds_instance.main available ✅
+[14:35:00] → Endpoint disponível: prod-db.xxxxx.us-east-1.rds.amazonaws.com
+[14:35:00] Disparando Doc Specialist: registrar conclusão
+
+# T3: Doc Specialist (background contínuo)
+[14:30:15] DocSync | Iniciando logbook entry: RDS deploy
+[14:30:15] DocSync | Appending: [14:30:00] TF Apply | iniciado PID 12345
+[14:30:30] DocSync | Appending: [14:30:30] AML-C2 | subnet_group created
+[14:30:30] DocSync | Updating architecture.md: +subnet_group entry
+[14:31:00] DocSync | Appending: [14:31:00] AML-C3 | rds_instance creating 5%
+[14:32:00] DocSync | Appending: [14:32:00] AML-C7 | rds_instance creating 38%
+[14:35:00] DocSync | Appending: [14:35:00] AML-C17 | rds_instance available
+[14:35:00] DocSync | Updating architecture.md: +RDS instance entry
+[14:35:00] DocSync | Updating costs.md: +$150/mês (db.r6g.large Multi-AZ)
+[14:35:00] DocSync | Consolidando timeline no logbook
+[14:35:05] DocSync | ✅ Todos docs sincronizados
+```
+
+**Output no chat (compacto):**
+
+```
+✅ RDS criado | prod-db.xxxxx.us-east-1.rds.amazonaws.com | db.r6g.large Multi-AZ | 4m57s
+[DocSync] 📝 Background
+STATUS: concluído
+DOCS: logbook, architecture.md, costs.md
+PENDENTE: nenhuma
+```
+
+**Benefício:** Enquanto o RDS era criado (5min), o orquestrador monitora E o Doc Specialist documenta em paralelo. Zero tempo desperdiçado.
+
+---
+
+### Exemplo 2: STOP-AND-FIX com Documentação de Incident
+
+**Cenário:** Deploy Redis Operator → Pod operator em CrashLoopBackOff
+
+**Execução:**
+
+```bash
+# T1: Comando principal
+[15:10:00] helm install redis-operator ... > /tmp/operator.log 2>&1 &
+HELM_PID=23456
+
+# T2: Orquestrador (AML detecta problema)
+[15:10:15] AML-C1 | Helm chart deployed ✅
+[15:10:15] → Verificando pods do operator...
+
+[15:10:30] AML-C2 | ⚠️ Pod redis-operator-xxx CrashLoopBackOff
+[15:10:30] → kubectl logs detectou: "Error: RBAC permissions missing"
+[15:10:30] 🛑 STOP-AND-FIX ATIVADO
+[15:10:30] Disparando Doc Specialist: registrar incidente
+
+# T3: Doc Specialist (background — documenta incidente)
+[15:10:30] DocSync | INCIDENT detectado
+[15:10:30] DocSync | Criando entrada em risks.md
+[15:10:30] DocSync | Appending logbook: [15:10:30] STOP | operator CrashLoop
+[15:10:35] DocSync | ✅ Incidente documentado
+
+# T2: Orquestrador (análise root cause)
+[15:10:40] AWS + TF + Security agents analisando EM PARALELO
+[15:10:50] ROOT CAUSE: ClusterRole missing "watch" verbs para "secrets"
+[15:10:50] FIX: Adicionar RBAC no terraform/modules/redis-operator/rbac.tf
+[15:11:00] Aplicando fix...
+[15:11:20] ✅ Fix aplicado | terraform plan: No changes
+
+# T3: Doc Specialist (documenta fix)
+[15:11:20] DocSync | Registrando fix em risks.md
+[15:11:20] DocSync | Appending logbook: [15:11:20] FIX | RBAC corrigido
+[15:11:20] DocSync | Updating decisions.md: ADR-XYZ (RBAC strategy)
+[15:11:25] DocSync | ✅ Fix documentado
+
+# T2: Orquestrador (retoma execução)
+[15:11:30] CTX-RESTORE | Recuperando contexto da demanda principal
+[15:11:30] FRESHNESS CHECK | Validando docs...
+[15:11:30] ✅ Docs atualizados | pode retomar
+[15:11:30] RESUME | Continuando deploy do operator
+```
+
+**Output no chat:**
+
+```
+🛑 STOP-AND-FIX
+PROBLEMA: Operator CrashLoopBackOff — RBAC missing
+CAUSA: ClusterRole sem "watch" em "secrets"
+FIX: Corrigir rbac.tf + apply
+TEMPO: 1m20s (stop → fix → resume)
+
+[DocSync] 📝 Background
+STATUS: concluído
+DOCS: logbook, risks.md, decisions.md
+PENDENTE: nenhuma
+```
+
+**Benefício:** Doc Specialist documenta o incidente ENQUANTO o Orquestrador analisa root cause. Quando o fix é aplicado, a documentação já está atualizada. Se a execução fosse interrompida aqui, todo o histórico estaria preservado.
+
+---
+
+### Exemplo 3: Histórico de Estratégias — Consulta Antes de Executar
+
+**Cenário:** Deploy RabbitMQ Operator (demanda similar ao Redis do Exemplo 2)
+
+**Fluxo:**
+
+```bash
+# ANTES de executar, Orquestrador consulta histórico
+[16:00:00] Análise | Demanda: Deploy RabbitMQ Operator
+
+[16:00:05] Consultando strategies-history.md...
+[16:00:05] → ENCONTRADO: "Deploy Operator - Falha por RBAC missing" (2026-01-10)
+[16:00:05] → LIÇÃO: Validar RBAC ANTES de apply (pre-hook)
+
+[16:00:10] Ativando agentes: AWS, TF, Security
+[16:00:15] Security Agent | Validando RBAC...
+[16:00:15] → ClusterRole: ✅ completo
+[16:00:15] → ServiceAccount: ✅ configurado
+[16:00:15] → Binding: ✅ correto
+
+[16:00:20] Consenso | Aprovado ✅ (RBAC validado preventivamente)
+
+[16:00:25] TF Apply | Iniciando...
+[16:02:30] ✅ Operator deployed | pods Running 3/3
+
+[16:02:35] Doc Specialist | Atualizando strategies-history.md
+[16:02:35] → Registrando SUCESSO: RBAC pre-validation evitou falha
+```
+
+**Output no chat:**
+
+```
+✅ RabbitMQ Operator deployed | 3/3 pods Running | 2m10s
+PREVENÇÃO: Evitado CrashLoop via RBAC pre-validation
+REFERÊNCIA: Lição aplicada de incident 2026-01-10
+
+[DocSync] 📝 Background
+STATUS: concluído
+DOCS: logbook, strategies-history.md (success entry added)
+PENDENTE: nenhuma
+```
+
+**Benefício:** Aprender com erros passados. O histórico de estratégias evita repetir falhas, acelerando execução e aumentando taxa de sucesso.
+
+---
+
+### Exemplo 4: Interrupção Durante Execução — Docs Preservados
+
+**Cenário:** Deploy EKS interrompido no meio (ex: timeout de sessão, Ctrl+C acidental)
+
+**Estado antes da interrupção:**
+
+```bash
+[17:00:00] TF Apply | EKS cluster iniciado PID 34567
+[17:05:00] AML-C20 | EKS control plane creating (40%)
+[17:05:00] AML-C20 | Node groups: 0/2 ready
+[17:05:00] Doc Specialist | Appending logbook (background)
+[17:05:05] Doc Specialist | Updating architecture.md (background)
+
+# INTERRUPÇÃO AQUI (ex: sessão caiu)
+[17:05:10] SESSÃO PERDIDA
+```
+
+**Ao retomar (nova sessão):**
+
+```bash
+# Novo Orquestrador inicia
+[17:20:00] Análise | Detectando execução anterior incompleta
+
+[17:20:05] Lendo logbook: docs/logbook/2026-02-12-deploy-eks.md
+[17:20:05] → Última entrada: [17:05:00] AML-C20 | EKS 40% | node groups 0/2
+[17:20:05] → Status: INTERROMPIDO (sem conclusão registrada)
+
+[17:20:10] Verificando estado real:
+[17:20:10] → terraform state list | grep aws_eks_cluster → EXISTE
+[17:20:10] → aws eks describe-cluster → Status: ACTIVE ✅
+[17:20:10] → aws eks list-nodegroups → 0 nodegroups ❌
+
+[17:20:15] Decisão: EKS control plane OK, node groups faltando
+[17:20:15] → Retomar: terraform apply (recursos pendentes)
+
+[17:20:20] TF Apply | retomando de onde parou...
+[17:23:00] ✅ EKS completo | control plane + 2 node groups
+
+[17:23:05] Doc Specialist | Appending logbook:
+[17:23:05] → [17:05:10] INTERRUPÇÃO | sessão perdida
+[17:23:05] → [17:20:00] RETOMADA | estado recuperado de docs
+[17:23:05] → [17:23:00] CONCLUSÃO | EKS deploy finalizado
+```
+
+**Output no chat:**
+
+```
+✅ Execução retomada | Estado recuperado de logbook
+EKS control plane: já existia (ACTIVE)
+Node groups: criados agora (2/2 ready)
+TEMPO TOTAL: 23min (incluindo interrupção de 15min)
+
+[DocSync] 📝 Background
+STATUS: concluído
+DOCS: logbook (timeline completa com interrupção + retomada)
+PENDENTE: nenhuma
+```
+
+**Benefício:** Doc Specialist manteve logbook atualizado até a interrupção. Ao retomar, o Orquestrador SABE exatamente onde parou e o que falta fazer. Zero perda de contexto.
+
+---
+
+### Resumo dos Exemplos
+
+| Exemplo | Conceito Demonstrado                               | Benefício Principal                                         |
+| ------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| **0**   | Consulta ao logbook ANTES de iniciar (obrigatória) | Evita repetir erros, acelera execução com lições aprendidas |
+| **1**   | Execução + documentação em paralelo                | Zero desperdício de tempo                                   |
+| **2**   | STOP-AND-FIX com doc de incident em background     | Rastreabilidade total mesmo em erros                        |
+| **3**   | Consulta de histórico antes de executar            | Aprender com passado, evitar repetir erros                  |
+| **4**   | Docs preservados em caso de interrupção            | Resiliência, retomada sem perda de contexto                 |
+
+**Padrões obrigatórios:**
+1. **SEMPRE começar com Exemplo 0** — consulta ao logbook é etapa pré-análise
+2. Doc Specialist SEMPRE trabalha em background
+3. Orquestrador NUNCA espera sync (exceto ao final de etapa)
+4. Resultado = eficiência máxima + documentação sempre atualizada + aprendizado contínuo
 
 ---
