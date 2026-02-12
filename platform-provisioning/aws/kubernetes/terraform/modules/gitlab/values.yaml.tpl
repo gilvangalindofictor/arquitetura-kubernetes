@@ -129,6 +129,21 @@ global:
         secret: "gitlab-object-storage"
         key: "connection"
 
+    # OmniAuth (SSO with Keycloak OIDC)
+    omniauth:
+      enabled: ${enable_oidc}
+      allowSingleSignOn: ['openid_connect']
+      blockAutoCreatedUsers: false
+      autoLinkLdapUser: false
+      autoLinkSamlUser: false
+      autoLinkUser: ['openid_connect']
+      externalProviders: []
+      syncProfileFromProvider: ['openid_connect']
+      syncProfileAttributes: ['email']
+      providers:
+        - secret: gitlab-oidc-keycloak
+          key: provider
+
   # Gitaly (moved from gitlab.gitaly.enabled in chart v8.7.0)
   gitaly:
     enabled: true

@@ -290,6 +290,9 @@ module "gitlab_staging" {
   # Monitoring
   enable_monitoring = true
 
+  # Authentication (OIDC with Keycloak)
+  enable_oidc = true
+
   # Tags
   common_tags = local.common_tags
 }
@@ -430,8 +433,8 @@ module "keycloak_staging" {
   namespace    = "keycloak"
 
   # Keycloak configuration
-  keycloak_chart_version = "18.4.0"
-  replicas               = 2 # HA for critical SSO service
+  keycloak_chart_version = "7.1.7" # Updated to codecentric/keycloakx (Quarkus 26.5.1)
+  replicas               = 2       # HA for critical SSO service
 
   # PostgreSQL (external - RDS via postgresql_staging module)
   postgresql_host     = "postgresql-external.default.svc.cluster.local"

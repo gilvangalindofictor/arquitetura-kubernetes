@@ -145,13 +145,14 @@ resource "kubernetes_secret" "keycloak_admin_password" {
 
 # -----------------------------------------------------------------------------
 # Keycloak Helm Release
-# Chart: codecentric/keycloak 18.4.0
+# Chart: codecentric/keycloakx 7.1.7 (Keycloak 26.5.1 Quarkus)
+# Migration: WildFly 17.x → Quarkus 26.x (avoid Bitnami $72k/yr license)
 # -----------------------------------------------------------------------------
 
 resource "helm_release" "keycloak" {
   name       = "keycloak"
   repository = "https://codecentric.github.io/helm-charts"
-  chart      = "keycloak"
+  chart      = "keycloakx"
   version    = var.keycloak_chart_version
   namespace  = kubernetes_namespace.keycloak.metadata[0].name
 

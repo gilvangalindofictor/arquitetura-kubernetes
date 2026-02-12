@@ -21,9 +21,9 @@ variable "namespace" {
 }
 
 variable "keycloak_chart_version" {
-  description = "Codecentric Keycloak Helm chart version"
+  description = "Codecentric KeycloakX Helm chart version (Keycloak 26.x Quarkus)"
   type        = string
-  default     = "18.4.0"
+  default     = "7.1.7"
 }
 
 variable "replicas" {
