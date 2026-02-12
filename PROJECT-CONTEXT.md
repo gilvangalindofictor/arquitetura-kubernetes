@@ -1,10 +1,11 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-09
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento)
+> **Última Atualização**: 2026-02-12
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento | Quickstart 80%)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
+> **Custo AWS (Feb/2026)**: $458.62 (11 dias) — projeção ~$1.253/mês (~R$ 6.303)
 
 ---
 
@@ -18,15 +19,18 @@
 
 - **O quê**: Implementação prática e tipada para AWS
 - **Por quê**: Necessidade específica de entregar plataforma funcional rapidamente
-- **Status**: Marco 3 em andamento (67% completo)
+- **Status**: Marco 3 completo (100%), Marco 4 em andamento, Quickstart 80%
 - **Localização**: `/platform-provisioning/aws/kubernetes/`
-- **Documentação**: [aws-eks-gitlab-quickstart.md](docs/plan/quickstart/aws-eks-gitlab-quickstart.md)
+- **Documentação**: [aws-eks-gitlab-quickstart-REAL.md](docs/plan/quickstart/aws-eks-gitlab-quickstart-REAL.md)
 - **Características**:
   - ✅ Totalmente funcional em AWS
   - ✅ Terraform + Helm implementados
-  - ✅ Marcos 0, 1, 2 completos
+  - ✅ Marcos 0, 1, 2, 3 completos
+  - ✅ EKS v1.34 (control plane + nodes) — Standard Support
+  - ✅ FinOps automation ativa (Lambda + EventBridge weekday + weekend)
   - ⚠️ Usa alguns serviços AWS nativos (RDS PostgreSQL, AWS Secrets Manager)
-  - 📅 Timeline: 8 semanas (em progresso)
+  - ⚠️ GitLab OIDC pendente (Helm pending-upgrade, STOP-AND-FIX)
+  - 📅 Timeline: 14 dias até Marco 3, Quickstart em progresso
 
 #### 🎨 VISÃO CORE: Plataforma Cloud-Agnostic (Futuro)
 
@@ -60,7 +64,9 @@
 │  • Marco 0: Backend Terraform ✅                        │
 │  • Marco 1: Cluster EKS ✅                              │
 │  • Marco 2: Platform Services ✅                        │
-│  • Marco 3: Workloads ✅ (Fase 1a/1b completa)         │
+│  • Marco 3: Workloads ✅ (100% completo)               │
+│  • Marco 4: CI/CD Pipeline (em andamento)              │
+│  • Quickstart MVP: 80% (Nodes v1.34 ✅, OIDC ⏸️)      │
 │                                                          │
 │  Pragmatismo: Usa AWS RDS, Secrets Manager              │
 │  Fundações Corretas: 75-80% já cloud-agnostic           │
@@ -71,9 +77,10 @@
 
 **SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
 
-- Marco atual: **Marco 3** (PostgreSQL RDS, Redis Operator, RabbitMQ Operator, GitLab)
-- Progresso: **100% completo** (Todos os componentes operacionais)
-- Próximo: Consolidar estrutura Terraform, evolução para multi-environment (ADR-026)
+- Marco atual: **Marco 4** (CI/CD Pipeline — Keycloak OIDC, ArgoCD, SonarQube, GitLab CI/CD)
+- Quickstart MVP: **80% completo** (Task#2 Node Upgrade ✅, Tasks #1,3,4,5 pendentes)
+- Progresso Marco 3: **100% completo** (Todos os componentes operacionais)
+- Próximo: Completar Quickstart MVP (GitLab OIDC, E2E App, FinOps Dashboards)
 
 **NÃO me refiro:**
 
