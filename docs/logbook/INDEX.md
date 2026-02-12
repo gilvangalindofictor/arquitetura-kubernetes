@@ -1,5 +1,10 @@
 # 📚 Índice de Logbooks
 
+**Last Updated:** 2026-02-12
+**Status:** Current (Auto-updated)
+**Owner:** Platform Team
+**Scope:** Chronological Activity Index
+
 Registro cronológico de todas as atividades, decisões técnicas e resoluções de problemas do projeto.
 
 ---

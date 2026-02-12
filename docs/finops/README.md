@@ -1,8 +1,14 @@
 # 📂 FinOps Analysis — Kubernetes Platform AWS
 
+**Last Updated:** 2026-02-12
+**Status:** Historical (Superseded by Quick Wins implementation)
+**Owner:** FinOps Team + Platform Team
+**Scope:** Cost Analysis & Optimization Roadmap
+
 **Data Análise:** 2026-02-10
-**Cluster:** k8s-platform-prod (EKS 1.31)
-**Status:** 🔴 ANOMALIA CRÍTICA DETECTADA (+59% over-budget)
+**Cluster:** k8s-platform-prod (EKS 1.31 → 1.34)
+**Status Original:** 🔴 ANOMALIA CRÍTICA DETECTADA (+59% over-budget)
+**Status Atual:** ✅ RESOLVIDO (R$ 34.462/ano savings realizados)
 
 ---
 

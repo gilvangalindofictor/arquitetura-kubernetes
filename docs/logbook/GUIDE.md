@@ -1,5 +1,10 @@
 # 📓 Logbook - Registro de Evolução do Projeto
 
+**Last Updated:** 2026-02-12
+**Status:** Living Document
+**Owner:** Platform Team
+**Purpose:** Logbook Standards & Guidelines
+
 ## Propósito
 
 O **logbook** é o registro padronizado e atômico da evolução técnica do projeto. Cada arquivo representa uma tarefa, problema resolvido, ou milestone alcançado de forma independente e focada.

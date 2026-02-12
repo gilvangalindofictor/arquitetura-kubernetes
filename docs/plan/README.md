@@ -1,5 +1,10 @@
 # 📋 Documentos de Planejamento
 
+**Last Updated:** 2026-02-12
+**Status:** Current
+**Owner:** Platform Team
+**Scope:** Planning & Execution Documents
+
 Este diretório contém os planos de ação e execução para tarefas de infraestrutura.
 
 ---
