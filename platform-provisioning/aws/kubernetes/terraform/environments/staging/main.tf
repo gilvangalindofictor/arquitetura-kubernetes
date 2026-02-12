@@ -168,7 +168,7 @@ module "redis_staging" {
   cluster_name  = local.cluster_name
   replicas      = var.redis_replicas # 1
   pvc_size      = var.redis_pvc_size # 5Gi
-  storage_class = "gp2"              # Changed from gp3 (not available in cluster)
+  storage_class = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
   common_tags   = local.common_tags
 
   # Toleration for critical nodes (ADR-041 pattern)
@@ -188,8 +188,13 @@ module "rabbitmq_staging" {
   namespace     = "data-services"       # Fixed: was using default "default"
   replicas      = var.rabbitmq_replicas # 1
   pvc_size      = var.rabbitmq_pvc_size # 5Gi
-  storage_class = "gp2"                 # Changed from gp3 (not available in cluster)
+  storage_class = "gp3"                 # Using gp3 (20% cheaper, 3000 IOPS default)
   common_tags   = local.common_tags
+
+  # ALB Ingress for Management UI
+  ingress_enabled    = true
+  ingress_host       = "rabbitmq.staging.internal"
+  ingress_group_name = "data-staging"
 }
 
 # S3 Buckets - STAGING (7d lifecycle)
@@ -303,7 +308,7 @@ module "gitlab_staging" {
 # ADR-031, ADR-032, ADR-033
 #------------------------------------------------------------------------------
 
-# Vault HA Cluster - STAGING (1 replica, KMS auto-unseal)
+# Vault HA Cluster - STAGING (3 replicas, KMS auto-unseal)
 module "vault_staging" {
   source = "../../modules/vault"
 
@@ -313,8 +318,8 @@ module "vault_staging" {
   namespace           = "vault-system"
   oidc_provider_arn   = data.aws_iam_openid_connect_provider.eks.arn
   vault_chart_version = "0.27.0"
-  replicas            = 3 # HA production-ready (ADR-041)
-  storage_class       = "gp2"
+  replicas            = 3     # HA production-ready (ADR-041)
+  storage_class       = "gp3" # Using gp3 (20% cheaper, 3000 IOPS default)
   pvc_size            = "10Gi"
   enable_monitoring   = true
   common_tags         = local.common_tags
@@ -326,6 +331,11 @@ module "vault_staging" {
     value    = "critical"
     effect   = "NoSchedule"
   }]
+
+  # ALB Ingress for Vault UI
+  ingress_enabled    = true
+  ingress_host       = "vault.staging.internal"
+  ingress_group_name = "platform-staging"
 }
 
 # External Secrets Operator - Vault Backend
@@ -410,6 +420,11 @@ module "harbor_staging" {
   enable_trivy      = false # DISABLED: chart não aplica storageClass em volumeClaimTemplate
   enable_monitoring = true
   common_tags       = local.common_tags
+
+  # ALB Ingress for Harbor UI
+  ingress_enabled    = true
+  ingress_host       = "harbor.staging.internal"
+  ingress_group_name = "platform-staging"
 }
 
 #------------------------------------------------------------------------------
@@ -476,16 +491,63 @@ module "argocd_staging" {
   keycloak_client_id = "argocd"
 
   # Domain (internal only for staging)
-  domain = "argocd.staging.local"
+  domain = "argocd.staging.internal"
 
-  # Ingress (disabled for staging, use port-forward)
-  ingress_enabled = false
+  # ALB Ingress
+  ingress_enabled    = true
+  ingress_group_name = "platform-staging"
 
   # Monitoring
   enable_monitoring = true
 
   # Tags
   common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# SONARQUBE - Code Quality Platform
+# OIDC integration with Keycloak, external PostgreSQL
+#------------------------------------------------------------------------------
+
+module "sonarqube_staging" {
+  source = "../../modules/sonarqube"
+
+  depends_on = [
+    module.postgresql_staging,
+    module.keycloak_staging
+  ]
+
+  cluster_name    = local.cluster_name
+  namespace       = "sonarqube"
+  postgresql_host = module.postgresql_staging.rds_address
+
+  # ALB Ingress
+  ingress_enabled    = true
+  domain             = "sonarqube.staging.internal"
+  ingress_group_name = "platform-staging"
+
+  # Monitoring
+  enable_monitoring = true
+
+  # Tags
+  common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# KUBE-PROMETHEUS-STACK - Observability (Grafana ALB Ingress)
+# Prometheus + Grafana + Alertmanager
+#------------------------------------------------------------------------------
+
+module "kube_prometheus_stack_staging" {
+  source = "../../modules/kube-prometheus-stack"
+
+  cluster_name = local.cluster_name
+  namespace    = "monitoring"
+
+  # Grafana ALB Ingress
+  grafana_ingress_enabled    = true
+  grafana_ingress_host       = "grafana.staging.internal"
+  grafana_ingress_group_name = "observability-staging"
 }
 
 #------------------------------------------------------------------------------
