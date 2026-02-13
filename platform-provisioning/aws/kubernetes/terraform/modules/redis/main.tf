@@ -1,8 +1,9 @@
 # =============================================================================
 # Redis Module - Marco 3 Data Services
-# Operator: Spotahome Redis Operator v3.3.0
-# Architecture: RedisFailover (1 master + 2 replicas + 3 sentinels)
+# Operator: OT-Container-Kit Redis Operator v0.23.0
+# Architecture: Standalone Redis (single instance)
 # ADR-023: Migration from Bitnami Charts to Kubernetes Operators
+# Migration: SpotaHome -> OT-Container-Kit (2026-02-13)
 # =============================================================================
 
 terraform {
@@ -85,37 +86,26 @@ resource "kubernetes_secret" "redis_password" {
 }
 
 # =============================================================================
-# Spotahome Redis Operator (IDEMPOTENT INSTALLATION)
+# OT-Container-Kit Redis Operator (IDEMPOTENT INSTALLATION)
 # =============================================================================
-# Configuração idempotente via Helm:
-# - skip_crds: Não falha se CRDs já existirem
-# - replace: Substitui release existente se houver
-# - force_update: Força update mesmo sem mudanças
-#
-# Esta configuração permite rodar terraform apply múltiplas vezes sem erro,
-# mesmo se o operator já estiver instalado manualmente.
+# Migrated from SpotaHome to OT-Container-Kit (2026-02-13)
+# Operator image: quay.io/opstree/redis-operator:v0.23.0
+# CRDs: redis.redis.redis.opstreelabs.in (v1beta2)
 # =============================================================================
 
 resource "helm_release" "redis_operator" {
   name       = "redis-operator"
   namespace  = kubernetes_namespace.redis_operator.metadata[0].name
-  repository = "https://spotahome.github.io/redis-operator"
+  repository = "https://ot-container-kit.github.io/helm-charts"
   chart      = "redis-operator"
-  version    = "3.3.0"
+  version    = "0.18.1"
 
-  # Configuração para idempotência
-  skip_crds       = true # Não reinstala CRDs se já existirem
-  replace         = true # Substitui release existente
-  force_update    = true # Força update
+  skip_crds       = true
+  replace         = true
+  force_update    = true
   cleanup_on_fail = true
-  atomic          = false # Desabilita atomic para permitir replace
+  atomic          = false
   timeout         = 600
-
-  # Forçar tag latest (v1.3.0 padrão do chart não existe)
-  set {
-    name  = "image.tag"
-    value = "latest"
-  }
 
   set {
     name  = "resources.requests.cpu"
@@ -138,7 +128,6 @@ resource "helm_release" "redis_operator" {
   }
 
   lifecycle {
-    # Ignora mudanças em metadata que o Helm pode adicionar
     ignore_changes = [
       metadata
     ]
@@ -153,18 +142,18 @@ resource "time_sleep" "wait_for_crds" {
 }
 
 # -----------------------------------------------------------------------------
-# RedisFailover Custom Resource (via kubectl provider)
+# OT-Container-Kit Redis CR (Standalone)
 # -----------------------------------------------------------------------------
 
-resource "kubectl_manifest" "redis_failover" {
+resource "kubectl_manifest" "redis" {
   depends_on = [
     time_sleep.wait_for_crds,
     kubernetes_secret.redis_password
   ]
 
   yaml_body = yamlencode({
-    apiVersion = "databases.spotahome.com/v1"
-    kind       = "RedisFailover"
+    apiVersion = "redis.redis.opstreelabs.in/v1beta2"
+    kind       = "Redis"
 
     metadata = {
       name      = "redis"
@@ -178,8 +167,14 @@ resource "kubectl_manifest" "redis_failover" {
     }
 
     spec = {
-      sentinel = {
-        replicas = 3
+      kubernetesConfig = {
+        image           = "quay.io/opstree/redis:v8.4.0"
+        imagePullPolicy = "IfNotPresent"
+
+        redisSecret = {
+          name = kubernetes_secret.redis_password.metadata[0].name
+          key  = "password"
+        }
 
         resources = {
           requests = {
@@ -187,127 +182,88 @@ resource "kubectl_manifest" "redis_failover" {
             memory = "64Mi"
           }
           limits = {
-            cpu    = "100m"
-            memory = "128Mi"
+            cpu    = "200m"
+            memory = "256Mi"
           }
-        }
-
-        # Security Context (PSS Restricted compliant)
-        # IMPORTANT: fsGroup MUST be 1000 to match Operator's init container user
-        # The Operator hardcodes initContainer runAsUser=1000, so we align all to 1000
-        securityContext = {
-          runAsNonRoot = true
-          runAsUser    = 1000
-          runAsGroup   = 1000
-          fsGroup      = 1000
-          seccompProfile = {
-            type = "RuntimeDefault"
-          }
-        }
-
-        containerSecurityContext = {
-          allowPrivilegeEscalation = false
-          readOnlyRootFilesystem   = true # Keep readonly for security (working config)
-          capabilities = {
-            drop = ["ALL"]
-          }
-        }
-
-
-        # Prometheus exporter (desabilitado - imagem v1.55.0 retorna 401)
-        exporter = {
-          enabled = false
         }
       }
 
-      redis = {
-        replicas = var.replicas
-
-        resources = {
-          requests = {
-            cpu    = "100m"
-            memory = "256Mi"
-          }
-          limits = {
-            cpu    = "500m"
-            memory = "512Mi"
-          }
+      # Pod Security Context (PSS Restricted compliant)
+      # UID/GID 1000 matches quay.io/opstree/redis image's redis user
+      podSecurityContext = {
+        runAsNonRoot = true
+        runAsUser    = 1000
+        runAsGroup   = 1000
+        fsGroup      = 1000
+        seccompProfile = {
+          type = "RuntimeDefault"
         }
+      }
 
-        # Security Context (PSS Restricted compliant)
-        # IMPORTANT: fsGroup MUST be 1000 to match Operator's init container user
-        # The Operator hardcodes initContainer runAsUser=1000, so we align all to 1000
+      # Container Security Context (Redis)
+      securityContext = {
+        allowPrivilegeEscalation = false
+        readOnlyRootFilesystem   = false
+        runAsUser                = 1000
+        runAsGroup               = 1000
+        capabilities = {
+          drop = ["ALL"]
+        }
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
+      }
+
+      # Redis Exporter (Prometheus metrics)
+      redisExporter = {
+        enabled = true
+        image   = "quay.io/opstree/redis-exporter:latest"
+
         securityContext = {
-          runAsNonRoot = true
-          runAsUser    = 1000
-          runAsGroup   = 1000
-          fsGroup      = 1000
+          allowPrivilegeEscalation = false
+          readOnlyRootFilesystem   = true
+          runAsNonRoot             = true
+          runAsUser                = 1000
+          runAsGroup               = 1000
+          capabilities = {
+            drop = ["ALL"]
+          }
           seccompProfile = {
             type = "RuntimeDefault"
           }
         }
+      }
 
-        containerSecurityContext = {
-          allowPrivilegeEscalation = false
-          readOnlyRootFilesystem   = false # Redis needs to write AOF/RDB
-          capabilities = {
-            drop = ["ALL"]
-          }
-        }
-
-        # Tolerations (ADR-041 pattern: allow scheduling on critical nodes)
-        tolerations = length(var.tolerations) > 0 ? [
-          for t in var.tolerations : {
-            key      = t.key
-            operator = t.operator
-            effect   = t.effect
-            value    = try(t.value, null)
-          }
-        ] : []
-
-        storage = {
-          persistentVolumeClaim = {
-            metadata = {
-              name = "redis-data"
-            }
-            spec = {
-              storageClassName = var.storage_class
-              accessModes      = ["ReadWriteOnce"]
-              resources = {
-                requests = {
-                  storage = var.pvc_size
-                }
+      # Storage (PVC)
+      storage = {
+        volumeClaimTemplate = {
+          spec = {
+            storageClassName = var.storage_class
+            accessModes      = ["ReadWriteOnce"]
+            resources = {
+              requests = {
+                storage = var.pvc_size
               }
             }
           }
         }
+      }
 
-        # Prometheus exporter (desabilitado - imagem v1.55.0 retorna 401)
-        exporter = {
-          enabled = false
+      # Tolerations
+      tolerations = length(var.tolerations) > 0 ? [
+        for t in var.tolerations : {
+          key      = t.key
+          operator = t.operator
+          effect   = t.effect
+          value    = try(t.value, null)
         }
-
-        # Custom config for Redis
-        customConfig = [
-          "maxmemory-policy allkeys-lru",
-          "save 900 1",
-          "save 300 10",
-          "save 60 10000"
-        ]
-      }
-
-      auth = {
-        secretPath = kubernetes_secret.redis_password.metadata[0].name
-      }
+      ] : []
     }
   })
 
-  # Force re-apply on changes
   force_conflicts   = true
   server_side_apply = true
-
-  # Wait for CR to be accepted by API server
-  wait = true
+  wait              = true
 }
 
 # -----------------------------------------------------------------------------
@@ -315,7 +271,7 @@ resource "kubectl_manifest" "redis_failover" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_service_monitor" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "monitoring.coreos.com/v1"

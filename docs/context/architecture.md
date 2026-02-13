@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-13
-**Versão:** 2.9.0 (Resource Ownership Matrix + Security Groups Cleanup)
-**Status:** 🚀 FinOps ATIVA | ✅ Vault Cluster Healthy (3/3) | ✅ Multi-Marco Split Formalizado
+**Versão:** 3.0 (SSO Smoke Test Validated + Redis Operator Migration)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Redis AUTH (OT-Container-Kit) | 🟡 Vault 1/3 (Capacity)
 
 ---
 
@@ -37,7 +37,7 @@ Plataforma Kubernetes completa na AWS, estruturada em marcos evolutivos, com foc
 Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/8)  →  🚀 FinOps ATIVA (STAGING)  →  📋 Marco 3: Workloads (PRÓXIMO)
 ```
 
-**✅ MARCO 2 COMPLETO:** Todas as 8 fases implementadas. 🚀 **FinOps Automation ATIVA** em STAGING desde 2026-02-02 (economia **R$ 4.320/ano** gerando). Próximo: Marco 3 (GitLab, Keycloak, Kong).
+**✅ MARCO 2 COMPLETO:** Todas as 8 fases implementadas. 🚀 **FinOps Automation ATIVA** em STAGING desde 2026-02-02 (economia **R$ 4.320/ano** gerando). **SSO Smoke Tests 39/39 PASSED** (2026-02-13). Redis migrado SpotaHome → OT-Container-Kit.
 
 ---
 

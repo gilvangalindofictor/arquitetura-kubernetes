@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-10
-**Versão:** 2.6 (Sprint 3: Vault Recovery + VPC Endpoint KMS)
+**Última Atualização:** 2026-02-13
+**Versão:** 2.7 (SSO Smoke Test Infra Fixes + Redis Operator Migration)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -39,6 +39,10 @@
 | **R-034** | **Tempo OTLP Integration Blocker (GAP-7)** | **MÉDIO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Bloqueado** | **3 soluções propostas** |
 | **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)** | **MÉDIO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido (ADR-053)** | **VPC Endpoint ELB** |
 | **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)** | **MÉDIO** | **CRÍTICO** | **🟢 BAIXO** | ✅ **Resolvido (ADR-055)** | **VPC Endpoint KMS** |
+| **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)** | **BAIXO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido (2026-02-13)** | **TF module reescrito, CR+RBAC alinhados** |
+| **R-038** | **Vault EBS Volume Loss (Data Permanente)** | **BAIXO** | **CRÍTICO** | **🟢 BAIXO** | ✅ **Resolvido (2026-02-13)** | **Reinit + KV seed + K8s auth reconfig** |
+| **R-039** | **CoreDNS Split-Horizon Drift** | **MÉDIO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Monitorar** | **ConfigMap manual, nao codificado em TF** |
+| **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)** | **ALTO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Monitorar** | **GitLab 2/3 webservice Pending, Vault 1/3** |
 
 ---
 

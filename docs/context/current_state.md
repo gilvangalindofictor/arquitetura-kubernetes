@@ -8,13 +8,13 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-10 (Marco 2 Sprint 3 - GAP-001/007/009 completos)
+**Última Atualização**: 2026-02-13 (SSO Smoke Tests + Redis/Vault/CoreDNS Recovery)
 
-**Estado do Projeto**: Desenvolvimento Ativo - Marco 2 Sprint 3 finalizado
+**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated
 
-**Marco Atual**: Marco 2 Sprint 3 - Observability Baseline (98% completo)
+**Marco Atual**: Marco 4 - CI/CD Platform (80% completo)
 
-**Progresso Geral**: 45% █████████████░░░░░░░░░░░░░░ (Marco 0-2 completo / 0-6)
+**Progresso Geral**: 50% ██████████████░░░░░░░░░░░░░ (Marco 0-3 completo, Marco 4 80% / 0-6)
 
 ---
 
@@ -42,33 +42,31 @@
 
 ## Tasks Recentes
 
-**Marco 2 Sprint 3 - Observability Baseline (98% completo - 2026-02-10)**:
+**SSO Smoke Tests + Infrastructure Recovery (2026-02-13)**:
 
-- ✅ GAP-001: SLI/SLO Baseline Implementation (~3h, 98% completo)
-  - 5 SLIs documentados (Availability, Latency, Error Rate, Saturation, Throughput)
-  - 10/10 alertas críticos operacionais
-  - 6 dashboards Grafana SLI deployed
-  - Correlação traces↔logs 80% funcional
-- ✅ GAP-007: Tempo OTLP Integration (~45min, 100% completo)
-  - OTLP receivers 4317/4318 ativos
-  - Replication factor fix (RF=2)
-  - Trace generator operacional
-- ✅ GAP-009: Weekend Shutdown FinOps (~15min, 100% completo)
-  - EventBridge rule deployed e ENABLED
-  - Economia: -$240/mês (-$2,880/ano)
+- ✅ SSO Smoke Test Suite: 39 PASSED / 0 FAILED / 5 SKIPPED
+  - Script criado: `scripts/sso-smoke-test.sh` (9 secoes, 44+ checks)
+  - Correcao: `wget` → `curl` para GitLab container compatibility
+- ✅ FIX 1: CoreDNS DNS Rewrite
+  - `keycloak.staging.internal` → `keycloak-keycloakx-http.keycloak.svc.cluster.local`
+- ✅ FIX 2: Redis AUTH (cadeia de 7 fixes)
+  - SpotaHome → OT-Container-Kit operator migration
+  - Image: `redis:alpine` → `quay.io/opstree/redis:v8.4.0`
+  - RBAC, PSS restricted, UID 1000, redisSecret
+  - TF module reescrito: `modules/redis/main.tf` + `outputs.tf`
+- ✅ FIX 3: Vault/ExternalSecret Recovery
+  - 3/3 EBS volumes lost → reinit com KMS auto-unseal
+  - KV v2, K8s auth, eso-reader policy/role configurados
+  - Keycloak secrets seeded from cached K8s secret
+- ✅ ExternalSecrets: ClusterSecretStore Ready, ExternalSecret Synced
 
 **Próximos Passos**:
 
-**Esta Semana (Sprint 3 Finalização):**
-- [ ] Configurar derived fields Loki → Tempo (30min)
-- [ ] Validar metrics generator exemplars (1h)
-- [ ] Documentar runbooks troubleshooting (30min)
-
-**Sprint 4-6 (Marco 3 - Performance + DR):**
-- [ ] GAP-002: Performance (VPA, HPA) - 10h
-- [ ] GAP-003: Backup/DR com Velero - 8h
-- [ ] GAP-006: Chaos Engineering (LitmusChaos) - 3h
-- [ ] Instrumentar aplicações reais com OTLP
+- [ ] Cluster capacity: adicionar nodes ou rightsizing para GitLab 3/3 + Vault 3/3
+- [ ] GitLab Runner: fix CrashLoopBackOff
+- [ ] Terraform state migration: `terraform state mv` para Redis resources
+- [ ] CoreDNS ConfigMap: codificar em Terraform
+- [ ] Vault HA: escalar para 3/3 replicas
 
 ---
 
@@ -108,11 +106,11 @@
 | Aplicação      | Status        | Versão      | Réplicas               | Namespace     | Database               | Notas                                          |
 | -------------- | ------------- | ----------- | ---------------------- | ------------- | ---------------------- | ---------------------------------------------- |
 | PostgreSQL RDS | ✅ Operacional | 15.4        | —                      | —             | db.t3.medium Single-AZ | Temporariamente em subnet pública (ADR-046)    |
-| Redis Sentinel | ✅ Operacional | Chart 3.2.9 | 3 sentinels + 1 master | data-services | —                      | Operator-based, toleration critical nodes      |
+| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)         | data-services | —                      | OT-Container-Kit operator, AUTH enabled, PSS restricted |
 | RabbitMQ       | ✅ Operacional | Operator    | 1                      | data-services | —                      | Official operator                              |
-| GitLab         | ✅ Operacional | 16.7.0      | 1                      | gitlab        | PostgreSQL RDS         | Webservice + Sidekiq + Gitaly ok               |
+| GitLab         | 🟡 Parcial     | 16.7.0      | 1 (2 Pending)          | gitlab        | PostgreSQL RDS         | Webservice 1/3 Running (capacity), Runner CrashLoop |
 | Harbor         | ✅ Operacional | 2.9.1       | 1                      | harbor        | PostgreSQL RDS         | Registry funcional, robot accounts ok          |
-| Vault          | ✅ Operacional | 1.15.0      | 3 (HA)                 | vault         | PostgreSQL RDS         | HA injector + unsealing automatizado (ADR-041) |
+| Vault          | 🟡 Parcial     | 1.15.0      | 1 (HA degraded)        | vault         | Raft (EBS)             | Reinitializado 2026-02-13, KMS auto-unseal, 1/3 por capacity |
 
 ---
 
@@ -183,6 +181,8 @@
 
 **Estratégia**: Vault + External Secrets Operator
 
+**Vault Status (2026-02-13)**: Reinicializado (EBS volumes perdidos). 1/3 replicas por capacity.
+
 **Status Migração para Vault**:
 | Aplicação | Status     | External Secret | Detalhes                                  |
 | --------- | ---------- | --------------- | ----------------------------------------- |
@@ -190,11 +190,13 @@
 | Harbor    | 🚧 Parcial  | ⏸️ Pendente      | Usando secrets manuais, migração pendente |
 | GitLab    | ⏸️ Pendente | ⏸️ Pendente      | Usando secrets manuais                    |
 
-**Temporary Secrets (AWS Secrets Manager)**:
-- FinOps Lambda unseal token (transitório, migrar para Vault)
-
-**Security Groups**:
-- PostgreSQL: Least privilege (apenas Lambda e EKS nodes) - ADR-040
+**Vault Configuration (2026-02-13)**:
+- KV v2 engine at `secret/`
+- Kubernetes auth method configured (ESO service account)
+- Policy `eso-reader` with `read` on `secret/data/*`
+- Role `eso-reader` bound to `external-secrets-system` namespace
+- ClusterSecretStore: `vault-backend` (Ready: True)
+- ExternalSecret: `keycloak-postgresql` (SecretSynced: True)
 
 ---
 

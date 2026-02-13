@@ -1,16 +1,16 @@
 # =============================================================================
 # Redis Module Outputs
-# COMPATÍVEL COM VERSÃO BITNAMI (zero breaking changes)
+# OT-Container-Kit Standalone Redis
 # =============================================================================
 
 output "redis_master_service" {
-  description = "Redis master service name (internal access)"
-  value       = "rfrm-redis" # RedisFailover naming convention (master)
+  description = "Redis service name (internal access) - backward compatible"
+  value       = "redis" # OT-Container-Kit standalone service name
 }
 
 output "redis_replicas_service" {
-  description = "Redis replicas service name (internal read access)"
-  value       = "rfr-redis"
+  description = "Redis additional service name (headless) - backward compatible"
+  value       = "redis-additional"
 }
 
 output "redis_password_secret_name" {
@@ -25,7 +25,7 @@ output "redis_port" {
 
 output "redis_connection_string_internal" {
   description = "Redis connection string for internal cluster access"
-  value       = "redis://:password@rfr-redis.${var.namespace}.svc.cluster.local:6379"
+  value       = "redis://:password@redis.${var.namespace}.svc.cluster.local:6379"
   sensitive   = true
 }
 
@@ -35,7 +35,7 @@ output "operator_namespace" {
 }
 
 output "redis_failover_name" {
-  description = "RedisFailover CR name"
+  description = "Redis CR name - backward compatible alias"
   value       = "redis"
 }
 

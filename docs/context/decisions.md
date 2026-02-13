@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-10
-**Versão:** 3.7 (Production Environment + Zero-Trust Network)
+**Última Atualização:** 2026-02-13
+**Versão:** 3.8 (Redis Operator Migration + Vault Recovery + SSO Validation)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -51,6 +51,9 @@
 | **ADR-054** | **SLI/SLO Baseline Implementation (GAP-001)** | **2026-02-10** | **✅ 98% Completo** | **Alto** |
 | **ADR-055** | **Grafana SLI Dashboards ConfigMap Deployment** | **2026-02-10** | **✅ Implementado** | **Médio** |
 | **ADR-056** | **Tempo S3 Storage Backend + Compaction Strategy** | **2026-02-10** | **✅ Documentado** | **Médio** |
+| **DEC-057** | **Redis Operator Migration: SpotaHome → OT-Container-Kit** | **2026-02-13** | **✅ Implementado** | **Crítico** |
+| **DEC-058** | **Vault Reinitialization (EBS Volume Loss Recovery)** | **2026-02-13** | **✅ Implementado** | **Crítico** |
+| **DEC-059** | **SSO Smoke Test Validation Suite** | **2026-02-13** | **✅ 39/39 Passed** | **Alto** |
 ---
 
 ## 📝 ADR-001: Setup e Governança
