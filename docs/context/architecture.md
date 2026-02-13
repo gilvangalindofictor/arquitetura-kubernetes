@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-10
-**Versão:** 2.8.0 (Sprint 3: Vault Recovery + VPC Endpoint KMS)
-**Status:** 🚀 FinOps ATIVA | ✅ Vault Cluster Healthy (3/3) | ✅ VPC Endpoints Complete
+**Última Atualização:** 2026-02-13
+**Versão:** 2.9.0 (Resource Ownership Matrix + Security Groups Cleanup)
+**Status:** 🚀 FinOps ATIVA | ✅ Vault Cluster Healthy (3/3) | ✅ Multi-Marco Split Formalizado
 
 ---
 
@@ -38,6 +38,91 @@ Marco 0: Baseline (✅)  →  Marco 1: EKS (✅)  →  Marco 2: Platform (✅ 8/
 ```
 
 **✅ MARCO 2 COMPLETO:** Todas as 8 fases implementadas. 🚀 **FinOps Automation ATIVA** em STAGING desde 2026-02-02 (economia **R$ 4.320/ano** gerando). Próximo: Marco 3 (GitLab, Keycloak, Kong).
+
+---
+
+## 📋 Multi-Marco Infrastructure Split
+
+**ADR:** [ADR-059: Multi-Marco Infrastructure Split Strategy](../adr/adr-059-multi-marco-infrastructure-split.md)
+**Data:** 2026-02-12
+**Status:** ✅ **Formalizado**
+
+### Estratégia de Separação de Responsabilidades
+
+A infraestrutura está dividida em **3 Marcos Terraform** com ownership explícito:
+
+1. **Marco 0: VPC Foundation** (Legacy/Deprecated) - Rede base compartilhada
+2. **Marco 1: EKS Cluster Foundation** - Cluster Kubernetes compartilhado (prod + staging)
+3. **Marco 3 Staging: Workloads & Data Services** - Aplicações staging environment
+
+**Padrão Chave:** **Shared Cluster Strategy**
+- Cluster único para prod + staging
+- Isolamento via namespaces + RBAC + NetworkPolicies
+- Cost efficiency: -$139/mês = **R$ 1.002/ano** savings
+
+### 📊 Resource Ownership Matrix
+
+| Recurso | Marco 0 | Marco 1 | Marco 3 Staging | Justificativa |
+|---------|---------|---------|-----------------|---------------|
+| **🌐 Networking** | | | | |
+| VPC | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
+| Subnets | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
+| NAT Gateways | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation, $66/mês |
+| Internet Gateway | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
+| Route Tables | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
+| VPC Endpoints (S3) | ✅ Gerencia | 📖 Data source | 📖 Data source | Cost optimization (NAT bypass) |
+| VPC Endpoints (STS) | ❌ | ✅ Gerencia | 📖 Data source | IRSA authentication |
+| VPC Endpoints (EC2) | ❌ | ✅ Gerencia | 📖 Data source | Node registration |
+| VPC Endpoints (ELB) | ❌ | ✅ Gerencia | 📖 Data source | ALB Controller TLS fix |
+| VPC Endpoints (KMS) | ❌ | ✅ Gerencia | 📖 Data source | Vault auto-unseal |
+| **💻 Compute** | | | | |
+| EKS Cluster | ❌ | ✅ Gerencia | 📖 Data source | Shared cluster strategy |
+| EKS Node Groups | ❌ | ✅ Gerencia | 📖 Data source | Shared cluster strategy |
+| EKS Addons | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level config |
+| **👤 IAM** | | | | |
+| OIDC Provider (IRSA) | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level config |
+| IRSA Roles (workload) | ❌ | ❌ | ✅ Gerencia | Workload-specific (Vault, Harbor, GitLab) |
+| **🔐 Encryption** | | | | |
+| KMS (EKS secrets) | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level encryption |
+| KMS (Vault unseal) | ❌ | ❌ | ✅ Gerencia | Workload-specific |
+| **💾 Data Services** | | | | |
+| PostgreSQL RDS | ❌ | ❌ | ✅ Gerencia | Environment-specific |
+| Redis Operator | ❌ | ❌ | ✅ Gerencia | Environment-specific |
+| RabbitMQ Operator | ❌ | ❌ | ✅ Gerencia | Environment-specific |
+| **📦 Application Workloads** | | | | |
+| Vault HA | ❌ | ❌ | ✅ Gerencia | Secrets management |
+| External Secrets | ❌ | ❌ | ✅ Gerencia | Secrets sync |
+| Harbor Registry | ❌ | ❌ | ✅ Gerencia | Container images |
+| GitLab CE | ❌ | ❌ | ✅ Gerencia | CI/CD platform |
+| Keycloak SSO | ❌ | ❌ | ✅ Gerencia | Authentication |
+| ArgoCD GitOps | ❌ | ❌ | ✅ Gerencia | Continuous deployment |
+| SonarQube | ❌ | ❌ | ✅ Gerencia | Code quality |
+| Observability Stack | ❌ | ❌ | ✅ Gerencia | Monitoring/logging |
+
+**Legenda:**
+- ✅ Gerencia: Terraform gerencia o recurso (create/update/delete)
+- 📖 Data source: Terraform consome via data source (read-only)
+- ❌ Não gerenciado: Fora do escopo deste Marco
+
+### 🔄 Implicações Operacionais
+
+**✅ Benefícios:**
+- Clareza de ownership (quem gerencia o quê)
+- Cost efficiency validada (R$ 1.002/ano savings)
+- Isolamento adequado via namespaces + RBAC
+- Simplicidade operacional (1 cluster para manter)
+
+**⚠️ Challenges:**
+- Drift detection complexo (3 states separados)
+- Upgrade coordination required (Marco 1 → Marco 3 validation)
+- State file dependency (Marco 3 depende de Marco 1 remote state)
+- Blast radius compartilhado (cluster-level issues afetam prod + staging)
+
+**🛡️ Mitigações:**
+- Validation script para 3 states: `./scripts/validate-all-marcos.sh`
+- Runbook de upgrade EKS documentado: [MULTI-MARCO-GUIDE.md](../operations/MULTI-MARCO-GUIDE.md)
+- S3 bucket versioning + DynamoDB locking habilitados
+- Node groups separados + tolerations + taints
 
 ---
 
