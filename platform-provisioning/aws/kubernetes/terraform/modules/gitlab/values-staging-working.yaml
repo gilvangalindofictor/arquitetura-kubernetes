@@ -1,0 +1,149 @@
+# GitLab CE - Staging Restore
+# Minimal values to restore GitLab with existing secrets
+
+# Edition
+global:
+  edition: ce
+
+  # Hosts
+  hosts:
+    domain: staging.internal
+    https: false
+
+  # External PostgreSQL
+  psql:
+    host: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+    port: 5432
+    database: gitlab
+    username: gitlab_user
+    password:
+      useSecret: true
+      secret: gitlab-postgresql-password
+      key: password
+
+  # External Redis
+  redis:
+    host: redis.data-services.svc.cluster.local
+    port: 6379
+    auth:
+      enabled: true
+      secret: gitlab-redis-password
+      key: password
+
+  # Ingress
+  ingress:
+    enabled: true
+    class: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/group.name: gitlab-staging
+
+  # App config
+  appConfig:
+    # LFS
+    lfs:
+      enabled: true
+      bucket: k8s-platform-staging-gitlab-artifacts
+      connection:
+        secret: gitlab-object-storage
+        key: connection
+
+    # Artifacts
+    artifacts:
+      enabled: true
+      bucket: k8s-platform-staging-gitlab-artifacts
+      connection:
+        secret: gitlab-object-storage
+        key: connection
+
+    # Uploads
+    uploads:
+      enabled: true
+      bucket: k8s-platform-staging-gitlab-artifacts
+      connection:
+        secret: gitlab-object-storage
+        key: connection
+
+    # OmniAuth (OIDC with Keycloak)
+    omniAuth:
+      enabled: true
+      allowSingleSignOn: ['openid_connect']
+      blockAutoCreatedUsers: false
+      autoLinkUser: ['openid_connect']
+      syncProfileFromProvider: ['openid_connect']
+      providers:
+        - secret: gitlab-oidc-keycloak
+          key: provider
+
+# Resources (staging optimized)
+gitlab:
+  webservice:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1536Mi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  gitaly:
+    persistence:
+      enabled: true
+      storageClass: gp3
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Disable GitLab components
+postgresql:
+  install: false
+
+redis:
+  install: false
+
+nginx-ingress:
+  enabled: false
+
+certmanager:
+  install: false
+
+certmanager-issuer:
+  email: platform-team@example.com
+
+prometheus:
+  install: false
+
+registry:
+  enabled: false
+
+gitlab-runner:
+  install: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
