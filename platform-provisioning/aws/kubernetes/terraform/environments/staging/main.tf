@@ -911,3 +911,27 @@ module "ecr" {
     Criticality = "Medium"
   })
 }
+
+#------------------------------------------------------------------------------
+# Orphan Resource Detector — Daily Scan + SNS Alerts
+# Purpose: Detect orphaned AWS resources (EBS volumes, Elastic IPs, Snapshots)
+# Pattern: Scheduled Lambda (daily 9am BRT) + SNS email alerts
+# Savings: Proactive detection prevents R$ 2.106/ano waste (historical orphans)
+# Account-level: Scans all resources in us-east-1 region
+#------------------------------------------------------------------------------
+
+module "orphan_detector" {
+  source = "../../modules/orphan-detector"
+
+  function_name       = "orphan-resource-detector-staging"
+  aws_region          = var.aws_region
+  schedule_expression = "cron(0 12 * * ? *)" # Daily at 9am BRT (12pm UTC)
+  alert_email         = var.finops_alert_email
+  log_retention_days  = 7
+
+  common_tags = merge(local.common_tags, {
+    Purpose     = "FinOps orphan resource monitoring"
+    Schedule    = "Daily 9am BRT"
+    Criticality = "Medium"
+  })
+}
