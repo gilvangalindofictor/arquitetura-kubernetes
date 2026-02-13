@@ -54,9 +54,7 @@ locals {
 
 provider "aws" {
   region = var.aws_region
-  # NOTE: AWS profile uses "prod" because staging shares the same AWS account/profile (ADR-050).
-  # Staging isolation is done via namespaces and labels, not separate accounts.
-  profile = "k8s-platform-prod"
+  profile = "k8s-platform-staging"
 
   default_tags {
     tags = local.common_tags
@@ -128,7 +126,7 @@ data "terraform_remote_state" "marco1" {
     bucket  = var.state_bucket
     key     = "marco1/terraform.tfstate"
     region  = var.aws_region
-    profile = "k8s-platform-prod" # Shared AWS profile (ADR-050)
+    profile = "k8s-platform-staging"
   }
 }
 
@@ -595,7 +593,7 @@ module "finops_automation_staging" {
   circuit_breaker_threshold = 3
 
   # SNS notifications
-  enable_sns_notifications = false # Usar apenas tópico externo (k8s-platform-prod-finops-alerts-staging)
+  enable_sns_notifications = false # Usar apenas tópico externo (finops-alerts-staging)
   sns_topic_arn            = aws_sns_topic.finops_alerts_staging.arn
 
   # Tags

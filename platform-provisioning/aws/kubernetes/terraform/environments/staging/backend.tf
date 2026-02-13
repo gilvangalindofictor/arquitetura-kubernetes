@@ -10,6 +10,6 @@ terraform {
     dynamodb_table = "terraform-state-lock"
 
     # Profile for AWS SSO authentication
-    profile = "k8s-platform-prod"
+    profile = "k8s-platform-staging"
   }
 }
