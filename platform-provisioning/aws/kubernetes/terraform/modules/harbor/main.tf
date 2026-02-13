@@ -211,7 +211,7 @@ resource "helm_release" "harbor" {
     cluster_name          = var.cluster_name
     namespace             = var.namespace
     service_account       = kubernetes_service_account.harbor.metadata[0].name
-    admin_password_secret = kubernetes_secret.harbor_admin_password.metadata[0].name
+    admin_password_secret = random_password.harbor_admin.result
     postgresql_host       = var.postgresql_host
     postgresql_port       = var.postgresql_port
     postgresql_database   = var.postgresql_database
@@ -257,4 +257,116 @@ resource "kubernetes_config_map" "harbor_setup" {
   data = {
     "create-robot-account.sh" = file("${path.module}/scripts/create-robot-account.sh")
   }
+}
+
+# -----------------------------------------------------------------------------
+# OIDC / SSO via Keycloak (ExternalSecret + API config)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "harbor_oidc_externalsecret" {
+  count = var.enable_oidc ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "harbor-oidc-credentials"
+      namespace = kubernetes_namespace.harbor.metadata[0].name
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "harbor-oidc-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "client_id"
+          remoteRef = {
+            key      = "secret/data/harbor/oidc"
+            property = "client_id"
+          }
+        },
+        {
+          secretKey = "client_secret"
+          remoteRef = {
+            key      = "secret/data/harbor/oidc"
+            property = "client_secret"
+          }
+        }
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.harbor]
+}
+
+resource "null_resource" "harbor_oidc_config" {
+  count = var.enable_oidc ? 1 : 0
+
+  triggers = {
+    oidc_endpoint = var.oidc_endpoint
+    admin_group   = var.oidc_admin_group
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      CORE_POD=$(kubectl get pods -n ${kubernetes_namespace.harbor.metadata[0].name} \
+        -l app=harbor,component=core -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+
+      if [ -z "$CORE_POD" ]; then
+        echo "ERROR: Harbor core pod not found"
+        exit 1
+      fi
+
+      # Read OIDC credentials from ExternalSecret-synced K8s secret
+      CLIENT_ID=$(kubectl get secret harbor-oidc-credentials \
+        -n ${kubernetes_namespace.harbor.metadata[0].name} \
+        -o jsonpath='{.data.client_id}' 2>/dev/null | base64 -d)
+      CLIENT_SECRET=$(kubectl get secret harbor-oidc-credentials \
+        -n ${kubernetes_namespace.harbor.metadata[0].name} \
+        -o jsonpath='{.data.client_secret}' 2>/dev/null | base64 -d)
+
+      # Fallback: if ExternalSecret not synced yet, skip gracefully
+      if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+        echo "WARN: harbor-oidc-credentials not synced yet. OIDC config skipped."
+        echo "Run 'terraform apply' again after Vault secret is seeded."
+        exit 0
+      fi
+
+      ADMIN_PWD=$(kubectl get secret harbor-admin-password \
+        -n ${kubernetes_namespace.harbor.metadata[0].name} \
+        -o jsonpath='{.data.password}' | base64 -d)
+
+      kubectl exec -n ${kubernetes_namespace.harbor.metadata[0].name} "$CORE_POD" -- \
+        curl -sf -X PUT http://localhost:8080/api/v2.0/configurations \
+          -u "admin:$ADMIN_PWD" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"auth_mode\": \"oidc_auth\",
+            \"oidc_name\": \"Keycloak\",
+            \"oidc_endpoint\": \"${var.oidc_endpoint}\",
+            \"oidc_client_id\": \"$CLIENT_ID\",
+            \"oidc_client_secret\": \"$CLIENT_SECRET\",
+            \"oidc_scope\": \"openid,profile,email\",
+            \"oidc_verify_cert\": false,
+            \"oidc_auto_onboard\": true,
+            \"oidc_user_claim\": \"preferred_username\",
+            \"oidc_groups_claim\": \"groups\",
+            \"oidc_admin_group\": \"${var.oidc_admin_group}\"
+          }"
+
+      echo ""
+      echo "Harbor OIDC configured successfully via API"
+    EOT
+  }
+
+  depends_on = [
+    helm_release.harbor,
+    kubectl_manifest.harbor_oidc_externalsecret
+  ]
 }

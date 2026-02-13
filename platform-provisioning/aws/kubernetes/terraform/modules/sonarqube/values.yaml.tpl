@@ -79,23 +79,27 @@ plugins:
   install: []
   # - https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/1.14.0/sonarqube-community-branch-plugin-1.14.0.jar
 
-# OIDC Authentication (Keycloak)
-env:
-  - name: SONAR_AUTH_OIDC_ENABLED
-    value: "true"
-  - name: SONAR_AUTH_OIDC_ISSUERURI
-    value: "http://keycloak-http.keycloak.svc.cluster.local/auth/realms/platform"
-  - name: SONAR_AUTH_OIDC_CLIENTID_SECURED
-    value: "sonarqube"
-  - name: SONAR_AUTH_OIDC_CLIENTSECRET_SECURED
-    valueFrom:
-      secretKeyRef:
-        name: sonarqube-oidc
-        key: client-secret
-  - name: SONAR_AUTH_OIDC_GROUPSSYNC
-    value: "true"
-  - name: SONAR_AUTH_OIDC_GROUPSSYNC_CLAIMNAME
-    value: "groups"
+%{ if saml_enabled ~}
+# SAML 2.0 Authentication (Keycloak)
+# https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview
+sonarProperties:
+  sonar.auth.saml.enabled: "true"
+  sonar.auth.saml.applicationId: "${saml_application_id}"
+  sonar.auth.saml.providerId: "${saml_provider_id}"
+  sonar.auth.saml.loginUrl: "${saml_login_url}"
+  sonar.auth.saml.certificate.secured: "${saml_certificate}"
+  sonar.auth.saml.user.login: "${saml_user_login_attribute}"
+  sonar.auth.saml.user.email: "${saml_user_email_attribute}"
+  sonar.auth.saml.user.name: "${saml_user_name_attribute}"
+  sonar.auth.saml.group.name: "${saml_group_attribute}"
+  # Group synchronization
+  sonar.auth.saml.groupsSync: "true"
+  # Signature validation
+  sonar.auth.saml.signature.enabled: "true"
+%{ else ~}
+# Authentication: using default local users
+# To enable SAML SSO, set saml_enabled = true in Terraform
+%{ endif ~}
 
 # Quality Gates
 # TODO: Configure via API after deployment

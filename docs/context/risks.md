@@ -1,48 +1,49 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-13
-**Versão:** 2.7 (SSO Smoke Test Infra Fixes + Redis Operator Migration)
+**Versão:** 2.8 (Harbor OIDC/SSO Keycloak Integration)
 **Framework:** Baseado em executor-terraform.md
 
 ---
 
 ## 📊 Matriz de Riscos
 
-| ID | Risco | Probabilidade | Impacto | Severidade | Status | Mitigação |
-|----|-------|---------------|---------|------------|--------|-----------|
-| R-001 | State lock travado | BAIXO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | DynamoDB locking + force-unlock |
-| R-002 | EKS add-ons deadlock | BAIXO | ALTO | 🟡 MÉDIO | ✅ Resolvido | Dependency order fixado |
-| R-003 | Network Policies bloqueiam tráfego | MÉDIO | ALTO | 🔴 ALTO | ✅ Mitigado | Mapeamento de fluxos prévio |
-| R-004 | Custos S3 Loki excedem estimativa | MÉDIO | BAIXO | 🟢 BAIXO | ⚠️ Monitorar | CloudWatch billing alerts |
-| R-005 | ACM certificate expiration | BAIXO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | Auto-renewal ACM + alarm |
-| R-006 | ALB provisioning timeout | BAIXO | MÉDIO | 🟡 MÉDIO | ✅ Tolerado | Retry terraform apply |
-| R-007 | Pods OOMKilled (memory limits) | MÉDIO | MÉDIO | 🟡 MÉDIO | ⚠️ Monitorar | Prometheus alerts + tuning |
-| R-008 | Vendor lock-in AWS | ALTO | BAIXO | 🟡 MÉDIO | ✅ Aceito | Trade-off custo vs portabilidade |
-| R-009 | Single AZ failure (2 AZs only) | BAIXO | ALTO | 🟡 MÉDIO | ✅ Aceito | RTO 15min (recreate nodes) |
-| R-010 | Secrets leak em Git | BAIXO | CRÍTICO | 🔴 ALTO | ✅ Mitigado | AWS Secrets Manager + pre-commit hooks |
-| R-011 | Drift entre Terraform state e recursos | MÉDIO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | Terraform plan daily + drift detection |
-| R-012 | Cluster Autoscaler scale-down agressivo | BAIXO | MÉDIO | 🟡 MÉDIO | ✅ Mitigado | 5min threshold + PDB configurados |
-| R-013 | Data loss durante shutdown (ADR-022) | BAIXO | ALTO | 🟡 MÉDIO | ✅ Mitigado | PVCs persistem, S3 always-on |
-| R-014 | Startup failure após shutdown | BAIXO | ALTO | 🟡 MÉDIO | ✅ Mitigado | Health checks automáticos, rollback |
-| R-015 | RDS 7-day auto-restart (Marco 3) | MÉDIO | MÉDIO | 🟡 MÉDIO | ⚠️ Planejar | Snapshot strategy ou 24/7 |
-| R-016 | Cold start excede tolerância (>10min) | BAIXO | BAIXO | 🟢 BAIXO | ✅ Mitigado | Target 5-8min, monitorado |
-| R-017 | State drift Terraform vs Cluster Autoscaler | MÉDIO | BAIXO | 🟢 BAIXO | ✅ Mitigado | ignore_changes em desired_size |
-| **R-018** | **Licenciamento Bitnami → Tanzu Standard** | **ALTO** | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)** | **Migração para Operators** |
-| **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)** | **ALTO** | **BAIXO** | **🟢 BAIXO** | ✅ **Aceito** | **Resolvido ADR-021 Fase 2** |
-| **R-020** | **Harbor API Auth Issue (Robot Account Creation)** | **BAIXO** | **MÉDIO** | **🟡 MÉDIO** | ✅ **Mitigado (UI)** | **ADR-045 Workaround** |
-| **R-026** | **Vault HA Degraded (vault-0 CrashLoop)** | **MÉDIO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido** | **Delete pod fix** |
-| **R-029** | **Keycloak Secrets via AWS SM (Technical Debt)** | **BAIXO** | **BAIXO** | **🟢 BAIXO** | ✅ **RESOLVED** | **Refactored 2026-02-06** |
-| **R-030** | **Missing VPC Endpoints (CSI Driver Blocked)** | **BAIXO** | **CRÍTICO** | **🟢 BAIXO** | ✅ **Resolvido (ADR-046)** | **VPC Endpoints STS+EC2** |
-| **R-031** | **Harbor Redis Password Mismatch** | **BAIXO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido (2026-02-09)** | **3x ConfigMap/Secret patched** |
-| **R-032** | **Cluster Autoscaler Network Timeout** | **MÉDIO** | **BAIXO** | **🟢 BAIXO** | ⚠️ **Diagnosticado** | **SG egress 443 + NAT Gateway** |
-| **R-033** | **Terraform State Lock (Stale/Long-running)** | **BAIXO** | **MÉDIO** | **🟢 BAIXO** | ✅ **Monitorado** | **Background apply legítimo** |
-| **R-034** | **Tempo OTLP Integration Blocker (GAP-7)** | **MÉDIO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Bloqueado** | **3 soluções propostas** |
-| **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)** | **MÉDIO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido (ADR-053)** | **VPC Endpoint ELB** |
-| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)** | **MÉDIO** | **CRÍTICO** | **🟢 BAIXO** | ✅ **Resolvido (ADR-055)** | **VPC Endpoint KMS** |
-| **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)** | **BAIXO** | **ALTO** | **🟢 BAIXO** | ✅ **Resolvido (2026-02-13)** | **TF module reescrito, CR+RBAC alinhados** |
-| **R-038** | **Vault EBS Volume Loss (Data Permanente)** | **BAIXO** | **CRÍTICO** | **🟢 BAIXO** | ✅ **Resolvido (2026-02-13)** | **Reinit + KV seed + K8s auth reconfig** |
-| **R-039** | **CoreDNS Split-Horizon Drift** | **MÉDIO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Monitorar** | **ConfigMap manual, nao codificado em TF** |
-| **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)** | **ALTO** | **MÉDIO** | **🟡 MÉDIO** | ⚠️ **Monitorar** | **GitLab 2/3 webservice Pending, Vault 1/3** |
+| ID        | Risco                                                           | Probabilidade | Impacto     | Severidade    | Status                       | Mitigação                                    |
+| --------- | --------------------------------------------------------------- | ------------- | ----------- | ------------- | ---------------------------- | -------------------------------------------- |
+| R-001     | State lock travado                                              | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | DynamoDB locking + force-unlock              |
+| R-002     | EKS add-ons deadlock                                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Resolvido                  | Dependency order fixado                      |
+| R-003     | Network Policies bloqueiam tráfego                              | MÉDIO         | ALTO        | 🔴 ALTO        | ✅ Mitigado                   | Mapeamento de fluxos prévio                  |
+| R-004     | Custos S3 Loki excedem estimativa                               | MÉDIO         | BAIXO       | 🟢 BAIXO       | ⚠️ Monitorar                  | CloudWatch billing alerts                    |
+| R-005     | ACM certificate expiration                                      | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | Auto-renewal ACM + alarm                     |
+| R-006     | ALB provisioning timeout                                        | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Tolerado                   | Retry terraform apply                        |
+| R-007     | Pods OOMKilled (memory limits)                                  | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Monitorar                  | Prometheus alerts + tuning                   |
+| R-008     | Vendor lock-in AWS                                              | ALTO          | BAIXO       | 🟡 MÉDIO       | ✅ Aceito                     | Trade-off custo vs portabilidade             |
+| R-009     | Single AZ failure (2 AZs only)                                  | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Aceito                     | RTO 15min (recreate nodes)                   |
+| R-010     | Secrets leak em Git                                             | BAIXO         | CRÍTICO     | 🔴 ALTO        | ✅ Mitigado                   | AWS Secrets Manager + pre-commit hooks       |
+| R-011     | Drift entre Terraform state e recursos                          | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | Terraform plan daily + drift detection       |
+| R-012     | Cluster Autoscaler scale-down agressivo                         | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | 5min threshold + PDB configurados            |
+| R-013     | Data loss durante shutdown (ADR-022)                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | PVCs persistem, S3 always-on                 |
+| R-014     | Startup failure após shutdown                                   | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | Health checks automáticos, rollback          |
+| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Planejar                   | Snapshot strategy ou 24/7                    |
+| R-016     | Cold start excede tolerância (>10min)                           | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | Target 5-8min, monitorado                    |
+| R-017     | State drift Terraform vs Cluster Autoscaler                     | MÉDIO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | ignore_changes em desired_size               |
+| **R-018** | **Licenciamento Bitnami → Tanzu Standard**                      | **ALTO**      | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)**     | **Migração para Operators**                  |
+| **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)**                    | **ALTO**      | **BAIXO**   | **🟢 BAIXO**   | ✅ **Aceito**                 | **Resolvido ADR-021 Fase 2**                 |
+| **R-020** | **Harbor API Auth Issue (Robot Account Creation)**              | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 TF bug + DB reset**        |
+| **R-026** | **Vault HA Degraded (vault-0 CrashLoop)**                       | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido**              | **Delete pod fix**                           |
+| **R-029** | **Keycloak Secrets via AWS SM (Technical Debt)**                | **BAIXO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **RESOLVED**               | **Refactored 2026-02-06**                    |
+| **R-030** | **Missing VPC Endpoints (CSI Driver Blocked)**                  | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-046)**    | **VPC Endpoints STS+EC2**                    |
+| **R-031** | **Harbor Redis Password Mismatch**                              | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-09)** | **3x ConfigMap/Secret patched**              |
+| **R-032** | **Cluster Autoscaler Network Timeout**                          | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ⚠️ **Diagnosticado**          | **SG egress 443 + NAT Gateway**              |
+| **R-033** | **Terraform State Lock (Stale/Long-running)**                   | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Monitorado**             | **Background apply legítimo**                |
+| **R-034** | **Tempo OTLP Integration Blocker (GAP-7)**                      | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Bloqueado**              | **3 soluções propostas**                     |
+| **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)**                | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (ADR-053)**    | **VPC Endpoint ELB**                         |
+| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                     | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055)**    | **VPC Endpoint KMS**                         |
+| **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)** | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **TF module reescrito, CR+RBAC alinhados**   |
+| **R-038** | **Vault EBS Volume Loss (Data Permanente)**                     | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Reinit + KV seed + K8s auth reconfig**     |
+| **R-039** | **CoreDNS Split-Horizon Drift**                                 | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **ConfigMap manual, nao codificado em TF**   |
+| **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)**            | **ALTO**      | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **GitLab 2/3 webservice Pending, Vault 1/3** |
+| **R-041** | **Harbor Admin Password TF Bug (secret name as value)**         | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 + DB schema reset**        |
 
 ---
 
@@ -422,12 +423,12 @@ Perda de dados persistentes (métricas Prometheus, logs Loki, dashboards Grafana
 
 **Data Loss Risk por Componente:**
 
-| Componente | Storage Backend | Risk Level | Justificativa |
-|------------|-----------------|------------|---------------|
-| Prometheus | EBS PVC (20GB) | 🟡 MÉDIO | Últimos 5-10min podem ser perdidos (in-memory buffer) |
-| Loki | S3 (500GB) | 🟢 BAIXO | S3 always-on, flush automático a cada 1min |
-| Tempo | S3 (500GB) | 🟢 BAIXO | S3 always-on, traces persistidos |
-| Grafana | EBS PVC (5GB) | 🟢 BAIXO | Dashboards/config persistidos (zero data loss) |
+| Componente | Storage Backend | Risk Level | Justificativa                                         |
+| ---------- | --------------- | ---------- | ----------------------------------------------------- |
+| Prometheus | EBS PVC (20GB)  | 🟡 MÉDIO    | Últimos 5-10min podem ser perdidos (in-memory buffer) |
+| Loki       | S3 (500GB)      | 🟢 BAIXO    | S3 always-on, flush automático a cada 1min            |
+| Tempo      | S3 (500GB)      | 🟢 BAIXO    | S3 always-on, traces persistidos                      |
+| Grafana    | EBS PVC (5GB)   | 🟢 BAIXO    | Dashboards/config persistidos (zero data loss)        |
 
 **Monitoramento:**
 ```bash
@@ -547,11 +548,11 @@ PostgreSQL RDS (Marco 3 Data Services) não pode ficar stopped > 7 dias consecut
 
 **Soluções Avaliadas:**
 
-| Abordagem | Economia/Mês | Restore Time | Custo Snapshot | Complexidade | Decisão |
-|-----------|--------------|--------------|----------------|--------------|---------|
-| **RDS 24/7 Always-On** | $0 | Instant | $0 | ⚡ Baixa | ✅ **Produção** |
-| **RDS Stop/Start (< 7d)** | $50 (se shutdown full) | 3-5 min | $0 | 🟡 Média | ✅ **Dev (ciclos curtos)** |
-| **Snapshot + Delete + Restore** | $40.50 líquido | 10-15 min | $9.50/mês (100GB) | 🔴 Alta | ✅ **Dev (férias longas)** |
+| Abordagem                       | Economia/Mês           | Restore Time | Custo Snapshot    | Complexidade | Decisão                   |
+| ------------------------------- | ---------------------- | ------------ | ----------------- | ------------ | ------------------------- |
+| **RDS 24/7 Always-On**          | $0                     | Instant      | $0                | ⚡ Baixa      | ✅ **Produção**            |
+| **RDS Stop/Start (< 7d)**       | $50 (se shutdown full) | 3-5 min      | $0                | 🟡 Média      | ✅ **Dev (ciclos curtos)** |
+| **Snapshot + Delete + Restore** | $40.50 líquido         | 10-15 min    | $9.50/mês (100GB) | 🔴 Alta       | ✅ **Dev (férias longas)** |
 
 **Decisão Recomendada Marco 3:**
 - **Dev/Staging:** Snapshot + Delete strategy para shutdowns > 5 dias
@@ -819,16 +820,16 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Status Operacional:** ✅ Automação HABILITADA com controles ativos
 
-| Controle | Status | Efetividade | Validação |
-|----------|--------|-------------|-----------|
-| **Circuit Breaker DynamoDB** | ✅ ATIVO | 3 falhas consecutivas → auto-disable | Test 4: 100% sucesso |
-| **SNS Email Notifications** | ✅ ATIVO | Alertas em falhas startup/shutdown | Email confirmado |
-| **CloudWatch Alarms (3)** | ✅ ATIVO | Startup failures, shutdown failures, duration high | Integrados com SNS |
-| **Lambda Retry Logic** | ✅ ATIVO | 3 tentativas com backoff exponencial | Implementado no código |
-| **BrasilAPI Cache DynamoDB** | ✅ ATIVO | 30 dias TTL, fallback lista estática | Implementado |
-| **RDS 7-day Auto-start Check** | ✅ VALIDADO | Startup após 4 dias downtime | Test 5: 8 min (target <10 min) |
-| **Lambda Performance** | ✅ VALIDADO | <3s target | Média 1.5s (5/5 testes) |
-| **Health Checks** | ✅ ATIVO | Verificação nodes/RDS antes conclusão | Implementado |
+| Controle                       | Status     | Efetividade                                        | Validação                      |
+| ------------------------------ | ---------- | -------------------------------------------------- | ------------------------------ |
+| **Circuit Breaker DynamoDB**   | ✅ ATIVO    | 3 falhas consecutivas → auto-disable               | Test 4: 100% sucesso           |
+| **SNS Email Notifications**    | ✅ ATIVO    | Alertas em falhas startup/shutdown                 | Email confirmado               |
+| **CloudWatch Alarms (3)**      | ✅ ATIVO    | Startup failures, shutdown failures, duration high | Integrados com SNS             |
+| **Lambda Retry Logic**         | ✅ ATIVO    | 3 tentativas com backoff exponencial               | Implementado no código         |
+| **BrasilAPI Cache DynamoDB**   | ✅ ATIVO    | 30 dias TTL, fallback lista estática               | Implementado                   |
+| **RDS 7-day Auto-start Check** | ✅ VALIDADO | Startup após 4 dias downtime                       | Test 5: 8 min (target <10 min) |
+| **Lambda Performance**         | ✅ VALIDADO | <3s target                                         | Média 1.5s (5/5 testes)        |
+| **Health Checks**              | ✅ ATIVO    | Verificação nodes/RDS antes conclusão              | Implementado                   |
 
 **Validação Manual Completa:**
 - ✅ Test 1: Shutdown básico (non-graceful aceitável staging)
@@ -862,12 +863,12 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Mitigações:**
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Retry 3× com backoff exponencial** (30s, 60s, 120s) | 🟢 95% | BAIXO (2h) | ✅ Planejado |
-| **Alerta PagerDuty on-call** (falha 3× consecutivas) | 🟢 100% detecção | BAIXO (1h) | ✅ Planejado |
-| **Health check timeout aumentado** (de 300s para 600s) | 🟡 70% | BAIXO (30min) | ⏳ Considerar se necessário |
-| **Fallback manual trigger** (botão Slack "Start STAGING") | 🟢 100% recovery | MÉDIO (4h) | ⏳ Q2 2026 |
+| Mitigação                                                 | Eficácia        | Esforço       | Status                     |
+| --------------------------------------------------------- | --------------- | ------------- | -------------------------- |
+| **Retry 3× com backoff exponencial** (30s, 60s, 120s)     | 🟢 95%           | BAIXO (2h)    | ✅ Planejado                |
+| **Alerta PagerDuty on-call** (falha 3× consecutivas)      | 🟢 100% detecção | BAIXO (1h)    | ✅ Planejado                |
+| **Health check timeout aumentado** (de 300s para 600s)    | 🟡 70%           | BAIXO (30min) | ⏳ Considerar se necessário |
+| **Fallback manual trigger** (botão Slack "Start STAGING") | 🟢 100% recovery | MÉDIO (4h)    | ⏳ Q2 2026                  |
 
 **ROI Mitigação:**
 - Investimento: R$ 900 (3h desenvolvimento)
@@ -895,12 +896,12 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Mitigações:**
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Health check com retry 3×** (verificar jobs 3× com 10s intervalo) | 🟢 99% | BAIXO (1h) | ✅ Planejado |
-| **Grace period 5 min** (bloquear shutdown se job criado < 5min) | 🟢 95% | BAIXO (30min) | ✅ Planejado |
-| **Notificação Slack pre-shutdown** (5 min aviso "STAGING will shutdown") | 🟡 80% awareness | BAIXO (1h) | ⏳ Nice-to-have |
-| **GitLab webhook** (cancelar shutdown se novo job) | 🟢 99.9% | ALTO (8h) | ⏳ Q2 2026 |
+| Mitigação                                                                | Eficácia        | Esforço       | Status         |
+| ------------------------------------------------------------------------ | --------------- | ------------- | -------------- |
+| **Health check com retry 3×** (verificar jobs 3× com 10s intervalo)      | 🟢 99%           | BAIXO (1h)    | ✅ Planejado    |
+| **Grace period 5 min** (bloquear shutdown se job criado < 5min)          | 🟢 95%           | BAIXO (30min) | ✅ Planejado    |
+| **Notificação Slack pre-shutdown** (5 min aviso "STAGING will shutdown") | 🟡 80% awareness | BAIXO (1h)    | ⏳ Nice-to-have |
+| **GitLab webhook** (cancelar shutdown se novo job)                       | 🟢 99.9%         | ALTO (8h)     | ⏳ Q2 2026      |
 
 **ROI Mitigação:**
 - Investimento: R$ 450 (1.5h desenvolvimento health checks)
@@ -930,12 +931,12 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Mitigações:**
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Cache local DynamoDB** (30 dias TTL, sync semanal) | 🟢 99% | BAIXO (2h) | ✅ Planejado |
-| **Lista estática fallback** (feriados fixos hardcoded) | 🟡 70% (feriados fixos apenas) | BAIXO (30min) | ✅ Planejado |
-| **Alerta CloudWatch** (log warning BrasilAPI unreachable) | 🟢 100% detecção | BAIXO (30min) | ✅ Planejado |
-| **Sync manual mensal** (atualizar lista estática 1×/ano) | 🟡 80% | BAIXO (15min/ano) | ⏳ Processo operacional |
+| Mitigação                                                 | Eficácia                      | Esforço           | Status                 |
+| --------------------------------------------------------- | ----------------------------- | ----------------- | ---------------------- |
+| **Cache local DynamoDB** (30 dias TTL, sync semanal)      | 🟢 99%                         | BAIXO (2h)        | ✅ Planejado            |
+| **Lista estática fallback** (feriados fixos hardcoded)    | 🟡 70% (feriados fixos apenas) | BAIXO (30min)     | ✅ Planejado            |
+| **Alerta CloudWatch** (log warning BrasilAPI unreachable) | 🟢 100% detecção               | BAIXO (30min)     | ✅ Planejado            |
+| **Sync manual mensal** (atualizar lista estática 1×/ano)  | 🟡 80%                         | BAIXO (15min/ano) | ⏳ Processo operacional |
 
 **ROI Mitigação:**
 - Investimento: R$ 750 (2.5h desenvolvimento cache + fallback)
@@ -965,12 +966,12 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Mitigações:**
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Operações assíncronas** (não aguardar pods inline, validar em retry) | 🟢 99% | MÉDIO (4h) | ✅ Planejado |
-| **Timeout Lambda 600s** (dobrar limite para 10 min) | 🟡 90% | BAIXO (15min config) | ⏳ Se necessário |
-| **Step Functions** (workflow multi-step, sem timeout single Lambda) | 🟢 99.9% | ALTO (12h) | ⏳ Q2 2026 se frequente |
-| **Idempotência** (retry detecta estado partial, continua de onde parou) | 🟢 100% | MÉDIO (3h) | ✅ Planejado |
+| Mitigação                                                               | Eficácia | Esforço              | Status                 |
+| ----------------------------------------------------------------------- | -------- | -------------------- | ---------------------- |
+| **Operações assíncronas** (não aguardar pods inline, validar em retry)  | 🟢 99%    | MÉDIO (4h)           | ✅ Planejado            |
+| **Timeout Lambda 600s** (dobrar limite para 10 min)                     | 🟡 90%    | BAIXO (15min config) | ⏳ Se necessário        |
+| **Step Functions** (workflow multi-step, sem timeout single Lambda)     | 🟢 99.9%  | ALTO (12h)           | ⏳ Q2 2026 se frequente |
+| **Idempotência** (retry detecta estado partial, continua de onde parou) | 🟢 100%   | MÉDIO (3h)           | ✅ Planejado            |
 
 **ROI Mitigação:**
 - Investimento: R$ 1.200 (4h operações assíncronas + idempotência)
@@ -1001,12 +1002,12 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 **Mitigações:**
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Threshold ajustável** (3 falhas vs 5 falhas, configurável) | 🟡 70% | BAIXO (1h) | ✅ Planejado |
-| **Notificação imediata** (PagerDuty + Slack alert) | 🟢 100% detecção | BAIXO (1h) | ✅ Planejado |
+| Mitigação                                                            | Eficácia        | Esforço    | Status      |
+| -------------------------------------------------------------------- | --------------- | ---------- | ----------- |
+| **Threshold ajustável** (3 falhas vs 5 falhas, configurável)         | 🟡 70%           | BAIXO (1h) | ✅ Planejado |
+| **Notificação imediata** (PagerDuty + Slack alert)                   | 🟢 100% detecção | BAIXO (1h) | ✅ Planejado |
 | **Runbook recovery** (docs/runbooks/finops-circuit-breaker-reset.md) | 🟢 100% recovery | BAIXO (2h) | ✅ Planejado |
-| **Auto-reset após 24h** (reset automático se 24h sem falhas) | 🟡 80% | MÉDIO (3h) | ⏳ Q2 2026 |
+| **Auto-reset após 24h** (reset automático se 24h sem falhas)         | 🟡 80%           | MÉDIO (3h) | ⏳ Q2 2026   |
 
 **ROI Mitigação:**
 - Investimento: R$ 1.200 (4h runbook + alertas + threshold config)
@@ -1017,14 +1018,14 @@ Implementação de automação start/stop do ambiente STAGING via EventBridge + 
 
 ### Matriz de Riscos Consolidada
 
-| Risco | Probabilidade | Impacto | Perda/Ano | Investimento Mitigação | ROI Mitigação | Prioridade |
-|-------|--------------|---------|-----------|------------------------|---------------|------------|
-| **R-019.1** RDS Startup Failure | 🟡 5% | 🔴 Alto | R$ 3.600 | R$ 900 | **R$ 2.340** | 🔴 ALTA |
-| **R-019.2** GitLab Job Lost | 🟢 2% | 🔴 Alto | R$ 1.200 | R$ 450 | **R$ 630** | 🟡 MÉDIA |
-| **R-019.3** BrasilAPI Down | 🟢 1% | 🟡 Médio | R$ 24 | R$ 750 | **-R$ 726** | 🟢 BAIXA |
-| **R-019.4** Lambda Timeout | 🟢 1% | 🟡 Médio | R$ 50 | R$ 1.200 | **-R$ 1.150** | 🟢 BAIXA |
-| **R-019.5** Circuit Breaker | 🟢 1% | 🟡 Médio | R$ 200 | R$ 1.200 | **-R$ 1.040** | 🟢 BAIXA |
-| **TOTAL RISCOS** | | | **R$ 5.074/ano** | **R$ 4.500** | **R$ 54** | |
+| Risco                           | Probabilidade | Impacto | Perda/Ano        | Investimento Mitigação | ROI Mitigação | Prioridade |
+| ------------------------------- | ------------- | ------- | ---------------- | ---------------------- | ------------- | ---------- |
+| **R-019.1** RDS Startup Failure | 🟡 5%          | 🔴 Alto  | R$ 3.600         | R$ 900                 | **R$ 2.340**  | 🔴 ALTA     |
+| **R-019.2** GitLab Job Lost     | 🟢 2%          | 🔴 Alto  | R$ 1.200         | R$ 450                 | **R$ 630**    | 🟡 MÉDIA    |
+| **R-019.3** BrasilAPI Down      | 🟢 1%          | 🟡 Médio | R$ 24            | R$ 750                 | **-R$ 726**   | 🟢 BAIXA    |
+| **R-019.4** Lambda Timeout      | 🟢 1%          | 🟡 Médio | R$ 50            | R$ 1.200               | **-R$ 1.150** | 🟢 BAIXA    |
+| **R-019.5** Circuit Breaker     | 🟢 1%          | 🟡 Médio | R$ 200           | R$ 1.200               | **-R$ 1.040** | 🟢 BAIXA    |
+| **TOTAL RISCOS**                |               |         | **R$ 5.074/ano** | **R$ 4.500**           | **R$ 54**     |            |
 
 **Observação:** Mesmo com perda anual projetada R$ 5.074 (cenário pessimista), **economia R$ 4.320/ano ainda justifica implementação** (break-even em ROI negativo aceitável).
 
@@ -1058,11 +1059,11 @@ Payback:                         NUNCA (economia < investimento)
 
 **ALTERNATIVA RECOMENDADA:**
 
-| Abordagem | Investimento | Economia Year 1 | ROI Year 1 | Decisão |
-|-----------|-------------|-----------------|-----------|---------|
-| **Automação Completa (proposta inicial)** | R$ 4.350 | -R$ 561 | -12.9% | ❌ REJEITADO |
-| **Automação Simplificada** (sem health checks complexos) | R$ 2.700 | R$ 1.113 | 41% | ✅ **APROVADO** |
-| **Manual Scripts** (zero automação, processo operacional) | R$ 0 | R$ 0 | N/A | ⏳ Considerar |
+| Abordagem                                                 | Investimento | Economia Year 1 | ROI Year 1 | Decisão        |
+| --------------------------------------------------------- | ------------ | --------------- | ---------- | -------------- |
+| **Automação Completa (proposta inicial)**                 | R$ 4.350     | -R$ 561         | -12.9%     | ❌ REJEITADO    |
+| **Automação Simplificada** (sem health checks complexos)  | R$ 2.700     | R$ 1.113        | 41%        | ✅ **APROVADO** |
+| **Manual Scripts** (zero automação, processo operacional) | R$ 0         | R$ 0            | N/A        | ⏳ Considerar   |
 
 **Automação Simplificada (Proposta Ajustada):**
 - Investimento: R$ 2.700 (9h vs 14.5h)
@@ -1184,8 +1185,8 @@ gitlab-runner pod em CrashLoopBackOff devido DNS lookup failed para hostname pla
 **Sintoma:**
 ```
 ERROR: Registering runner... failed
-status=couldn't execute POST against http://gitlab.example.com/api/v4/runners: 
-Post "http://gitlab.example.com/api/v4/runners": 
+status=couldn't execute POST against http://gitlab.example.com/api/v4/runners:
+Post "http://gitlab.example.com/api/v4/runners":
 dial tcp: lookup gitlab.example.com on 172.20.0.10:53: no such host
 ```
 
@@ -1295,12 +1296,12 @@ gitlab-runner:
 
 ### Lições Aprendadas
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 1 | **ADR-021 Fase 1 strategy funciona** → GitLab deployable sem domain para validação inicial | 🟢 Baixo |
-| 2 | **Runner DNS placeholder** é único componente bloqueado → todos outros funcionais | 🟢 Baixo |
-| 3 | **Workaround service interno** disponível se CI/CD urgente → não há blockers absolutos | 🟢 Baixo |
-| 4 | **Documentation clara** (logbook + ADR-030) previne confusão → "CrashLoop esperado" explícito | 🟢 Baixo |
+| #   | Lição                                                                                         | Impacto |
+| --- | --------------------------------------------------------------------------------------------- | ------- |
+| 1   | **ADR-021 Fase 1 strategy funciona** → GitLab deployable sem domain para validação inicial    | 🟢 Baixo |
+| 2   | **Runner DNS placeholder** é único componente bloqueado → todos outros funcionais             | 🟢 Baixo |
+| 3   | **Workaround service interno** disponível se CI/CD urgente → não há blockers absolutos        | 🟢 Baixo |
+| 4   | **Documentation clara** (logbook + ADR-030) previne confusão → "CrashLoop esperado" explícito | 🟢 Baixo |
 
 ### Referências
 
@@ -1346,13 +1347,13 @@ SonarQube base process 2Gi + scanners 1Gi cada = **node memory pressure** quando
 
 ### Mitigações Planejadas
 
-| Mitigação | Eficácia | Esforço | Custo | Status |
-|-----------|---------|---------|-------|--------|
-| **HPA SonarQube** (min 1, max 3 replicas) | 🟢 90% | BAIXO (30min) | $0 | ✅ Planejado |
-| **Node affinity** (`node-type=workloads`) | 🟢 95% | BAIXO (15min) | $0 | ✅ Planejado |
-| **PDB** (minAvailable 1) | 🟡 70% | BAIXO (15min) | $0 | ✅ Planejado |
-| **Memory limits** (2Gi requests / 4Gi limits) | 🟢 85% | BAIXO (config) | $0 | ✅ Planejado |
-| **Scanner queue** (limit 2 concurrent) | 🟢 80% | MÉDIO (SQ config) | $0 | ⏳ Se necessário |
+| Mitigação                                     | Eficácia | Esforço           | Custo | Status          |
+| --------------------------------------------- | -------- | ----------------- | ----- | --------------- |
+| **HPA SonarQube** (min 1, max 3 replicas)     | 🟢 90%    | BAIXO (30min)     | $0    | ✅ Planejado     |
+| **Node affinity** (`node-type=workloads`)     | 🟢 95%    | BAIXO (15min)     | $0    | ✅ Planejado     |
+| **PDB** (minAvailable 1)                      | 🟡 70%    | BAIXO (15min)     | $0    | ✅ Planejado     |
+| **Memory limits** (2Gi requests / 4Gi limits) | 🟢 85%    | BAIXO (config)    | $0    | ✅ Planejado     |
+| **Scanner queue** (limit 2 concurrent)        | 🟢 80%    | MÉDIO (SQ config) | $0    | ⏳ Se necessário |
 
 ### Monitoramento
 
@@ -1407,13 +1408,13 @@ GitLab webhook não autenticado (ou HMAC secret leak) = **malicious push força 
 
 ### Mitigações Planejadas
 
-| Mitigação | Eficácia | Esforço | Custo | Status |
-|-----------|---------|---------|-------|--------|
-| **Webhook HMAC secret** (GitLab → SQ validation) | 🟢 95% | BAIXO (30min) | $0 | ✅ Planejado |
-| **HTTPS only** (reject HTTP) | 🟡 70% | BAIXO (config) | $0 | ✅ Planejado |
-| **NetworkPolicy** (SQ ingress apenas GitLab CIDR) | 🟢 85% | BAIXO (30min) | $0 | ✅ Planejado |
-| **Audit logs** (CloudWatch webhook calls) | 🟢 100% detecção | MÉDIO (2h) | $5/mês | ⏳ Q2 2026 |
-| **WAF rules** (rate limiting SQ webhook) | 🟡 80% | ALTO (WAF config) | +$5/mês | ⏳ Se necessário |
+| Mitigação                                         | Eficácia        | Esforço           | Custo   | Status          |
+| ------------------------------------------------- | --------------- | ----------------- | ------- | --------------- |
+| **Webhook HMAC secret** (GitLab → SQ validation)  | 🟢 95%           | BAIXO (30min)     | $0      | ✅ Planejado     |
+| **HTTPS only** (reject HTTP)                      | 🟡 70%           | BAIXO (config)    | $0      | ✅ Planejado     |
+| **NetworkPolicy** (SQ ingress apenas GitLab CIDR) | 🟢 85%           | BAIXO (30min)     | $0      | ✅ Planejado     |
+| **Audit logs** (CloudWatch webhook calls)         | 🟢 100% detecção | MÉDIO (2h)        | $5/mês  | ⏳ Q2 2026       |
+| **WAF rules** (rate limiting SQ webhook)          | 🟡 80%           | ALTO (WAF config) | +$5/mês | ⏳ Se necessário |
 
 ### Monitoramento
 
@@ -1467,13 +1468,13 @@ Harbor image cache crescimento >1TB = **$23/mês extra** (vs $11.50 baseline 500
 
 ### Mitigações Planejadas
 
-| Mitigação | Eficácia | Esforço | Custo | Status |
-|-----------|---------|---------|-------|--------|
-| **S3 Lifecycle** (Glacier após 90d) | 🟢 80% | BAIXO (30min) | -$9.20/mês | ✅ Planejado |
-| **Harbor garbage collection** (weekly untagged) | 🟢 90% | BAIXO (cron) | $0 | ✅ Planejado |
-| **CloudWatch alarm** (S3 >750GB) | 🟢 100% detecção | BAIXO (15min) | $0.10/mês | ✅ Planejado |
-| **Image retention policy** (keep last 10 tags) | 🟢 95% | MÉDIO (Harbor config) | $0 | ⏳ Q2 2026 |
-| **Dedupe layers** (Harbor replication) | 🟡 70% | ALTO (4h) | $0 | ⏳ Se >2TB |
+| Mitigação                                       | Eficácia        | Esforço               | Custo      | Status      |
+| ----------------------------------------------- | --------------- | --------------------- | ---------- | ----------- |
+| **S3 Lifecycle** (Glacier após 90d)             | 🟢 80%           | BAIXO (30min)         | -$9.20/mês | ✅ Planejado |
+| **Harbor garbage collection** (weekly untagged) | 🟢 90%           | BAIXO (cron)          | $0         | ✅ Planejado |
+| **CloudWatch alarm** (S3 >750GB)                | 🟢 100% detecção | BAIXO (15min)         | $0.10/mês  | ✅ Planejado |
+| **Image retention policy** (keep last 10 tags)  | 🟢 95%           | MÉDIO (Harbor config) | $0         | ⏳ Q2 2026   |
+| **Dedupe layers** (Harbor replication)          | 🟡 70%           | ALTO (4h)             | $0         | ⏳ Se >2TB   |
 
 ### Monitoramento
 
@@ -1639,12 +1640,12 @@ SubscriptionsConfirmed: 0  # nenhum subscriber ❌
 
 ### Mitigações Planejadas Marco 3
 
-| Ação Corretiva | Prioridade | Esforço | Arquivo | Status |
-|----------------|-----------|---------|---------|--------|
-| **AC-001: Corrigir RDS_INSTANCE_ID** | 🔴 P0 | 1h | `modules/postgresql/outputs.tf` | ⏳ Planejado |
-| **AC-002: Configurar ASG_NAMES** | 🔴 P0 | 2h | `environments/staging/main.tf` | ⏳ Planejado |
-| **AC-003: Adicionar SNS subscriber** | 🟡 P1 | 30min | `environments/staging/main.tf` | ⏳ Planejado |
-| **AC-004: Investigar shutdown** | 🟡 P1 | 1h | Validação runtime | ⏳ Aguardar 18:00 BRT |
+| Ação Corretiva                       | Prioridade | Esforço | Arquivo                         | Status               |
+| ------------------------------------ | ---------- | ------- | ------------------------------- | -------------------- |
+| **AC-001: Corrigir RDS_INSTANCE_ID** | 🔴 P0       | 1h      | `modules/postgresql/outputs.tf` | ⏳ Planejado          |
+| **AC-002: Configurar ASG_NAMES**     | 🔴 P0       | 2h      | `environments/staging/main.tf`  | ⏳ Planejado          |
+| **AC-003: Adicionar SNS subscriber** | 🟡 P1       | 30min   | `environments/staging/main.tf`  | ⏳ Planejado          |
+| **AC-004: Investigar shutdown**      | 🟡 P1       | 1h      | Validação runtime               | ⏳ Aguardar 18:00 BRT |
 
 **Investimento Total Correção:** R$ 1.050 (3.5h × R$ 300/h)
 
@@ -1803,42 +1804,20 @@ Payback:                     1.3 meses
 **Probabilidade:** BAIXO
 **Impacto:** MÉDIO
 **Severidade:** 🟡 MÉDIO
-**Status:** ✅ Mitigado (UI workaround)
+**Status:** ✅ Resolvido (2026-02-13)
 
 **Descrição:**
-Harbor v2.10.0 API endpoints para criação de robot accounts retornam 401 Unauthorized mesmo com credenciais admin válidas, bloqueando automação Terraform/API.
+Harbor v2.10.0 API endpoints retornavam 401 Unauthorized com credenciais admin válidas.
 
-**Cenário de Falha:**
-1. Tentativa de criar robot account via API (Terraform provider, scripts, CI/CD)
-2. Basic Auth com credenciais admin válidas
-3. Endpoint `/api/v2.0/projects/{project}/robots` retorna HTTP 401
-4. Criação bloqueada, CI/CD sem credenciais registry
+**Root Cause Identificado (2026-02-13):**
+Bug no Terraform template `modules/harbor/main.tf:214` que passava o **nome** do Kubernetes secret (`"harbor-admin-password"`) como valor da senha admin, em vez do valor gerado pelo `random_password`. Resultado: `HARBOR_ADMIN_PASSWORD` env var = `"harbor-admin-password"` (string literal).
 
-**Impacto:**
-- ❌ Automação Terraform bloqueada para robot accounts
-- ⚠️ Processo manual via UI necessário
-- ⚠️ Scaling de múltiplos robot accounts mais lento
-- ✅ Workaround funcional (UI) disponível
+**Solução:**
+1. DROP SCHEMA + CREATE SCHEMA no PostgreSQL do Harbor (reset completo)
+2. Restart Harbor core (reinicializa DB com senha do env var)
+3. Fix TF: `admin_password_secret = random_password.harbor_admin.result`
 
-**Root Cause Possível:**
-1. Admin user `sysadmin_flag=false` no PostgreSQL
-2. Harbor v2.10.0 session-based auth (não Basic Auth) para write endpoints
-3. Password hash dessincronizado PostgreSQL vs Kubernetes secret
-
-**Mitigação Implementada:**
-- ✅ Manual creation guide: [create-robot-manual-steps.md](../../platform-provisioning/aws/kubernetes/terraform/modules/harbor/scripts/create-robot-manual-steps.md)
-- ✅ Robot account `robot$gitlab-ci` criado via UI (5min)
-- ✅ GitLab CI/CD variables configuradas com least-privilege
-- ✅ ADR-045 documenta decisão e lições aprendidas
-
-**Monitoramento:**
-- Backlog: INFRA-001 (PostgreSQL investigation via RDS bastion)
-- Backlog: INFRA-002 (Harbor v2.10.0 auth behavior documentation)
-- Review: Próxima sprint (após acesso RDS console)
-
-**Decisão:** Aceitar workaround UI até root cause investigation (requer RDS bastion access). Impact limitado (robot accounts criados raramente, UI funcional).
-
-**Referência:** [ADR-045](decisions.md#adr-045), [Logbook 2026-02-05](../logbook/2026-02-05-harbor-robot-accounts.md)
+**Referência:** [Logbook Harbor OIDC](../../logbook/2026-02-13-harbor-oidc-keycloak-integration.md)
 
 
 ---
@@ -2029,13 +2008,13 @@ Ausência de VPC Interface Endpoints para AWS STS e EC2 APIs causou timeout do E
 
 **Métricas Before/After:**
 
-| Métrica | Antes (NAT) | Depois (VPC Endpoints) | Melhoria |
-| ------- | ----------- | ---------------------- | -------- |
-| **Latência STS** | 50-200ms | <5ms | 10-40x |
-| **PVC Provisioning** | 0/6 (100% fail) | 6/6 (0% fail) | ∞ |
-| **CSI Error Rate** | 100% | 0% | -100% |
-| **Vault Ready Time** | ∞ (nunca) | 2min32s | N/A |
-| **Recovery Time** | 15h | 2h32min (troubleshooting) | N/A |
+| Métrica              | Antes (NAT)     | Depois (VPC Endpoints)    | Melhoria |
+| -------------------- | --------------- | ------------------------- | -------- |
+| **Latência STS**     | 50-200ms        | <5ms                      | 10-40x   |
+| **PVC Provisioning** | 0/6 (100% fail) | 6/6 (0% fail)             | ∞        |
+| **CSI Error Rate**   | 100%            | 0%                        | -100%    |
+| **Vault Ready Time** | ∞ (nunca)       | 2min32s                   | N/A      |
+| **Recovery Time**    | 15h             | 2h32min (troubleshooting) | N/A      |
 
 **Custo Adicional:**
 
@@ -2230,12 +2209,12 @@ caused by: Post "https://autoscaling.us-east-1.amazonaws.com/": net/http: TLS ha
 
 ### Mitigações Planejadas
 
-| Mitigação | Eficácia | Esforço | Status |
-|-----------|---------|---------|--------|
-| **Verificar SG nodes egress 443** | 🟢 95% | BAIXO (30min) | ⏳ Planejado |
-| **Validar NAT Gateway status** | 🟡 70% | BAIXO (15min) | ⏳ Planejado |
-| **VPC Endpoint Autoscaling** | 🟢 90% | MÉDIO (2h) | ⏳ Se necessário |
-| **Scale autoscaler to 0** (disable) | 🟢 100% | BAIXO (1min) | ⏳ Workaround |
+| Mitigação                           | Eficácia | Esforço       | Status          |
+| ----------------------------------- | -------- | ------------- | --------------- |
+| **Verificar SG nodes egress 443**   | 🟢 95%    | BAIXO (30min) | ⏳ Planejado     |
+| **Validar NAT Gateway status**      | 🟡 70%    | BAIXO (15min) | ⏳ Planejado     |
+| **VPC Endpoint Autoscaling**        | 🟢 90%    | MÉDIO (2h)    | ⏳ Se necessário |
+| **Scale autoscaler to 0** (disable) | 🟢 100%   | BAIXO (1min)  | ⏳ Workaround    |
 
 ### Troubleshooting Steps
 
@@ -2550,11 +2529,11 @@ Ausência de VPC Endpoint para `elasticloadbalancing` API → tráfego via NAT G
 
 **Resultados:**
 
-| Métrica | Antes | Depois | Melhoria |
-|---------|-------|--------|----------|
-| **Latência ELB API** | 20-50ms | <5ms | **40× faster** |
-| **Error Rate** | 10-15% | 0% | **100% redução** |
-| **IngressGroup** | Bloqueado | ✅ OK | **R$ 1.949/ano** |
+| Métrica              | Antes     | Depois | Melhoria         |
+| -------------------- | --------- | ------ | ---------------- |
+| **Latência ELB API** | 20-50ms   | <5ms   | **40× faster**   |
+| **Error Rate**       | 10-15%    | 0%     | **100% redução** |
+| **IngressGroup**     | Bloqueado | ✅ OK   | **R$ 1.949/ano** |
 
 **Custo:** $4.70/mês VPCE → **ROI 34× com economia IngressGroup**
 

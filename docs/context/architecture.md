@@ -62,42 +62,42 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
 
 ### 📊 Resource Ownership Matrix
 
-| Recurso | Marco 0 | Marco 1 | Marco 3 Staging | Justificativa |
-|---------|---------|---------|-----------------|---------------|
-| **🌐 Networking** | | | | |
-| VPC | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
-| Subnets | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
-| NAT Gateways | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation, $66/mês |
-| Internet Gateway | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
-| Route Tables | ✅ Gerencia | 📖 Data source | 📖 Data source | Shared foundation |
-| VPC Endpoints (S3) | ✅ Gerencia | 📖 Data source | 📖 Data source | Cost optimization (NAT bypass) |
-| VPC Endpoints (STS) | ❌ | ✅ Gerencia | 📖 Data source | IRSA authentication |
-| VPC Endpoints (EC2) | ❌ | ✅ Gerencia | 📖 Data source | Node registration |
-| VPC Endpoints (ELB) | ❌ | ✅ Gerencia | 📖 Data source | ALB Controller TLS fix |
-| VPC Endpoints (KMS) | ❌ | ✅ Gerencia | 📖 Data source | Vault auto-unseal |
-| **💻 Compute** | | | | |
-| EKS Cluster | ❌ | ✅ Gerencia | 📖 Data source | Shared cluster strategy |
-| EKS Node Groups | ❌ | ✅ Gerencia | 📖 Data source | Shared cluster strategy |
-| EKS Addons | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level config |
-| **👤 IAM** | | | | |
-| OIDC Provider (IRSA) | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level config |
-| IRSA Roles (workload) | ❌ | ❌ | ✅ Gerencia | Workload-specific (Vault, Harbor, GitLab) |
-| **🔐 Encryption** | | | | |
-| KMS (EKS secrets) | ❌ | ✅ Gerencia | 📖 Data source | Cluster-level encryption |
-| KMS (Vault unseal) | ❌ | ❌ | ✅ Gerencia | Workload-specific |
-| **💾 Data Services** | | | | |
-| PostgreSQL RDS | ❌ | ❌ | ✅ Gerencia | Environment-specific |
-| Redis Operator | ❌ | ❌ | ✅ Gerencia | Environment-specific |
-| RabbitMQ Operator | ❌ | ❌ | ✅ Gerencia | Environment-specific |
-| **📦 Application Workloads** | | | | |
-| Vault HA | ❌ | ❌ | ✅ Gerencia | Secrets management |
-| External Secrets | ❌ | ❌ | ✅ Gerencia | Secrets sync |
-| Harbor Registry | ❌ | ❌ | ✅ Gerencia | Container images |
-| GitLab CE | ❌ | ❌ | ✅ Gerencia | CI/CD platform |
-| Keycloak SSO | ❌ | ❌ | ✅ Gerencia | Authentication |
-| ArgoCD GitOps | ❌ | ❌ | ✅ Gerencia | Continuous deployment |
-| SonarQube | ❌ | ❌ | ✅ Gerencia | Code quality |
-| Observability Stack | ❌ | ❌ | ✅ Gerencia | Monitoring/logging |
+| Recurso                     | Marco 0    | Marco 1       | Marco 3 Staging | Justificativa                             |
+| --------------------------- | ---------- | ------------- | --------------- | ----------------------------------------- |
+| **🌐 Networking**            |            |               |                 |                                           |
+| VPC                         | ✅ Gerencia | 📖 Data source | 📖 Data source   | Shared foundation                         |
+| Subnets                     | ✅ Gerencia | 📖 Data source | 📖 Data source   | Shared foundation                         |
+| NAT Gateways                | ✅ Gerencia | 📖 Data source | 📖 Data source   | Shared foundation, $66/mês                |
+| Internet Gateway            | ✅ Gerencia | 📖 Data source | 📖 Data source   | Shared foundation                         |
+| Route Tables                | ✅ Gerencia | 📖 Data source | 📖 Data source   | Shared foundation                         |
+| VPC Endpoints (S3)          | ✅ Gerencia | 📖 Data source | 📖 Data source   | Cost optimization (NAT bypass)            |
+| VPC Endpoints (STS)         | ❌          | ✅ Gerencia    | 📖 Data source   | IRSA authentication                       |
+| VPC Endpoints (EC2)         | ❌          | ✅ Gerencia    | 📖 Data source   | Node registration                         |
+| VPC Endpoints (ELB)         | ❌          | ✅ Gerencia    | 📖 Data source   | ALB Controller TLS fix                    |
+| VPC Endpoints (KMS)         | ❌          | ✅ Gerencia    | 📖 Data source   | Vault auto-unseal                         |
+| **💻 Compute**               |            |               |                 |                                           |
+| EKS Cluster                 | ❌          | ✅ Gerencia    | 📖 Data source   | Shared cluster strategy                   |
+| EKS Node Groups             | ❌          | ✅ Gerencia    | 📖 Data source   | Shared cluster strategy                   |
+| EKS Addons                  | ❌          | ✅ Gerencia    | 📖 Data source   | Cluster-level config                      |
+| **👤 IAM**                   |            |               |                 |                                           |
+| OIDC Provider (IRSA)        | ❌          | ✅ Gerencia    | 📖 Data source   | Cluster-level config                      |
+| IRSA Roles (workload)       | ❌          | ❌             | ✅ Gerencia      | Workload-specific (Vault, Harbor, GitLab) |
+| **🔐 Encryption**            |            |               |                 |                                           |
+| KMS (EKS secrets)           | ❌          | ✅ Gerencia    | 📖 Data source   | Cluster-level encryption                  |
+| KMS (Vault unseal)          | ❌          | ❌             | ✅ Gerencia      | Workload-specific                         |
+| **💾 Data Services**         |            |               |                 |                                           |
+| PostgreSQL RDS              | ❌          | ❌             | ✅ Gerencia      | Environment-specific                      |
+| Redis Operator              | ❌          | ❌             | ✅ Gerencia      | Environment-specific                      |
+| RabbitMQ Operator           | ❌          | ❌             | ✅ Gerencia      | Environment-specific                      |
+| **📦 Application Workloads** |            |               |                 |                                           |
+| Vault HA                    | ❌          | ❌             | ✅ Gerencia      | Secrets management                        |
+| External Secrets            | ❌          | ❌             | ✅ Gerencia      | Secrets sync                              |
+| Harbor Registry             | ❌          | ❌             | ✅ Gerencia      | Container images                          |
+| GitLab CE                   | ❌          | ❌             | ✅ Gerencia      | CI/CD platform                            |
+| Keycloak SSO                | ❌          | ❌             | ✅ Gerencia      | Authentication                            |
+| ArgoCD GitOps               | ❌          | ❌             | ✅ Gerencia      | Continuous deployment                     |
+| SonarQube                   | ❌          | ❌             | ✅ Gerencia      | Code quality                              |
+| Observability Stack         | ❌          | ❌             | ✅ Gerencia      | Monitoring/logging                        |
 
 **Legenda:**
 - ✅ Gerencia: Terraform gerencia o recurso (create/update/delete)
@@ -155,11 +155,11 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
 
 ### Node Groups (8 nodes total - scaled 2026-02-06)
 
-| Node Group | Tipo | Quantidade | vCPU | RAM | Disco | Workload |
-|------------|------|------------|------|-----|-------|----------|
-| system | t3.medium | 2 | 4 | 8GB | 50GB | Platform services críticos |
-| workloads | t3.large | 3 | 6 | 24GB | 50GB | Aplicações usuário |
-| critical | t3.xlarge | 3 | 12 | 48GB | 50GB | Vault HA, databases HA |
+| Node Group | Tipo      | Quantidade | vCPU | RAM  | Disco | Workload                   |
+| ---------- | --------- | ---------- | ---- | ---- | ----- | -------------------------- |
+| system     | t3.medium | 2          | 4    | 8GB  | 50GB  | Platform services críticos |
+| workloads  | t3.large  | 3          | 6    | 24GB | 50GB  | Aplicações usuário         |
+| critical   | t3.xlarge | 3          | 12   | 48GB | 50GB  | Vault HA, databases HA     |
 
 **Scaling Event (2026-02-06):**
 - **Trigger:** Cluster CPU saturation (5/7 nodes >90% usage)
@@ -193,12 +193,12 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
 
 **Interface Endpoints criados:**
 
-| Service | Endpoint ID | AZs | Private DNS | Status |
-|---------|-------------|-----|-------------|--------|
-| **STS** | vpce-0c3a498a73742aa21 | us-east-1a, us-east-1b | ✅ Enabled | available |
-| **EC2** | vpce-0b52639b29be0559e | us-east-1a, us-east-1b | ✅ Enabled | available |
-| **ELB** | vpce-01ac1aa08881b1977 | us-east-1a, us-east-1b | ✅ Enabled | available |
-| **KMS** | vpce-0ea3c1103ca34af51 | us-east-1a, us-east-1b | ✅ Enabled | available |
+| Service | Endpoint ID            | AZs                    | Private DNS | Status    |
+| ------- | ---------------------- | ---------------------- | ----------- | --------- |
+| **STS** | vpce-0c3a498a73742aa21 | us-east-1a, us-east-1b | ✅ Enabled   | available |
+| **EC2** | vpce-0b52639b29be0559e | us-east-1a, us-east-1b | ✅ Enabled   | available |
+| **ELB** | vpce-01ac1aa08881b1977 | us-east-1a, us-east-1b | ✅ Enabled   | available |
+| **KMS** | vpce-0ea3c1103ca34af51 | us-east-1a, us-east-1b | ✅ Enabled   | available |
 
 **Configuração:**
 - **Tipo:** Interface (ENI-based, 2 ENIs por endpoint)
@@ -490,17 +490,17 @@ AWS Resources (environment-specific)
 
 #### 📊 Comparação STAGING vs PRODUCTION
 
-| Aspecto | STAGING (Dev+Homolog) | PRODUCTION |
-|---------|----------------------|------------|
-| **Schedule** | 8h-18h Mon-Fri | 7h-0h 7 dias/semana |
-| **Uptime** | 50h/semana (30%) | 119h/semana (71%) |
-| **Feriados** | SKIP (não liga) | LIGA (clientes ativos) |
-| **Health Checks** | GitLab jobs (básico) | Transações ativas + Conexões DB (rigoroso) |
-| **Rollback** | Manual (30 min) | Automático (< 5 min) |
-| **SLA** | 99.5% (8h-18h) | 99.9% (7h-0h) |
-| **Circuit Breaker** | 3 falhas | 2 falhas (mais sensível) |
-| **Snapshot RDS** | Não | Sim (pré-shutdown, RPO < 1h) |
-| **Notificação Falha** | Slack | PagerDuty + Slack |
+| Aspecto               | STAGING (Dev+Homolog) | PRODUCTION                                 |
+| --------------------- | --------------------- | ------------------------------------------ |
+| **Schedule**          | 8h-18h Mon-Fri        | 7h-0h 7 dias/semana                        |
+| **Uptime**            | 50h/semana (30%)      | 119h/semana (71%)                          |
+| **Feriados**          | SKIP (não liga)       | LIGA (clientes ativos)                     |
+| **Health Checks**     | GitLab jobs (básico)  | Transações ativas + Conexões DB (rigoroso) |
+| **Rollback**          | Manual (30 min)       | Automático (< 5 min)                       |
+| **SLA**               | 99.5% (8h-18h)        | 99.9% (7h-0h)                              |
+| **Circuit Breaker**   | 3 falhas              | 2 falhas (mais sensível)                   |
+| **Snapshot RDS**      | Não                   | Sim (pré-shutdown, RPO < 1h)               |
+| **Notificação Falha** | Slack                 | PagerDuty + Slack                          |
 
 ---
 
@@ -508,17 +508,17 @@ AWS Resources (environment-specific)
 
 **STAGING:**
 
-| Node Group | Behavior | Workloads | Uptime |
-|------------|----------|-----------|--------|
-| **critical-always-on** | Nunca desliga | GitLab, Harbor, ArgoCD, Prometheus/Grafana | 24/7 |
-| **regular** | Automação start/stop | Keycloak, SonarQube, Kong, Redis, RabbitMQ | 50h/semana |
+| Node Group             | Behavior             | Workloads                                  | Uptime     |
+| ---------------------- | -------------------- | ------------------------------------------ | ---------- |
+| **critical-always-on** | Nunca desliga        | GitLab, Harbor, ArgoCD, Prometheus/Grafana | 24/7       |
+| **regular**            | Automação start/stop | Keycloak, SonarQube, Kong, Redis, RabbitMQ | 50h/semana |
 
 **PRODUCTION:**
 
-| Node Group | Behavior | Workloads | Uptime |
-|------------|----------|-----------|--------|
-| **critical-always-on** | Nunca desliga | Prometheus/Grafana, GitLab CI/CD, AlertManager | 24/7 |
-| **production** | Automação start/stop | Apps cliente, APIs, Kong, Redis, RabbitMQ | 119h/semana |
+| Node Group             | Behavior             | Workloads                                      | Uptime      |
+| ---------------------- | -------------------- | ---------------------------------------------- | ----------- |
+| **critical-always-on** | Nunca desliga        | Prometheus/Grafana, GitLab CI/CD, AlertManager | 24/7        |
+| **production**         | Automação start/stop | Apps cliente, APIs, Kong, Redis, RabbitMQ      | 119h/semana |
 
 **Justificativa Node Groups:**
 - **STAGING:** GitLab precisa jobs noturnos (backups, security scans), ArgoCD reconciliação contínua
@@ -530,31 +530,31 @@ AWS Resources (environment-specific)
 
 **STAGING:**
 
-| Recurso | 24/7 | Com Automação | Economia |
-|---------|------|---------------|----------|
-| EKS Control Plane | $37 | $37 | $0 |
-| EC2 nodes regular (2x t3.medium) | $60 | $18 | **$42** ✅ |
-| EC2 nodes critical (1x t3.medium) | - | $30 | $0 (novo) |
-| RDS db.t3.small auto-pause | $70 | $30 | **$40** ✅ |
-| Redis scaled to 0 | $10 | $5 | **$5** ✅ |
-| RabbitMQ scaled to 0 | $10 | $5 | **$5** ✅ |
-| Lambda + EventBridge | - | $2 | -$2 |
-| **TOTAL STAGING** | **$187** | **$127** | **$60/mês** |
+| Recurso                           | 24/7     | Com Automação | Economia    |
+| --------------------------------- | -------- | ------------- | ----------- |
+| EKS Control Plane                 | $37      | $37           | $0          |
+| EC2 nodes regular (2x t3.medium)  | $60      | $18           | **$42** ✅   |
+| EC2 nodes critical (1x t3.medium) | -        | $30           | $0 (novo)   |
+| RDS db.t3.small auto-pause        | $70      | $30           | **$40** ✅   |
+| Redis scaled to 0                 | $10      | $5            | **$5** ✅    |
+| RabbitMQ scaled to 0              | $10      | $5            | **$5** ✅    |
+| Lambda + EventBridge              | -        | $2            | -$2         |
+| **TOTAL STAGING**                 | **$187** | **$127**      | **$60/mês** |
 
 **Economia STAGING:** $60/mês × 12 = **$720/ano (USD)** = **R$ 4.320/ano (BRL, taxa 6.0)**
 
 **PRODUCTION:**
 
-| Recurso | 24/7 | Com Automação | Economia |
-|---------|------|---------------|----------|
-| EKS Control Plane | $37 | $37 | $0 |
-| EC2 critical-always-on (1x t3.medium) | - | $30 | $0 (novo) |
-| EC2 production (4x t3.large) | $240 | $170 | **$70** ✅ |
-| RDS db.t3.large Multi-AZ | $280 | $199 | **$81** ✅ |
-| Redis scaled to 0 | $20 | $14 | **$6** ✅ |
-| RabbitMQ scaled to 0 | $20 | $14 | **$6** ✅ |
-| Lambda + EventBridge | - | $3 | -$3 |
-| **TOTAL PRODUCTION** | **$652** | **$522** | **$130/mês** |
+| Recurso                               | 24/7     | Com Automação | Economia     |
+| ------------------------------------- | -------- | ------------- | ------------ |
+| EKS Control Plane                     | $37      | $37           | $0           |
+| EC2 critical-always-on (1x t3.medium) | -        | $30           | $0 (novo)    |
+| EC2 production (4x t3.large)          | $240     | $170          | **$70** ✅    |
+| RDS db.t3.large Multi-AZ              | $280     | $199          | **$81** ✅    |
+| Redis scaled to 0                     | $20      | $14           | **$6** ✅     |
+| RabbitMQ scaled to 0                  | $20      | $14           | **$6** ✅     |
+| Lambda + EventBridge                  | -        | $3            | -$3          |
+| **TOTAL PRODUCTION**                  | **$652** | **$522**      | **$130/mês** |
 
 **Economia PRODUCTION:** $130/mês × 12 = **$1.560/ano (USD)** = **R$ 9.360/ano (BRL, taxa 6.0)**
 
@@ -568,11 +568,11 @@ AWS Resources (environment-specific)
 
 #### 📈 ROI Consolidado
 
-| Fase | Economia Anual | Investimento Acumulado | ROI Year 1 | Payback |
-|------|---------------|------------------------|-----------|---------|
-| **Fase 1 (STAGING apenas)** | R$ 4.320 | R$ 3.000 | 44% | 6.7 meses |
-| **Fase 2 (STAGING + PROD)** | R$ 13.680 | R$ 4.500 | 204% | 3.9 meses |
-| **Fase 3 (On-demand + PROD)** | R$ 22.104 | R$ 4.500 | 391% | 2.4 meses |
+| Fase                          | Economia Anual | Investimento Acumulado | ROI Year 1 | Payback   |
+| ----------------------------- | -------------- | ---------------------- | ---------- | --------- |
+| **Fase 1 (STAGING apenas)**   | R$ 4.320       | R$ 3.000               | 44%        | 6.7 meses |
+| **Fase 2 (STAGING + PROD)**   | R$ 13.680      | R$ 4.500               | 204%       | 3.9 meses |
+| **Fase 3 (On-demand + PROD)** | R$ 22.104      | R$ 4.500               | 391%       | 2.4 meses |
 
 **Investimento Total:**
 - STAGING: R$ 3.000 (10h desenvolvimento)
@@ -639,13 +639,13 @@ def production_health_checks():
 
 **CloudWatch Metrics:**
 
-| Métrica | STAGING | PRODUCTION | Threshold |
-|---------|---------|------------|-----------|
-| `finops.{env}.startup.duration` | 8 min | 8 min | > 10 min (warning) |
-| `finops.{env}.sla.availability` | 99.5% | 99.9% | < target (critical) |
-| `finops.{env}.cost_savings_daily` | $2 | $4.33 | < $1 (investigar) |
-| `finops.{env}.circuit_breaker_state` | 0/1 | 0/1 | 1 (PagerDuty) |
-| `finops.{env}.transactions.blocked` | - | count | > 0 (alerta) |
+| Métrica                              | STAGING | PRODUCTION | Threshold           |
+| ------------------------------------ | ------- | ---------- | ------------------- |
+| `finops.{env}.startup.duration`      | 8 min   | 8 min      | > 10 min (warning)  |
+| `finops.{env}.sla.availability`      | 99.5%   | 99.9%      | < target (critical) |
+| `finops.{env}.cost_savings_daily`    | $2      | $4.33      | < $1 (investigar)   |
+| `finops.{env}.circuit_breaker_state` | 0/1     | 0/1        | 1 (PagerDuty)       |
+| `finops.{env}.transactions.blocked`  | -       | count      | > 0 (alerta)        |
 
 **Grafana Dashboards:**
 1. **FinOps STAGING Automation:** Uptime, economia, falhas, circuit breaker
@@ -659,15 +659,15 @@ def production_health_checks():
 
 #### ⏱️ Timeline
 
-| Fase | Prazo | Pré-requisito | Status |
-|------|-------|---------------|--------|
-| **STAGING deploy** | 2026-02-17 | Aprovação stakeholders | 📝 Planejado |
-| **STAGING validação 1 mês** | 2026-03-17 | 30 dias operação | ⏳ Aguardando |
-| **PROD environment ready** | 2026-04-01 | Marco 3 deployado | ⏳ Aguardando |
-| **PROD automation dev** | 2026-04-08 | STAGING learnings | ⏳ Aguardando |
-| **PROD automation deploy** | 2026-04-15 | Testes carga + runbooks | ⏳ Aguardando |
-| **PROD validação 2 meses** | 2026-06-15 | SLA 99.9% confirmado | ⏳ Aguardando |
-| **Fase 3 (STAGING on-demand)** | 2026-09-15 | PROD estável 3 meses | ⏳ Aguardando |
+| Fase                           | Prazo      | Pré-requisito           | Status       |
+| ------------------------------ | ---------- | ----------------------- | ------------ |
+| **STAGING deploy**             | 2026-02-17 | Aprovação stakeholders  | 📝 Planejado  |
+| **STAGING validação 1 mês**    | 2026-03-17 | 30 dias operação        | ⏳ Aguardando |
+| **PROD environment ready**     | 2026-04-01 | Marco 3 deployado       | ⏳ Aguardando |
+| **PROD automation dev**        | 2026-04-08 | STAGING learnings       | ⏳ Aguardando |
+| **PROD automation deploy**     | 2026-04-15 | Testes carga + runbooks | ⏳ Aguardando |
+| **PROD validação 2 meses**     | 2026-06-15 | SLA 99.9% confirmado    | ⏳ Aguardando |
+| **Fase 3 (STAGING on-demand)** | 2026-09-15 | PROD estável 3 meses    | ⏳ Aguardando |
 
 **Milestone Crítico:** PROD automation SOMENTE após STAGING 1 mês operação SEM falhas
 
@@ -756,21 +756,21 @@ Internet
 
 ### Marco 0 + Marco 1 + Marco 2
 
-| Categoria | Componente | Custo/Mês |
-|-----------|------------|-----------|
-| **Compute** | EKS Control Plane | $73.00 |
-| | EC2 Nodes (7 × t3.medium) | ~$477.00 |
-| **Storage** | EBS gp3 (107Gi total) | $8.56 |
-| | S3 Terraform State | $0.07 |
-| | S3 Loki Logs (500GB) | $11.50 |
-| | S3 Tempo Traces (500GB) - *Fase 8* | $11.50 |
-| **Networking** | ALBs (2 test-apps) | $32.40 |
-| | NAT Gateways (2) | ~$66.00 (reaproveitado Marco 0) |
-| **Secrets** | AWS Secrets Manager (1 secret) | $0.40 |
-| **Database** | DynamoDB Lock Table | $0.25 |
-| **API Requests** | S3 API (Tempo PUT/GET) - *Fase 8* | $5.00 |
-| **TOTAL Marco 0+1+2 (7 Fases)** | | **~$666/mês** |
-| **TOTAL Marco 0+1+2 (8 Fases)** | | **~$685.70/mês** |
+| Categoria                       | Componente                         | Custo/Mês                       |
+| ------------------------------- | ---------------------------------- | ------------------------------- |
+| **Compute**                     | EKS Control Plane                  | $73.00                          |
+|                                 | EC2 Nodes (7 × t3.medium)          | ~$477.00                        |
+| **Storage**                     | EBS gp3 (107Gi total)              | $8.56                           |
+|                                 | S3 Terraform State                 | $0.07                           |
+|                                 | S3 Loki Logs (500GB)               | $11.50                          |
+|                                 | S3 Tempo Traces (500GB) - *Fase 8* | $11.50                          |
+| **Networking**                  | ALBs (2 test-apps)                 | $32.40                          |
+|                                 | NAT Gateways (2)                   | ~$66.00 (reaproveitado Marco 0) |
+| **Secrets**                     | AWS Secrets Manager (1 secret)     | $0.40                           |
+| **Database**                    | DynamoDB Lock Table                | $0.25                           |
+| **API Requests**                | S3 API (Tempo PUT/GET) - *Fase 8*  | $5.00                           |
+| **TOTAL Marco 0+1+2 (7 Fases)** |                                    | **~$666/mês**                   |
+| **TOTAL Marco 0+1+2 (8 Fases)** |                                    | **~$685.70/mês**                |
 
 **Economia vs Baseline:**
 - Loki vs CloudWatch: $423/ano saved
@@ -806,16 +806,16 @@ Internet
 
 **Componentes:**
 
-| Componente | Pods | Status | Node |
-|------------|------|--------|------|
-| **webservice** | 2 replicas | Running | workloads |
-| **sidekiq** | 1 replica | Running | workloads |
-| **gitaly** | 1 StatefulSet | Running | workloads |
-| **shell** | 2 replicas | Running | workloads |
-| **registry** | 2 replicas | Running | workloads |
-| **kas** | 2 replicas | Running | workloads |
-| **gitlab-exporter** | 1 replica | Running | workloads |
-| **runner** | ⚠️ CrashLoop | DNS issue (esperado ADR-021 Fase 1) | - |
+| Componente          | Pods          | Status                              | Node      |
+| ------------------- | ------------- | ----------------------------------- | --------- |
+| **webservice**      | 2 replicas    | Running                             | workloads |
+| **sidekiq**         | 1 replica     | Running                             | workloads |
+| **gitaly**          | 1 StatefulSet | Running                             | workloads |
+| **shell**           | 2 replicas    | Running                             | workloads |
+| **registry**        | 2 replicas    | Running                             | workloads |
+| **kas**             | 2 replicas    | Running                             | workloads |
+| **gitlab-exporter** | 1 replica     | Running                             | workloads |
+| **runner**          | ⚠️ CrashLoop   | DNS issue (esperado ADR-021 Fase 1) | -         |
 
 **Dependências:**
 - PostgreSQL RDS: `k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com:5432`
@@ -827,11 +827,11 @@ Internet
 
 **Ingress (ALB):**
 
-| Service | Host | ALB DNS | Status |
-|---------|------|---------|--------|
-| webservice | gitlab.example.com | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com | ✅ |
-| registry | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | ✅ |
-| kas | kas.example.com | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com | ✅ |
+| Service    | Host                 | ALB DNS                                                                 | Status |
+| ---------- | -------------------- | ----------------------------------------------------------------------- | ------ |
+| webservice | gitlab.example.com   | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com  | ✅      |
+| registry   | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | ✅      |
+| kas        | kas.example.com      | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com  | ✅      |
 
 **Secrets:**
 - `gitlab-root-password`: Initial root password (Opaque)
@@ -875,11 +875,11 @@ Internet
 
 **Componentes:**
 
-| Componente | Tipo | Status | Função |
-|------------|------|--------|--------|
-| **data-services-prod** | Namespace | ✅ Created | Isolated prod data services |
-| **postgresql-prod** | ServiceMonitor | ✅ Active | Prometheus scraping PostgreSQL metrics |
-| **gitlab** | ServiceMonitor | ✅ Active | Prometheus scraping GitLab metrics |
+| Componente             | Tipo           | Status    | Função                                 |
+| ---------------------- | -------------- | --------- | -------------------------------------- |
+| **data-services-prod** | Namespace      | ✅ Created | Isolated prod data services            |
+| **postgresql-prod**    | ServiceMonitor | ✅ Active  | Prometheus scraping PostgreSQL metrics |
+| **gitlab**             | ServiceMonitor | ✅ Active  | Prometheus scraping GitLab metrics     |
 
 **Network Policies (10 total):**
 
@@ -899,14 +899,14 @@ Internet
 
 **Deployment Details:**
 
-| Aspecto | Valor |
-|---------|-------|
-| **Adicionado em** | 2026-02-09 14:00 UTC |
-| **Demanda** | [Cluster Remediation](../logbook/2026-02-09-cluster-remediation.md#sessão-3) |
-| **Terraform State** | 57 → 68 recursos (+19%) |
-| **Drift Correction** | 13 add, 1 change → 0 (idempotente) |
-| **Apply Duration** | ~1h30min (3 attempts, AML monitoring) |
-| **GitLab Helm** | Revision 4 → 5 (network policies added) |
+| Aspecto              | Valor                                                                        |
+| -------------------- | ---------------------------------------------------------------------------- |
+| **Adicionado em**    | 2026-02-09 14:00 UTC                                                         |
+| **Demanda**          | [Cluster Remediation](../logbook/2026-02-09-cluster-remediation.md#sessão-3) |
+| **Terraform State**  | 57 → 68 recursos (+19%)                                                      |
+| **Drift Correction** | 13 add, 1 change → 0 (idempotente)                                           |
+| **Apply Duration**   | ~1h30min (3 attempts, AML monitoring)                                        |
+| **GitLab Helm**      | Revision 4 → 5 (network policies added)                                      |
 
 **Observabilidade:**
 - ✅ ServiceMonitor postgresql-prod: scraping `/metrics` endpoint
@@ -950,10 +950,10 @@ Internet
 
 **Componentes:**
 
-| Component | Replicas | Status | Storage | Node Type |
-|-----------|----------|--------|---------|-----------|
-| vault | 3 StatefulSet | 1/1 Running | 10Gi data + 5Gi audit (gp2) | workloads |
-| vault-agent-injector | 1 Deployment | 1/1 Running | - | workloads |
+| Component            | Replicas      | Status      | Storage                     | Node Type |
+| -------------------- | ------------- | ----------- | --------------------------- | --------- |
+| vault                | 3 StatefulSet | 1/1 Running | 10Gi data + 5Gi audit (gp2) | workloads |
+| vault-agent-injector | 1 Deployment  | 1/1 Running | -                           | workloads |
 
 **Auto-Unseal:** AWS KMS
 - **KMS Key:** `alias/vault-unseal-k8s-platform-prod`
@@ -1097,18 +1097,18 @@ Internet
 
 ### 💰 Custos Consolidados Marco 3 Completo
 
-| Componente | Detalhes | Custo/Mês | Anual |
-|------------|----------|-----------|-------|
-| **GitLab (deployed)** | 3 ALBs + S3 artifacts | $48.60 | $583.20 |
-| **Data Services (deployed)** | PostgreSQL RDS shared | $50.00 | $600.00 |
-| **GitLab Runner DNS** | Route53 Hosted Zone | $0.50 | $6.00 |
-| **Vault HA** | KMS + S3 + Lambda | $1.70 | $20.40 |
-| **ESO** | Pods | $0 | $0 |
-| **Harbor** | S3 + ALB | $27.70 | $332.40 |
-| **ArgoCD Apps** | ApplicationSets | $0 | $0 |
-| **SonarQube** | ALB + S3 | $26.20 | $314.40 |
-| **Painel Central** | NLB Prometheus | $16.20 | $194.40 |
-| **TOTAL MARCO 3** | | **$170.90/mês** | **$2.050,80/ano** |
+| Componente                   | Detalhes              | Custo/Mês       | Anual             |
+| ---------------------------- | --------------------- | --------------- | ----------------- |
+| **GitLab (deployed)**        | 3 ALBs + S3 artifacts | $48.60          | $583.20           |
+| **Data Services (deployed)** | PostgreSQL RDS shared | $50.00          | $600.00           |
+| **GitLab Runner DNS**        | Route53 Hosted Zone   | $0.50           | $6.00             |
+| **Vault HA**                 | KMS + S3 + Lambda     | $1.70           | $20.40            |
+| **ESO**                      | Pods                  | $0              | $0                |
+| **Harbor**                   | S3 + ALB              | $27.70          | $332.40           |
+| **ArgoCD Apps**              | ApplicationSets       | $0              | $0                |
+| **SonarQube**                | ALB + S3              | $26.20          | $314.40           |
+| **Painel Central**           | NLB Prometheus        | $16.20          | $194.40           |
+| **TOTAL MARCO 3**            |                       | **$170.90/mês** | **$2.050,80/ano** |
 
 **Economia vs Quickstart Baseline ($737.10/mês):** -$566.20/mês (-76.8%) ✅✅✅
 
@@ -1149,15 +1149,15 @@ Internet
 
 ### OpenTelemetry Collector
 
-| Atributo | Valor |
-|----------|-------|
-| **Status** | ✅ Deployado (2026-02-09, antecipado para Semana 3 FinOps) |
-| **Namespace** | monitoring |
-| **Replicas** | 2/2 Running (HA) |
-| **Resources** | 100m CPU, 256Mi RAM requests / 500m, 512Mi limits (por pod) |
-| **OTLP Endpoints** | gRPC :4317, HTTP :4318 |
-| **Exporters** | Tempo (traces), Prometheus (metrics), Loki (logs) |
-| **Custo** | $0/mês (usa nodes existentes) |
+| Atributo              | Valor                                                                            |
+| --------------------- | -------------------------------------------------------------------------------- |
+| **Status**            | ✅ Deployado (2026-02-09, antecipado para Semana 3 FinOps)                        |
+| **Namespace**         | monitoring                                                                       |
+| **Replicas**          | 2/2 Running (HA)                                                                 |
+| **Resources**         | 100m CPU, 256Mi RAM requests / 500m, 512Mi limits (por pod)                      |
+| **OTLP Endpoints**    | gRPC :4317, HTTP :4318                                                           |
+| **Exporters**         | Tempo (traces), Prometheus (metrics), Loki (logs)                                |
+| **Custo**             | $0/mês (usa nodes existentes)                                                    |
 | **Integração FinOps** | Habilita trace validation para rightsizing decisions (VPA + latency correlation) |
 
 **Pendente:**

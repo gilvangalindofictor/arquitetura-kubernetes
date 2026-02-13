@@ -111,3 +111,25 @@ variable "ingress_group_name" {
   type        = string
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# OIDC / SSO (Keycloak)
+# -----------------------------------------------------------------------------
+
+variable "enable_oidc" {
+  description = "Enable OIDC authentication via Keycloak"
+  type        = bool
+  default     = false
+}
+
+variable "oidc_endpoint" {
+  description = "Keycloak OIDC endpoint (realm URL, cluster-internal)"
+  type        = string
+  default     = ""
+}
+
+variable "oidc_admin_group" {
+  description = "OIDC group mapped to Harbor admin role"
+  type        = string
+  default     = "harbor-admins"
+}

@@ -79,3 +79,59 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+# SAML Authentication Variables
+variable "saml_enabled" {
+  description = "Enable SAML 2.0 authentication with Keycloak"
+  type        = bool
+  default     = false
+}
+
+variable "saml_application_id" {
+  description = "SAML Service Provider application ID (must match Keycloak client_id)"
+  type        = string
+  default     = "sonarqube"
+}
+
+variable "saml_provider_id" {
+  description = "SAML Identity Provider entity ID (Keycloak realm URL)"
+  type        = string
+  default     = ""
+}
+
+variable "saml_login_url" {
+  description = "SAML SingleSignOnService Location (Keycloak SAML endpoint)"
+  type        = string
+  default     = ""
+}
+
+variable "saml_certificate" {
+  description = "SAML Identity Provider X.509 certificate (PEM format, no headers)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "saml_user_login_attribute" {
+  description = "SAML attribute name for user login mapping"
+  type        = string
+  default     = "login"
+}
+
+variable "saml_user_email_attribute" {
+  description = "SAML attribute name for user email mapping"
+  type        = string
+  default     = "email"
+}
+
+variable "saml_user_name_attribute" {
+  description = "SAML attribute name for user display name mapping"
+  type        = string
+  default     = "name"
+}
+
+variable "saml_group_attribute" {
+  description = "SAML attribute name for group membership mapping"
+  type        = string
+  default     = "groups"
+}

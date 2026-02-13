@@ -8,45 +8,45 @@
 
 ## 🎯 Índice de Decisões
 
-| ID | Decisão | Data | Status | Impacto |
-|----|---------|------|--------|---------|
-| ADR-001 | Setup e Governança | 2025-12 | ✅ Ativo | Alto |
-| ADR-002 | Estrutura de Domínios | 2025-12 | ✅ Ativo | Médio |
-| ADR-003 | Secrets Management Strategy | 2026-01 | ✅ Ativo | Alto |
-| ADR-004 | Terraform vs Helm para Platform Services | 2026-01 | ✅ Ativo | Alto |
-| ADR-005 | Logging Strategy (Loki vs CloudWatch) | 2026-01 | ✅ Ativo | Alto |
-| ADR-006 | Network Policies Strategy (Calico) | 2026-01 | ✅ Ativo | Alto |
-| ADR-007 | Cluster Autoscaler Strategy | 2026-01 | ✅ Ativo | Médio |
-| ADR-008 | TLS Strategy for ALB Ingresses | 2026-01 | ✅ Ativo | Alto |
-| DEC-009 | ACM Conditional Creation Fix | 2026-01-29 | ✅ Ativo | Crítico |
-| DEC-010 | VPC Reaproveitamento | 2026-01 | ✅ Ativo | Alto |
-| **ADR-020** | **OpenTelemetry Tracing Strategy (Tempo vs Jaeger)** | **2026-01-29** | **✅ Ativo** | **Alto** |
-| **ADR-021** | **No-Domain Phase 1 Strategy (LoadBalancer Pattern)** | **2026-01-29** | **✅ Ativo** | **Médio** |
-| **ADR-022** | **Startup/Shutdown Automation Strategy (FinOps)** | **2026-01-29** | **✅ Ativo** | **Alto** |
-| **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators** | **2026-01-29** | **✅ Ativo** | **Crítico** |
-| **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)** | **2026-02-02** | **🚀 Ativo (Staging)** | **Alto** |
-| **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado** | **Alto** |
-| **ADR-026** | **Multi-Environment Terraform Refactoring** | **2026-02-02** | **✅ Aprovado** | **Crítico** |
-| **ADR-027** | **Shared GitLab with Separated DataServices** | **2026-02-02** | **✅ Aprovado** | **Alto** |
-| **ADR-028** | **Hybrid Observability with OpenTelemetry** | **2026-02-02** | **✅ Aprovado** | **Alto** |
-| **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted** | **2026-02-03** | **✅ Implementado** | **Crítico** |
-| **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)** | **2026-02-04** | **✅ Implementado** | **Alto** |
-| **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)** | **2026-02-05** | **📝 Planejado** | **Alto** |
-| **ADR-032** | **External Secrets Operator Integration (Vault Backend)** | **2026-02-05** | **✅ Em Uso (Keycloak)** | **Alto** |
-| **ADR-033** | **Harbor Container Registry (S3 + IRSA)** | **2026-02-05** | **📝 Planejado** | **Alto** |
-| **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy** | **2026-02-05** | **📝 Planejado** | **Médio** |
-| **ADR-035** | **SonarQube Code Quality Integration** | **2026-02-05** | **📝 Planejado** | **Médio** |
-| **ADR-036** | **Grafana Multi-Cluster Observability Dashboard** | **2026-02-05** | **📝 Planejado** | **Médio** |
-| **ADR-037** | **FinOps Legacy Structure Cleanup** | **2026-02-05** | **✅ Implementado** | **Baixo** |
-| **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration** | **2026-02-04** | **✅ Implementado** | **Alto** |
-| **ADR-039** | **Harbor Jobservice PVC RWO Limitation (Staging)** | **2026-02-05** | **✅ Implementado** | **Médio** |
-| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)** | **2026-02-05** | **🚀 Implementado (Harbor ✅)** | **Médio** |
-| **ADR-043** | **Policy Engine Selection (Kyverno)** | **2026-02-05** | **✅ Aprovado** | **Alto** |
-| **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)** | **2026-02-04** | **✅ Implementado** | **Crítico** |
-| **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)** | **2026-02-05** | **✅ Implementado** | **Médio** |
-| **ADR-051** | **Production Environment Zero-Trust Network** | **2026-02-09** | **✅ Implementado** | **Alto** |
-| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)** | **2026-02-09** | **✅ 100% Completo** | **Alto** |
-| **ADR-053** | **Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)** | **2026-02-10** | **✅ Implementado** | **Alto** |
+| ID          | Decisão                                                           | Data           | Status                        | Impacto     |
+| ----------- | ----------------------------------------------------------------- | -------------- | ----------------------------- | ----------- |
+| ADR-001     | Setup e Governança                                                | 2025-12        | ✅ Ativo                       | Alto        |
+| ADR-002     | Estrutura de Domínios                                             | 2025-12        | ✅ Ativo                       | Médio       |
+| ADR-003     | Secrets Management Strategy                                       | 2026-01        | ✅ Ativo                       | Alto        |
+| ADR-004     | Terraform vs Helm para Platform Services                          | 2026-01        | ✅ Ativo                       | Alto        |
+| ADR-005     | Logging Strategy (Loki vs CloudWatch)                             | 2026-01        | ✅ Ativo                       | Alto        |
+| ADR-006     | Network Policies Strategy (Calico)                                | 2026-01        | ✅ Ativo                       | Alto        |
+| ADR-007     | Cluster Autoscaler Strategy                                       | 2026-01        | ✅ Ativo                       | Médio       |
+| ADR-008     | TLS Strategy for ALB Ingresses                                    | 2026-01        | ✅ Ativo                       | Alto        |
+| DEC-009     | ACM Conditional Creation Fix                                      | 2026-01-29     | ✅ Ativo                       | Crítico     |
+| DEC-010     | VPC Reaproveitamento                                              | 2026-01        | ✅ Ativo                       | Alto        |
+| **ADR-020** | **OpenTelemetry Tracing Strategy (Tempo vs Jaeger)**              | **2026-01-29** | **✅ Ativo**                   | **Alto**    |
+| **ADR-021** | **No-Domain Phase 1 Strategy (LoadBalancer Pattern)**             | **2026-01-29** | **✅ Ativo**                   | **Médio**   |
+| **ADR-022** | **Startup/Shutdown Automation Strategy (FinOps)**                 | **2026-01-29** | **✅ Ativo**                   | **Alto**    |
+| **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators**         | **2026-01-29** | **✅ Ativo**                   | **Crítico** |
+| **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)**       | **2026-02-02** | **🚀 Ativo (Staging)**         | **Alto**    |
+| **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado**            | **Alto**    |
+| **ADR-026** | **Multi-Environment Terraform Refactoring**                       | **2026-02-02** | **✅ Aprovado**                | **Crítico** |
+| **ADR-027** | **Shared GitLab with Separated DataServices**                     | **2026-02-02** | **✅ Aprovado**                | **Alto**    |
+| **ADR-028** | **Hybrid Observability with OpenTelemetry**                       | **2026-02-02** | **✅ Aprovado**                | **Alto**    |
+| **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted**              | **2026-02-03** | **✅ Implementado**            | **Crítico** |
+| **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)**         | **2026-02-04** | **✅ Implementado**            | **Alto**    |
+| **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)**                       | **2026-02-05** | **📝 Planejado**               | **Alto**    |
+| **ADR-032** | **External Secrets Operator Integration (Vault Backend)**         | **2026-02-05** | **✅ Em Uso (Keycloak)**       | **Alto**    |
+| **ADR-033** | **Harbor Container Registry (S3 + IRSA)**                         | **2026-02-05** | **📝 Planejado**               | **Alto**    |
+| **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy**                        | **2026-02-05** | **📝 Planejado**               | **Médio**   |
+| **ADR-035** | **SonarQube Code Quality Integration**                            | **2026-02-05** | **📝 Planejado**               | **Médio**   |
+| **ADR-036** | **Grafana Multi-Cluster Observability Dashboard**                 | **2026-02-05** | **📝 Planejado**               | **Médio**   |
+| **ADR-037** | **FinOps Legacy Structure Cleanup**                               | **2026-02-05** | **✅ Implementado**            | **Baixo**   |
+| **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration**               | **2026-02-04** | **✅ Implementado**            | **Alto**    |
+| **ADR-039** | **Harbor Jobservice PVC RWO Limitation (Staging)**                | **2026-02-05** | **✅ Implementado**            | **Médio**   |
+| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)**       | **2026-02-05** | **🚀 Implementado (Harbor ✅)** | **Médio**   |
+| **ADR-043** | **Policy Engine Selection (Kyverno)**                             | **2026-02-05** | **✅ Aprovado**                | **Alto**    |
+| **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)**                 | **2026-02-04** | **✅ Implementado**            | **Crítico** |
+| **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)**          | **2026-02-05** | **✅ Implementado**            | **Médio**   |
+| **ADR-051** | **Production Environment Zero-Trust Network**                     | **2026-02-09** | **✅ Implementado**            | **Alto**    |
+| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)**               | **2026-02-09** | **✅ 100% Completo**           | **Alto**    |
+| **ADR-053** | **Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)**   | **2026-02-10** | **✅ Implementado**            | **Alto**    |
 
 | **ADR-054** | **SLI/SLO Baseline Implementation (GAP-001)** | **2026-02-10** | **✅ 98% Completo** | **Alto** |
 | **ADR-055** | **Grafana SLI Dashboards ConfigMap Deployment** | **2026-02-10** | **✅ Implementado** | **Médio** |
@@ -434,12 +434,12 @@ Após Marco 2 Fases 1-7 (Prometheus, Grafana, Loki), faltava traces para complet
 6. ✅ **TraceQL:** Query language moderna (similar LogQL/PromQL)
 
 ### Trade-offs Aceitos
-| Aspecto | Tempo | Jaeger | Decisão |
-|---------|-------|--------|---------|
-| **Custo** | $19.70/mês | $210/mês | Tempo ✅ |
-| **Search avançado** | Limitado (TraceQL basic) | Excelente (tags, duration) | Aceitável ⚠️ |
-| **Maturidade** | 2020+ | CNCF Graduated | Suficiente ✅ |
-| **Operational overhead** | Baixo (S3 managed) | Alto (DB cluster) | Tempo ✅ |
+| Aspecto                  | Tempo                    | Jaeger                     | Decisão      |
+| ------------------------ | ------------------------ | -------------------------- | ------------ |
+| **Custo**                | $19.70/mês               | $210/mês                   | Tempo ✅      |
+| **Search avançado**      | Limitado (TraceQL basic) | Excelente (tags, duration) | Aceitável ⚠️  |
+| **Maturidade**           | 2020+                    | CNCF Graduated             | Suficiente ✅ |
+| **Operational overhead** | Baixo (S3 managed)       | Alto (DB cluster)          | Tempo ✅      |
 
 **Trade-off principal:** Search limitado em Tempo vs custo/complexidade Jaeger. Decisão: 80% dos casos usam trace ID de logs (correlação Loki), search avançado não justifica +$191/mês.
 
@@ -569,14 +569,14 @@ Bloqueio identificado: Domínio não registrado impedia deploy com HTTPS/SSO. Du
 - 💰 **Custo Fase 1:** $902.30/mês → **$737.10/mês** (com otimizações Q1 2026: RI + consolidações)
 
 ### Trade-offs Aceitos
-| Aspecto | Fase 1 (Sem Domínio) | Fase 2 (Com Domínio) |
-|---------|----------------------|----------------------|
-| **Funcionalidade** | 90% operacional ✅ | 100% completo |
-| **Segurança** | Autenticação básica (password) ⚠️ | TLS + SSO/OIDC ✅ |
-| **Tempo para deploy** | Imediato ✅ | +1 semana |
-| **Custo** | +$48.60/mês (NLBs) | +$49.10/mês (NLBs + Route53) |
-| **Bloqueadores** | Nenhum ✅ | Registro domínio |
-| **Uso** | Interno, desenvolvimento ✅ | Produção, webhooks externos |
+| Aspecto               | Fase 1 (Sem Domínio)             | Fase 2 (Com Domínio)         |
+| --------------------- | -------------------------------- | ---------------------------- |
+| **Funcionalidade**    | 90% operacional ✅                | 100% completo                |
+| **Segurança**         | Autenticação básica (password) ⚠️ | TLS + SSO/OIDC ✅             |
+| **Tempo para deploy** | Imediato ✅                       | +1 semana                    |
+| **Custo**             | +$48.60/mês (NLBs)               | +$49.10/mês (NLBs + Route53) |
+| **Bloqueadores**      | Nenhum ✅                         | Registro domínio             |
+| **Uso**               | Interno, desenvolvimento ✅       | Produção, webhooks externos  |
 
 **Decisão:** ✅ **Fase 1 primeiro** permite trabalhar operacionalmente AGORA, adicionar segurança DEPOIS sem retrabalho.
 
@@ -608,30 +608,30 @@ Duas fases distintas de uso:
 
 **Breakdown de Custos Fixos vs Variáveis:**
 
-| Categoria | Componente | Custo/Mês | % | Tipo |
-|-----------|------------|-----------|---|------|
-| **Fixos (Always On)** | | **$200.75** | **29.3%** | |
-| | EKS Control Plane | $73.00 | 10.6% | Fixo |
-| | NAT Gateways (2) | $66.00 | 9.6% | Fixo |
-| | S3 (State + Loki + Tempo) | $34.57 | 5.0% | Fixo |
-| | ALBs (2) | $16.20 | 2.4% | Fixo |
-| | Route53 Hosted Zone | $0.50 | 0.1% | Fixo |
-| | Secrets Manager | $0.40 | 0.1% | Fixo |
-| | CloudWatch Logs (minimal) | $10.08 | 1.5% | Fixo |
-| **Variáveis (Stop/Start)** | | **$484.95** | **70.7%** | |
-| | EC2 Nodes (7× t3.medium) | $477.12 | 69.6% | Variável |
-| | EBS Volumes (PVCs) | $5.36 | 0.8% | Variável (parcial) |
-| | Data Transfer | $2.47 | 0.3% | Variável |
-| **TOTAL** | | **$685.70** | **100%** | |
+| Categoria                  | Componente                | Custo/Mês   | %         | Tipo               |
+| -------------------------- | ------------------------- | ----------- | --------- | ------------------ |
+| **Fixos (Always On)**      |                           | **$200.75** | **29.3%** |                    |
+|                            | EKS Control Plane         | $73.00      | 10.6%     | Fixo               |
+|                            | NAT Gateways (2)          | $66.00      | 9.6%      | Fixo               |
+|                            | S3 (State + Loki + Tempo) | $34.57      | 5.0%      | Fixo               |
+|                            | ALBs (2)                  | $16.20      | 2.4%      | Fixo               |
+|                            | Route53 Hosted Zone       | $0.50       | 0.1%      | Fixo               |
+|                            | Secrets Manager           | $0.40       | 0.1%      | Fixo               |
+|                            | CloudWatch Logs (minimal) | $10.08      | 1.5%      | Fixo               |
+| **Variáveis (Stop/Start)** |                           | **$484.95** | **70.7%** |                    |
+|                            | EC2 Nodes (7× t3.medium)  | $477.12     | 69.6%     | Variável           |
+|                            | EBS Volumes (PVCs)        | $5.36       | 0.8%      | Variável (parcial) |
+|                            | Data Transfer             | $2.47       | 0.3%      | Variável           |
+| **TOTAL**                  |                           | **$685.70** | **100%**  |                    |
 
 **Cenários de Economia:**
 
-| Cenário | Uptime | Economia/Mês | Economia/Ano | % Redução |
-|---------|--------|--------------|--------------|-----------|
-| **Desenvolvimento 8h/dia** | 33% (8h/24h × 22 dias úteis) | **$368.96** | **$4,427.52** | **53.8%** |
-| **Desenvolvimento 10h/dia** | 42% | $333.52 | $4,002.24 | 48.6% |
-| **Produção 12h/dia** | 50% | $298.08 | $3,576.96 | 43.5% |
-| **Produção 24/5** (shutdown noturno + weekends) | 71% | $176.84 | $2,122.08 | 25.8% |
+| Cenário                                         | Uptime                       | Economia/Mês | Economia/Ano  | % Redução |
+| ----------------------------------------------- | ---------------------------- | ------------ | ------------- | --------- |
+| **Desenvolvimento 8h/dia**                      | 33% (8h/24h × 22 dias úteis) | **$368.96**  | **$4,427.52** | **53.8%** |
+| **Desenvolvimento 10h/dia**                     | 42%                          | $333.52      | $4,002.24     | 48.6%     |
+| **Produção 12h/dia**                            | 50%                          | $298.08      | $3,576.96     | 43.5%     |
+| **Produção 24/5** (shutdown noturno + weekends) | 71%                          | $176.84      | $2,122.08     | 25.8%     |
 
 **ROI Automação:**
 - **Investimento:** 8h desenvolvimento scripts + 4h GitHub Actions = 12h × $50/h = $600
@@ -648,17 +648,17 @@ Duas fases distintas de uso:
 
 **Classificação de Componentes por Lifecycle:**
 
-| Componente | Ação Shutdown | Ação Startup | Cold Start | Data Loss Risk |
-|------------|---------------|--------------|------------|----------------|
-| **EKS Cluster** | Stop (nodes ASG desired=0) | Start (nodes ASG desired=7) | 5-8 min | ❌ Baixo (PVCs preservados) |
-| **EC2 Nodes** | Terminate (ASG scale to 0) | Create (ASG scale to 7) | 3-5 min | ❌ Nenhum (stateless) |
-| **EBS Volumes (PVCs)** | Persist (detached) | Reattach automático | 1-2 min | ❌ Nenhum (persistent) |
-| **S3 Buckets** | Always On | N/A | Instant | ❌ Nenhum |
-| **RDS** | Stop instance | Start instance | 3-5 min | ❌ Nenhum |
-| **NAT Gateways** | Always On (custo fixo) | N/A | N/A | N/A |
-| **ALBs** | Always On (custo fixo) | N/A | N/A | N/A |
-| **VPC/Subnets/SGs** | Always On (sem custo) | N/A | N/A | N/A |
-| **IRSA Roles** | Always On (sem custo) | N/A | N/A | N/A |
+| Componente             | Ação Shutdown              | Ação Startup                | Cold Start | Data Loss Risk             |
+| ---------------------- | -------------------------- | --------------------------- | ---------- | -------------------------- |
+| **EKS Cluster**        | Stop (nodes ASG desired=0) | Start (nodes ASG desired=7) | 5-8 min    | ❌ Baixo (PVCs preservados) |
+| **EC2 Nodes**          | Terminate (ASG scale to 0) | Create (ASG scale to 7)     | 3-5 min    | ❌ Nenhum (stateless)       |
+| **EBS Volumes (PVCs)** | Persist (detached)         | Reattach automático         | 1-2 min    | ❌ Nenhum (persistent)      |
+| **S3 Buckets**         | Always On                  | N/A                         | Instant    | ❌ Nenhum                   |
+| **RDS**                | Stop instance              | Start instance              | 3-5 min    | ❌ Nenhum                   |
+| **NAT Gateways**       | Always On (custo fixo)     | N/A                         | N/A        | N/A                        |
+| **ALBs**               | Always On (custo fixo)     | N/A                         | N/A        | N/A                        |
+| **VPC/Subnets/SGs**    | Always On (sem custo)      | N/A                         | N/A        | N/A                        |
+| **IRSA Roles**         | Always On (sem custo)      | N/A                         | N/A        | N/A                        |
 
 **Cold Start Times:**
 - **Cenário 1 - Nodes Only** (cluster mantido): 5-8 min total
@@ -690,13 +690,13 @@ Duas fases distintas de uso:
 
 **Avaliação de Abordagens:**
 
-| Abordagem | Viabilidade | Pros | Cons | Decisão |
-|-----------|-------------|------|------|---------|
-| **Bash Scripts** (atual) | ✅ VIÁVEL | Flexibilidade total, debug fácil, logs granulares | Requer execução manual (por enquanto) | ✅ MANTER |
-| **Terraform Variables** (`desired_size = 0`) | ❌ NÃO RECOMENDADO | Nativo Terraform | Conflita com Cluster Autoscaler (state drift) | ❌ REJEITAR |
-| **Terraform Workspaces** | ❌ NÃO RECOMENDADO | Isolamento state | Não é para estados transientes (up/down) | ❌ REJEITAR |
-| **null_resource + local-exec** | ❌ ANTI-PATTERN | Terraform-native | Difícil debug, logs ruins, anti-pattern | ❌ REJEITAR |
-| **GitHub Actions CI/CD** | ✅ RECOMENDADO (futuro) | Automação schedule, logs centralizados, notifications | Requer setup inicial | ✅ IMPLEMENTAR FASE 2 |
+| Abordagem                                    | Viabilidade            | Pros                                                  | Cons                                          | Decisão              |
+| -------------------------------------------- | ---------------------- | ----------------------------------------------------- | --------------------------------------------- | -------------------- |
+| **Bash Scripts** (atual)                     | ✅ VIÁVEL               | Flexibilidade total, debug fácil, logs granulares     | Requer execução manual (por enquanto)         | ✅ MANTER             |
+| **Terraform Variables** (`desired_size = 0`) | ❌ NÃO RECOMENDADO      | Nativo Terraform                                      | Conflita com Cluster Autoscaler (state drift) | ❌ REJEITAR           |
+| **Terraform Workspaces**                     | ❌ NÃO RECOMENDADO      | Isolamento state                                      | Não é para estados transientes (up/down)      | ❌ REJEITAR           |
+| **null_resource + local-exec**               | ❌ ANTI-PATTERN         | Terraform-native                                      | Difícil debug, logs ruins, anti-pattern       | ❌ REJEITAR           |
+| **GitHub Actions CI/CD**                     | ✅ RECOMENDADO (futuro) | Automação schedule, logs centralizados, notifications | Requer setup inicial                          | ✅ IMPLEMENTAR FASE 2 |
 
 **Problema: Cluster Autoscaler vs Terraform State Drift**
 
@@ -821,13 +821,13 @@ jobs:
 
 ### Trade-offs Aceitos
 
-| Aspecto | Bash Scripts + GitHub Actions | Terraform Native | Decisão |
-|---------|-------------------------------|------------------|---------|
-| **Flexibilidade** | Alta (shell completo) ✅ | Limitada (HCL) | Bash ✅ |
-| **Debug** | Fácil (logs granulares) ✅ | Difícil (null_resource) | Bash ✅ |
-| **State Drift** | Zero (usa AWS CLI) ✅ | Conflito com CA ❌ | Bash ✅ |
-| **Automação** | GitHub Actions (Fase 2) ✅ | Requer workarounds | Bash ✅ |
-| **Consistency** | Requer disciplina ⚠️ | Terraform state garante | Aceitável ⚠️ |
+| Aspecto           | Bash Scripts + GitHub Actions | Terraform Native        | Decisão     |
+| ----------------- | ----------------------------- | ----------------------- | ----------- |
+| **Flexibilidade** | Alta (shell completo) ✅       | Limitada (HCL)          | Bash ✅      |
+| **Debug**         | Fácil (logs granulares) ✅     | Difícil (null_resource) | Bash ✅      |
+| **State Drift**   | Zero (usa AWS CLI) ✅          | Conflito com CA ❌       | Bash ✅      |
+| **Automação**     | GitHub Actions (Fase 2) ✅     | Requer workarounds      | Bash ✅      |
+| **Consistency**   | Requer disciplina ⚠️           | Terraform state garante | Aceitável ⚠️ |
 
 **Trade-off principal:** Bash scripts requerem mais disciplina (documentação, error handling) vs Terraform declarativo. Decisão: Flexibilidade e compatibilidade com Cluster Autoscaler justificam abordagem imperativa.
 
@@ -853,13 +853,13 @@ jobs:
 
 #### Custos por Fase de Uso
 
-| Fase | Uptime | Custo Fixo | Custo Variável | Total/Mês | Economia |
-|------|--------|------------|----------------|-----------|----------|
-| **Marco 2 Baseline** (24/7) | 100% | $200.75 | $484.95 | $685.70 | - |
-| **Dev 8h/dia** (atual) | 33% | $200.75 | $116.03 | $316.78 | **-$368.92** (-53.8%) |
-| **Dev 10h/dia** | 42% | $200.75 | $151.43 | $352.18 | -$333.52 (-48.6%) |
-| **Prod 24/5** (noturno off) | 71% | $200.75 | $308.11 | $508.86 | -$176.84 (-25.8%) |
-| **Prod 24/7** | 100% | $200.75 | $484.95 | $685.70 | $0 (baseline) |
+| Fase                        | Uptime | Custo Fixo | Custo Variável | Total/Mês | Economia              |
+| --------------------------- | ------ | ---------- | -------------- | --------- | --------------------- |
+| **Marco 2 Baseline** (24/7) | 100%   | $200.75    | $484.95        | $685.70   | -                     |
+| **Dev 8h/dia** (atual)      | 33%    | $200.75    | $116.03        | $316.78   | **-$368.92** (-53.8%) |
+| **Dev 10h/dia**             | 42%    | $200.75    | $151.43        | $352.18   | -$333.52 (-48.6%)     |
+| **Prod 24/5** (noturno off) | 71%    | $200.75    | $308.11        | $508.86   | -$176.84 (-25.8%)     |
+| **Prod 24/7**               | 100%   | $200.75    | $484.95        | $685.70   | $0 (baseline)         |
 
 #### Marco 3 Considerações (PostgreSQL RDS)
 
@@ -917,16 +917,16 @@ cd platform-provisioning/aws/kubernetes/terraform
 
 Mesmo com shutdown completo, custos que persistem:
 
-| Componente | Custo/Mês | Justificativa |
-|------------|-----------|---------------|
-| EKS Control Plane | $73.00 | Não pode ser stopped (AWS managed) |
-| NAT Gateways (2) | $66.00 | Necessário para cluster (não pode ser deleted sem downtime) |
-| S3 Storage | $34.57 | Dados persistentes (logs, traces, state) |
-| ALBs (2) | $16.20 | Ingress endpoints (não destroyable sem recreate) |
-| CloudWatch Logs | $10.08 | Retenção logs infraestrutura |
-| Secrets Manager | $0.40 | Credentials (Grafana, futuros) |
-| Route53 Hosted Zone | $0.50 | DNS (Marco 3) |
-| **TOTAL FIXO** | **$200.75/mês** | **29.3% do custo total** |
+| Componente          | Custo/Mês       | Justificativa                                               |
+| ------------------- | --------------- | ----------------------------------------------------------- |
+| EKS Control Plane   | $73.00          | Não pode ser stopped (AWS managed)                          |
+| NAT Gateways (2)    | $66.00          | Necessário para cluster (não pode ser deleted sem downtime) |
+| S3 Storage          | $34.57          | Dados persistentes (logs, traces, state)                    |
+| ALBs (2)            | $16.20          | Ingress endpoints (não destroyable sem recreate)            |
+| CloudWatch Logs     | $10.08          | Retenção logs infraestrutura                                |
+| Secrets Manager     | $0.40           | Credentials (Grafana, futuros)                              |
+| Route53 Hosted Zone | $0.50           | DNS (Marco 3)                                               |
+| **TOTAL FIXO**      | **$200.75/mês** | **29.3% do custo total**                                    |
 
 **Implicação:** Economia máxima possível é 70.7% ($484.95/mês), nunca 100%.
 
@@ -1009,11 +1009,11 @@ Adotar **Kubernetes Operators** (Spotahome Redis Operator + RabbitMQ Cluster Ope
 
 ### Alternativas Consideradas
 
-| Alternativa | Custo/Ano | Esforço | HA | Cloud-Agnostic | Decisão |
-|-------------|-----------|---------|----|--------------|---------|
-| **Continuar Bitnami + Pagar Tanzu** | $79,248 | 20h | Manual | ❌ | ❌ REJEITADO |
-| **AWS Managed (ElastiCache + MQ)** | $11,640 | 12h | Automático | ❌ | ⚠️ Alternativa |
-| **Kubernetes Operators** | **$6,348** | **24h** | **Automático** | **✅** | ✅ **ESCOLHIDO** |
+| Alternativa                         | Custo/Ano  | Esforço | HA             | Cloud-Agnostic | Decisão         |
+| ----------------------------------- | ---------- | ------- | -------------- | -------------- | --------------- |
+| **Continuar Bitnami + Pagar Tanzu** | $79,248    | 20h     | Manual         | ❌              | ❌ REJEITADO     |
+| **AWS Managed (ElastiCache + MQ)**  | $11,640    | 12h     | Automático     | ❌              | ⚠️ Alternativa   |
+| **Kubernetes Operators**            | **$6,348** | **24h** | **Automático** | **✅**          | ✅ **ESCOLHIDO** |
 
 ### Rationale
 
@@ -1068,18 +1068,18 @@ Adotar **Kubernetes Operators** (Spotahome Redis Operator + RabbitMQ Cluster Ope
 
 **Tasks Ajustadas:**
 
-| Task Original | Task Ajustada | Esforço | Delta |
-|---------------|---------------|---------|-------|
-| C.2: Deploy bitnami/redis (8h) | Deploy Spotahome Redis Operator (10h) | 10h | +2h |
-| C.3: Deploy bitnami/rabbitmq (8h) | Deploy RabbitMQ Cluster Operator (10h) | 10h | +2h |
+| Task Original                     | Task Ajustada                          | Esforço | Delta |
+| --------------------------------- | -------------------------------------- | ------- | ----- |
+| C.2: Deploy bitnami/redis (8h)    | Deploy Spotahome Redis Operator (10h)  | 10h     | +2h   |
+| C.3: Deploy bitnami/rabbitmq (8h) | Deploy RabbitMQ Cluster Operator (10h) | 10h     | +2h   |
 
 **Custos Ajustados:**
 
-| Ambiente | Original (Bitnami) | Ajustado (Operators) | Economia |
-|----------|-------------------|---------------------|----------|
-| Staging | $112/mês | $97/mês | -$15/mês |
-| Prod | $467/mês | $407/mês | -$60/mês |
-| **TOTAL** | **$604/mês** | **$529/mês** | **-$75/mês (-$900/ano)** |
+| Ambiente  | Original (Bitnami) | Ajustado (Operators) | Economia                 |
+| --------- | ------------------ | -------------------- | ------------------------ |
+| Staging   | $112/mês           | $97/mês              | -$15/mês                 |
+| Prod      | $467/mês           | $407/mês             | -$60/mês                 |
+| **TOTAL** | **$604/mês**       | **$529/mês**         | **-$75/mês (-$900/ano)** |
 
 **Esforço Total Ajustado:**
 - Sprint 1: 88h → 92h (+4h, +1.5%)
@@ -1088,26 +1088,26 @@ Adotar **Kubernetes Operators** (Spotahome Redis Operator + RabbitMQ Cluster Ope
 
 ### Comparativo Features
 
-| Feature | Bitnami Charts | Operators | Vencedor |
-|---------|----------------|-----------|----------|
-| **Custo Total** | $79,248/ano (Tanzu) | $6,348/ano | ✅ Operators (92% economia) |
-| **Failover Time** | 5-6 min (manual) | < 30s (automático) | ✅ Operators (12× faster) |
-| **Backups** | Scripts manuais | CronJobs nativos | ✅ Operators |
-| **Monitoring** | Exporter manual | ServiceMonitors nativos | ✅ Operators |
-| **Upgrades** | Downtime | Zero-downtime | ✅ Operators |
-| **Cloud Portability** | AWS-specific (EBS) | Cloud-agnostic (PVC) | ✅ Operators |
-| **Simplicidade Deploy** | Helm install | CRDs + Operator | ✅ Bitnami |
+| Feature                 | Bitnami Charts      | Operators               | Vencedor                   |
+| ----------------------- | ------------------- | ----------------------- | -------------------------- |
+| **Custo Total**         | $79,248/ano (Tanzu) | $6,348/ano              | ✅ Operators (92% economia) |
+| **Failover Time**       | 5-6 min (manual)    | < 30s (automático)      | ✅ Operators (12× faster)   |
+| **Backups**             | Scripts manuais     | CronJobs nativos        | ✅ Operators                |
+| **Monitoring**          | Exporter manual     | ServiceMonitors nativos | ✅ Operators                |
+| **Upgrades**            | Downtime            | Zero-downtime           | ✅ Operators                |
+| **Cloud Portability**   | AWS-specific (EBS)  | Cloud-agnostic (PVC)    | ✅ Operators                |
+| **Simplicidade Deploy** | Helm install        | CRDs + Operator         | ✅ Bitnami                  |
 
 **Score:** Operators **6-1** vs Bitnami
 
 ### ROI
 
-| Métrica | Valor |
-|---------|-------|
-| **Investimento:** | +4h Sprint 1 ($400 @ $100/h) |
+| Métrica             | Valor                                   |
+| ------------------- | --------------------------------------- |
+| **Investimento:**   | +4h Sprint 1 ($400 @ $100/h)            |
 | **Economia Ano 1:** | $73,800 (Tanzu avoided + infra savings) |
-| **ROI:** | 18,450% |
-| **Payback:** | 5 dias |
+| **ROI:**            | 18,450%                                 |
+| **Payback:**        | 5 dias                                  |
 
 ### Implementação
 
@@ -1352,31 +1352,31 @@ TOTAL:       R$ 60.408/ano desperdiçados ❌
 
 #### Comparação STAGING vs PRODUCTION
 
-| Aspecto | STAGING | PRODUCTION |
-|---------|---------|------------|
-| **Schedule** | 8h-18h Mon-Fri | 7h-0h 7 dias/semana |
-| **Uptime** | 50h/semana (30%) | 119h/semana (71%) |
-| **Feriados** | SKIP (não liga) | LIGA (clientes ativos) |
-| **Health Checks** | Básicos (GitLab jobs) | Rigorosos (transações DB, conexões, queues) |
-| **Rollback** | Manual (30 min) | Automático (< 5 min) |
-| **SLA** | 99.5% (8h-18h) | 99.9% (7h-0h) |
-| **Circuit Breaker** | 3 falhas | 2 falhas (mais sensível) |
-| **Snapshot RDS** | Não | Sim (pré-shutdown, RPO < 1h) |
-| **Notificação** | Slack | PagerDuty P1 + Slack |
-| **Investimento** | R$ 3.000 (10h dev) | R$ 1.500 (5h incremental) |
-| **Economia Anual** | R$ 4.320 | R$ 9.360 |
-| **ROI Year 1** | 44% | 521% |
-| **Payback** | 6.7 meses | 1.9 meses |
+| Aspecto             | STAGING               | PRODUCTION                                  |
+| ------------------- | --------------------- | ------------------------------------------- |
+| **Schedule**        | 8h-18h Mon-Fri        | 7h-0h 7 dias/semana                         |
+| **Uptime**          | 50h/semana (30%)      | 119h/semana (71%)                           |
+| **Feriados**        | SKIP (não liga)       | LIGA (clientes ativos)                      |
+| **Health Checks**   | Básicos (GitLab jobs) | Rigorosos (transações DB, conexões, queues) |
+| **Rollback**        | Manual (30 min)       | Automático (< 5 min)                        |
+| **SLA**             | 99.5% (8h-18h)        | 99.9% (7h-0h)                               |
+| **Circuit Breaker** | 3 falhas              | 2 falhas (mais sensível)                    |
+| **Snapshot RDS**    | Não                   | Sim (pré-shutdown, RPO < 1h)                |
+| **Notificação**     | Slack                 | PagerDuty P1 + Slack                        |
+| **Investimento**    | R$ 3.000 (10h dev)    | R$ 1.500 (5h incremental)                   |
+| **Economia Anual**  | R$ 4.320              | R$ 9.360                                    |
+| **ROI Year 1**      | 44%                   | 521%                                        |
+| **Payback**         | 6.7 meses             | 1.9 meses                                   |
 
 ### Alternativas Consideradas
 
-| Alternativa | Custo Mensal | Economia/Ano | Decisão | Rationale |
-|-------------|--------------|--------------|---------|-----------|
-| **1. Status Quo (24/7)** | $187 | $0 | ❌ REJEITADO | Desperdício 70% recursos |
-| **2. Shutdown manual diário** | $130 | $684/ano | ❌ REJEITADO | Requer intervenção humana 2×/dia, toil alto |
-| **3. Automação parcial (sem feriados)** | $135 | $624/ano | ❌ REJEITADO | Workloads ligam em feriados desnecessariamente |
-| **4. Automação completa (EventBridge + Lambda)** | $127 | $720/ano | ✅ **ESCOLHIDO** | Zero toil, ROI 44%, payback 4.2 meses |
-| **5. Delete staging (usar PROD)** | $0 | $2.244/ano | ❌ REJEITADO | Riscos altíssimos, violação boas práticas |
+| Alternativa                                      | Custo Mensal | Economia/Ano | Decisão         | Rationale                                      |
+| ------------------------------------------------ | ------------ | ------------ | --------------- | ---------------------------------------------- |
+| **1. Status Quo (24/7)**                         | $187         | $0           | ❌ REJEITADO     | Desperdício 70% recursos                       |
+| **2. Shutdown manual diário**                    | $130         | $684/ano     | ❌ REJEITADO     | Requer intervenção humana 2×/dia, toil alto    |
+| **3. Automação parcial (sem feriados)**          | $135         | $624/ano     | ❌ REJEITADO     | Workloads ligam em feriados desnecessariamente |
+| **4. Automação completa (EventBridge + Lambda)** | $127         | $720/ano     | ✅ **ESCOLHIDO** | Zero toil, ROI 44%, payback 4.2 meses          |
+| **5. Delete staging (usar PROD)**                | $0           | $2.244/ano   | ❌ REJEITADO     | Riscos altíssimos, violação boas práticas      |
 
 ### Rationale
 
@@ -1527,14 +1527,14 @@ ECONOMIA BRL (taxa 6.0):              R$ 4.320/ano
 
 ### Riscos e Mitigações
 
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|--------------|---------|-----------|
-| **Falha startup RDS timeout** | 🟡 Média (5%) | 🔴 Alto | Retry 3× com backoff exponencial (30s, 60s, 120s), alerta PagerDuty falha 3× |
-| **GitLab job perdido durante shutdown** | 🟢 Baixa (2%) | 🔴 Alto | Health check: `GET /api/v4/jobs?scope[]=running`, bloqueia shutdown se > 0 jobs |
-| **BrasilAPI indisponível** | 🟢 Baixa (1%) | 🟡 Médio | Cache local DynamoDB (30 dias TTL), fallback lista estática feriados fixos |
-| **Lambda timeout 300s** | 🟢 Baixa (1%) | 🟡 Médio | Operações assíncronas (não aguardar nodes Ready inline), Step Functions futuro se necessário |
-| **Circuit breaker ativado erroneamente** | 🟢 Baixa (1%) | 🟡 Médio | Threshold ajustável (3 falhas), notificação imediata, recovery manual documentado |
-| **DynamoDB write throttling** | 🟢 Baixa (<1%) | 🟢 Baixo | On-demand billing mode (auto-scale), retry exponential backoff |
+| Risco                                    | Probabilidade | Impacto | Mitigação                                                                                    |
+| ---------------------------------------- | ------------- | ------- | -------------------------------------------------------------------------------------------- |
+| **Falha startup RDS timeout**            | 🟡 Média (5%)  | 🔴 Alto  | Retry 3× com backoff exponencial (30s, 60s, 120s), alerta PagerDuty falha 3×                 |
+| **GitLab job perdido durante shutdown**  | 🟢 Baixa (2%)  | 🔴 Alto  | Health check: `GET /api/v4/jobs?scope[]=running`, bloqueia shutdown se > 0 jobs              |
+| **BrasilAPI indisponível**               | 🟢 Baixa (1%)  | 🟡 Médio | Cache local DynamoDB (30 dias TTL), fallback lista estática feriados fixos                   |
+| **Lambda timeout 300s**                  | 🟢 Baixa (1%)  | 🟡 Médio | Operações assíncronas (não aguardar nodes Ready inline), Step Functions futuro se necessário |
+| **Circuit breaker ativado erroneamente** | 🟢 Baixa (1%)  | 🟡 Médio | Threshold ajustável (3 falhas), notificação imediata, recovery manual documentado            |
+| **DynamoDB write throttling**            | 🟢 Baixa (<1%) | 🟢 Baixo | On-demand billing mode (auto-scale), retry exponential backoff                               |
 
 **Plano de Rollback:**
 1. Desabilitar EventBridge rules (disable via console)
@@ -1546,13 +1546,13 @@ ECONOMIA BRL (taxa 6.0):              R$ 4.320/ano
 
 **CloudWatch Metrics:**
 
-| Métrica | Namespace | Descrição | Threshold Alerta |
-|---------|-----------|-----------|-----------------|
-| `finops.startup.duration` | FinOps/Scheduler | Tempo total startup (segundos) | Warning: > 600s (10 min), Critical: > 900s (15 min) |
-| `finops.shutdown.duration` | FinOps/Scheduler | Tempo total shutdown (segundos) | Warning: > 300s (5 min) |
-| `finops.cost_savings_daily` | FinOps/Costs | Economia diária estimada (USD) | Info: < $2/dia (esperado $2.40) |
-| `finops.circuit_breaker_state` | FinOps/Health | 0 = closed (OK), 1 = open (disabled) | Critical: state = 1 |
-| `finops.holiday_detected` | FinOps/Scheduler | 1 = feriado (ação skipped) | Info |
+| Métrica                        | Namespace        | Descrição                            | Threshold Alerta                                    |
+| ------------------------------ | ---------------- | ------------------------------------ | --------------------------------------------------- |
+| `finops.startup.duration`      | FinOps/Scheduler | Tempo total startup (segundos)       | Warning: > 600s (10 min), Critical: > 900s (15 min) |
+| `finops.shutdown.duration`     | FinOps/Scheduler | Tempo total shutdown (segundos)      | Warning: > 300s (5 min)                             |
+| `finops.cost_savings_daily`    | FinOps/Costs     | Economia diária estimada (USD)       | Info: < $2/dia (esperado $2.40)                     |
+| `finops.circuit_breaker_state` | FinOps/Health    | 0 = closed (OK), 1 = open (disabled) | Critical: state = 1                                 |
+| `finops.holiday_detected`      | FinOps/Scheduler | 1 = feriado (ação skipped)           | Info                                                |
 
 **Grafana Dashboard:** "FinOps Staging Automation"
 - Panel 1: Uptime real vs planejado (gráfico temporal 30 dias)
@@ -1562,12 +1562,12 @@ ECONOMIA BRL (taxa 6.0):              R$ 4.320/ano
 
 **Alertas:**
 
-| Condição | Severidade | Destino | Ação |
-|----------|-----------|---------|------|
-| Startup duration > 15 min | 🟡 Warning | Slack #finops-alerts | Investigar performance RDS/nodes |
-| Startup failed 3× consecutivas | 🔴 Critical | PagerDuty on-call | Circuit breaker ativado, disable automation, startup manual |
-| BrasilAPI unreachable | 🟢 Info | CloudWatch Logs | Fallback para lista estática, continuar operação |
-| Cost savings < $2/dia | 🟡 Warning | Slack #finops | Validar uptime real vs esperado |
+| Condição                       | Severidade | Destino              | Ação                                                        |
+| ------------------------------ | ---------- | -------------------- | ----------------------------------------------------------- |
+| Startup duration > 15 min      | 🟡 Warning  | Slack #finops-alerts | Investigar performance RDS/nodes                            |
+| Startup failed 3× consecutivas | 🔴 Critical | PagerDuty on-call    | Circuit breaker ativado, disable automation, startup manual |
+| BrasilAPI unreachable          | 🟢 Info     | CloudWatch Logs      | Fallback para lista estática, continuar operação            |
+| Cost savings < $2/dia          | 🟡 Warning  | Slack #finops        | Validar uptime real vs esperado                             |
 
 ### Custo-Benefício Detalhado
 
@@ -1613,11 +1613,11 @@ NPV líquido: R$ 7.745 (258% ROI cumulativo)
 
 **Análise de Sensibilidade:**
 
-| Cenário | Uptime Real | Economia/Ano | ROI Year 1 | Payback |
-|---------|-------------|--------------|-----------|---------|
-| **Pessimista** (60h/semana) | 36% mês | R$ 3.600 | 20% | 10 meses |
-| **Base Case** (50h/semana) | 30% mês | R$ 4.320 | 44% | 6.7 meses |
-| **Otimista** (40h/semana) | 24% mês | R$ 5.040 | 68% | 5.6 meses |
+| Cenário                     | Uptime Real | Economia/Ano | ROI Year 1 | Payback   |
+| --------------------------- | ----------- | ------------ | ---------- | --------- |
+| **Pessimista** (60h/semana) | 36% mês     | R$ 3.600     | 20%        | 10 meses  |
+| **Base Case** (50h/semana)  | 30% mês     | R$ 4.320     | 44%        | 6.7 meses |
+| **Otimista** (40h/semana)   | 24% mês     | R$ 5.040     | 68%        | 5.6 meses |
 
 **Conclusão:** ROI positivo em todos os cenários, decisão **robusta a variações**.
 
@@ -1649,14 +1649,14 @@ NPV líquido: R$ 7.745 (258% ROI cumulativo)
 
 ### Timeline
 
-| Marco | Prazo | Responsável | Status |
-|-------|-------|-------------|--------|
-| Aprovação arquitetura + FinOps | 2026-02-03 | Arquitetura + FinOps | 📋 Pendente |
-| Desenvolvimento Lambda + Terraform | 2026-02-10 | DevOps | 📋 Pendente |
-| Testes integrados (local + staging) | 2026-02-13 | QA + DevOps | 📋 Pendente |
-| Deploy produção (EventBridge enabled) | 2026-02-17 | DevOps | 📋 Pendente |
-| Monitoramento intensivo (1 mês) | 2026-03-17 | FinOps | 📋 Pendente |
-| Retrospectiva + KPIs validados | 2026-03-20 | Time completo | 📋 Pendente |
+| Marco                                 | Prazo      | Responsável          | Status     |
+| ------------------------------------- | ---------- | -------------------- | ---------- |
+| Aprovação arquitetura + FinOps        | 2026-02-03 | Arquitetura + FinOps | 📋 Pendente |
+| Desenvolvimento Lambda + Terraform    | 2026-02-10 | DevOps               | 📋 Pendente |
+| Testes integrados (local + staging)   | 2026-02-13 | QA + DevOps          | 📋 Pendente |
+| Deploy produção (EventBridge enabled) | 2026-02-17 | DevOps               | 📋 Pendente |
+| Monitoramento intensivo (1 mês)       | 2026-03-17 | FinOps               | 📋 Pendente |
+| Retrospectiva + KPIs validados        | 2026-03-20 | Time completo        | 📋 Pendente |
 
 ### Referências
 
@@ -1737,22 +1737,22 @@ NPV líquido: R$ 7.745 (258% ROI cumulativo)
 ## 📊 Consolidação de Decisões
 
 ### Economia Total Decisões
-| Decisão | Economia/Ano | Rationale |
-|---------|--------------|-----------|
-| VPC Reaproveitamento | $1.152/ano | Evitar criar NAT Gateways |
-| Loki vs CloudWatch | $423/ano | Menor custo ingestion + storage |
-| Calico policy-only | $0 | Evitar nodes adicionais para overlay |
-| Cluster Autoscaler | ~$372/ano | Scale-down em baixa demanda |
-| ACM vs Third-party CA | $400/ano | Certificates gratuitos AWS |
-| **TOTAL ECONOMIA** | **~$2.347/ano** | |
+| Decisão               | Economia/Ano    | Rationale                            |
+| --------------------- | --------------- | ------------------------------------ |
+| VPC Reaproveitamento  | $1.152/ano      | Evitar criar NAT Gateways            |
+| Loki vs CloudWatch    | $423/ano        | Menor custo ingestion + storage      |
+| Calico policy-only    | $0              | Evitar nodes adicionais para overlay |
+| Cluster Autoscaler    | ~$372/ano       | Scale-down em baixa demanda          |
+| ACM vs Third-party CA | $400/ano        | Certificates gratuitos AWS           |
+| **TOTAL ECONOMIA**    | **~$2.347/ano** |                                      |
 
 ### Trade-offs Aceitos
-| Trade-off | Justificativa |
-|-----------|---------------|
-| Vendor lock-in AWS | Prioridade: Time-to-market + Custo vs Portabilidade |
-| 2 AZs (não 3) | Suficiente para DevOps tools (não critical workloads) |
-| Cluster Autoscaler (não Karpenter) | Simplicidade vs Otimização spot instances |
-| Terraform + Helm (não ArgoCD) | Single source of truth vs GitOps nativo |
+| Trade-off                          | Justificativa                                         |
+| ---------------------------------- | ----------------------------------------------------- |
+| Vendor lock-in AWS                 | Prioridade: Time-to-market + Custo vs Portabilidade   |
+| 2 AZs (não 3)                      | Suficiente para DevOps tools (não critical workloads) |
+| Cluster Autoscaler (não Karpenter) | Simplicidade vs Otimização spot instances             |
+| Terraform + Helm (não ArgoCD)      | Single source of truth vs GitOps nativo               |
 
 ---
 
@@ -1808,12 +1808,12 @@ Durante deployment do Tempo (Marco 2 Fase 8), encontramos crash loop em Ingester
 
 ### Trade-offs Aceitos
 
-| Aspecto | RF=2 (staging) | RF=3 (produção) |
-|---------|----------------|-----------------|
-| **HA** | ⚠️ Perda de 1 Ingester = degradação | ✅ Tolera 2 falhas simultâneas |
-| **Custo** | $2.47/mês | $63.47/mês |
-| **Recovery** | Single point durante failover | Multi-point resiliente |
-| **Quorum** | 2/2 (sem margem) | 2/3 (tolerante) |
+| Aspecto      | RF=2 (staging)                     | RF=3 (produção)               |
+| ------------ | ---------------------------------- | ----------------------------- |
+| **HA**       | ⚠️ Perda de 1 Ingester = degradação | ✅ Tolera 2 falhas simultâneas |
+| **Custo**    | $2.47/mês                          | $63.47/mês                    |
+| **Recovery** | Single point durante failover      | Multi-point resiliente        |
+| **Quorum**   | 2/2 (sem margem)                   | 2/3 (tolerante)               |
 
 **Mitigações RF=2**:
 - PodDisruptionBudget com `maxUnavailable=0`
@@ -1903,12 +1903,12 @@ terraform/
 
 #### 2. Component Distribution Strategy
 
-| Componente | Decisão | Rationale |
-|------------|---------|-----------|
-| **GitLab** | ✅ SHARED | 1 instância = -$92/mês economia, pipelines por branch |
-| **DataServices** | ❌ SEPARATED | Isolamento dados, secrets, compliance |
-| **Observability** | ⚠️ HYBRID | Shared backend + labels = -40% custo vs separated |
-| **FinOps** | 🎯 STAGING ONLY | Shutdown 18h-8h = -R$ 204/mês |
+| Componente        | Decisão        | Rationale                                             |
+| ----------------- | -------------- | ----------------------------------------------------- |
+| **GitLab**        | ✅ SHARED       | 1 instância = -$92/mês economia, pipelines por branch |
+| **DataServices**  | ❌ SEPARATED    | Isolamento dados, secrets, compliance                 |
+| **Observability** | ⚠️ HYBRID       | Shared backend + labels = -40% custo vs separated     |
+| **FinOps**        | 🎯 STAGING ONLY | Shutdown 18h-8h = -R$ 204/mês                         |
 
 #### 3. Environment Configurations
 
@@ -1964,18 +1964,18 @@ terraform/
 
 ### Custos Consolidados
 
-| Componente | STAGING | PROD | TOTAL/mês | Economia |
-|------------|---------|------|-----------|----------|
-| GitLab (Shared) | - | - | $92.71 | -$92 vs duplicado |
-| PostgreSQL | $9 | $60 | $69 | - |
-| Redis | $4.50 | $18.50 | $23 | -$419 vs Tanzu |
-| RabbitMQ | $4.50 | $18.50 | $23 | - |
-| Observability (Hybrid) | - | - | $122 | -$82 vs separated |
-| Nodes | $18 | $108 | $126 | - |
-| Storage + S3 | - | - | $30 | - |
-| ALB + NLB | - | - | $29.50 | - |
-| FinOps Economy | -$34 | $0 | -$34 | Shutdown automation |
-| **TOTAL** | **~$100** | **~$380** | **$481.21** | **R$ 2.887/mês** |
+| Componente             | STAGING   | PROD      | TOTAL/mês   | Economia            |
+| ---------------------- | --------- | --------- | ----------- | ------------------- |
+| GitLab (Shared)        | -         | -         | $92.71      | -$92 vs duplicado   |
+| PostgreSQL             | $9        | $60       | $69         | -                   |
+| Redis                  | $4.50     | $18.50    | $23         | -$419 vs Tanzu      |
+| RabbitMQ               | $4.50     | $18.50    | $23         | -                   |
+| Observability (Hybrid) | -         | -         | $122        | -$82 vs separated   |
+| Nodes                  | $18       | $108      | $126        | -                   |
+| Storage + S3           | -         | -         | $30         | -                   |
+| ALB + NLB              | -         | -         | $29.50      | -                   |
+| FinOps Economy         | -$34      | $0        | -$34        | Shutdown automation |
+| **TOTAL**              | **~$100** | **~$380** | **$481.21** | **R$ 2.887/mês**    |
 
 **Conversão BRL (R$ 6,00):** R$ 2.887/mês (R$ 34.644/ano)
 
@@ -2126,12 +2126,12 @@ spec:
 
 ### Trade-offs Aceitos
 
-| Aspecto | Shared GitLab | Separated DataServices |
-|---------|---------------|------------------------|
-| **Custo** | ✅ -$92/mês economia | ⚠️ +$69/mês (2 RDS) |
-| **Blast Radius** | ⚠️ GitLab down = CI/CD stop | ✅ STAGING DB down ≠ PROD |
-| **Compliance** | ✅ Repos não contêm PII | ✅ PROD dados isolados |
-| **Operational** | ✅ 1 instância para manter | ⚠️ 2× dataservices (minor) |
+| Aspecto          | Shared GitLab              | Separated DataServices    |
+| ---------------- | -------------------------- | ------------------------- |
+| **Custo**        | ✅ -$92/mês economia        | ⚠️ +$69/mês (2 RDS)        |
+| **Blast Radius** | ⚠️ GitLab down = CI/CD stop | ✅ STAGING DB down ≠ PROD  |
+| **Compliance**   | ✅ Repos não contêm PII     | ✅ PROD dados isolados     |
+| **Operational**  | ✅ 1 instância para manter  | ⚠️ 2× dataservices (minor) |
 
 **Mitigações GitLab SPOF:**
 - Gitaly PVC backups diários (S3 lifecycle 30d)
@@ -2182,13 +2182,13 @@ observability namespace (shared)
 
 **Custo Breakdown:**
 
-| Componente | Shared | Separated | Economia |
-|------------|--------|-----------|----------|
-| Prometheus | $30 | $60 (2×) | -$30 |
-| Grafana | $20 | $40 (2×) | -$20 |
-| Loki | $42 | $84 (2×) | -$42 (+lifecycle) |
-| Tempo | $30 | $60 (2×) | -$30 |
-| **TOTAL** | **$122** | **$244** | **-$122 (-40%)** |
+| Componente | Shared   | Separated | Economia          |
+| ---------- | -------- | --------- | ----------------- |
+| Prometheus | $30      | $60 (2×)  | -$30              |
+| Grafana    | $20      | $40 (2×)  | -$20              |
+| Loki       | $42      | $84 (2×)  | -$42 (+lifecycle) |
+| Tempo      | $30      | $60 (2×)  | -$30              |
+| **TOTAL**  | **$122** | **$244**  | **-$122 (-40%)**  |
 
 #### 2. Labeled Separation (Como isolar?)
 
@@ -2332,13 +2332,13 @@ processors:
 
 ### Trade-offs Aceitos
 
-| Aspecto | Hybrid | Separated |
-|---------|--------|-----------|
-| **Custo** | ✅ $122/mês | ❌ $244/mês |
-| **Dashboards Comparativos** | ✅ STAGING vs PROD | ❌ Requer federation |
-| **Blast Radius** | ⚠️ Prometheus down = ambos | ✅ STAGING ≠ PROD |
-| **Retention Policies** | ✅ S3 lifecycle (7d vs 30d) | ✅ Separado naturalmente |
-| **Query Performance** | ⚠️ Shared index (minor) | ✅ Isolated queries |
+| Aspecto                     | Hybrid                     | Separated               |
+| --------------------------- | -------------------------- | ----------------------- |
+| **Custo**                   | ✅ $122/mês                 | ❌ $244/mês              |
+| **Dashboards Comparativos** | ✅ STAGING vs PROD          | ❌ Requer federation     |
+| **Blast Radius**            | ⚠️ Prometheus down = ambos  | ✅ STAGING ≠ PROD        |
+| **Retention Policies**      | ✅ S3 lifecycle (7d vs 30d) | ✅ Separado naturalmente |
+| **Query Performance**       | ⚠️ Shared index (minor)     | ✅ Isolated queries      |
 
 **Mitigações Blast Radius:**
 - HA Prometheus (2 replicas + Thanos optional)
@@ -2521,54 +2521,54 @@ kubectl logs -n redis-operator -l app.kubernetes.io/name=redis-operator --tail=2
 
 #### 🔒 Security & PSS Restricted
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 1 | **Spotahome Redis Operator hardcodes init container `runAsUser: 1000`** → RedisFailover CR DEVE usar `runAsUser: 1000` em todo SecurityContext | 🔴 Crítico |
-| 2 | PSS Restricted bloqueia `allowPrivilegeEscalation`, `chown`, `chmod` → única solução é **user alignment** | 🟡 Médio |
-| 3 | `readOnlyRootFilesystem: true` no Sentinel requer init container para copiar config writable → filesystem `/redis-writable` (emptyDir) | 🟢 Baixo |
+| #   | Lição                                                                                                                                          | Impacto   |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1   | **Spotahome Redis Operator hardcodes init container `runAsUser: 1000`** → RedisFailover CR DEVE usar `runAsUser: 1000` em todo SecurityContext | 🔴 Crítico |
+| 2   | PSS Restricted bloqueia `allowPrivilegeEscalation`, `chown`, `chmod` → única solução é **user alignment**                                      | 🟡 Médio   |
+| 3   | `readOnlyRootFilesystem: true` no Sentinel requer init container para copiar config writable → filesystem `/redis-writable` (emptyDir)         | 🟢 Baixo   |
 
 #### 🔐 Secrets & Authentication
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 4 | **Secrets não são hot-reloaded** → mudanças em secret requerem restart do pod consumidor | 🟡 Médio |
-| 5 | Operator cria secret `redis-password` via Terraform, mas pode divergir do usado pelos pods → **sempre validar sync** com `kubectl exec -- echo "$REDIS_PASSWORD"` | 🔴 Crítico |
-| 6 | ConfigMap `rfr-redis` tem senha hardcoded **diferente** do secret → Operator inconsistency conhecida | 🟡 Médio |
+| #   | Lição                                                                                                                                                             | Impacto   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 4   | **Secrets não são hot-reloaded** → mudanças em secret requerem restart do pod consumidor                                                                          | 🟡 Médio   |
+| 5   | Operator cria secret `redis-password` via Terraform, mas pode divergir do usado pelos pods → **sempre validar sync** com `kubectl exec -- echo "$REDIS_PASSWORD"` | 🔴 Crítico |
+| 6   | ConfigMap `rfr-redis` tem senha hardcoded **diferente** do secret → Operator inconsistency conhecida                                                              | 🟡 Médio   |
 
 #### 🎛️ Operator Management
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 7 | **Múltiplos operators** com mesmo CRD causam reconciliation loops → garantir operator único por namespace/cluster | 🔴 Crítico |
-| 8 | Leader election lease persiste após pod death → `kubectl delete lease` para forçar re-election | 🟢 Baixo |
-| 9 | Operator logs são **críticos** para debug → sempre verificar `WRONGPASS`, `error on object processing` | 🟡 Médio |
+| #   | Lição                                                                                                             | Impacto   |
+| --- | ----------------------------------------------------------------------------------------------------------------- | --------- |
+| 7   | **Múltiplos operators** com mesmo CRD causam reconciliation loops → garantir operator único por namespace/cluster | 🔴 Crítico |
+| 8   | Leader election lease persiste após pod death → `kubectl delete lease` para forçar re-election                    | 🟢 Baixo   |
+| 9   | Operator logs são **críticos** para debug → sempre verificar `WRONGPASS`, `error on object processing`            | 🟡 Médio   |
 
 #### 🔄 Sentinel Auto-Discovery
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 10 | ConfigMap inicial com `sentinel monitor mymaster 127.0.0.1` é **normal** → Sentinels fazem auto-discovery após quorum | 🟢 Baixo |
-| 11 | Sentinels precisam quorum (2/3) para descobrir master → rollout gradual pode causar `+sdown` temporário | 🟢 Baixo |
-| 12 | `customConfig` para override `sentinel monitor` **NÃO funciona** → deixar auto-discovery | 🟡 Médio |
+| #   | Lição                                                                                                                 | Impacto |
+| --- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| 10  | ConfigMap inicial com `sentinel monitor mymaster 127.0.0.1` é **normal** → Sentinels fazem auto-discovery após quorum | 🟢 Baixo |
+| 11  | Sentinels precisam quorum (2/3) para descobrir master → rollout gradual pode causar `+sdown` temporário               | 🟢 Baixo |
+| 12  | `customConfig` para override `sentinel monitor` **NÃO funciona** → deixar auto-discovery                              | 🟡 Médio |
 
 #### ⚙️ Deployment Strategies
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 13 | **Scale 0→3** é mais rápido que rollout gradual quando há CrashLoopBackOff → limpa estado corrupto | 🟡 Médio |
-| 14 | Operator reverte patches manuais no Deployment → **sempre patchar o CR** (`RedisFailover`), não recursos gerenciados | 🔴 Crítico |
-| 15 | PVC resize warnings (`field can not be less than previous value`) são noise → storage já provisionado, ignorar | 🟢 Baixo |
+| #   | Lição                                                                                                                | Impacto   |
+| --- | -------------------------------------------------------------------------------------------------------------------- | --------- |
+| 13  | **Scale 0→3** é mais rápido que rollout gradual quando há CrashLoopBackOff → limpa estado corrupto                   | 🟡 Médio   |
+| 14  | Operator reverte patches manuais no Deployment → **sempre patchar o CR** (`RedisFailover`), não recursos gerenciados | 🔴 Crítico |
+| 15  | PVC resize warnings (`field can not be less than previous value`) são noise → storage já provisionado, ignorar       | 🟢 Baixo   |
 
 ### Métricas
 
-| Métrica | Valor |
-|---------|-------|
-| **Tempo total** | 26 minutos (12:33-13:01) |
-| **Tentativas de fix** | 4 |
-| **Pods recriados** | ~15 (3 Sentinels × 5 rollouts) |
-| **Operator restarts** | 3 |
-| **Downtime Sentinel HA** | ~20min (master não afetado) |
-| **ROI troubleshooting** | HA restaurada, zero impacto produção |
+| Métrica                  | Valor                                |
+| ------------------------ | ------------------------------------ |
+| **Tempo total**          | 26 minutos (12:33-13:01)             |
+| **Tentativas de fix**    | 4                                    |
+| **Pods recriados**       | ~15 (3 Sentinels × 5 rollouts)       |
+| **Operator restarts**    | 3                                    |
+| **Downtime Sentinel HA** | ~20min (master não afetado)          |
+| **ROI troubleshooting**  | HA restaurada, zero impacto produção |
 
 ### Consequências
 
@@ -2588,12 +2588,12 @@ kubectl logs -n redis-operator -l app.kubernetes.io/name=redis-operator --tail=2
 
 ### Riscos Mitigados
 
-| Risco | Status | Mitigação |
-|-------|--------|-----------|
-| **HA Redis indisponível** | ✅ MITIGADO | 3/3 Sentinels operacionais, quorum restored |
-| **Permission denied recorrente** | ✅ MITIGADO | User alignment permanente no Terraform module |
-| **Operator authentication failures** | ✅ MITIGADO | Secret sync validado, operator reload |
-| **Dual operators conflicts** | ✅ MITIGADO | Operator antigo scaled down, único operator ativo |
+| Risco                                | Status     | Mitigação                                         |
+| ------------------------------------ | ---------- | ------------------------------------------------- |
+| **HA Redis indisponível**            | ✅ MITIGADO | 3/3 Sentinels operacionais, quorum restored       |
+| **Permission denied recorrente**     | ✅ MITIGADO | User alignment permanente no Terraform module     |
+| **Operator authentication failures** | ✅ MITIGADO | Secret sync validado, operator reload             |
+| **Dual operators conflicts**         | ✅ MITIGADO | Operator antigo scaled down, único operator ativo |
 
 ### Referências
 
@@ -2742,14 +2742,14 @@ resource "kubernetes_secret" "gitlab_object_storage" {
 
 #### Terraform Execution
 
-| Etapa | Duração | Resultado |
-|-------|---------|-----------|
-| TF Init (retry após DynamoDB digest fix) | 30s | ✅ |
-| TF Plan | 1m15s | ✅ 12 add, 23 change, 0 destroy |
-| TF Apply (background + AML 29 cycles) | 7m18s | ✅ |
-| Validação pods + idempotency | 2min | ✅ |
-| DocSync (3 docs) | 1min | ✅ |
-| **TOTAL** | **12min** | **✅ SUCESSO** |
+| Etapa                                    | Duração   | Resultado                      |
+| ---------------------------------------- | --------- | ------------------------------ |
+| TF Init (retry após DynamoDB digest fix) | 30s       | ✅                              |
+| TF Plan                                  | 1m15s     | ✅ 12 add, 23 change, 0 destroy |
+| TF Apply (background + AML 29 cycles)    | 7m18s     | ✅                              |
+| Validação pods + idempotency             | 2min      | ✅                              |
+| DocSync (3 docs)                         | 1min      | ✅                              |
+| **TOTAL**                                | **12min** | **✅ SUCESSO**                  |
 
 #### Active Monitoring Loop (AML)
 
@@ -2777,28 +2777,28 @@ resource "kubernetes_secret" "gitlab_object_storage" {
 
 ### Recursos Criados (12)
 
-| Recurso | Tipo | Status |
-|---------|------|--------|
-| `gitlab-staging` namespace | Namespace | ✅ Active |
-| `gitlab-object-storage` secret | Secret (IRSA) | ✅ Created |
-| `gitlab` helm release | Helm 8.7.0 | ✅ Deployed |
-| GitLab network policies (9x) | NetworkPolicy | ✅ Created |
-| GitLab ServiceMonitor | ServiceMonitor | ✅ Created |
-| webservice (2 replicas) | Pod | ✅ Running |
-| sidekiq | Pod | ✅ Running |
-| gitaly | StatefulSet | ✅ Running |
-| shell (2 replicas) | Pod | ✅ Running |
-| registry (2 replicas) | Pod | ✅ Running |
-| kas (2 replicas) | Pod | ✅ Running |
-| gitlab-exporter | Pod | ✅ Running |
+| Recurso                        | Tipo           | Status     |
+| ------------------------------ | -------------- | ---------- |
+| `gitlab-staging` namespace     | Namespace      | ✅ Active   |
+| `gitlab-object-storage` secret | Secret (IRSA)  | ✅ Created  |
+| `gitlab` helm release          | Helm 8.7.0     | ✅ Deployed |
+| GitLab network policies (9x)   | NetworkPolicy  | ✅ Created  |
+| GitLab ServiceMonitor          | ServiceMonitor | ✅ Created  |
+| webservice (2 replicas)        | Pod            | ✅ Running  |
+| sidekiq                        | Pod            | ✅ Running  |
+| gitaly                         | StatefulSet    | ✅ Running  |
+| shell (2 replicas)             | Pod            | ✅ Running  |
+| registry (2 replicas)          | Pod            | ✅ Running  |
+| kas (2 replicas)               | Pod            | ✅ Running  |
+| gitlab-exporter                | Pod            | ✅ Running  |
 
 ### Ingress ALBs (3)
 
-| Service | Host (placeholder) | ALB DNS | Ports |
-|---------|-------------------|---------|-------|
-| webservice | gitlab.example.com | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com | 80, 443 |
-| registry | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | 80, 443 |
-| kas | kas.example.com | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com | 80, 443 |
+| Service    | Host (placeholder)   | ALB DNS                                                                 | Ports   |
+| ---------- | -------------------- | ----------------------------------------------------------------------- | ------- |
+| webservice | gitlab.example.com   | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com  | 80, 443 |
+| registry   | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | 80, 443 |
+| kas        | kas.example.com      | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com  | 80, 443 |
 
 ### Consequências
 
@@ -2822,37 +2822,37 @@ resource "kubernetes_secret" "gitlab_object_storage" {
 
 ### Riscos Mitigados
 
-| Risco | Status | Mitigação |
-|-------|--------|-----------|
-| **Object storage config vazio** | ✅ MITIGADO | Secret IRSA criado antes do Helm install |
-| **Field manager conflict (RabbitMQ)** | ✅ MITIGADO | `force_conflicts=true` preventivo |
-| **Terraform drift** | ✅ MITIGADO | Idempotency validada (plan → "No changes") |
-| **IRSA permissions S3** | ✅ VALIDADO | IAM policy attach + role assumption working |
+| Risco                                 | Status     | Mitigação                                   |
+| ------------------------------------- | ---------- | ------------------------------------------- |
+| **Object storage config vazio**       | ✅ MITIGADO | Secret IRSA criado antes do Helm install    |
+| **Field manager conflict (RabbitMQ)** | ✅ MITIGADO | `force_conflicts=true` preventivo           |
+| **Terraform drift**                   | ✅ MITIGADO | Idempotency validada (plan → "No changes")  |
+| **IRSA permissions S3**               | ✅ VALIDADO | IAM policy attach + role assumption working |
 
 ### Custos
 
-| Recurso | Custo Mensal |
-|---------|--------------|
-| **ALB webservice** | $16.20 |
-| **ALB registry** | $16.20 |
-| **ALB kas** | $16.20 |
-| **Subtotal ALBs** | **$48.60** |
-| RDS PostgreSQL (shared) | $0 (já existente) |
-| Redis Operator (shared) | $0 (já existente) |
-| S3 buckets (shared) | $0 (já existente) |
-| **TOTAL GitLab Staging** | **$48.60/mês** |
+| Recurso                  | Custo Mensal      |
+| ------------------------ | ----------------- |
+| **ALB webservice**       | $16.20            |
+| **ALB registry**         | $16.20            |
+| **ALB kas**              | $16.20            |
+| **Subtotal ALBs**        | **$48.60**        |
+| RDS PostgreSQL (shared)  | $0 (já existente) |
+| Redis Operator (shared)  | $0 (já existente) |
+| S3 buckets (shared)      | $0 (já existente) |
+| **TOTAL GitLab Staging** | **$48.60/mês**    |
 
 ### Lições Aprendidas
 
-| # | Lição | Impacto |
-|---|-------|---------|
-| 1 | **GitLab Helm chart per-item object storage** é mais flexível que consolidated mode para IRSA | 🟢 Baixo |
-| 2 | **Secret gitlab-object-storage DEVE existir antes do Helm install** → depends_on crítico | 🔴 Crítico |
-| 3 | **Toolbox backups config** necessário mesmo com toolbox disabled → Helm chart validation | 🟡 Médio |
-| 4 | **ADR-021 Fase 1 runner limitation** é aceitável temporariamente → CI/CD non-functional OK para staging inicial | 🟢 Baixo |
-| 5 | **DynamoDB digest mismatch** pode ocorrer com state S3 manual edits → validar checksum antes de plan/apply | 🟡 Médio |
-| 6 | **Active Monitoring Loop (AML)** crítico para terraform apply >5min → detecta erros proativamente durante execução | 🔴 Crítico |
-| 7 | **Terraform modules compartilhados** funcionam bem entre staging/prod → estrutura ADR-026 validada | 🟢 Baixo |
+| #   | Lição                                                                                                              | Impacto   |
+| --- | ------------------------------------------------------------------------------------------------------------------ | --------- |
+| 1   | **GitLab Helm chart per-item object storage** é mais flexível que consolidated mode para IRSA                      | 🟢 Baixo   |
+| 2   | **Secret gitlab-object-storage DEVE existir antes do Helm install** → depends_on crítico                           | 🔴 Crítico |
+| 3   | **Toolbox backups config** necessário mesmo com toolbox disabled → Helm chart validation                           | 🟡 Médio   |
+| 4   | **ADR-021 Fase 1 runner limitation** é aceitável temporariamente → CI/CD non-functional OK para staging inicial    | 🟢 Baixo   |
+| 5   | **DynamoDB digest mismatch** pode ocorrer com state S3 manual edits → validar checksum antes de plan/apply         | 🟡 Médio   |
+| 6   | **Active Monitoring Loop (AML)** crítico para terraform apply >5min → detecta erros proativamente durante execução | 🔴 Crítico |
+| 7   | **Terraform modules compartilhados** funcionam bem entre staging/prod → estrutura ADR-026 validada                 | 🟢 Baixo   |
 
 ### Próximos Passos
 
@@ -3259,12 +3259,12 @@ mv envs/finops-staging archive/deprecated-envs/
 
 ### Alternativas Consideradas
 
-| Alternativa                | Avaliação        | Motivo Rejeição                       |
-|----------------------------|------------------|---------------------------------------|
-| **Manter indefinidamente** | ❌ Rejeitada     | Aumenta confusão, contradiz ADR-026   |
-| **Migrar state**           | ❌ Desnecessária | Legacy nunca aplicado, sem recursos   |
-| **Destruir sem backup**    | ❌ Arriscada     | Backup preventivo é best practice     |
-| **Remover + backup**       | ✅ Escolhida     | Safe + reversível                     |
+| Alternativa                | Avaliação       | Motivo Rejeição                     |
+| -------------------------- | --------------- | ----------------------------------- |
+| **Manter indefinidamente** | ❌ Rejeitada     | Aumenta confusão, contradiz ADR-026 |
+| **Migrar state**           | ❌ Desnecessária | Legacy nunca aplicado, sem recursos |
+| **Destruir sem backup**    | ❌ Arriscada     | Backup preventivo é best practice   |
+| **Remover + backup**       | ✅ Escolhida     | Safe + reversível                   |
 
 ### Validação Realizada
 
@@ -3387,18 +3387,18 @@ Harbor deployment em staging estava em CrashLoopBackOff devido a:
 
 ### Alternativas Consideradas
 
-| Opção | Pros | Cons | Decisão |
-|-------|------|------|---------|
-| **1. Bootstrap manual** | Custo $0, rápido (5min) | Drift (DB não no TF) | ✅ Escolhida |
-| **2. Shared DB config** | TF-native | Naming confusion (platform vs harbor) | ❌ Rejeitada |
-| **3. RDS dedicado** | Isolation total | Custo +$15/mês, overhead ops | ❌ Rejeitada |
+| Opção                   | Pros                    | Cons                                  | Decisão     |
+| ----------------------- | ----------------------- | ------------------------------------- | ----------- |
+| **1. Bootstrap manual** | Custo $0, rápido (5min) | Drift (DB não no TF)                  | ✅ Escolhida |
+| **2. Shared DB config** | TF-native               | Naming confusion (platform vs harbor) | ❌ Rejeitada |
+| **3. RDS dedicado**     | Isolation total         | Custo +$15/mês, overhead ops          | ❌ Rejeitada |
 
 **Consenso Técnico:**
 - AWS Specialist: ✅ Aprovar bootstrap (Well-Architected OK, multi-tenancy PostgreSQL adequado staging)
 - Terraform Specialist: ⚠️ Condicionar (codificar bootstrap no TF ou compartilhar DB via config)
 - Security: ✅ Aprovar (SSL enforcement OK, RBAC isolation suficiente staging)
 
-**Decisão Final:** Opção 1+ (bootstrap AGORA + codificar no TF depois)  
+**Decisão Final:** Opção 1+ (bootstrap AGORA + codificar no TF depois)
 **Justificativa:** Performance > Purismo. Harbor bloqueado 2h, staging precisa recovery. Codificar bootstrap no TF é refactor incremental, não bloqueia operação.
 
 ### Consequências
@@ -3495,11 +3495,11 @@ Multi-Attach error for volume "pvc-xxx" Volume is already exclusively attached t
 
 ### Alternativas Avaliadas
 
-| Opção | Pros | Cons | Custo | Decisão Staging |
-|-------|------|------|-------|-----------------|
-| **1. Replicas=1** | Simples, custo $0 | Sem HA jobservice | $0 | ✅ Escolhida |
-| **2. EFS + RWX** | HA real, multi-attach | Overhead EFS, latência | ~$3.60/mês | ❌ Over-engineering staging |
-| **3. emptyDir** | HA possível, custo $0 | Job logs perdidos em restart | $0 | ⚠️ Aceitável se logs não críticos |
+| Opção             | Pros                  | Cons                         | Custo      | Decisão Staging                  |
+| ----------------- | --------------------- | ---------------------------- | ---------- | -------------------------------- |
+| **1. Replicas=1** | Simples, custo $0     | Sem HA jobservice            | $0         | ✅ Escolhida                      |
+| **2. EFS + RWX**  | HA real, multi-attach | Overhead EFS, latência       | ~$3.60/mês | ❌ Over-engineering staging       |
+| **3. emptyDir**   | HA possível, custo $0 | Job logs perdidos em restart | $0         | ⚠️ Aceitável se logs não críticos |
 
 ### Implementação
 
@@ -3719,7 +3719,7 @@ vault operator raft list-peers  # 3 peers
 **Data:** 2026-02-05
 **Status:** 🚀 Implementado (Parcial: Harbor ✅)
 **Impacto:** Médio (Padronização deployment strategy)
-**Demanda:** [Logbook Harbor RWO Fix](../logbook/2026-02-05-harbor-rwo-recreate-strategy.md)  
+**Demanda:** [Logbook Harbor RWO Fix](../logbook/2026-02-05-harbor-rwo-recreate-strategy.md)
 
 ### Contexto
 
@@ -3860,14 +3860,14 @@ terraform plan  # No changes
 
 **Harbor Staging - Implementação Completa:**
 
-| Item | Status | Detalhe |
-|------|--------|---------|
-| **Problema** | ✅ Resolvido | Multi-Attach error em upgrades (pods Pending 13m+) |
-| **Solução** | ✅ Aplicada | `strategy: Recreate` em jobservice + registry |
-| **Arquivo** | ✅ Editado | `modules/harbor/values.yaml.tpl` L78-79, L97-98 |
-| **Terraform** | ✅ Applied | helm_release.harbor rev 10, status: deployed |
-| **Pods** | ✅ Running | jobservice 1/1, registry 2/2 (7m30s uptime) |
-| **Timeline** | 29min | 15:43 início → 16:12 conclusão |
+| Item          | Status      | Detalhe                                            |
+| ------------- | ----------- | -------------------------------------------------- |
+| **Problema**  | ✅ Resolvido | Multi-Attach error em upgrades (pods Pending 13m+) |
+| **Solução**   | ✅ Aplicada  | `strategy: Recreate` em jobservice + registry      |
+| **Arquivo**   | ✅ Editado   | `modules/harbor/values.yaml.tpl` L78-79, L97-98    |
+| **Terraform** | ✅ Applied   | helm_release.harbor rev 10, status: deployed       |
+| **Pods**      | ✅ Running   | jobservice 1/1, registry 2/2 (7m30s uptime)        |
+| **Timeline**  | 29min       | 15:43 início → 16:12 conclusão                     |
 
 **Lições Aprendidas:**
 1. ⚠️ Helm timeout (13m+) quando strategy não propagada → fix manual necessário
@@ -3891,9 +3891,9 @@ terraform plan  # No changes
 
 ## 📝 ADR-043: Policy Engine Selection (Kyverno)
 
-**Data:** 2026-02-05  
-**Status:** ✅ Aprovado  
-**Impacto:** Alto (Security domain foundation)  
+**Data:** 2026-02-05
+**Status:** ✅ Aprovado
+**Impacto:** Alto (Security domain foundation)
 
 ### Contexto
 
@@ -3905,18 +3905,18 @@ terraform plan  # No changes
 
 **Opções Avaliadas:**
 
-| Critério | **Kyverno** | OPA Gatekeeper |
-|----------|-------------|----------------|
-| **Linguagem** | YAML (nativo K8s) | Rego (DSL próprio) |
-| **Curva aprendizado** | Baixa (familiaridade K8s) | Alta (nova linguagem) |
-| **Policies built-in** | 200+ (Pod Security Standards, best practices) | 20+ (requer custom) |
-| **Mutation** | ✅ Nativo | ⚠️ Limitado |
-| **Generation** | ✅ Suportado (CRD → resources) | ❌ Não suportado |
-| **CLI** | ✅ `kyverno apply` (dry-run local) | ✅ `gator test` |
-| **Metrics** | ✅ Prometheus exporter | ✅ Prometheus exporter |
-| **Maturidade** | CNCF Incubating (2022) | CNCF Graduated (2021) |
-| **Community** | 4.5k stars, 300+ contributors | 3.6k stars, 200+ contributors |
-| **Adoção** | ↗️ Crescente (declarative trend) | ↘️ Estável (legacy) |
+| Critério              | **Kyverno**                                   | OPA Gatekeeper                |
+| --------------------- | --------------------------------------------- | ----------------------------- |
+| **Linguagem**         | YAML (nativo K8s)                             | Rego (DSL próprio)            |
+| **Curva aprendizado** | Baixa (familiaridade K8s)                     | Alta (nova linguagem)         |
+| **Policies built-in** | 200+ (Pod Security Standards, best practices) | 20+ (requer custom)           |
+| **Mutation**          | ✅ Nativo                                      | ⚠️ Limitado                    |
+| **Generation**        | ✅ Suportado (CRD → resources)                 | ❌ Não suportado               |
+| **CLI**               | ✅ `kyverno apply` (dry-run local)             | ✅ `gator test`                |
+| **Metrics**           | ✅ Prometheus exporter                         | ✅ Prometheus exporter         |
+| **Maturidade**        | CNCF Incubating (2022)                        | CNCF Graduated (2021)         |
+| **Community**         | 4.5k stars, 300+ contributors                 | 3.6k stars, 200+ contributors |
+| **Adoção**            | ↗️ Crescente (declarative trend)               | ↘️ Estável (legacy)            |
 
 ### Decisão
 
@@ -4205,17 +4205,17 @@ Platform services (observability, security, data) sem tolerations ficam restrito
 
 **Inventário Atual (2026-02-05):**
 
-| Módulo | Tolerations | Status |
-|--------|-------------|--------|
-| kube-prometheus-stack | `node-type=system` + `workload=critical` | ✅ Completo |
-| vault | `node-type=system` + `workload=critical` | ✅ Completo |
-| redis | `node-type=system` + `workload=critical` | ✅ Completo |
-| loki | `node-type=system` apenas | ⚠️ Incompleto |
-| tempo | Nenhum (nodeSelector `workloads`) | ❌ Incorreto |
-| harbor | Nenhum | ❌ Ausente |
-| postgresql | Nenhum | ❌ Ausente |
-| rabbitmq | Nenhum | ❌ Ausente |
-| argocd | Nenhum | ❌ Ausente |
+| Módulo                | Tolerations                              | Status       |
+| --------------------- | ---------------------------------------- | ------------ |
+| kube-prometheus-stack | `node-type=system` + `workload=critical` | ✅ Completo   |
+| vault                 | `node-type=system` + `workload=critical` | ✅ Completo   |
+| redis                 | `node-type=system` + `workload=critical` | ✅ Completo   |
+| loki                  | `node-type=system` apenas                | ⚠️ Incompleto |
+| tempo                 | Nenhum (nodeSelector `workloads`)        | ❌ Incorreto  |
+| harbor                | Nenhum                                   | ❌ Ausente    |
+| postgresql            | Nenhum                                   | ❌ Ausente    |
+| rabbitmq              | Nenhum                                   | ❌ Ausente    |
+| argocd                | Nenhum                                   | ❌ Ausente    |
 
 ### Decisão
 
@@ -4464,11 +4464,11 @@ resource "kubectl_manifest" "redis_failover" {
 
 **Padrão Oficial por Caso de Uso:**
 
-| Caso de Uso | Padrão | Razão |
-|-------------|--------|-------|
-| **Helm Charts (platform services)** | B: `values.yaml.tpl` | Manutenibilidade, type-safe, conciso |
-| **Kubernetes Operators (CRDs)** | C: `kubectl_manifest` | Requerido (CRDs não via Helm) |
-| **Quick configs (<5 valores simples)** | A: `set` inline | Overhead de template desnecessário |
+| Caso de Uso                            | Padrão                | Razão                                |
+| -------------------------------------- | --------------------- | ------------------------------------ |
+| **Helm Charts (platform services)**    | B: `values.yaml.tpl`  | Manutenibilidade, type-safe, conciso |
+| **Kubernetes Operators (CRDs)**        | C: `kubectl_manifest` | Requerido (CRDs não via Helm)        |
+| **Quick configs (<5 valores simples)** | A: `set` inline       | Overhead de template desnecessário   |
 
 **Regra de Decisão:**
 ```
@@ -4484,17 +4484,17 @@ ELSE
 
 **Exemplos por módulo:**
 
-| Módulo | Método | Justificativa |
-|--------|--------|---------------|
-| kube-prometheus-stack | A → **Manter** | 50+ set blocks já existem, refactor sem ROI |
-| vault | B ✅ | Já implementado, padrão a seguir |
-| redis (operator) | C ✅ | CRD obrigatório kubectl |
-| loki | A → **Migrar para B** | 40+ set blocks, complexidade alta |
-| tempo | A → **Migrar para B** | 30+ set blocks, complexidade alta |
-| harbor | **B** | Novo, seguir padrão |
-| postgresql (operator) | **C** | CRD CloudNativePG |
-| rabbitmq (operator) | **C** | CRD RabbitmqCluster |
-| argocd | **B** | Helm chart complexo |
+| Módulo                | Método                | Justificativa                               |
+| --------------------- | --------------------- | ------------------------------------------- |
+| kube-prometheus-stack | A → **Manter**        | 50+ set blocks já existem, refactor sem ROI |
+| vault                 | B ✅                   | Já implementado, padrão a seguir            |
+| redis (operator)      | C ✅                   | CRD obrigatório kubectl                     |
+| loki                  | A → **Migrar para B** | 40+ set blocks, complexidade alta           |
+| tempo                 | A → **Migrar para B** | 30+ set blocks, complexidade alta           |
+| harbor                | **B**                 | Novo, seguir padrão                         |
+| postgresql (operator) | **C**                 | CRD CloudNativePG                           |
+| rabbitmq (operator)   | **C**                 | CRD RabbitmqCluster                         |
+| argocd                | **B**                 | Helm chart complexo                         |
 
 ### Alternativas Consideradas
 
@@ -4666,13 +4666,13 @@ helm get values <release> -n <namespace> | yq '.server.tolerations'
 
 ## 📝 ADR-045: Harbor Robot Accounts UI Workaround (API Auth Issue)
 
-| Campo | Valor |
-|-------|-------|
-| **Data** | 2026-02-05 |
-| **Status** | ✅ Implementado (workaround) |
-| **Agentes** | Orquestrador, K8s, Security |
+| Campo       | Valor                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| **Data**    | 2026-02-05                                                                                    |
+| **Status**  | ✅ Implementado (workaround)                                                                   |
+| **Agentes** | Orquestrador, K8s, Security                                                                   |
 | **Demanda** | [Logbook 2026-02-05-harbor-robot-accounts.md](../logbook/2026-02-05-harbor-robot-accounts.md) |
-| **Impacto** | Médio (CI/CD registry auth) |
+| **Impacto** | Médio (CI/CD registry auth)                                                                   |
 
 ### Contexto
 
@@ -4698,12 +4698,12 @@ curl -u admin:password /api/v2.0/users/current  # → HTTP 401 ❌
 
 ### Tentativas de Resolução
 
-| Abordagem | Resultado | Bloqueador |
-|-----------|-----------|------------|
-| PostgreSQL sysadmin_flag fix | ❌ | pg_hba.conf blocks external pods, no psql in harbor-core |
-| Cookie/session-based auth | ❌ | `/c/login` endpoint não retorna session cookie |
-| Harbor CLI internal | ❌ | CLI não existe no container |
-| Password reset via PostgreSQL | ❌ | Requer RDS console ou bastion access |
+| Abordagem                     | Resultado | Bloqueador                                               |
+| ----------------------------- | --------- | -------------------------------------------------------- |
+| PostgreSQL sysadmin_flag fix  | ❌         | pg_hba.conf blocks external pods, no psql in harbor-core |
+| Cookie/session-based auth     | ❌         | `/c/login` endpoint não retorna session cookie           |
+| Harbor CLI internal           | ❌         | CLI não existe no container                              |
+| Password reset via PostgreSQL | ❌         | Requer RDS console ou bastion access                     |
 
 ### Decisão
 
@@ -4723,12 +4723,12 @@ curl -u admin:password /api/v2.0/users/current  # → HTTP 401 ❌
 
 ### Alternativas Consideradas
 
-| Alternativa | Avaliação |
-|-------------|-----------|
-| **Terraform Harbor Provider** | Requer API working (bloqueado mesmo problema) |
-| **kubectl exec + Python psycopg2** | Complex, requires deep PostgreSQL knowledge |
-| **Bitnami Harbor Chart switch** | Breaking change, requer migration (não justificado) |
-| **ArgoCD Vault Operator** | Overkill para single robot account |
+| Alternativa                        | Avaliação                                           |
+| ---------------------------------- | --------------------------------------------------- |
+| **Terraform Harbor Provider**      | Requer API working (bloqueado mesmo problema)       |
+| **kubectl exec + Python psycopg2** | Complex, requires deep PostgreSQL knowledge         |
+| **Bitnami Harbor Chart switch**    | Breaking change, requer migration (não justificado) |
+| **ArgoCD Vault Operator**          | Overkill para single robot account                  |
 
 ### Consequências
 
@@ -4766,13 +4766,13 @@ curl -u admin:password /api/v2.0/users/current  # → HTTP 401 ❌
 
 ## 📝 ADR-046: VPC Endpoints for EKS Critical Infrastructure
 
-| Campo | Valor |
-|-------|-------|
-| **Data** | 2026-02-06 |
-| **Status** | ✅ Implementado |
-| **Agentes** | AWS, Orquestrador, Terraform |
+| Campo       | Valor                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| **Data**    | 2026-02-06                                                                                                  |
+| **Status**  | ✅ Implementado                                                                                              |
+| **Agentes** | AWS, Orquestrador, Terraform                                                                                |
 | **Demanda** | [Logbook 2026-02-06-vault-recovery-vpc-endpoints.md](../logbook/2026-02-06-vault-recovery-vpc-endpoints.md) |
-| **Impacto** | Alto (critical infrastructure dependency) |
+| **Impacto** | Alto (critical infrastructure dependency)                                                                   |
 
 ### Contexto
 
@@ -4784,7 +4784,7 @@ curl -u admin:password /api/v2.0/users/current  # → HTTP 401 ❌
 ```
 CSI driver logs:
 operation error STS: AssumeRoleWithWebIdentity,
-Post "https://sts.us-east-1.amazonaws.com/": 
+Post "https://sts.us-east-1.amazonaws.com/":
 net/http: TLS handshake timeout
 ```
 
@@ -4811,12 +4811,12 @@ net/http: TLS handshake timeout
 
 ### Alternativas Consideradas
 
-| Alternativa | Pros | Cons | Decisão |
-|-------------|------|------|---------|
-| **1. NAT Gateway tune (MTU, timeout)** | Custo $0 | Não resolve root cause (internet latency) | ❌ Rejeitado |
-| **2. Retry logic CSI driver** | Mitiga intermittência | Não elimina timeouts, delay provisioning | ❌ Paliativo |
-| **3. VPC Endpoints Interface** | Latência <5ms, elimina internet, HA | Custo $28.90/mês | ✅ Escolhido |
-| **4. VPN to AWS APIs** | Possível | Complexidade alta, custo similar endpoints | ❌ Over-eng |
+| Alternativa                            | Pros                                | Cons                                       | Decisão     |
+| -------------------------------------- | ----------------------------------- | ------------------------------------------ | ----------- |
+| **1. NAT Gateway tune (MTU, timeout)** | Custo $0                            | Não resolve root cause (internet latency)  | ❌ Rejeitado |
+| **2. Retry logic CSI driver**          | Mitiga intermittência               | Não elimina timeouts, delay provisioning   | ❌ Paliativo |
+| **3. VPC Endpoints Interface**         | Latência <5ms, elimina internet, HA | Custo $28.90/mês                           | ✅ Escolhido |
+| **4. VPN to AWS APIs**                 | Possível                            | Complexidade alta, custo similar endpoints | ❌ Over-eng  |
 
 ### Rationale
 
@@ -4986,13 +4986,13 @@ kubectl get pods -n vault-system
 
 ### Metrics
 
-| Métrica | Antes | Depois | Melhoria |
-|---------|-------|--------|----------|
-| **CSI error rate** | 100% (timeout) | 0% | **-100%** |
-| **AWS API latency (P95)** | 200ms | <5ms | **-97.5%** |
-| **Vault availability** | 0% (15h down) | 100% (3/3 Running) | **+100%** |
-| **PVC provision time** | ∞ (timeout) | ~15s | **100% success** |
-| **MTTR Vault** | - | 2h32min | Baseline |
+| Métrica                   | Antes          | Depois             | Melhoria         |
+| ------------------------- | -------------- | ------------------ | ---------------- |
+| **CSI error rate**        | 100% (timeout) | 0%                 | **-100%**        |
+| **AWS API latency (P95)** | 200ms          | <5ms               | **-97.5%**       |
+| **Vault availability**    | 0% (15h down)  | 100% (3/3 Running) | **+100%**        |
+| **PVC provision time**    | ∞ (timeout)    | ~15s               | **100% success** |
+| **MTTR Vault**            | -              | 2h32min            | Baseline         |
 
 **Cost Impact:**
 - **Adicional:** $346.80/ano (VPC endpoints)
@@ -5014,14 +5014,14 @@ kubectl get pods -n vault-system
 
 ## 📝 ADR-051: Production Environment Zero-Trust Network
 
-| Campo | Valor |
-|-------|-------|
-| **Data** | 2026-02-09 |
-| **Status** | ✅ **Executada** |
-| **Agentes** | Orquestrador, AWS, Terraform, Security, Observability |
-| **Demanda** | [Cluster Remediation Sessão 3](../logbook/2026-02-09-cluster-remediation.md#sessão-3) |
-| **Impacto** | Alto |
-| **Complexidade** | Média |
+| Campo            | Valor                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| **Data**         | 2026-02-09                                                                            |
+| **Status**       | ✅ **Executada**                                                                       |
+| **Agentes**      | Orquestrador, AWS, Terraform, Security, Observability                                 |
+| **Demanda**      | [Cluster Remediation Sessão 3](../logbook/2026-02-09-cluster-remediation.md#sessão-3) |
+| **Impacto**      | Alto                                                                                  |
+| **Complexidade** | Média                                                                                 |
 
 ### Contexto
 
@@ -5047,12 +5047,12 @@ Durante a sessão de remediation de débitos técnicos, identificou-se que o amb
 
 ### Alternativas Consideradas
 
-| Alternativa | Prós | Contras | Decisão |
-|-------------|------|---------|---------|
-| **1. Deploy manual (kubectl)** | Rápido (5 min) | Não rastreável, drift permanente | ❌ Rejeitado |
-| **2. Terraform apply parcial (-target)** | Focado, menor risco | Dependency issues, state inconsistente | ❌ Testado, falhou |
-| **3. Terraform apply full (ESCOLHIDO)** | Idempotente, auditável, state sincronizado | Mais longo (~1h30), requer AML | ✅ **ESCOLHIDO** |
-| **4. Adiar para Marco 4** | Zero esforço agora | Débito técnico acumula, risco prod | ❌ Rejeitado |
+| Alternativa                              | Prós                                       | Contras                                | Decisão           |
+| ---------------------------------------- | ------------------------------------------ | -------------------------------------- | ----------------- |
+| **1. Deploy manual (kubectl)**           | Rápido (5 min)                             | Não rastreável, drift permanente       | ❌ Rejeitado       |
+| **2. Terraform apply parcial (-target)** | Focado, menor risco                        | Dependency issues, state inconsistente | ❌ Testado, falhou |
+| **3. Terraform apply full (ESCOLHIDO)**  | Idempotente, auditável, state sincronizado | Mais longo (~1h30), requer AML         | ✅ **ESCOLHIDO**   |
+| **4. Adiar para Marco 4**                | Zero esforço agora                         | Débito técnico acumula, risco prod     | ❌ Rejeitado       |
 
 **Rationale:** Terraform full apply garante idempotência (regra 12 executor-terraform.md), elimina drift, e permite Active Monitoring Loop para detecção precoce de falhas.
 
@@ -5127,22 +5127,22 @@ allow-monitoring          app=webservice     12m
 
 ### Benefícios
 
-| Aspecto | Antes | Depois | Ganho |
-|---------|-------|--------|-------|
-| **Terraform State** | 57 recursos | 68 recursos | +19% completude |
-| **Idempotência** | Drift 13 recursos | Zero drift | ✅ 100% |
-| **Network Security** | Open prod/staging | Zero-trust isolation | ✅ Compliance |
-| **Observability** | PostgreSQL blind | Metrics in Grafana | ✅ MTTR ↓ |
-| **GitLab Audit** | Uncontrolled traffic | 9 policies auditable | ✅ Security |
+| Aspecto              | Antes                | Depois               | Ganho           |
+| -------------------- | -------------------- | -------------------- | --------------- |
+| **Terraform State**  | 57 recursos          | 68 recursos          | +19% completude |
+| **Idempotência**     | Drift 13 recursos    | Zero drift           | ✅ 100%          |
+| **Network Security** | Open prod/staging    | Zero-trust isolation | ✅ Compliance    |
+| **Observability**    | PostgreSQL blind     | Metrics in Grafana   | ✅ MTTR ↓        |
+| **GitLab Audit**     | Uncontrolled traffic | 9 policies auditable | ✅ Security      |
 
 ### Riscos Aceitos
 
-| Risco | Severidade | Mitigação | Status |
-|-------|------------|-----------|--------|
-| **Apply duration (1h30)** | Baixa | AML monitoring, off-hours | ✅ Mitigado |
-| **GitLab downtime (6min)** | Média | Helm upgrade revision 5, rollback ready | ✅ Zero downtime |
-| **Redis replicas localhost** | Baixa | Pre-existing issue, não introduzido | ⚠️ Documentado (investigação futura) |
-| **GitLab runners CrashLoop** | Baixa | ADR-021 Fase 1 known issue (DNS) | ⚠️ Não resolvido (fora escopo) |
+| Risco                        | Severidade | Mitigação                               | Status                              |
+| ---------------------------- | ---------- | --------------------------------------- | ----------------------------------- |
+| **Apply duration (1h30)**    | Baixa      | AML monitoring, off-hours               | ✅ Mitigado                          |
+| **GitLab downtime (6min)**   | Média      | Helm upgrade revision 5, rollback ready | ✅ Zero downtime                     |
+| **Redis replicas localhost** | Baixa      | Pre-existing issue, não introduzido     | ⚠️ Documentado (investigação futura) |
+| **GitLab runners CrashLoop** | Baixa      | ADR-021 Fase 1 known issue (DNS)        | ⚠️ Não resolvido (fora escopo)       |
 
 ### Custo
 
@@ -5504,13 +5504,13 @@ $ kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-contro
 
 ### Custos
 
-| Item | Custo Mensal | Custo Anual |
-|------|--------------|-------------|
-| **VPC Endpoint ELB** | $7.20 | $86.40 |
-| **Data Transfer (eliminated from NAT)** | -$2.50 | -$30.00 |
-| **Net Cost** | ~$4.70 | ~$56.40 |
-| **Economia Habilitada (IngressGroup)** | R$ 162.42 | R$ 1.949 |
-| **ROI** | **34× retorno** | **34× retorno** |
+| Item                                    | Custo Mensal    | Custo Anual     |
+| --------------------------------------- | --------------- | --------------- |
+| **VPC Endpoint ELB**                    | $7.20           | $86.40          |
+| **Data Transfer (eliminated from NAT)** | -$2.50          | -$30.00         |
+| **Net Cost**                            | ~$4.70          | ~$56.40         |
+| **Economia Habilitada (IngressGroup)**  | R$ 162.42       | R$ 1.949        |
+| **ROI**                                 | **34× retorno** | **34× retorno** |
 
 ### Consequências
 
@@ -5734,12 +5734,12 @@ $ aws elbv2 describe-target-groups --load-balancer-arn ... --query 'TargetGroups
 
 ### Custos
 
-| Item | Antes | Depois | Economia |
-|------|-------|--------|----------|
-| **ALBs Staging** | 3 × $16.20 = $48.60/mês | 1 × $16.20 = $16.20/mês | $32.40/mês |
-| **Anual** | $583.20/ano | $194.40/ano | **$388.80/ano** |
-| **Conversão BRL** | R$ 2.923/ano | R$ 974/ano | **R$ 1.949/ano** |
-| **Redução** | - | - | **66%** |
+| Item              | Antes                   | Depois                  | Economia         |
+| ----------------- | ----------------------- | ----------------------- | ---------------- |
+| **ALBs Staging**  | 3 × $16.20 = $48.60/mês | 1 × $16.20 = $16.20/mês | $32.40/mês       |
+| **Anual**         | $583.20/ano             | $194.40/ano             | **$388.80/ano**  |
+| **Conversão BRL** | R$ 2.923/ano            | R$ 974/ano              | **R$ 1.949/ano** |
+| **Redução**       | -                       | -                       | **66%**          |
 
 **ROI:** Imediato (zero custo implementação, economia recorrente)
 
@@ -5820,7 +5820,7 @@ Criar VPC Endpoint Interface para `com.amazonaws.us-east-1.kms`.
 
 **Pattern recorrente (3x em 7 dias):**
 1. 2026-02-06: CSI Driver (falta VPCE STS+EC2)
-2. 2026-02-10: LB Controller (falta VPCE ELB) 
+2. 2026-02-10: LB Controller (falta VPCE ELB)
 3. 2026-02-10: Vault KMS (falta VPCE KMS)
 
 **Benefícios:**
@@ -5831,8 +5831,8 @@ Criar VPC Endpoint Interface para `com.amazonaws.us-east-1.kms`.
 
 ### Implementação
 
-**ID:** vpce-0ea3c1103ca34af51  
-**Método:** AWS CLI (Terraform import pendente)  
+**ID:** vpce-0ea3c1103ca34af51
+**Método:** AWS CLI (Terraform import pendente)
 **Provisioning:** 37s (pending → available)
 
 ### Resultado
@@ -5848,13 +5848,13 @@ Criar VPC Endpoint Interface para `com.amazonaws.us-east-1.kms`.
 
 ## ADR-025: Antecipação OpenTelemetry Collector para Semana 3 FinOps
 
-| Atributo | Valor |
-|----------|-------|
-| **Data** | 2026-02-10 |
-| **Status** | ✅ Executado |
+| Atributo     | Valor                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| **Data**     | 2026-02-10                                                                                      |
+| **Status**   | ✅ Executado                                                                                     |
 | **Contexto** | Roadmap FinOps 90d planejava OTel no backlog (pós-Sprint 4). User questionou impacto em FinOps. |
-| **Decisão** | **Antecipar OTel Collector para Semana 3**, deployment PARALELO com VPA (18-20/Fev) |
-| **Agentes** | Orquestrador, AWS, TF, Observability, Performance |
+| **Decisão**  | **Antecipar OTel Collector para Semana 3**, deployment PARALELO com VPA (18-20/Fev)             |
+| **Agentes**  | Orquestrador, AWS, TF, Observability, Performance                                               |
 
 ### Contexto
 
@@ -5882,11 +5882,11 @@ GAP-007 (OpenTelemetry Collector) estava no backlog "Observability & Security", 
 
 ### Alternativas Consideradas
 
-| Alternativa | Prós | Contras | Decisão |
-|-------------|------|---------|---------|
-| **Manter no backlog** | Foco 100% em FinOps Quick Wins | Rightsizing "às cegas" sem latency validation | ❌ Rejeitado |
-| **Deploy pós-VPA (Semana 8)** | VPA já coletou dados | Traces chegam tarde → decisões já tomadas sem validação | ❌ Rejeitado |
-| **Deploy PARALELO Semana 3** | Synergy VPA+OTel, zero custo, trace baseline simultâneo | +6h esforço (paralelizável) | ✅ **Aprovado** |
+| Alternativa                   | Prós                                                    | Contras                                                 | Decisão        |
+| ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------- | -------------- |
+| **Manter no backlog**         | Foco 100% em FinOps Quick Wins                          | Rightsizing "às cegas" sem latency validation           | ❌ Rejeitado    |
+| **Deploy pós-VPA (Semana 8)** | VPA já coletou dados                                    | Traces chegam tarde → decisões já tomadas sem validação | ❌ Rejeitado    |
+| **Deploy PARALELO Semana 3**  | Synergy VPA+OTel, zero custo, trace baseline simultâneo | +6h esforço (paralelizável)                             | ✅ **Aprovado** |
 
 ### Resultado
 
@@ -5912,12 +5912,12 @@ GAP-007 (OpenTelemetry Collector) estava no backlog "Observability & Security", 
 
 ## ADR-053 — Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)
 
-| Campo | Valor |
-|-------|-------|
-| **Data** | 2026-02-10 |
-| **Status** | ✅ Implementado |
-| **Tipo** | Hotfix + Configuration Fix |
-| **Impacto** | Alto - Completa GAP-007 (100%) |
+| Campo       | Valor                                                 |
+| ----------- | ----------------------------------------------------- |
+| **Data**    | 2026-02-10                                            |
+| **Status**  | ✅ Implementado                                        |
+| **Tipo**    | Hotfix + Configuration Fix                            |
+| **Impacto** | Alto - Completa GAP-007 (100%)                        |
 | **Agentes** | Orquestrador, Observability, Security, AWS, Terraform |
 
 ### Contexto
@@ -5966,11 +5966,11 @@ ingester:
 
 ### Alternativas Consideradas
 
-| Alternativa | Prós | Contras | Decisão |
-|-------------|------|---------|---------|
-| **Import TF completo (~2h)** | Correto, sem drift | Arriscado, pode causar downtime, complexo | ❌ Rejeitado |
-| **Hotfix Helm + Documentar** | Rápido (15min), pragmático, drift documentado | TF import fica pendente | ✅ **Aprovado** |
-| **Adiar GAP-007** | Mais seguro | Atrasa entrega, OTel Collector sem backend | ❌ Rejeitado |
+| Alternativa                  | Prós                                          | Contras                                    | Decisão        |
+| ---------------------------- | --------------------------------------------- | ------------------------------------------ | -------------- |
+| **Import TF completo (~2h)** | Correto, sem drift                            | Arriscado, pode causar downtime, complexo  | ❌ Rejeitado    |
+| **Hotfix Helm + Documentar** | Rápido (15min), pragmático, drift documentado | TF import fica pendente                    | ✅ **Aprovado** |
+| **Adiar GAP-007**            | Mais seguro                                   | Atrasa entrega, OTel Collector sem backend | ❌ Rejeitado    |
 
 ### Resultado
 
@@ -6073,7 +6073,7 @@ Marco 2 Sprint 2-3 requer baseline observability com SLI/SLO documentados para g
 **SLI 2: Latency (P50/P95/P99)**
 ```promql
 # P95 latency em segundos
-histogram_quantile(0.95, 
+histogram_quantile(0.95,
   sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le)
 )
 ```
@@ -6103,12 +6103,12 @@ sum(rate(http_requests_total[5m])) by (job)
 #### 2. Definir SLOs por Serviço
 
 | Serviço  | Availability | Latency P95 | Error Rate | Error Budget |
-|----------|-------------|-------------|------------|--------------|
-| Vault    | 99.5%       | < 200ms     | < 0.1%     | 3.6h/mês     |
-| Keycloak | 99.0%       | < 500ms     | < 0.5%     | 7.2h/mês     |
-| GitLab   | 98.0%       | < 1s        | < 1.0%     | 14.4h/mês    |
-| ArgoCD   | 98.0%       | < 500ms     | < 0.5%     | 14.4h/mês    |
-| Harbor   | 97.0%       | < 800ms     | < 1.0%     | 21.6h/mês    |
+| -------- | ------------ | ----------- | ---------- | ------------ |
+| Vault    | 99.5%        | < 200ms     | < 0.1%     | 3.6h/mês     |
+| Keycloak | 99.0%        | < 500ms     | < 0.5%     | 7.2h/mês     |
+| GitLab   | 98.0%        | < 1s        | < 1.0%     | 14.4h/mês    |
+| ArgoCD   | 98.0%        | < 500ms     | < 0.5%     | 14.4h/mês    |
+| Harbor   | 97.0%        | < 800ms     | < 1.0%     | 21.6h/mês    |
 
 **Error Budget Policy:**
 - **> 75% budget**: 🟢 Green - Innovation allowed
@@ -6125,7 +6125,7 @@ sum(rate(http_requests_total[5m])) by (job)
 ```yaml
 # custom-sli-alerts.yaml
 - ServiceHighLatencyP95Warning/Critical
-- ServiceHighErrorRate5xxWarning/Critical  
+- ServiceHighErrorRate5xxWarning/Critical
 - PostgreSQLConnectionsHighWarning/Critical
 - CriticalServiceDown (Vault/Keycloak)
 ```
@@ -6189,14 +6189,14 @@ sum(rate(http_requests_total[5m])) by (job)
 
 ### Métricas de Sucesso
 
-| Métrica                     | Baseline | Atual  | Alvo   | Status |
-|-----------------------------|----------|--------|--------|--------|
-| SLIs documentados           | 0        | 5      | 5      | ✅ 100% |
-| SLOs por serviço            | 0        | 5      | 5      | ✅ 100% |
-| Alertas críticos            | 7        | 10     | 10     | ✅ 100% |
-| Dashboards SLI              | 0        | 6      | 6      | ✅ 100% |
-| Correlação functional       | 0%       | 80%    | 100%   | ⚠️ 80%  |
-| **Overall GAP-001**         | **0%**   | **98%**| **100%**| **✅ MVP**|
+| Métrica               | Baseline | Atual   | Alvo     | Status    |
+| --------------------- | -------- | ------- | -------- | --------- |
+| SLIs documentados     | 0        | 5       | 5        | ✅ 100%    |
+| SLOs por serviço      | 0        | 5       | 5        | ✅ 100%    |
+| Alertas críticos      | 7        | 10      | 10       | ✅ 100%    |
+| Dashboards SLI        | 0        | 6       | 6        | ✅ 100%    |
+| Correlação functional | 0%       | 80%     | 100%     | ⚠️ 80%     |
+| **Overall GAP-001**   | **0%**   | **98%** | **100%** | **✅ MVP** |
 
 **Impacto FinOps:** $0/mês (documentação + config only)
 
@@ -6432,12 +6432,12 @@ Trace (OTLP) → Distributor → Ingester (WAL local)
 
 **Trade-offs:**
 
-| Aspecto | Ingester WAL (< 1h) | S3 Blocks (> 1h) |
-|---------|---------------------|------------------|
-| **Query speed** | ❌ Lento (sequential scan) | ✅ Rápido (indexed) |
-| **Search API** | ❌ Não disponível | ✅ Disponível |
-| **Query by ID** | ✅ Disponível (via distributor) | ✅ Disponível |
-| **Cost** | 💰 Alto (RAM) | 💰 Baixo (S3) |
+| Aspecto         | Ingester WAL (< 1h)            | S3 Blocks (> 1h)   |
+| --------------- | ------------------------------ | ------------------ |
+| **Query speed** | ❌ Lento (sequential scan)      | ✅ Rápido (indexed) |
+| **Search API**  | ❌ Não disponível               | ✅ Disponível       |
+| **Query by ID** | ✅ Disponível (via distributor) | ✅ Disponível       |
+| **Cost**        | 💰 Alto (RAM)                   | 💰 Baixo (S3)       |
 
 ### Consequências
 

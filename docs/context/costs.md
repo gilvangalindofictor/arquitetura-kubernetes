@@ -8,19 +8,19 @@
 
 ## 📊 Resumo Executivo
 
-| Métrica                            | Valor              | Observações                                    |
-| ---------------------------------- | ------------------ | ---------------------------------------------- |
-| **Custo Total Mensal (Marco 2)**   | **~$685.70/mês**   | Marco 0 + Marco 1 + Marco 2 + Fase 8           |
-| **Custo Anual (Marco 2)**          | **~$8.228.40/ano** | $685.70 × 12 meses                             |
-| **Custo Marco 3 Fase 1 (Real)**    | **$704.20/mês**    | Marco 2 + Redis Operator ($18.50)              |
-| **Custo Marco 3 GitLab (Staging)** | **$752.80/mês**    | Marco 3 Fase 1 + GitLab ALBs ($48.60)          |
-| **GAP-7 OTel Collector (2026-02-09)** | **+$6.00/mês**     | OpenTelemetry Collector (210m CPU, 544Mi RAM) |
-| **Custo Anual Marco 3**            | **$9.033.60/ano**  | $752.80 × 12 meses                             |
-| **Economia vs Bitnami+Tanzu**      | **$35,995/ano**    | ✅ **Redis Operator implementado 2026-02-02**   |
-| **Keycloak (SSO Platform)**        | **$0/mês**         | ✅ **Vault KV v2 (sem AWS SM) - 2026-02-06**    |
-| **VPC Endpoints (STS + EC2)**      | **+$28.90/mês**    | ✅ **Implementado 2026-02-06 (Vault recovery)** |
-| **Custo por Node**                 | **~$98/mês**       | $685.70 ÷ 7 nodes                              |
-| **Custo por Pod (Platform)**       | **~$19/mês**       | $685.70 ÷ 36 pods observability                |
+| Métrica                               | Valor              | Observações                                    |
+| ------------------------------------- | ------------------ | ---------------------------------------------- |
+| **Custo Total Mensal (Marco 2)**      | **~$685.70/mês**   | Marco 0 + Marco 1 + Marco 2 + Fase 8           |
+| **Custo Anual (Marco 2)**             | **~$8.228.40/ano** | $685.70 × 12 meses                             |
+| **Custo Marco 3 Fase 1 (Real)**       | **$704.20/mês**    | Marco 2 + Redis Operator ($18.50)              |
+| **Custo Marco 3 GitLab (Staging)**    | **$752.80/mês**    | Marco 3 Fase 1 + GitLab ALBs ($48.60)          |
+| **GAP-7 OTel Collector (2026-02-09)** | **+$6.00/mês**     | OpenTelemetry Collector (210m CPU, 544Mi RAM)  |
+| **Custo Anual Marco 3**               | **$9.033.60/ano**  | $752.80 × 12 meses                             |
+| **Economia vs Bitnami+Tanzu**         | **$35,995/ano**    | ✅ **Redis Operator implementado 2026-02-02**   |
+| **Keycloak (SSO Platform)**           | **$0/mês**         | ✅ **Vault KV v2 (sem AWS SM) - 2026-02-06**    |
+| **VPC Endpoints (STS + EC2)**         | **+$28.90/mês**    | ✅ **Implementado 2026-02-06 (Vault recovery)** |
+| **Custo por Node**                    | **~$98/mês**       | $685.70 ÷ 7 nodes                              |
+| **Custo por Pod (Platform)**          | **~$19/mês**       | $685.70 ÷ 36 pods observability                |
 
 ### Tendência de Custos (Atualizada 2026-02-02)
 
@@ -128,11 +128,11 @@ TOTAL REALIZADO                         R$ 37.172,80/ano ✅
 **Savings:** R$ 2.920/ano
 **Tracking:** [Logbook FinOps P0](../logbook/2026-02-13-finops-p0-execution.md)
 
-| Demanda | Savings/Ano | Status | Data Realização |
-|---------|-------------|--------|-----------------|
-| nginx-test ALB verification | R$ 960 | ✅ Confirmado | 2026-02-11 |
-| echo-server ALB deletion | R$ 960 | ✅ Confirmado | <2026-02-11 |
-| Orphan detector automation | R$ 1.000+ | ✅ Lambda functional | 2026-02-13 |
+| Demanda                     | Savings/Ano | Status              | Data Realização |
+| --------------------------- | ----------- | ------------------- | --------------- |
+| nginx-test ALB verification | R$ 960      | ✅ Confirmado        | 2026-02-11      |
+| echo-server ALB deletion    | R$ 960      | ✅ Confirmado        | <2026-02-11     |
+| Orphan detector automation  | R$ 1.000+   | ✅ Lambda functional | 2026-02-13      |
 
 **Descobertas:**
 - nginx-test e echo-server ALBs já deletados anteriormente
@@ -170,14 +170,14 @@ TOTAL:    R$ 37.502/ano
 
 ### Breakdown por Item
 
-| Item | Ação | Economia Mensal | Economia Anual | Status | Referência |
-|------|------|-----------------|----------------|--------|------------|
-| **ALBs Teste** | Deletados 2 ALBs (nginx, echo) | $32.40 | **R$ 1.952** | ✅ | - |
-| **EBS Wave 1** | 5 volumes gp2→gp3 (Redis, RabbitMQ, Harbor) | $5.40 | **R$ 324** | ✅ | - |
-| **EBS Wave 2** | 8 volumes gp2→gp3 (Observability) | $5.40 | **R$ 324** | ✅ | - |
-| **ALBs Prod** | Deletados 3 ALBs GitLab Prod (não utilizado) | $48.60 | **R$ 2.923** | ✅ | Marco 3 Fase 2 |
-| **IngressGroup Staging** | 3 ALBs → 1 ALB consolidado | $32.40 | **R$ 1.949** | ✅ | ADR-054 |
-| **TOTAL SPRINT 2** | | **$124.20/mês** | **R$ 7.472/ano** | ✅ | |
+| Item                     | Ação                                         | Economia Mensal | Economia Anual   | Status | Referência     |
+| ------------------------ | -------------------------------------------- | --------------- | ---------------- | ------ | -------------- |
+| **ALBs Teste**           | Deletados 2 ALBs (nginx, echo)               | $32.40          | **R$ 1.952**     | ✅      | -              |
+| **EBS Wave 1**           | 5 volumes gp2→gp3 (Redis, RabbitMQ, Harbor)  | $5.40           | **R$ 324**       | ✅      | -              |
+| **EBS Wave 2**           | 8 volumes gp2→gp3 (Observability)            | $5.40           | **R$ 324**       | ✅      | -              |
+| **ALBs Prod**            | Deletados 3 ALBs GitLab Prod (não utilizado) | $48.60          | **R$ 2.923**     | ✅      | Marco 3 Fase 2 |
+| **IngressGroup Staging** | 3 ALBs → 1 ALB consolidado                   | $32.40          | **R$ 1.949**     | ✅      | ADR-054        |
+| **TOTAL SPRINT 2**       |                                              | **$124.20/mês** | **R$ 7.472/ano** | ✅      |                |
 
 ### Detalhamento: IngressGroup Consolidation
 
@@ -193,13 +193,13 @@ TOTAL:    R$ 37.502/ano
 
 **Resultado:**
 
-| Métrica | Antes | Depois | Economia |
-|---------|-------|--------|----------|
-| **ALBs** | 3 | 1 | -2 ALBs |
-| **Custo Mensal** | $48.60 | $16.20 | $32.40 |
-| **Custo Anual** | $583.20 | $194.40 | **$388.80** |
-| **Conversão BRL (R$ 5,02)** | R$ 2.928 | R$ 976 | **R$ 1.949** |
-| **Redução** | - | - | **66%** |
+| Métrica                     | Antes    | Depois  | Economia     |
+| --------------------------- | -------- | ------- | ------------ |
+| **ALBs**                    | 3        | 1       | -2 ALBs      |
+| **Custo Mensal**            | $48.60   | $16.20  | $32.40       |
+| **Custo Anual**             | $583.20  | $194.40 | **$388.80**  |
+| **Conversão BRL (R$ 5,02)** | R$ 2.928 | R$ 976  | **R$ 1.949** |
+| **Redução**                 | -        | -       | **66%**      |
 
 **ALB Consolidado:**
 ```
@@ -221,23 +221,23 @@ k8s-gitlabstaging-da5a4e8c6d (us-east-1)
 
 **Wave 1 (Data Services):** 5 PVCs × savings
 
-| Volume | Namespace | Size | Economia/Mês | Status |
-|--------|-----------|------|--------------|--------|
-| Redis Sentinel (3×) | data-services | 5GB | $1.62 | ✅ |
-| RabbitMQ | data-services | 5GB | $0.54 | ✅ |
-| Harbor Registry | harbor | 50GB | $3.24 | ✅ |
-| **SUBTOTAL Wave 1** | | | **$5.40** | ✅ |
+| Volume              | Namespace     | Size | Economia/Mês | Status |
+| ------------------- | ------------- | ---- | ------------ | ------ |
+| Redis Sentinel (3×) | data-services | 5GB  | $1.62        | ✅      |
+| RabbitMQ            | data-services | 5GB  | $0.54        | ✅      |
+| Harbor Registry     | harbor        | 50GB | $3.24        | ✅      |
+| **SUBTOTAL Wave 1** |               |      | **$5.40**    | ✅      |
 
 **Wave 2 (Observability):** 8 PVCs × savings
 
-| Volume | Namespace | Size | Economia/Mês | Status |
-|--------|-----------|------|--------------|--------|
-| Prometheus (2×) | monitoring | 50GB | $3.24 | ✅ |
-| Loki (3×) | monitoring | 20GB | $0.65 | ✅ |
-| Grafana | monitoring | 10GB | $0.65 | ✅ |
-| Tempo | monitoring | 20GB | $0.65 | ✅ |
-| Alertmanager | monitoring | 5GB | $0.21 | ✅ |
-| **SUBTOTAL Wave 2** | | | **$5.40** | ✅ |
+| Volume              | Namespace  | Size | Economia/Mês | Status |
+| ------------------- | ---------- | ---- | ------------ | ------ |
+| Prometheus (2×)     | monitoring | 50GB | $3.24        | ✅      |
+| Loki (3×)           | monitoring | 20GB | $0.65        | ✅      |
+| Grafana             | monitoring | 10GB | $0.65        | ✅      |
+| Tempo               | monitoring | 20GB | $0.65        | ✅      |
+| Alertmanager        | monitoring | 5GB  | $0.21        | ✅      |
+| **SUBTOTAL Wave 2** |            |      | **$5.40**    | ✅      |
 
 **Wave 3 (Vault - ADIADO):**
 - 6 PVCs Vault Raft storage (gp2 → gp3)
@@ -686,10 +686,10 @@ TOTAL Anual:                 $9,909.72/ano
 
 ### Decisão Arquitetural: OT-Container-Kit Redis Operator
 
-| Cenário                           | Custo/Mês  | Custo/Ano   | vs Operator  | ROI    | Status             |
-| --------------------------------- | ---------- | ----------- | ------------ | ------ | ------------------ |
-| **Bitnami Helm + Tanzu Standard** | $3,018.12  | $36,217.44  | +$35,995     | -99.4% | ❌ Bloqueado        |
-| **AWS ElastiCache (managed)**     | $79.81     | $957.72     | +$736        | -76.8% | ⚠️ Alternativa      |
+| Cenário                             | Custo/Mês  | Custo/Ano   | vs Operator  | ROI    | Status             |
+| ----------------------------------- | ---------- | ----------- | ------------ | ------ | ------------------ |
+| **Bitnami Helm + Tanzu Standard**   | $3,018.12  | $36,217.44  | +$35,995     | -99.4% | ❌ Bloqueado        |
+| **AWS ElastiCache (managed)**       | $79.81     | $957.72     | +$736        | -76.8% | ⚠️ Alternativa      |
 | **OT-Container-Kit Redis Operator** | **$18.50** | **$222.00** | **Baseline** | -      | ✅ **IMPLEMENTADO** |
 
 **Decisão Final:** OT-Container-Kit Redis Operator (migrado de SpotaHome 2026-02-13)
@@ -697,15 +697,15 @@ TOTAL Anual:                 $9,909.72/ano
 
 ### Breakdown Custos Detalhado
 
-| Componente             | Especificação                 | Custo/Mês  | Custo/Ano   | Observações                   |
-| ---------------------- | ----------------------------- | ---------- | ----------- | ----------------------------- |
-| **Operator (pods)**    | 1 Redis pod (standalone)      | $0.00      | $0.00       | Usa nodes existentes          |
-| **EBS Volumes**        | 1× 8GB gp3                    | $0.64      | $7.68       | Persistent storage ($0.08/GB) |
-| **EBS Snapshots**      | Daily backups 7d retention    | $0.50      | $6.00       | AWS Backup                    |
-| **CloudWatch Metrics** | 5 custom metrics              | $0.00      | $0.00       | Free tier (10 metrics)        |
-| **Secrets Manager**    | 1 secret (shared)             | $0.00      | $0.00       | Compartilhado Marco 2         |
-| **Licenciamento**      | Open Source Apache 2.0        | **$0.00**  | **$0.00**   | **Zero cost**                 |
-| **TOTAL**              |                               | **$18.50** | **$222.00** |                               |
+| Componente             | Especificação              | Custo/Mês  | Custo/Ano   | Observações                   |
+| ---------------------- | -------------------------- | ---------- | ----------- | ----------------------------- |
+| **Operator (pods)**    | 1 Redis pod (standalone)   | $0.00      | $0.00       | Usa nodes existentes          |
+| **EBS Volumes**        | 1× 8GB gp3                 | $0.64      | $7.68       | Persistent storage ($0.08/GB) |
+| **EBS Snapshots**      | Daily backups 7d retention | $0.50      | $6.00       | AWS Backup                    |
+| **CloudWatch Metrics** | 5 custom metrics           | $0.00      | $0.00       | Free tier (10 metrics)        |
+| **Secrets Manager**    | 1 secret (shared)          | $0.00      | $0.00       | Compartilhado Marco 2         |
+| **Licenciamento**      | Open Source Apache 2.0     | **$0.00**  | **$0.00**   | **Zero cost**                 |
+| **TOTAL**              |                            | **$18.50** | **$222.00** |                               |
 
 ### ROI Confirmado
 
@@ -2402,9 +2402,9 @@ CostCenter: devops
 
 ## 🎯 Sprint 3: Vault Recovery + VPC Endpoint KMS
 
-**Data Execução:** 2026-02-10  
-**Status:** ✅ Completo  
-**Economia Anual:** R$ 162/ano (EBS Wave 3 desbloqueada)  
+**Data Execução:** 2026-02-10
+**Status:** ✅ Completo
+**Economia Anual:** R$ 162/ano (EBS Wave 3 desbloqueada)
 **Tracking:** [Logbook Sprint 3](../logbook/2026-02-10-vault-kms-recovery.md)
 
 ### Problema Resolvido
@@ -2421,11 +2421,11 @@ VPC Endpoint Interface KMS: `vpce-0ea3c1103ca34af51`
 
 ### Economia
 
-| Item | Custo/Economia Anual |
-|------|----------------------|
-| VPC Endpoint KMS | -$86.40 |
-| **EBS Wave 3** | **+R$ 162.00** |
-| **NET Sprint 3** | **+R$ 75.60** |
+| Item             | Custo/Economia Anual |
+| ---------------- | -------------------- |
+| VPC Endpoint KMS | -$86.40              |
+| **EBS Wave 3**   | **+R$ 162.00**       |
+| **NET Sprint 3** | **+R$ 75.60**        |
 
 **ROI:** 1.9× (economia > custo)
 
@@ -2450,15 +2450,15 @@ TOTAL:    R$ 37.664/ano
 
 ## Impacto FinOps — OpenTelemetry Collector (2026-02-10)
 
-| Item | Valor |
-|------|-------|
-| **Componente** | OpenTelemetry Collector (Gateway mode) |
-| **Custo Incremental** | **$0/mês** ✅ |
-| **Breakdown** | 2 pods × (100m CPU, 256Mi RAM) = usa nodes existentes, sem alocação adicional |
-| **Network Egress** | $0 (tráfego interno cluster + S3 transfer within region free) |
-| **Benefício FinOps** | **Habilita trace validation** para rightsizing decisions (VPA + latency P95/P99 correlation) |
-| **ROI** | ∞% (zero custo, previne rightsizing excessivo que degrada performance) |
-| **Decisão** | ADR-025: Antecipação OTel Collector para Semana 3 (synergy com VPA deployment) |
+| Item                  | Valor                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| **Componente**        | OpenTelemetry Collector (Gateway mode)                                                       |
+| **Custo Incremental** | **$0/mês** ✅                                                                                 |
+| **Breakdown**         | 2 pods × (100m CPU, 256Mi RAM) = usa nodes existentes, sem alocação adicional                |
+| **Network Egress**    | $0 (tráfego interno cluster + S3 transfer within region free)                                |
+| **Benefício FinOps**  | **Habilita trace validation** para rightsizing decisions (VPA + latency P95/P99 correlation) |
+| **ROI**               | ∞% (zero custo, previne rightsizing excessivo que degrada performance)                       |
+| **Decisão**           | ADR-025: Antecipação OTel Collector para Semana 3 (synergy com VPA deployment)               |
 
 **Economia Potencial (downstream):**
 - Evita rollback de rightsizing mal sucedido (~$50/rollback em tempo desperdiçado)

@@ -16,7 +16,7 @@ GITLAB_NAMESPACE="${GITLAB_NAMESPACE:-gitlab-staging}"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 SONARQUBE_NAMESPACE="${SONARQUBE_NAMESPACE:-sonarqube}"
-HARBOR_NAMESPACE="${HARBOR_NAMESPACE:-harbor}"
+HARBOR_NAMESPACE="${HARBOR_NAMESPACE:-harbor-system}"
 VAULT_NAMESPACE="${VAULT_NAMESPACE:-vault}"
 
 KEYCLOAK_INTERNAL_HOST="${KEYCLOAK_INTERNAL_HOST:-keycloak-keycloakx-http.keycloak.svc.cluster.local}"
@@ -326,6 +326,7 @@ test_dns_resolution() {
         "$KEYCLOAK_EXTERNAL_HOST"
         "argocd.staging.internal"
         "gitlab.staging.internal"
+        "harbor.staging.internal"
     )
 
     for host in "${hosts[@]}"; do
@@ -523,7 +524,7 @@ test_keycloak_clients() {
     # Try to check clients via Keycloak Admin REST API (needs admin token)
     # Fallback: check via database if possible
 
-    local expected_clients=("argocd" "gitlab")
+    local expected_clients=("argocd" "gitlab" "harbor")
 
     # Attempt via Admin REST API (if admin credentials available)
     local admin_url="http://${KEYCLOAK_INTERNAL_HOST}:${KEYCLOAK_HTTP_PORT}${KEYCLOAK_BASE_PATH}/admin/realms/${KEYCLOAK_REALM}/clients"
@@ -599,7 +600,7 @@ test_keycloak_clients() {
             done
 
             # Check for future clients (informational)
-            for future_client in grafana harbor sonarqube; do
+            for future_client in grafana sonarqube; do
                 if echo "$clients_response" | jq -e ".[] | select(.clientId == \"$future_client\")" &> /dev/null; then
                     pass "Keycloak client '$future_client' exists (future integration)"
                 else
@@ -651,23 +652,24 @@ test_pending_services() {
         skip "Grafana SSO" "namespace '$GRAFANA_NAMESPACE' not found"
     fi
 
-    # SonarQube
+    # SonarQube SAML - Now configured (see Test 10 for detailed checks)
     if kube_exec get namespace "$SONARQUBE_NAMESPACE" &> /dev/null; then
         local sq_pods
         sq_pods=$(kube_exec get pods -n "$SONARQUBE_NAMESPACE" \
+            -l "app=sonarqube" \
             --field-selector=status.phase=Running \
             -o name 2>/dev/null | wc -l | tr -d ' ')
 
         if [[ $sq_pods -gt 0 ]]; then
-            skip "SonarQube SSO" "pods running, pending migration to GitLab OAuth (Fase 2)"
+            pass "SonarQube SAML: configured and running (see Test 10 for details)"
         else
-            skip "SonarQube SSO" "no running pods found"
+            skip "SonarQube SAML" "no running pods found"
         fi
     else
-        skip "SonarQube SSO" "namespace '$SONARQUBE_NAMESPACE' not found"
+        skip "SonarQube SAML" "namespace '$SONARQUBE_NAMESPACE' not found"
     fi
 
-    # Harbor
+    # Harbor OIDC - Now configured (see Test 11 for detailed checks)
     if kube_exec get namespace "$HARBOR_NAMESPACE" &> /dev/null; then
         local harbor_pods
         harbor_pods=$(kube_exec get pods -n "$HARBOR_NAMESPACE" \
@@ -676,12 +678,12 @@ test_pending_services() {
             -o name 2>/dev/null | wc -l | tr -d ' ')
 
         if [[ $harbor_pods -gt 0 ]]; then
-            skip "Harbor SSO" "pods running, pending OIDC config (Fase 4)"
+            pass "Harbor OIDC: configured and running (see Test 11 for details)"
         else
-            skip "Harbor SSO" "no running pods found"
+            skip "Harbor OIDC" "no running pods found"
         fi
     else
-        skip "Harbor SSO" "namespace '$HARBOR_NAMESPACE' not found"
+        skip "Harbor OIDC" "namespace '$HARBOR_NAMESPACE' not found"
     fi
 
     # Vault
@@ -790,11 +792,155 @@ test_oidc_logs() {
 }
 
 ################################################################################
-# Test 9: Keycloak Database Health
+# Test 9: SonarQube SAML Integration
+################################################################################
+
+test_sonarqube_saml() {
+    print_section "9. SonarQube SAML Integration"
+
+    # 9.1 Namespace exists
+    if ! kube_exec get namespace "$SONARQUBE_NAMESPACE" &> /dev/null; then
+        skip "SonarQube namespace" "namespace '$SONARQUBE_NAMESPACE' not found"
+        return
+    fi
+
+    # 9.2 Pod running and ready
+    local pod_count
+    pod_count=$(kube_exec get pods -n "$SONARQUBE_NAMESPACE" \
+        -l "app=sonarqube" \
+        --field-selector=status.phase=Running \
+        -o name 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ $pod_count -gt 0 ]]; then
+        pass "SonarQube pod running"
+    else
+        fail "SonarQube pod running" "no running pods found"
+        return
+    fi
+
+    # 9.3 Pod ready (not just running)
+    local pod_ready
+    pod_ready=$(kube_exec get pods -n "$SONARQUBE_NAMESPACE" \
+        -l "app=sonarqube" \
+        -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+
+    if [[ "$pod_ready" == "True" ]]; then
+        pass "SonarQube pod ready"
+    else
+        fail "SonarQube pod ready" "pod not in Ready state"
+        return
+    fi
+
+    # 9.4 System status API
+    local status_code
+    status_code=$(cluster_curl "http://sonarqube-sonarqube.$SONARQUBE_NAMESPACE:9000/api/system/status" 2>/dev/null)
+
+    if [[ "$status_code" == "200" ]]; then
+        pass "SonarQube system status API"
+    else
+        fail "SonarQube system status API" "HTTP $status_code (expected 200)"
+    fi
+
+    # 9.5 Verify SAML servlet filters initialized in logs
+    local saml_filters
+    saml_filters=$(kube_exec logs -n "$SONARQUBE_NAMESPACE" \
+        -l "app=sonarqube" --tail=5000 2>/dev/null \
+        | grep -c "SamlValidationRedirectionFilter\|ValidationInitAction" 2>/dev/null || echo "0")
+    saml_filters=$(echo "$saml_filters" | tr -d '[:space:]')
+
+    if [[ $saml_filters -gt 0 ]]; then
+        pass "SonarQube SAML filters initialized ($saml_filters references)"
+    else
+        fail "SonarQube SAML configuration" "no SAML filter initialization found in logs"
+    fi
+
+    # 9.6 SAML callback endpoint registered
+    local callback_filter
+    callback_filter=$(kube_exec logs -n "$SONARQUBE_NAMESPACE" \
+        -l "app=sonarqube" --tail=5000 2>/dev/null \
+        | grep -c "/oauth2/callback/saml" 2>/dev/null || echo "0")
+    callback_filter=$(echo "$callback_filter" | tr -d '[:space:]')
+
+    if [[ $callback_filter -gt 0 ]]; then
+        pass "SonarQube SAML callback endpoint: /oauth2/callback/saml"
+    else
+        fail "SonarQube SAML callback endpoint" "callback URL not found in logs"
+    fi
+
+    # 9.7 Verify Keycloak client 'sonarqube' exists (SAML protocol)
+    local kc_pod
+    kc_pod=$(kube_exec get pods -n "$KEYCLOAK_NAMESPACE" \
+        -l "app.kubernetes.io/name=keycloakx" \
+        --field-selector=status.phase=Running \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+    if [[ -z "$kc_pod" ]]; then
+        kc_pod=$(kube_exec get pods -n "$KEYCLOAK_NAMESPACE" \
+            -l "app=keycloak" \
+            --field-selector=status.phase=Running \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+    fi
+
+    if [[ -n "$kc_pod" ]]; then
+        local saml_client
+        saml_client=$(kube_exec exec -n "$KEYCLOAK_NAMESPACE" "$kc_pod" -- \
+            /opt/keycloak/bin/kcadm.sh get clients -r "$KEYCLOAK_REALM" \
+            --server "http://localhost:8080${KEYCLOAK_BASE_PATH}" \
+            --user admin --password admin --no-config 2>/dev/null \
+            | grep -c '"clientId" : "sonarqube"' 2>/dev/null || echo "0")
+        saml_client=$(echo "$saml_client" | tr -d '[:space:]')
+
+        if [[ $saml_client -gt 0 ]]; then
+            pass "Keycloak SAML client 'sonarqube' exists"
+
+            # Verify protocol is SAML (not OIDC)
+            local protocol
+            protocol=$(kube_exec exec -n "$KEYCLOAK_NAMESPACE" "$kc_pod" -- \
+                /opt/keycloak/bin/kcadm.sh get clients -r "$KEYCLOAK_REALM" \
+                --server "http://localhost:8080${KEYCLOAK_BASE_PATH}" \
+                --user admin --password admin --no-config 2>/dev/null \
+                | grep -A5 '"clientId" : "sonarqube"' \
+                | grep -c '"protocol" : "saml"' 2>/dev/null || echo "0")
+            protocol=$(echo "$protocol" | tr -d '[:space:]')
+
+            if [[ $protocol -gt 0 ]]; then
+                pass "Keycloak client 'sonarqube' uses SAML protocol"
+            else
+                fail "Keycloak client 'sonarqube' protocol" "not SAML or protocol not found"
+            fi
+        else
+            fail "Keycloak SAML client 'sonarqube'" "client not found in realm '$KEYCLOAK_REALM'"
+        fi
+    else
+        skip "Keycloak SAML client validation" "could not identify Keycloak pod"
+    fi
+
+    # 9.8 Check Ingress ALB provisioned
+    local alb_hostname
+    alb_hostname=$(kube_exec get ingress -n "$SONARQUBE_NAMESPACE" \
+        -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+
+    if [[ -n "$alb_hostname" ]]; then
+        pass "SonarQube Ingress ALB provisioned"
+        info "ALB: $alb_hostname"
+    else
+        skip "SonarQube Ingress ALB" "ALB not yet provisioned (may take 2-3 minutes)"
+    fi
+
+    # 9.9 Service exists
+    if kube_exec get svc -n "$SONARQUBE_NAMESPACE" sonarqube-sonarqube &> /dev/null; then
+        pass "SonarQube service 'sonarqube-sonarqube' exists"
+    else
+        fail "SonarQube service" "sonarqube-sonarqube not found"
+    fi
+}
+
+################################################################################
+# Test 10: Keycloak Database Health
 ################################################################################
 
 test_keycloak_database() {
-    print_section "9. Keycloak Database Health"
+    print_section "10. Keycloak Database Health"
 
     # Check if ExternalSecret or regular Secret for DB credentials exist
     local db_secret_found=false
@@ -827,6 +973,138 @@ test_keycloak_database() {
         else
             skip "Database credentials" "no ExternalSecret or keycloak-db-credentials found"
         fi
+    fi
+}
+
+################################################################################
+# Test 11: Harbor OIDC Integration
+################################################################################
+
+test_harbor_oidc() {
+    print_section "11. Harbor OIDC Integration"
+
+    # 11.1 Namespace exists
+    if ! kube_exec get namespace "$HARBOR_NAMESPACE" &> /dev/null; then
+        skip "Harbor namespace" "namespace '$HARBOR_NAMESPACE' not found"
+        return
+    fi
+
+    # 11.2 Core pods running
+    local core_pods
+    core_pods=$(kube_exec get pods -n "$HARBOR_NAMESPACE" \
+        -l "app=harbor,component=core" \
+        --field-selector=status.phase=Running \
+        -o name 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ $core_pods -gt 0 ]]; then
+        pass "Harbor core pods running: $core_pods"
+    else
+        fail "Harbor core pods running" "no running core pods found"
+        return
+    fi
+
+    # 11.3 Check auth_mode is oidc_auth via systeminfo API
+    local harbor_pod
+    harbor_pod=$(kube_exec get pods -n "$HARBOR_NAMESPACE" \
+        -l "app=harbor,component=core" \
+        --field-selector=status.phase=Running \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+    if [[ -n "$harbor_pod" ]]; then
+        local auth_mode
+        auth_mode=$(kube_exec exec -n "$HARBOR_NAMESPACE" "$harbor_pod" -- \
+            curl -sf http://localhost:8080/api/v2.0/systeminfo \
+            2>/dev/null | jq -r '.auth_mode' 2>/dev/null || echo "")
+
+        if [[ "$auth_mode" == "oidc_auth" ]]; then
+            pass "Harbor auth_mode: oidc_auth"
+        elif [[ "$auth_mode" == "db_auth" ]]; then
+            fail "Harbor auth_mode" "still using db_auth (OIDC not configured)"
+        else
+            fail "Harbor auth_mode" "unexpected value: '$auth_mode'"
+        fi
+
+        # 11.4 Check OIDC provider name
+        local oidc_provider
+        oidc_provider=$(kube_exec exec -n "$HARBOR_NAMESPACE" "$harbor_pod" -- \
+            curl -sf http://localhost:8080/api/v2.0/systeminfo \
+            2>/dev/null | jq -r '.oidc_provider_name // empty' 2>/dev/null || echo "")
+
+        if [[ "$oidc_provider" == "Keycloak" ]]; then
+            pass "Harbor OIDC provider: Keycloak"
+        elif [[ -n "$oidc_provider" ]]; then
+            pass "Harbor OIDC provider: $oidc_provider"
+        else
+            fail "Harbor OIDC provider" "oidc_provider_name not set"
+        fi
+
+        # 11.5 Check OIDC login redirect
+        local login_code
+        login_code=$(kube_exec exec -n "$HARBOR_NAMESPACE" "$harbor_pod" -- \
+            curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/c/oidc/login \
+            2>/dev/null || echo "")
+
+        if [[ "$login_code" == "302" ]]; then
+            pass "Harbor OIDC login endpoint: HTTP 302 redirect"
+
+            # 11.6 Verify redirect points to Keycloak
+            local redirect_url
+            redirect_url=$(kube_exec exec -n "$HARBOR_NAMESPACE" "$harbor_pod" -- \
+                curl -sf -I http://localhost:8080/c/oidc/login \
+                2>/dev/null | grep -i "location:" | head -1 || echo "")
+
+            if echo "$redirect_url" | grep -q "keycloak"; then
+                pass "Harbor OIDC redirect targets Keycloak"
+            else
+                fail "Harbor OIDC redirect target" "redirect does not point to Keycloak"
+            fi
+
+            if echo "$redirect_url" | grep -q "client_id=harbor"; then
+                pass "Harbor OIDC redirect: client_id=harbor"
+            else
+                fail "Harbor OIDC redirect client_id" "client_id=harbor not found in redirect URL"
+            fi
+        elif [[ "$login_code" == "500" ]]; then
+            fail "Harbor OIDC login endpoint" "HTTP 500 (OIDC misconfiguration)"
+        else
+            fail "Harbor OIDC login endpoint" "HTTP $login_code (expected 302)"
+        fi
+    else
+        skip "Harbor OIDC validation" "could not identify Harbor core pod"
+    fi
+
+    # 11.7 OIDC ExternalSecret (Vault integration)
+    if kube_exec get externalsecret -n "$HARBOR_NAMESPACE" harbor-oidc-credentials &> /dev/null 2>&1; then
+        local es_status
+        es_status=$(kube_exec get externalsecret -n "$HARBOR_NAMESPACE" harbor-oidc-credentials \
+            -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+
+        if [[ "$es_status" == "True" ]]; then
+            pass "Harbor OIDC ExternalSecret: synced from Vault"
+        else
+            skip "Harbor OIDC ExternalSecret" "not synced (Vault may be offline)"
+        fi
+    else
+        skip "Harbor OIDC ExternalSecret" "not found (OIDC credentials managed manually)"
+    fi
+
+    # 11.8 Service exists
+    if kube_exec get svc -n "$HARBOR_NAMESPACE" harbor-core &> /dev/null; then
+        pass "Harbor service 'harbor-core' exists"
+    else
+        fail "Harbor service" "harbor-core not found"
+    fi
+
+    # 11.9 Check Ingress ALB provisioned
+    local alb_hostname
+    alb_hostname=$(kube_exec get ingress -n "$HARBOR_NAMESPACE" \
+        -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+
+    if [[ -n "$alb_hostname" ]]; then
+        pass "Harbor Ingress ALB provisioned"
+        info "ALB: $alb_hostname"
+    else
+        skip "Harbor Ingress ALB" "ALB not yet provisioned"
     fi
 }
 
@@ -961,6 +1239,8 @@ main() {
     test_keycloak_clients
     test_pending_services
     test_oidc_logs
+    test_sonarqube_saml
+    test_harbor_oidc
     test_keycloak_database
 
     print_report
