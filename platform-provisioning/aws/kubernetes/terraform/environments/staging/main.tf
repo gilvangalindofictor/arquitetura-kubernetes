@@ -39,8 +39,10 @@ terraform {
 
 # Local variables combining common.tfvars with environment-specific values
 locals {
-  environment  = "staging"
-  cluster_name = "k8s-platform-prod" # Shared EKS cluster
+  environment = "staging"
+  # NOTE: cluster_name uses "prod" because staging shares the same EKS cluster (ADR-050).
+  # This is the physical cluster name in AWS, not an environment indicator.
+  cluster_name = "k8s-platform-prod"
 
   common_tags = merge(var.base_tags, {
     Environment        = local.environment
@@ -51,7 +53,9 @@ locals {
 }
 
 provider "aws" {
-  region  = var.aws_region
+  region = var.aws_region
+  # NOTE: AWS profile uses "prod" because staging shares the same AWS account/profile (ADR-050).
+  # Staging isolation is done via namespaces and labels, not separate accounts.
   profile = "k8s-platform-prod"
 
   default_tags {
@@ -124,7 +128,7 @@ data "terraform_remote_state" "marco1" {
     bucket  = var.state_bucket
     key     = "marco1/terraform.tfstate"
     region  = var.aws_region
-    profile = "k8s-platform-prod"
+    profile = "k8s-platform-prod" # Shared AWS profile (ADR-050)
   }
 }
 

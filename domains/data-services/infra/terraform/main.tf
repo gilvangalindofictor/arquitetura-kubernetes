@@ -164,21 +164,17 @@ resource "kubernetes_namespace" "redis_operator" {
 
 resource "helm_release" "redis_operator" {
   name = "redis-operator"
-  # Use Spotahome helm repo for the redis-operator chart
-  repository = "https://spotahome.github.io/redis-operator"
+  # Use OT-Container-Kit helm repo (actively maintained, Jan 2026)
+  repository = "https://ot-container-kit.github.io/helm-charts"
   chart      = "redis-operator"
-  version    = var.redis_operator_version # 0.15.1
+  version    = var.redis_operator_version # 0.23.0
 
   namespace        = kubernetes_namespace.redis_operator.metadata[0].name
   create_namespace = false
 
   values = [
     yamlencode({
-      # Pin operator image tag to a stable, immutable version
-      image = {
-        tag = "v1.2.4"
-      }
-      # Operator configuration
+      # OT-Container-Kit operator configuration
       redisOperator = {
         replicaCount = 1 # Operator é stateless
 
@@ -192,19 +188,6 @@ resource "helm_release" "redis_operator" {
           enabled   = var.enable_monitoring
           namespace = kubernetes_namespace.redis_operator.metadata[0].name
         }
-      }
-
-      # Redis Cluster defaults (aplicado a todas as CRDs)
-      redisCluster = {
-        # Storage parametrizado (CRDs herdam)
-        # Exemplo CRD:
-        # storage:
-        #   volumeClaimTemplate:
-        #     spec:
-        #       storageClassName: var.storage_class_name
-        #       resources:
-        #         requests:
-        #           storage: 5Gi
       }
     })
   ]

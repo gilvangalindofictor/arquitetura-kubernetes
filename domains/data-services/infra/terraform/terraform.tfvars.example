@@ -26,7 +26,7 @@ cluster_endpoint       = "https://YOUR_CLUSTER_API_ENDPOINT"
 cluster_ca_certificate = "BASE64_ENCODED_CA_CERTIFICATE"
 storage_class_name     = "gp3" # ou managed-premium, pd-ssd
 
-environment = "production"
+environment = "staging"
 
 # -----------------------------------------------------------------------------
 # COMPONENT VERSIONS
@@ -42,17 +42,17 @@ velero_version             = "5.2.0"
 # -----------------------------------------------------------------------------
 
 # Opção 1: AWS S3
-# velero_backup_bucket = "k8s-backups-production"
+# velero_backup_bucket = "k8s-backups-staging"
 # velero_region        = "us-east-1"
 # velero_s3_url        = "https://s3.amazonaws.com"
 
 # Opção 2: Azure Blob (via S3 API compatible - Minio gateway)
-# velero_backup_bucket = "k8s-backups-production"
+# velero_backup_bucket = "k8s-backups-staging"
 # velero_region        = "eastus" # Ignored by Minio
 # velero_s3_url        = "https://minio.azure.example.com"
 
 # Opção 3: GCP GCS (via S3 API compatible - Minio gateway)
-# velero_backup_bucket = "k8s-backups-production"
+# velero_backup_bucket = "k8s-backups-staging"
 # velero_region        = "us-central1" # Ignored by Minio
 # velero_s3_url        = "https://minio.gcp.example.com"
 

@@ -24,9 +24,9 @@ variable "storage_class_name" {
 }
 
 variable "environment" {
-  description = "Environment name (production, staging, development)"
+  description = "Environment name (staging, production, development)"
   type        = string
-  default     = "production"
+  default     = "staging"
 }
 
 # -----------------------------------------------------------------------------
@@ -40,9 +40,9 @@ variable "postgres_operator_version" {
 }
 
 variable "redis_operator_version" {
-  description = "Redis Operator chart version"
+  description = "Redis Operator chart version (OT-Container-Kit)"
   type        = string
-  default     = "3.3.0"
+  default     = "0.23.0"
 }
 
 variable "rabbitmq_operator_version" {
@@ -62,7 +62,7 @@ variable "velero_version" {
 # -----------------------------------------------------------------------------
 
 variable "velero_backup_bucket" {
-  description = "S3-compatible bucket para backups Velero (ex: k8s-backups-production)"
+  description = "S3-compatible bucket para backups Velero (ex: k8s-backups-staging)"
   type        = string
 }
 

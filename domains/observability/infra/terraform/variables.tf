@@ -67,9 +67,9 @@ variable "s3_bucket_backups" {
 # =============================================================================
 
 variable "environments" {
-  description = "Environments to deploy (dev, hml, prd)"
+  description = "Environments to deploy (staging)"
   type        = list(string)
-  default     = ["dev", "hml", "prd"]
+  default     = ["staging"]
 }
 
 variable "domain_name" {

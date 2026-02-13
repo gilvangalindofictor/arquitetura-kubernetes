@@ -56,16 +56,10 @@ variable "kubernetes_namespaces" {
   description = "Kubernetes namespaces that will need IAM roles (IRSA)"
   type        = list(string)
   default = [
-    "observability-dev",
-    "observability-hml",
-    "observability-prd",
-    "platform-core-dev",
-    "platform-core-hml",
-    "platform-core-prd",
+    "observability-staging",
+    "platform-core-staging",
     "cicd-platform",
-    "data-services-dev",
-    "data-services-hml",
-    "data-services-prd",
+    "data-services-staging",
     "secrets-management",
     "security"
   ]
