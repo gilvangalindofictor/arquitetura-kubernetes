@@ -120,7 +120,7 @@
 
 | Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                             |
 | --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ------------------------------------------------- |
-| Keycloak  | ✅ Operacional | 23.0.0           | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube |
+| Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana. initContainer wait-for-db + startupProbe + toleration critical |
 | ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running  |
 | SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi             |
 | GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)       |
@@ -274,6 +274,16 @@
 - [ ] Completar migração de secrets para Vault (Harbor, GitLab)
 - [ ] Implementar security audit completo (checklist OWASP Top 10)
 - [ ] Configurar TLS para todos os endpoints
+
+---
+
+## Bloqueadores Conhecidos
+
+| #   | Bloqueador                                                                                                                                                         | Status                      | Severidade    | Resolução                                                                                                                                          | Ref                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~**Security Groups Dependencies (T5)**~~ — 10 orphan SGs deletados (3 GitLab ALB + 7 EKS node/cluster). Cross-references resolvidas via remoção de rules primeiro. | **RESOLVIDO** (2026-02-13)  | ~~🟡 Médio~~    | Estratégia 3 fases: (1) delete SGs sem deps, (2) remover rules cross-ref, (3) delete SGs. 1 fix residual em cluster-sg ativo. Total: 1m49s.      | [ADR-059](../adr/adr-059-multi-marco-infrastructure-split.md), [Logbook Cleanup](../logbook/2026-02-13-security-groups-cleanup-completion.md) |
+| 2   | **Keycloak replica e restarts** — 1 replica (aceito staging). 118 restarts resolvidos: (1) initContainer wait-for-db adicionado (race condition RDS/FinOps), (2) `--health-enabled=true` adicionado (health 404), (3) startupProbe configurada (60×5s=300s tolerancia), (4) toleration `workload=critical` adicionada (scheduling nos t3.xlarge). CPU nao e mais bloqueador (t3.xlarge com 2.5+ vCPU livres). | **RESOLVIDO** (2026-02-13) | ~~🟢 Baixo~~ | Patches aplicados no StatefulSet via kubectl. Para 2a replica em PROD: alterar `replicas: 2` (Terraform ja tem default=2). | [ADR-046](../adr/adr-046-keycloak-sso-strategy.md), [Logbook Keycloak](../logbook/2026-02-11-keycloak-26-deployment-final.md) |
+| 3   | ~~**Prometheus Operator stuck em Pending (system nodes)**~~ — Prometheus, Grafana, Alertmanager Pending 5+ dias por saturação system nodes + tolerations ausentes. | **RESOLVIDO** (2026-02-09)  | ~~🔴 Crítico~~ | ADR-042: dual tolerations (`node-type=system` + `workload=critical`) aplicadas a todos 7 módulos. System nodes escalados 2→3. Recovery em 7min31s. | [ADR-042](../context/decisions.md#adr-042), [Cluster Remediation](../operations/2026-02-09-cluster-remediation.md)                                |
 
 ---
 

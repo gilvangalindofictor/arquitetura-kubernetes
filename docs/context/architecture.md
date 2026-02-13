@@ -1022,10 +1022,10 @@ Internet
 - **Custo:** $0 (ArgoCD já deployed Marco 2)
 
 **6. Keycloak SSO Platform (GAP-001) — 2h**
-- **Adicionado em:** 2026-02-06
-- **Versão:** Helm codecentric/keycloak v18.4.0
+- **Adicionado em:** 2026-02-06 | **Upgraded:** 2026-02-11 (17.0.1 WildFly → 26.5.1 Quarkus)
+- **Versão:** Helm codecentric/keycloakx v7.1.7 (Keycloak 26.5.1 Quarkus)
 - **Namespace:** keycloak
-- **Replicas:** 2 (HA para serviço crítico SSO)
+- **Replicas:** 1 (staging accepted, PROD: 2)
 - **Database:** PostgreSQL RDS shared DB `keycloak` ($0)
 - **Secrets:** ExternalSecret → Vault `secret/data/keycloak/postgresql`
 
@@ -1033,9 +1033,14 @@ Internet
   - Auto-sync 1h, credentials rotacionáveis via Vault KV v2
 
 - **Admin Password:** Terraform random_password (24 chars, managed)
-- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana (futuro)
+- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana
+- **Startup Resilience (2026-02-13):**
+  - initContainer `wait-for-db` (busybox nc -z) — resolve race condition FinOps/RDS
+  - `--health-enabled=true` — habilita smallrye-health para probes
+  - startupProbe: 330s tolerancia (60×5s) — protege contra liveness kill durante cold start
+  - Toleration `workload=critical:NoSchedule` — scheduling nos t3.xlarge com CPU livre
 - **Custo:** $0 (usa RDS shared + nodes existentes)
-- **Logbook:** [2026-02-06-vault-eso-keycloak-integration.md](../logbook/2026-02-06-vault-eso-keycloak-integration.md)
+- **Logbook:** [2026-02-06-vault-eso-keycloak-integration.md](../logbook/2026-02-06-vault-eso-keycloak-integration.md), [2026-02-11-keycloak-26-deployment-final.md](../logbook/2026-02-11-keycloak-26-deployment-final.md)
 
 **7. E2E Pipeline Test — 1.5h**
 - **Flow:** GitLab → Kaniko + Vault creds → Harbor push → Trivy scan → ArgoCD sync

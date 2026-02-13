@@ -162,6 +162,8 @@ resource "helm_release" "keycloak" {
     replicas          = var.replicas
     admin_password    = random_password.keycloak_admin.result
     enable_monitoring = var.enable_monitoring
+    postgresql_host   = var.postgresql_host
+    postgresql_port   = var.postgresql_port
   })]
 
   depends_on = [

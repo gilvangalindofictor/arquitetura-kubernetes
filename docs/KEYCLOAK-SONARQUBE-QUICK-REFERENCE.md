@@ -1,6 +1,6 @@
 # 📌 Referência Rápida — Keycloak & SonarQube
 
-**Última atualização**: 2026-02-11
+**Última atualização**: 2026-02-13
 
 ---
 
@@ -12,10 +12,12 @@
 Versão Atual:    26.5.1 (Quarkus 3.27.1)
 Helm Chart:      7.1.7 (codecentric/keycloakx)
 Namespace:       keycloak
-Replicas:        1/2 (2ª pending - cluster CPU capacity)
+Replicas:        1 (staging accepted, PROD: set to 2)
 Database:        PostgreSQL RDS 16.4 (shared, SSL required)
-HA Status:       ⚠️ Partial (1/2 replicas - acceptable STAGING)
-Startup Time:    27s (Quarkus optimized, was 60-80s WildFly)
+HA Status:       ✅ Ready (CPU available, tolerations set, replicas=1 by choice)
+Startup Time:    20s (Quarkus optimized, was 60-80s WildFly)
+Startup Guard:   initContainer wait-for-db + startupProbe 330s
+Health:          /auth/health/ready + /auth/health/live (--health-enabled=true)
 OIDC Validated:  ✅ Discovery endpoint + /auth prefix OK
 
 # Terraform: modules/keycloak/variables.tf
@@ -160,7 +162,8 @@ kubectl get secret -n sonarqube sonarqube-oidc -o yaml
 
 | Issue                                           | Severity | Impact                              | Fix Timeline                  |
 | ----------------------------------------------- | -------- | ----------------------------------- | ----------------------------- |
-| Keycloak 2ª replica pending (CPU capacity)      | 🟢 Low    | Acceptable for STAGING              | Sprint +2 (add cluster nodes) |
+| ~~Keycloak 2ª replica pending (CPU capacity)~~  | ~~🟢 Low~~ | ~~Acceptable for STAGING~~        | ✅ RESOLVIDO (2026-02-13): CPU livre nos t3.xlarge, toleration adicionada. Staging: 1 replica aceito. |
+| ~~Keycloak 118 restarts (RDS race condition)~~  | ~~🟡 Med~~ | ~~Pod restart loop no FinOps startup~~ | ✅ RESOLVIDO (2026-02-13): initContainer wait-for-db + --health-enabled=true + startupProbe 330s |
 | Keycloak Vault OIDC secrets in K8s              | 🟢 Low    | DB secrets OK, OIDC manual          | Sprint +2                     |
 | SonarQube Prometheus disabled                   | 🟡 Low    | No metrics (health endpoint OK)     | Sprint +2 (investigate Maven) |
 | SonarQube OIDC clients not tested               | 🟢 Low    | Discovery OK, login test pending    | This sprint                   |
@@ -176,8 +179,10 @@ kubectl get secret -n sonarqube sonarqube-oidc -o yaml
 ✅ PostgreSQL RDS with SSL/TLS (sslmode=require)
 ✅ Realm `platform` with 3 groups created
 ✅ Vault K8s auth functional (ExternalSecret syncing DB creds)
-✅ **Startup time: 27s** (65% faster than WildFly)
-⚠️ HA partial (1/2 replicas - 2ª pending cluster CPU)
+✅ **Startup time: 20s** (Quarkus optimized, was 27s first run)
+✅ **Startup resilience**: initContainer wait-for-db + startupProbe 330s + toleration critical
+✅ **Health endpoints**: `/auth/health/ready` + `/auth/health/live` (smallrye-health enabled)
+⚠️ 1 replica staging (aceito). PROD: set replicas=2 (Terraform default=2)
 
 ### SonarQube
 ✅ 10.3.0 Community Edition running

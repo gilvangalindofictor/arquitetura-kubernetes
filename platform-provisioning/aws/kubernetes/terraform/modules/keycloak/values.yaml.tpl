@@ -12,6 +12,29 @@ command:
   - "/opt/keycloak/bin/kc.sh"
   - "start"
   - "--http-relative-path=/auth"  # Backward compatibility OIDC clients
+  - "--health-enabled=true"       # Enable smallrye-health (required for probes)
+
+# Wait for PostgreSQL before starting Keycloak (FinOps startup race condition)
+extraInitContainers: |
+  - name: wait-for-db
+    image: busybox:1.36
+    command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for PostgreSQL..."
+        until nc -z ${postgresql_host} ${postgresql_port}; do
+          echo "DB not ready, retrying in 5s..."
+          sleep 5
+        done
+        echo "DB is ready!"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
 
 # Keycloak admin credentials (Quarkus format)
 extraEnv: |
@@ -70,6 +93,7 @@ postgresql:
 # Startup probe (Quarkus health endpoints + DB migration margin)
 # Health endpoints exposed on HTTP port 8080 (KC_HTTP_MANAGEMENT_HEALTH_ENABLED=false)
 # Paths: /auth/health/ready, /auth/health/live (inherit http-relative-path prefix)
+# Requires: --health-enabled=true in command args
 startupProbe:
   httpGet:
     path: /auth/health/ready
@@ -77,14 +101,14 @@ startupProbe:
   initialDelaySeconds: 30
   periodSeconds: 5
   timeoutSeconds: 5
-  failureThreshold: 30  # 150s total (DB migration 17→26)
+  failureThreshold: 60  # 330s total (FinOps cold start: RDS + Quarkus build + DB migration)
 
-# Liveness probe
+# Liveness probe (startupProbe gates liveness, so no initialDelaySeconds needed)
 livenessProbe:
   httpGet:
     path: /auth/health/live
     port: 8080
-  initialDelaySeconds: 60
+  initialDelaySeconds: 0
   periodSeconds: 30
   timeoutSeconds: 5
   failureThreshold: 5
@@ -94,7 +118,7 @@ readinessProbe:
   httpGet:
     path: /auth/health/ready
     port: 8080
-  initialDelaySeconds: 30
+  initialDelaySeconds: 0
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 5
@@ -111,6 +135,13 @@ resources:
 # Service configuration
 service:
   type: ClusterIP
+
+# Tolerations (ADR-042 pattern: prefer system, fallback to critical)
+tolerations:
+  - key: workload
+    operator: Equal
+    value: critical
+    effect: NoSchedule
 
 # Pod Disruption Budget (HA protection)
 podDisruptionBudget:
