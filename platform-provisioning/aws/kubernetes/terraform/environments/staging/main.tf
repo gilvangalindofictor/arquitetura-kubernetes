@@ -877,3 +877,37 @@ module "observability_staging" {
 
   monitoring_namespace = "monitoring"
 }
+
+#------------------------------------------------------------------------------
+# ECR Lifecycle Policies — Auto-Delete Untagged Images >7 Days
+# Purpose: Reduce ECR storage costs by automatically cleaning up old images
+# Pattern: Time-based expiration (7 days) for untagged images
+# Savings: ~$0.10/GB/month ECR storage cost reduction
+# Account-level: ECR is shared across all environments (staging + prod)
+#------------------------------------------------------------------------------
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  environment = local.environment
+
+  repositories = {
+    hatch-sync = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+  }
+
+  # Auto-delete untagged images older than 7 days
+  untagged_expiration_days = 7
+
+  # Keep last 10 tagged images per prefix (v*, latest)
+  tagged_image_count = 10
+
+  common_tags = merge(local.common_tags, {
+    Purpose     = "Container image storage"
+    Criticality = "Medium"
+  })
+}
