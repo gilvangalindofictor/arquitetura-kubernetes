@@ -52,13 +52,14 @@ resource "helm_release" "argocd" {
   namespace  = kubernetes_namespace.argocd.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name      = var.cluster_name
-    replicas          = var.replicas
-    keycloak_url      = var.keycloak_url
-    keycloak_client   = var.keycloak_client_id
-    ingress_enabled   = var.ingress_enabled
-    domain            = var.domain
-    enable_monitoring = var.enable_monitoring
+    cluster_name       = var.cluster_name
+    replicas           = var.replicas
+    keycloak_url       = var.keycloak_url
+    keycloak_client    = var.keycloak_client_id
+    ingress_enabled    = var.ingress_enabled
+    domain             = var.domain
+    ingress_group_name = var.ingress_group_name
+    enable_monitoring  = var.enable_monitoring
   })]
 
   timeout = 600 # 10 minutes

@@ -96,6 +96,25 @@ server:
     port: 8200
     targetPort: 8200
 
+  # Ingress (ALB)
+  %{ if ingress_enabled }
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/healthcheck-path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+      alb.ingress.kubernetes.io/success-codes: "200,204"
+      %{ if ingress_group_name != "" }alb.ingress.kubernetes.io/group.name: ${ingress_group_name}%{ endif }
+    hosts:
+      - host: ${ingress_host}
+        paths:
+          - /
+  %{ endif }
+
   # Readiness/Liveness probes
   readinessProbe:
     enabled: true

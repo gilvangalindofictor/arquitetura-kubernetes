@@ -225,6 +225,9 @@ resource "helm_release" "harbor" {
     storage_class         = var.storage_class
     enable_trivy          = var.enable_trivy
     enable_monitoring     = var.enable_monitoring
+    ingress_enabled       = var.ingress_enabled
+    ingress_host          = var.ingress_host
+    ingress_group_name    = var.ingress_group_name
   })]
 
   depends_on = [

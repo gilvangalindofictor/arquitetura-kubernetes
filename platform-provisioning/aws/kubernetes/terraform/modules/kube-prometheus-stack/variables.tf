@@ -58,6 +58,12 @@ variable "grafana_ingress_host" {
   default     = ""
 }
 
+variable "grafana_ingress_group_name" {
+  description = "ALB Ingress group name para compartilhar ALB entre serviços"
+  type        = string
+  default     = ""
+}
+
 # -----------------------------------------------------------------------------
 # Alertmanager
 # -----------------------------------------------------------------------------

@@ -314,6 +314,55 @@ resource "helm_release" "kube_prometheus_stack" {
     }
   }
 
+  # ALB Annotations para Grafana Ingress
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/scheme"
+      value = "internet-facing"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/target-type"
+      value = "ip"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/backend-protocol"
+      value = "HTTP"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/listen-ports"
+      value = "[{\"HTTP\":80}]"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/healthcheck-path"
+      value = "/api/health"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_ingress_enabled && var.grafana_ingress_group_name != "" ? [1] : []
+    content {
+      name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/group\\.name"
+      value = var.grafana_ingress_group_name
+    }
+  }
+
   # -----------------------------------------------------------------------------
   # Alertmanager
   # -----------------------------------------------------------------------------

@@ -1,6 +1,25 @@
 # Harbor Helm Chart Values
 # https://github.com/goharbor/harbor-helm
 
+%{ if ingress_enabled }
+expose:
+  type: ingress
+  tls:
+    enabled: false
+  ingress:
+    hosts:
+      core: ${ingress_host}
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v2.0/health
+      %{ if ingress_group_name != "" }alb.ingress.kubernetes.io/group.name: ${ingress_group_name}%{ endif }
+
+externalURL: http://${ingress_host}
+%{ else }
 expose:
   type: clusterIP
   tls:
@@ -9,6 +28,7 @@ expose:
     name: harbor
 
 externalURL: http://harbor-core.${namespace}.svc.cluster.local
+%{ endif }
 
 persistence:
   enabled: true

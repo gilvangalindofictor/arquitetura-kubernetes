@@ -64,13 +64,13 @@ server:
       clientID: ${keycloak_client}
       clientSecret: $${argocd-oidc-credentials:client-secret}
       requestedScopes: ["openid", "profile", "email", "groups"]
-  
+
   rbacConfig:
     policy.default: role:readonly
     policy.csv: |
       # Admin group from Keycloak
       g, argocd-admins, role:admin
-      
+
       # No secret enumeration (security)
       p, role:readonly, repositories, get, */*, deny
       p, role:readonly, certificates, get, *, deny
@@ -88,7 +88,8 @@ server:
       alb.ingress.kubernetes.io/scheme: internet-facing
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/backend-protocol: HTTP
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      %{ if ingress_group_name != "" }alb.ingress.kubernetes.io/group.name: ${ingress_group_name}%{ endif }
     hosts:
       - ${domain}
 

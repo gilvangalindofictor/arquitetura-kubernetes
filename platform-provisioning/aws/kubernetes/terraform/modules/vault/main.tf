@@ -235,16 +235,19 @@ resource "helm_release" "vault" {
   namespace  = kubernetes_namespace.vault.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name      = var.cluster_name
-    namespace         = var.namespace
-    replicas          = var.replicas
-    kms_key_id        = aws_kms_key.vault_unseal.id
-    aws_region        = var.aws_region
-    service_account   = kubernetes_service_account.vault.metadata[0].name
-    storage_class     = var.storage_class
-    pvc_size          = var.pvc_size
-    enable_monitoring = var.enable_monitoring
-    tolerations       = var.tolerations
+    cluster_name       = var.cluster_name
+    namespace          = var.namespace
+    replicas           = var.replicas
+    kms_key_id         = aws_kms_key.vault_unseal.id
+    aws_region         = var.aws_region
+    service_account    = kubernetes_service_account.vault.metadata[0].name
+    storage_class      = var.storage_class
+    pvc_size           = var.pvc_size
+    enable_monitoring  = var.enable_monitoring
+    tolerations        = var.tolerations
+    ingress_enabled    = var.ingress_enabled
+    ingress_host       = var.ingress_host
+    ingress_group_name = var.ingress_group_name
   })]
 
   depends_on = [

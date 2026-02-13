@@ -294,6 +294,68 @@ resource "kubernetes_service" "rabbitmq_management_external" {
 # -----------------------------------------------------------------------------
 
 # TODO: Commented temporarily due to provider cache issue
+
+# -----------------------------------------------------------------------------
+# ALB Ingress for Management UI (if ingress enabled)
+# Substitui acesso via NLB para Management UI, mantendo NLB apenas para AMQP
+# -----------------------------------------------------------------------------
+
+resource "kubernetes_ingress_v1" "rabbitmq_management" {
+  count = var.ingress_enabled ? 1 : 0
+
+  metadata {
+    name      = "rabbitmq-management"
+    namespace = var.namespace
+
+    labels = merge(var.common_tags, {
+      "app.kubernetes.io/name"     = "rabbitmq"
+      "app.kubernetes.io/instance" = "${var.cluster_name}-rabbitmq-management"
+    })
+
+    annotations = merge(
+      {
+        "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+        "alb.ingress.kubernetes.io/target-type"      = "ip"
+        "alb.ingress.kubernetes.io/backend-protocol" = "HTTP"
+        "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTP\":80}]"
+        "alb.ingress.kubernetes.io/healthcheck-path" = "/"
+        "alb.ingress.kubernetes.io/healthcheck-port" = "15672"
+        "alb.ingress.kubernetes.io/success-codes"    = "200"
+      },
+      var.ingress_group_name != "" ? {
+        "alb.ingress.kubernetes.io/group.name" = var.ingress_group_name
+      } : {}
+    )
+  }
+
+  spec {
+    ingress_class_name = "alb"
+
+    rule {
+      host = var.ingress_host
+
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = "${var.cluster_name}-rabbitmq"
+              port {
+                number = 15672
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_manifest.rabbitmq_cluster
+  ]
+}
 # resource "kubernetes_manifest" "rabbitmq_servicemonitor" {
 #   count = var.enable_monitoring ? 1 : 0
 #

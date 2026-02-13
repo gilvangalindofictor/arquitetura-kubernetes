@@ -44,6 +44,12 @@ variable "domain" {
   default     = ""
 }
 
+variable "ingress_group_name" {
+  description = "ALB Ingress group name para compartilhar ALB entre serviços"
+  type        = string
+  default     = ""
+}
+
 variable "enable_monitoring" {
   description = "Enable Prometheus ServiceMonitor"
   type        = bool

@@ -72,6 +72,7 @@ resource "helm_release" "sonarqube" {
     pvc_size            = var.pvc_size
     ingress_enabled     = var.ingress_enabled
     domain              = var.domain
+    ingress_group_name  = var.ingress_group_name
     enable_monitoring   = var.enable_monitoring
   })]
 

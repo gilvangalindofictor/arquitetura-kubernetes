@@ -89,3 +89,25 @@ variable "common_tags" {
   type    = map(string)
   default = {}
 }
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+
+variable "ingress_enabled" {
+  description = "Habilitar ALB Ingress para o Harbor"
+  type        = bool
+  default     = false
+}
+
+variable "ingress_host" {
+  description = "Hostname para o Ingress do Harbor (e.g., harbor.staging.internal)"
+  type        = string
+  default     = ""
+}
+
+variable "ingress_group_name" {
+  description = "ALB Ingress group name para compartilhar ALB entre serviços"
+  type        = string
+  default     = ""
+}

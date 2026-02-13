@@ -355,33 +355,35 @@ module "external_secrets_staging" {
 
 # Vault Post-Deployment Configuration
 # K8s auth, policies, roles, and Keycloak secrets
-module "vault_config_staging" {
-  source = "../../modules/vault-config"
-
-  # FIXME: Removed depends_on due to legacy module with local providers
-  # depends_on = [
-  #   module.vault_staging,
-  #   module.external_secrets_staging
-  # ]
-
-  vault_addr  = "http://localhost:8200" # Temporary: using port-forward for Terraform apply
-  vault_token = var.vault_root_token
-
-  cluster_name        = local.cluster_name
-  kubernetes_host     = data.aws_eks_cluster.cluster.endpoint
-  kubernetes_ca_cert  = data.aws_eks_cluster.cluster.certificate_authority[0].data
-  eso_namespace       = "external-secrets-system"
-  eso_service_account = "external-secrets"
-
-  # Keycloak PostgreSQL credentials
-  keycloak_postgresql_password = var.keycloak_postgresql_password
-  keycloak_postgresql_username = "keycloak_user"
-  keycloak_postgresql_host     = "postgresql-external.default.svc.cluster.local"
-  keycloak_postgresql_port     = "5432"
-  keycloak_postgresql_database = "keycloak"
-
-  common_tags = local.common_tags
-}
+# TEMPORARILY COMMENTED: Vault pods in ContainerCreating, provider crashes
+# Uncomment when Vault cluster is back online
+# module "vault_config_staging" {
+#   source = "../../modules/vault-config"
+#
+#   # FIXME: Removed depends_on due to legacy module with local providers
+#   # depends_on = [
+#   #   module.vault_staging,
+#   #   module.external_secrets_staging
+#   # ]
+#
+#   vault_addr  = "http://localhost:8200" # Temporary: using port-forward for Terraform apply
+#   vault_token = var.vault_root_token
+#
+#   cluster_name        = local.cluster_name
+#   kubernetes_host     = data.aws_eks_cluster.cluster.endpoint
+#   kubernetes_ca_cert  = data.aws_eks_cluster.cluster.certificate_authority[0].data
+#   eso_namespace       = "external-secrets-system"
+#   eso_service_account = "external-secrets"
+#
+#   # Keycloak PostgreSQL credentials
+#   keycloak_postgresql_password = var.keycloak_postgresql_password
+#   keycloak_postgresql_username = "keycloak_user"
+#   keycloak_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+#   keycloak_postgresql_port     = "5432"
+#   keycloak_postgresql_database = "keycloak"
+#
+#   common_tags = local.common_tags
+# }
 
 # Harbor Container Registry - STAGING (IRSA S3 storage)
 module "harbor_staging" {
@@ -439,7 +441,7 @@ module "keycloak_staging" {
   depends_on = [
     module.postgresql_staging,
     module.external_secrets_staging,
-    module.vault_config_staging
+    # module.vault_config_staging  # TEMPORARILY COMMENTED: Vault pods in ContainerCreating
   ]
 
   # Cluster info
@@ -541,8 +543,8 @@ module "sonarqube_staging" {
 module "kube_prometheus_stack_staging" {
   source = "../../modules/kube-prometheus-stack"
 
-  cluster_name = local.cluster_name
-  namespace    = "monitoring"
+  namespace              = "monitoring"
+  grafana_admin_password = "admin" # TODO: Mover para Vault/SecretsManager
 
   # Grafana ALB Ingress
   grafana_ingress_enabled    = true

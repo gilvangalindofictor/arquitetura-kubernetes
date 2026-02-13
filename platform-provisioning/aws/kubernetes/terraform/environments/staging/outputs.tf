@@ -91,20 +91,20 @@ output "gitlab_s3_policy_arn" {
 # Vault + External Secrets Outputs
 #------------------------------------------------------------------------------
 
-output "vault_k8s_auth_path" {
-  description = "Vault Kubernetes auth mount path"
-  value       = module.vault_config_staging.vault_k8s_auth_path
-}
-
-output "vault_eso_reader_role" {
-  description = "Vault role for ESO authentication"
-  value       = module.vault_config_staging.eso_reader_role
-}
-
-output "vault_keycloak_secret_path" {
-  description = "Vault path for Keycloak PostgreSQL credentials"
-  value       = module.vault_config_staging.keycloak_secret_path
-}
+# output "vault_k8s_auth_path" {
+#   description = "Vault Kubernetes auth mount path"
+#   value       = module.vault_config_staging.vault_k8s_auth_path
+# }
+#
+# output "vault_eso_reader_role" {
+#   description = "Vault role for ESO authentication"
+#   value       = module.vault_config_staging.eso_reader_role
+# }
+#
+# output "vault_keycloak_secret_path" {
+#   description = "Vault path for Keycloak PostgreSQL credentials"
+#   value       = module.vault_config_staging.keycloak_secret_path
+# }
 
 #------------------------------------------------------------------------------
 # Keycloak SSO Platform Outputs
