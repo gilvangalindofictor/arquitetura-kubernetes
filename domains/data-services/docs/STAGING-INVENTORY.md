@@ -209,7 +209,7 @@ resource "null_resource" "rabbitmq_operator" {
 }
 ```
 
-### Produção (Verificado com kubectl)
+### Staging (Verificado com kubectl)
 ```
 RabbitMQ Cluster Operator (Official)
 ├─ Operator Version: v2.19.0 ✅ RECENT (latest minor)
@@ -220,9 +220,9 @@ RabbitMQ Cluster Operator (Official)
 │  ├─ data-services/k8s-platform-prod-rabbitmq (primary, shared cluster naming)
 │  ├─ default/k8s-platform-prod-rabbitmq (secondary, shared cluster naming)
 │  ├─ Server Image: rabbitmq:3.13-management
-│  ├─ Replicas: 3 (production), 1 (staging)
+│  ├─ Replicas: 1 (staging)
 │  └─ Status: ALLREPLICASREADY=True, RECONCILESUCCESS=True
-└─ Age: 8 dias (production)
+└─ Age: 8 dias
 ```
 
 ### Status de Sincronismo
@@ -323,7 +323,7 @@ Buckets relacionados a backup/data:
 3. **Se Alternativa**:
    - Document backup strategy (manual exports, etc)
    - Define RPO/RTO for Redis/RabbitMQ
-4. **RISK**: Produção sem backup de K8s data = compliance violation
+4. **RISK**: Staging sem backup de K8s data = gap a resolver antes de produção
 
 ---
 
@@ -371,7 +371,7 @@ O problema real: **Documentação Arquitetural vs Terraform**
 └────────────────────────────────────────┘
 ```
 
-### Arquitetura Real (Produção)
+### Arquitetura Real (Staging)
 
 ```
 ┌──────────────────────────────────────────────┐
