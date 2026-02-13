@@ -451,7 +451,7 @@ module "keycloak_staging" {
 
   # Keycloak configuration
   keycloak_chart_version = "7.1.7" # Updated to codecentric/keycloakx (Quarkus 26.5.1)
-  replicas               = 2       # HA for critical SSO service
+  replicas               = 1       # Staging: 1 replica accepted. PROD: set to 2
 
   # PostgreSQL (external - RDS via postgresql_staging module)
   postgresql_host     = "postgresql-external.default.svc.cluster.local"
@@ -933,5 +933,28 @@ module "orphan_detector" {
     Purpose     = "FinOps orphan resource monitoring"
     Schedule    = "Daily 9am BRT"
     Criticality = "Medium"
+  })
+}
+
+#------------------------------------------------------------------------------
+# Weekly FinOps Report — Comprehensive Dry-Run Scan
+# Purpose: Weekly consolidated report of ALL potential orphan resources
+# Pattern: Scheduled Lambda (weekly Monday 9am BRT) + SNS detailed report
+# Difference from daily: Comprehensive scan with cost breakdown, human review
+# Safety: Dry-run only (no auto-delete), manual cleanup after review
+#------------------------------------------------------------------------------
+
+module "weekly_finops_report" {
+  source = "../../modules/orphan-detector"
+
+  function_name       = "weekly-finops-report-staging"
+  aws_region          = var.aws_region
+  schedule_expression = "cron(0 12 ? * MON *)" # Weekly Monday at 9am BRT (12pm UTC)
+  alert_email         = var.finops_alert_email
+  log_retention_days  = 30 # Keep weekly reports for 1 month
+
+  common_tags = merge(local.common_tags, {
+    Purpose     = "FinOps weekly comprehensive report"
+    Criticality = "Low"
   })
 }
