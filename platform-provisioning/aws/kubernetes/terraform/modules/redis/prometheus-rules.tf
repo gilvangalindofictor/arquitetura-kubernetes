@@ -4,7 +4,7 @@
 # =============================================================================
 
 resource "kubectl_manifest" "redis_prometheus_rules" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "monitoring.coreos.com/v1"

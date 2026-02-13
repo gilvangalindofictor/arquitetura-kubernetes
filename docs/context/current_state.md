@@ -8,7 +8,7 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-13 (SSO Smoke Tests + Redis/Vault/CoreDNS Recovery)
+**Última Atualização**: 2026-02-13 (Harbor Redeploy + Redis TF Fix)
 
 **Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated
 
@@ -60,6 +60,16 @@
   - Keycloak secrets seeded from cached K8s secret
 - ✅ ExternalSecrets: ClusterSecretStore Ready, ExternalSecret Synced
 
+**Harbor Redeploy + Redis TF Fix (2026-02-13)**:
+
+- ✅ Harbor redeployado: 7 pods Running, Ingress ativo no ALB platform-staging
+  - Causa: recursos K8s ausentes do TF state (apenas AWS resources existiam)
+  - Chart harbor v1.14.0 / image v2.10.0
+  - 5 recursos K8s criados (namespace, SA, secret, configmap, helm_release)
+- ✅ STOP-AND-FIX: Redis module `depends_on` corrigido
+  - `network-policies.tf` + `prometheus-rules.tf`: `redis_failover` → `redis`
+  - Bug da migracao SpotaHome → OT-Container-Kit
+
 **Próximos Passos**:
 
 - [ ] Cluster capacity: adicionar nodes ou rightsizing para GitLab 3/3 + Vault 3/3
@@ -103,25 +113,25 @@
 
 ### Workloads (Marco 3)
 
-| Aplicação      | Status        | Versão      | Réplicas               | Namespace     | Database               | Notas                                          |
-| -------------- | ------------- | ----------- | ---------------------- | ------------- | ---------------------- | ---------------------------------------------- |
-| PostgreSQL RDS | ✅ Operacional | 15.4        | —                      | —             | db.t3.medium Single-AZ | Temporariamente em subnet pública (ADR-046)    |
-| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)         | data-services | —                      | OT-Container-Kit operator, AUTH enabled, PSS restricted |
-| RabbitMQ       | ✅ Operacional | Operator    | 1                      | data-services | —                      | Official operator                              |
-| GitLab         | 🟡 Parcial     | 16.7.0      | 1 (2 Pending)          | gitlab        | PostgreSQL RDS         | Webservice 1/3 Running (capacity), Runner CrashLoop |
-| Harbor         | ✅ Operacional | 2.9.1       | 1                      | harbor        | PostgreSQL RDS         | Registry funcional, robot accounts ok          |
-| Vault          | 🟡 Parcial     | 1.15.0      | 1 (HA degraded)        | vault         | Raft (EBS)             | Reinitializado 2026-02-13, KMS auto-unseal, 1/3 por capacity |
+| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace     | Database                  | Notas                                                        |
+| ---------------- | ------------- | ------------ | ----------------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —             | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)                  |
+| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted      |
+| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services | —                         | Official operator                                            |
+| GitLab           | 🟡 Parcial     | 16.7.0       | 1 (2 Pending)                             | gitlab        | PostgreSQL RDS            | Webservice 1/3 Running (capacity), Runner CrashLoop          |
+| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging                 |
+| Vault            | 🟡 Parcial     | 1.15.0       | 1 (HA degraded)                           | vault         | Raft (EBS)                | Reinitializado 2026-02-13, KMS auto-unseal, 1/3 por capacity |
 
 ---
 
 ### CI/CD Platform (Marco 4) - 🚧 75% Completo
 
-| Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                             |
-| --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ------------------------------------------------- |
+| Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                                                                                                              |
+| --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana. initContainer wait-for-db + startupProbe + toleration critical |
-| ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running  |
-| SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi             |
-| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)       |
+| ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running                                                                                   |
+| SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                              |
+| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)                                                                                        |
 
 **GAPs Marco 4**:
 
@@ -281,11 +291,11 @@
 
 ## Bloqueadores Conhecidos
 
-| #   | Bloqueador                                                                                                                                                         | Status                      | Severidade    | Resolução                                                                                                                                          | Ref                                                                                                                                               |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | ~~**Security Groups Dependencies (T5)**~~ — 10 orphan SGs deletados (3 GitLab ALB + 7 EKS node/cluster). Cross-references resolvidas via remoção de rules primeiro. | **RESOLVIDO** (2026-02-13)  | ~~🟡 Médio~~    | Estratégia 3 fases: (1) delete SGs sem deps, (2) remover rules cross-ref, (3) delete SGs. 1 fix residual em cluster-sg ativo. Total: 1m49s.      | [ADR-059](../adr/adr-059-multi-marco-infrastructure-split.md), [Logbook Cleanup](../logbook/2026-02-13-security-groups-cleanup-completion.md) |
-| 2   | **Keycloak replica e restarts** — 1 replica (aceito staging). 118 restarts resolvidos: (1) initContainer wait-for-db adicionado (race condition RDS/FinOps), (2) `--health-enabled=true` adicionado (health 404), (3) startupProbe configurada (60×5s=300s tolerancia), (4) toleration `workload=critical` adicionada (scheduling nos t3.xlarge). CPU nao e mais bloqueador (t3.xlarge com 2.5+ vCPU livres). | **RESOLVIDO** (2026-02-13) | ~~🟢 Baixo~~ | Patches aplicados no StatefulSet via kubectl. Para 2a replica em PROD: alterar `replicas: 2` (Terraform ja tem default=2). | [ADR-046](../adr/adr-046-keycloak-sso-strategy.md), [Logbook Keycloak](../logbook/2026-02-11-keycloak-26-deployment-final.md) |
-| 3   | ~~**Prometheus Operator stuck em Pending (system nodes)**~~ — Prometheus, Grafana, Alertmanager Pending 5+ dias por saturação system nodes + tolerations ausentes. | **RESOLVIDO** (2026-02-09)  | ~~🔴 Crítico~~ | ADR-042: dual tolerations (`node-type=system` + `workload=critical`) aplicadas a todos 7 módulos. System nodes escalados 2→3. Recovery em 7min31s. | [ADR-042](../context/decisions.md#adr-042), [Cluster Remediation](../operations/2026-02-09-cluster-remediation.md)                                |
+| #   | Bloqueador                                                                                                                                                                                                                                                                                                                                                                                                    | Status                     | Severidade    | Resolução                                                                                                                                          | Ref                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~**Security Groups Dependencies (T5)**~~ — 10 orphan SGs deletados (3 GitLab ALB + 7 EKS node/cluster). Cross-references resolvidas via remoção de rules primeiro.                                                                                                                                                                                                                                           | **RESOLVIDO** (2026-02-13) | ~~🟡 Médio~~   | Estratégia 3 fases: (1) delete SGs sem deps, (2) remover rules cross-ref, (3) delete SGs. 1 fix residual em cluster-sg ativo. Total: 1m49s.        | [ADR-059](../adr/adr-059-multi-marco-infrastructure-split.md), [Logbook Cleanup](../logbook/2026-02-13-security-groups-cleanup-completion.md) |
+| 2   | **Keycloak replica e restarts** — 1 replica (aceito staging). 118 restarts resolvidos: (1) initContainer wait-for-db adicionado (race condition RDS/FinOps), (2) `--health-enabled=true` adicionado (health 404), (3) startupProbe configurada (60×5s=300s tolerancia), (4) toleration `workload=critical` adicionada (scheduling nos t3.xlarge). CPU nao e mais bloqueador (t3.xlarge com 2.5+ vCPU livres). | **RESOLVIDO** (2026-02-13) | ~~🟢 Baixo~~   | Patches aplicados no StatefulSet via kubectl. Para 2a replica em PROD: alterar `replicas: 2` (Terraform ja tem default=2).                         | [ADR-046](../adr/adr-046-keycloak-sso-strategy.md), [Logbook Keycloak](../logbook/2026-02-11-keycloak-26-deployment-final.md)                 |
+| 3   | ~~**Prometheus Operator stuck em Pending (system nodes)**~~ — Prometheus, Grafana, Alertmanager Pending 5+ dias por saturação system nodes + tolerations ausentes.                                                                                                                                                                                                                                            | **RESOLVIDO** (2026-02-09) | ~~🔴 Crítico~~ | ADR-042: dual tolerations (`node-type=system` + `workload=critical`) aplicadas a todos 7 módulos. System nodes escalados 2→3. Recovery em 7min31s. | [ADR-042](../context/decisions.md#adr-042), [Cluster Remediation](../operations/2026-02-09-cluster-remediation.md)                            |
 
 ---
 

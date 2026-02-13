@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_default_deny" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
@@ -49,7 +49,7 @@ resource "kubectl_manifest" "redis_default_deny" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_allow_internal" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
@@ -112,7 +112,7 @@ resource "kubectl_manifest" "redis_allow_internal" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_allow_gitlab" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
@@ -170,7 +170,7 @@ resource "kubectl_manifest" "redis_allow_gitlab" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_allow_harbor" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
@@ -228,7 +228,7 @@ resource "kubectl_manifest" "redis_allow_harbor" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_allow_monitoring" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
@@ -286,7 +286,7 @@ resource "kubectl_manifest" "redis_allow_monitoring" {
 # -----------------------------------------------------------------------------
 
 resource "kubectl_manifest" "redis_deny_other_namespaces" {
-  depends_on = [kubectl_manifest.redis_failover]
+  depends_on = [kubectl_manifest.redis]
 
   yaml_body = yamlencode({
     apiVersion = "networking.k8s.io/v1"
