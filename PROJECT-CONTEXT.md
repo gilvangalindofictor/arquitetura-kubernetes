@@ -1,6 +1,6 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-12
+> **Última Atualização**: 2026-02-13
 > **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento | Quickstart 80%)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
@@ -153,7 +153,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | Componente                | Status        | Observações                                                                                                        |
 | ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
 | PostgreSQL RDS            | ✅ Completo    | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
-| Redis Operator            | ✅ Completo    | Chart v3.2.9, 3 sentinels + 1 master, toleration critical nodes (2026-02-05)                                       |
+| Redis Operator            | ✅ Completo    | OT-Container-Kit v0.23.0, Redis 8.4.1-alpine, 1 replica staging (migrated from SpotaHome 2026-02-13)              |
 | RabbitMQ Operator         | ✅ Completo    | Official operator, 1 replica staging, namespace data-services                                                      |
 | GitLab CE Staging         | ✅ Completo    | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
 | Vault HA                  | ✅ Completo    | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
@@ -198,10 +198,11 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
    - **Incident Recovery:** 15h downtime resolvido via VPC Endpoints (2026-02-06)
    - Root token: hvs.CxUPch... (secured in K8s secret)
 
-4. ✅ **Redis Operator** (2026-02-05)
-   - rfr-redis-0: 1/1 Running (toleration pattern ADR-041)
-   - 3 sentinels operational
-   - Harbor integrado e operacional
+4. ✅ **Redis Operator Migration** (ADR-053-REVISION, 2026-02-13)
+   - SpotaHome v3.3.0 → OT-Container-Kit v0.23.0
+   - Redis 6.2.6-alpine → 8.4.1-alpine (+20% throughput, 5 years CVE patches)
+   - 45 minutes total (vs 4 weeks estimated)
+   - Zero data loss (staging environment empty)
 
 5. ✅ **Observability Stack** (2026-02-05)
    - Prometheus/Alertmanager: 2/2 Running
@@ -451,12 +452,12 @@ product: ^[a-z0-9-]+$
 **Contratos Providos**: Metrics Storage (99.9% SLA), Visualization, Log Aggregation, Trace Storage
 
 ### data-services (Operators)
-- **Zalando Postgres Operator** 1.10.1 - PostgreSQL HA (Patroni + Spilo) ⚠️ _Ver [VERSION-CONTROL](domains/data-services/docs/VERSION-CONTROL.md)_
-- **Redis Cluster Operator** 0.15.1 - Redis HA (cluster mode) ⚠️ _Ver [VERSION-CONTROL](domains/data-services/docs/VERSION-CONTROL.md)_
-- **RabbitMQ Cluster Operator** 3.12.0 - RabbitMQ HA (quorum queues)
-- **Velero** 5.2.0 - Kubernetes Backup/Restore (S3-compatible)
+- **PostgreSQL RDS** 16.4 - AWS-managed (db.t3.medium Single-AZ staging)
+- **OT-Container-Kit Redis Operator** 0.23.0 - Redis 8.4.1 (migrated from SpotaHome 2026-02-13, ADR-053-REVISION)
+- **RabbitMQ Cluster Operator** 2.19.0 - RabbitMQ 3.13-management (Official operator)
+- **Velero** - NOT IMPLEMENTED (deliberate MVP gap)
 
-> **📋 Controle de Versões**: Versões desatualizadas verificadas em 2026-02-11. Consulte [VERSION-CONTROL.md](domains/data-services/docs/VERSION-CONTROL.md) para plano de atualização.
+> **📋 Controle de Versões**: Atualizado 2026-02-13 (Redis migration). Consulte [VERSION-CONTROL.md](domains/data-services/docs/VERSION-CONTROL.md).
 
 **Contratos Providos**: PostgreSQL as a Service (99.9% SLA), Redis as a Service, RabbitMQ as a Service, Backup/Restore (RPO 24h, RTO <1h)
 
@@ -675,31 +676,29 @@ Kubernetes/
 - **Desenvolvedor**: [/docs/agents/desenvolvedor.md](docs/agents/desenvolvedor.md)
 - **Arquiteto**: [/docs/agents/arquiteto.md](docs/agents/arquiteto.md)
 
-### 🚨 ACHADOS CRÍTICOS EM PRODUÇÃO (2026-02-11)
+### 🚨 ACHADOS CRÍTICOS EM STAGING (2026-02-13)
 
-**✅ TERRAFORM = FONTE VERDADE. Produção matches Terraform 100%**
+**✅ TERRAFORM = FONTE VERDADE. Staging matches Terraform 100%**
 
-Auditoria revelou: **Produção está correta**, mas **Documentação Arquitetural está desincronizada**.
+Auditoria revelou: **Staging está correto**, mas **Documentação Arquitetural foi atualizada para refletir estado real**.
 
 LEITURA OBRIGATÓRIA para CTO e Architecture Team:
 
-1. **[TERRAFORM-SOURCE-OF-TRUTH.md](domains/data-services/docs/TERRAFORM-SOURCE-OF-TRUTH.md)** - PostgreSQL=RDS✅ Redis=Spotahome✅ RabbitMQ=Official✅ Velero=Not impl✅
+1. **[TERRAFORM-SOURCE-OF-TRUTH.md](domains/data-services/docs/TERRAFORM-SOURCE-OF-TRUTH.md)** - PostgreSQL=RDS✅ Redis=OT-Container-Kit✅ RabbitMQ=Official✅ Velero=Not impl✅
 2. [STAGING-ANALYSIS-FINDINGS.md](domains/data-services/docs/STAGING-ANALYSIS-FINDINGS.md) - Sumário executivo STAGING
 3. [STAGING-INVENTORY.md](domains/data-services/docs/STAGING-INVENTORY.md) - Reconciliação STAGING
 4. [STAGING-BACKUP-STRATEGY.md](domains/data-services/docs/STAGING-BACKUP-STRATEGY.md) - Análise de gaps STAGING
 
 **Verdade do Terraform (para STAGING):**
-- ✅ PostgreSQL: AWS RDS 16.4 db.t3.micro (not Zalando Operator)
-- ✅ Redis: Spotahome 3.3.0 with 1 replica (not OT-Container-Kit)
+- ✅ PostgreSQL: AWS RDS 16.4 db.t3.medium (not Zalando Operator)
+- ✅ Redis: OT-Container-Kit 0.23.0 with Redis 8.4.1 (migrated from SpotaHome 2026-02-13)
 - ✅ RabbitMQ: Official 2.19.0 with 1 replica (confirmed)
 - ✅ Velero: Not declared in Terraform (deliberate, zero implementation)
 
-- ✅ Velero: Intencional não implementado (futuro)
-
-**Próximas Ações:**
-- [ ] CTO: Ler TERRAFORM-SOURCE-OF-TRUTH.md (5 min)
-- [ ] Decidir: Implementar Velero vs aceitar gap
-- [ ] Atualizar VERSION-CONTROL.md + ADRs
+**AWS Profile (2026-02-13):**
+- ✅ Profile renomeado: `k8s-platform-prod` → `k8s-platform-staging`
+- ✅ Namespaces normalizados: `*-dev/*-hml/*-prd` → `*-staging`
+- ✅ Documentação alinhada com ambiente staging
 
 ---
 
@@ -713,6 +712,6 @@ LEITURA OBRIGATÓRIA para CTO e Architecture Team:
 ---
 
 **Autor**: System Architect
-**Última Atualização**: 2026-01-05
-**Versão**: 1.0 (Consolidado)
+**Última Atualização**: 2026-02-13
+**Versão**: 1.1 (Staging nomenclature + Redis migration + AWS profile)
 **Status**: ✅ ATIVO

@@ -1,10 +1,11 @@
 # Controle de Versões - Data Services Domain (STAGING)
 
 > **Domínio**: data-services
-> **Última Atualização**: 2026-02-11
+> **Última Atualização**: 2026-02-13
 > **Ambiente**: 🟡 STAGING (Terraform-driven)
 > **Responsável**: Equipe Platform
 > **Fonte de Verdade**: `platform-provisioning/aws/kubernetes/terraform/`
+> **AWS Profile**: `k8s-platform-staging`
 
 ---
 
@@ -12,23 +13,31 @@
 
 ### Componentes Principais
 
-| Componente                    | Versão Atual (STAGING) | Última Disponível | Status                 | Localização Terraform            |
-| ----------------------------- | ---------------------- | ----------------- | ---------------------- | -------------------------------- |
-| **PostgreSQL RDS**            | 16.4 (db.t3.micro)     | 17.2              | ✅ Current Minor        | `modules/postgresql/main.tf` L12 |
-| **Redis Spotahome Operator**  | 3.3.0 (1 replica)      | 3.4.0             | ✅ Current Minor        | `modules/redis/main.tf` L18      |
-| **RabbitMQ Cluster Operator** | 2.19.0 (1 replica)     | 2.19.1            | ✅ Current Patch        | `modules/rabbitmq/main.tf` L5-25 |
-| **Velero**                    | NOT IMPLEMENTED        | 1.17.2            | 🚫 Deliberate (MVP Gap) | ZERO declarations in Terraform   |
-| **PostgreSQL Backups (RDS)**  | 7-day retention        | Configured        | ✅ Funcionando          | `modules/postgresql/main.tf` L45 |
+| Componente                        | Versão Atual (STAGING)       | Última Disponível | Status          | Localização Terraform                    |
+| --------------------------------- | ---------------------------- | ----------------- | --------------- | ---------------------------------------- |
+| **PostgreSQL RDS**                | 16.4 (db.t3.medium)         | 17.2              | ✅ Current Minor | `modules/postgresql/main.tf` L12         |
+| **OT-Container-Kit Redis Operator** | 0.23.0 (Redis 8.4.1-alpine) | 0.23.0           | ✅ Latest        | `domains/data-services/infra/terraform/main.tf` L165 |
+| **RabbitMQ Cluster Operator**     | 2.19.0 (1 replica)           | 2.19.1            | ✅ Current Patch | `modules/rabbitmq/main.tf` L5-25         |
+| **Velero**                        | NOT IMPLEMENTED              | 1.17.2            | 🚫 Deliberate   | ZERO declarations in Terraform           |
+| **PostgreSQL Backups (RDS)**      | 7-day retention              | Configured        | ✅ Funcionando   | `modules/postgresql/main.tf` L45         |
 
-### ⚠️ NOTA IMPORTANTE: Documentação Anterior Desatualizada
+### Migration Log
 
-**A documentação anterior mencionava**:
-- ❌ "Zalando Postgres Operator 1.10.1" → **INCORRETO** (não está no Terraform)
-- ❌ "OT-Container-Kit Redis Operator 0.15.1" → **INCORRETO** (não está no Terraform)
+| Data       | Componente     | De                        | Para                            | ADR             | Resultado          |
+| ---------- | -------------- | ------------------------- | ------------------------------- | --------------- | ------------------ |
+| 2026-02-13 | Redis Operator | SpotaHome 3.3.0 (6.2.6)  | OT-Container-Kit 0.23.0 (8.4.1) | ADR-053-REVISION | ✅ Sucesso (45 min) |
+| 2026-02-11 | All            | -                         | Baseline                        | -               | Levantamento       |
 
-**Realidade do Terraform (STAGING)**:
+### ⚠️ NOTA: Histórico de Correções Documentais
+
+**Documentação anterior (pré-2026-02-13) mencionava**:
+- ❌ "Zalando Postgres Operator 1.10.1" → **INCORRETO** (nunca esteve no Terraform, é RDS)
+- ❌ "OT-Container-Kit Redis Operator 0.15.1" → **DESATUALIZADO** (era SpotaHome, agora OT-Kit 0.23.0)
+- ❌ "SpotaHome Redis Operator 3.3.0" → **MIGRADO** para OT-Container-Kit 0.23.0 em 2026-02-13
+
+**Realidade do Terraform (STAGING - atualizado 2026-02-13)**:
 - ✅ **PostgreSQL RDS 16.4** (AWS-managed, não operator)
-- ✅ **SpotaHome Redis Operator 3.3.0** (não OT-Container-Kit)
+- ✅ **OT-Container-Kit Redis Operator 0.23.0** (Redis 8.4.1-alpine, actively maintained)
 - ✅ **Official RabbitMQ Cluster Operator 2.19.0** (confirmado)
 - ✅ **Velero: Zero implementação** (deliberado para MVP)
 
@@ -38,7 +47,7 @@ Veja [TERRAFORM-SOURCE-OF-TRUTH.md](TERRAFORM-SOURCE-OF-TRUTH.md) para reconcili
 
 #### ✅ Aceito - Em Sincronismo
 - **PostgreSQL RDS 16.4**: Última minor version (17 requer major upgrade) - PG 16.4 = Terraform declares
-- **Redis Spotahome 3.3.0**: Última stable (3.4.0 disponível = future upgrade) - Current = Terraform declares
+- **Redis OT-Container-Kit 0.23.0**: Latest release (Jan 2026, actively maintained) - Current = Terraform declares
 - **RabbitMQ Official 2.19.0**: Última patch (2.19.1 small fix) - Current = Terraform declares
 
 #### 🚫 Deliberadamente Não Implementado
@@ -56,19 +65,21 @@ Veja [TERRAFORM-SOURCE-OF-TRUTH.md](TERRAFORM-SOURCE-OF-TRUTH.md) para reconcili
 
 #### ✅ Completado
 - ✅ PostgreSQL RDS 16.4 deployado e validado
-- ✅ Redis Spotahome 3.3.0 deployado e validado (1 replica)
+- ✅ Redis OT-Container-Kit 0.23.0 deployado (migrated from SpotaHome, 2026-02-13)
+- ✅ Redis 8.4.1-alpine operational (smoke test: PING, SET, GET verified)
 - ✅ RabbitMQ Official 2.19.0 deployado e validado (1 replica)
 - ✅ Backups RDS configurados (7-day retention)
+- ✅ AWS Profile normalizado para `k8s-platform-staging`
+- ✅ Namespaces normalizados para sufixo `-staging`
 
 #### 🔄 Em Progresso
-- ⏳ Validação de Terraform vs STAGING (100% sincronismo confirmado)
-- ⏳ Criação de ADRs explicando decisões arquiteturais
+- ⏳ Terraform state import (Helm release → TF state)
+- ⏳ Monitoring validation (ServiceMonitor + Prometheus scraping)
 
 #### 🚧 Próximas Ações (STAGING)
-1. Monitorar segurança: PostgreSQL 16.4, redis:6.2.6-alpine
-2. Avaliar upgrade para Redis 3.4.0 (quando ciclo de releases estabilizar)
-3. Avaliar upgrade para RabbitMQ 2.19.1 (patch security)
-4. Documentar estratégia de backup para Production (Velero vs RDS)
+1. Monitorar segurança: PostgreSQL 16.4, Redis 8.4.1-alpine
+2. Avaliar upgrade para RabbitMQ 2.19.1 (patch security)
+3. Documentar estratégia de backup para Production (Velero vs RDS)
 
 ### Q2 2026+ - Preparação para Production Environment
 
@@ -86,10 +97,11 @@ Veja [TERRAFORM-SOURCE-OF-TRUTH.md](TERRAFORM-SOURCE-OF-TRUTH.md) para reconcili
 - 📅 Timeline: Fase 2 (Abril-Junho 2026)
 - 🔧 Prerequisito: Zalando Postgres Operator 1.15.1 em staging
 
-#### Redis: Spotahome 3.3.0 → 3.4.0
-- Currently: 3.3.0 → Latest: 3.4.0
-- Timeline: Não urgent (current version stable)
-- Requirements: Teste em staging first
+#### Redis: OT-Container-Kit 0.23.0 (Current - Latest)
+- Currently: 0.23.0 (Redis 8.4.1-alpine) → Latest: 0.23.0
+- Status: Latest version, actively maintained (Jan 2026 release)
+- Migration: Completed 2026-02-13 from SpotaHome v3.3.0 (ADR-053-REVISION)
+- Requirements: Monitor for new releases, test in staging first
 
 #### RabbitMQ: 2.19.0 → 2.19.1
 - Currently: 2.19.0 → Latest: 2.19.1 (patch)
@@ -117,14 +129,16 @@ Veja [TERRAFORM-SOURCE-OF-TRUTH.md](TERRAFORM-SOURCE-OF-TRUTH.md) para reconcili
 
 **Ref**: [PostgreSQL Release Notes](https://www.postgresql.org/docs/release/). STAGING uses RDS, AWS manages minor updates.
 
-### Redis Spotahome 3.3.0
-**Release 3.3.0** (Dec 2024)
-- ✅ Sentinel improvements
-- ✅ Pod anti-affinity defaults
-- ✅ Enhanced observability
-- Next available: 3.4.0
+### OT-Container-Kit Redis Operator 0.23.0
+**Release 0.23.0** (Jan 2026)
+- ✅ Redis 8.x support (8.4.1-alpine)
+- ✅ CRD types: Redis, RedisCluster, RedisReplication, RedisSentinel
+- ✅ Native JSON support (Redis 8.x feature)
+- ✅ +20% throughput vs SpotaHome baseline
+- ✅ Actively maintained (monthly releases)
+- Migrated from: SpotaHome 3.3.0 (abandoned 3+ years)
 
-**Ref**: [SpotaHome Redis Operator Releases](https://github.com/spotahome/redis-operator/releases)
+**Ref**: [OT-Container-Kit Redis Operator](https://github.com/OT-CONTAINER-KIT/redis-operator/releases)
 
 ### RabbitMQ Official Cluster Operator 2.19.0
 **v2.19.0** (Jan 2026)
@@ -364,6 +378,6 @@ kubectl get pods -n velero
 
 ---
 
-**Última Revisão**: 2026-02-11
-**Próxima Revisão**: 2026-03-11
+**Última Revisão**: 2026-02-13
+**Próxima Revisão**: 2026-03-13
 **Owner**: Platform Team
