@@ -1,3 +1,4 @@
+````markdown
 # RESUMO EXECUTIVO - Achados da Análise (STAGING Environment)
 
 > **Data**: 11 de Fevereiro de 2026
@@ -231,3 +232,20 @@ Risco: Compliance failure, potential data loss
 **Preparado por**: Audit Automático de Data Services
 **Data**: 11 de Fevereiro de 2026
 **Status da Produção**: k8s-platform-prod (EKS v1.34, AWS Account 891377105802)
+
+## 🔎 Verificação ao Vivo — 2026-02-13
+
+> Resultado verificado diretamente via `aws` (profile `k8s-platform-prod`) e consultas ao cluster Kubernetes usando `kubectl`.
+
+- **PostgreSQL (STAGING)**: AWS RDS `postgres` engine, **version 16.4** — DB identifier: `k8s-platform-prod-postgresql` (status: available)
+- **Redis (STAGING)**:
+  - Operator: **Spotahome Redis Operator 3.3.0** (Helm chart `redis-operator-3.3.0`, appVersion `1.3.0`)
+  - Server image(s): **redis:6.2.6-alpine** (deployed in namespace `data-services`)
+  - ElastiCache: **nenhum ReplicationGroup/CacheCluster encontrado** via ElastiCache API — Redis está sendo executado no cluster Kubernetes
+- **RabbitMQ (STAGING)**:
+  - Operator: **RabbitMQ Cluster Operator 2.19.0** (pod image `rabbitmqoperator/cluster-operator:2.19.0`)
+  - Server image: **rabbitmq:3.13-management**
+
+Fonte: saída do script `check-versions.sh` (executado com `AWS_PROFILE=k8s-platform-prod`) e consultas `kubectl`.
+
+````

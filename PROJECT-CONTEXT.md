@@ -576,27 +576,32 @@ Kubernetes/
   - 📝 **PENDENTE:** Configurar OIDC clients (argocd, sonarqube, gitlab) após deploy
   - 📝 **PENDENTE:** Criar realm master + groups (argocd-admins, developers)
 
-- [ ] **GAP-002:** GitLab Components Fix (2-4h) 🔴 CRÍTICO
-  - Debug Gitaly PVC Pending (StorageClass/scheduling)
-  - Fix Runner CrashLoopBackOff (RBAC/network)
-  - Fix KAS CrashLoopBackOff (K8s API auth)
-  - Fix Sidekiq Init Error (Redis/DB migration)
+- [x] **GAP-002:** GitLab Components Fix ✅ RESOLVIDO (2026-02-13)
+  - ✅ Gitaly: Running (PVC/scheduling fix via tolerations)
+  - ✅ KAS: Running (K8s API auth resolved)
+  - ✅ Sidekiq: Running (Redis/DB migration completed)
+  - ✅ Webservice: Running (Redis authentication fixed)
+  - ⚠️ Runner: DNS fix aplicado, aguarda authentication token (GitLab 17.x workflow - parte do GAP-005)
 
 #### Sprint 2: Core CI/CD Components (4-6h)
-- [ ] **GAP-003:** ArgoCD Deploy (2-3h, +$15/mês)
-  - ⚠️ Módulo terraform/modules/argocd/ existe (scaffold incompleto)
-  - TODO: Completar values.yaml.tpl com OIDC Keycloak integration
-  - TODO: AppProject CRDs (staging, platform, production)
-  - TODO: Integrar módulo no environments/staging/main.tf
-  - Validação OIDC Keycloak login
 
-- [ ] **GAP-004:** SonarQube Deploy (2-3h, +$50/mês)
-  - ⚠️ Módulo terraform/modules/sonarqube/ existe (scaffold com TODOs)
-  - TODO: Bootstrap database sonarqube no PostgreSQL RDS (via additional_databases)
-  - TODO: ExternalSecret DB credentials (ou AWS SM pattern)
-  - TODO: Completar Helm values e integrar no main.tf
-  - Admin password automation
-  - Quality gates configuration
+- [x] **GAP-003:** ArgoCD Deploy ✅ COMPLETO (2026-02-06)
+  - ✅ Deployed via Helm chart v5.51.6 (ArgoCD v2.9.3)
+  - ✅ PostgreSQL RDS integration (external database)
+  - ✅ OIDC Keycloak integration (realm platform)
+  - ✅ RBAC configurado (argocd-admins group)
+  - ✅ AppProjects criados (platform, applications)
+  - ✅ HA: 2 replicas server/repo-server, 8 pods Running
+  - 📝 Logbook: [2026-02-06-argocd-gitops-deployment.md](docs/logbook/2026-02-06-argocd-gitops-deployment.md)
+
+- [x] **GAP-004:** SonarQube Deploy ✅ COMPLETO (2026-02-06) | 🔴 BROKEN (2026-02-13)
+  - ✅ Deployed SonarQube Community 10.3.0 (Helm chart)
+  - ✅ PostgreSQL RDS integration
+  - ✅ OIDC Keycloak attempted (Community edition limitation)
+  - 🔴 **PROBLEMA ATUAL:** EBS volume deletado (vol-04fcd44f4ac758f9b não existe)
+  - 🔴 **STATUS:** Pod stuck Init:0/2 (FailedAttachVolume)
+  - 🚨 **AÇÃO URGENTE:** Recreate PVC + restore database (1-2h)
+  - 📝 Logbook: [2026-02-06-sonarqube-deployment.md](docs/logbook/2026-02-06-sonarqube-deployment.md)
 
 #### Sprint 3: Pipeline Integration (3h)
 - [ ] **GAP-005:** GitLab CI/CD Integration (3h)
@@ -606,9 +611,15 @@ Kubernetes/
   - Validação pipeline end-to-end
 
 #### Sprint 4: Hardening (4h) — OPCIONAL
+
 - [ ] **GAP-006:** ApplicationSets GitOps Patterns (2h)
-- [ ] **GAP-007:** Network Policies Marco 4 (1h)
-- [ ] **GAP-008:** Monitoring & Dashboards (1h)
+- [x] **GAP-007:** Tempo OTLP Integration ✅ COMPLETO (2026-02-10)
+  - ✅ OTLP receivers gRPC:4317, HTTP:4318 ativos
+  - ✅ Replication factor fix (RF=2 match replicas)
+  - ✅ Trace generator operacional
+  - ✅ Helm REV 6 estável
+  - 📝 Logbook: [2026-02-10-gap007-tempo-otlp.md](docs/logbook/2026-02-10-gap007-tempo-otlp.md)
+- [ ] **GAP-008:** Monitoring & Dashboards Marco 4 (1h)
 
 ### Sprint+1: Remediação de Gaps
 - [ ] RBAC Granular (4 domínios)

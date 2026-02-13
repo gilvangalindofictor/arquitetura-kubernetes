@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      tolerations:
+        - key: "workload"
+          operator: "Equal"
+          value: "critical"
+          effect: "NoSchedule"
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.35.0
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              until nc -z ${POSTGRESQL_HOST} ${POSTGRESQL_PORT}; do
+                echo "waiting for postgres ${POSTGRESQL_HOST}:${POSTGRESQL_PORT}..."
+                sleep 5
+              done
+          env:
+            - name: POSTGRESQL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['postgresql_host']
+            - name: POSTGRESQL_PORT
+              value: "5432"
+      containers:
+        - name: keycloak
+          args:
+            - start
+            - --health-enabled=true
+          startupProbe:
+            httpGet:
+              path: /auth/health/ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /auth/health/live
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /auth/health/ready
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 5
+# Note: apply with `kubectl apply -f keycloak-startup-fix.yaml` will replace the StatefulSet spec.template
+# If you prefer a patch use `kubectl patch statefulset keycloak -n keycloak --patch "$(cat keycloak-startup-fix.yaml)" --type=merge`
