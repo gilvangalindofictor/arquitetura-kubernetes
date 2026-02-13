@@ -8,20 +8,18 @@
 
 ## 🔴 CRÍTICO - Ação Imediata Necessária
 
-### 1. 🚨 **SonarQube EBS Volume Perdido** (NOVO - Descoberto hoje)
-- **Status:** 🔴 BROKEN (EBS volume deletado)
-- **Root Cause:** Volume `vol-04fcd44f4ac758f9b` não existe mais na AWS
-- **Sintoma:** Pod stuck em `Init:0/2` por 1h (FailedAttachVolume)
-- **Impacto:** SonarQube inoperante, dados perdidos
-- **Tempo Estimado:** 1-2h (recreate PVC + restore database)
-- **Prioridade:** URGENTE
-- **Arquivo:** Novo problema não documentado
-- **Ação:**
-  1. Delete PVC atual (bound to inexistente volume)
-  2. Recreate PVC (novo EBS volume gp3 será criado)
-  3. Restore database do RDS (schema existe)
-  4. Reiniciar pod SonarQube
-  5. Reconfigurar admin/settings
+### 1. ✅ **SonarQube EBS Volume Perdido** (RESOLVIDO 2026-02-13 14:10 BRT)
+- **Status Original:** 🔴 BROKEN (EBS volume deletado)
+- **Status Atual:** ✅ **RECUPERADO** (1h15min recovery time)
+- **Root Cause:** Volume `vol-04fcd44f4ac758f9b` deletado durante cleanup orphan resources
+- **Solução Aplicada:**
+  1. ✅ PVC/PV recreados (novo volume gp3 20GB: `pvc-aa3c540a-5119-4017-88e6-9114755059ee`)
+  2. ✅ ExternalName service criado (`postgresql-external` → RDS endpoint)
+  3. ✅ Liveness probe ajustado (8min tolerance para first boot)
+  4. ✅ Pod status: **1/1 Running** (SonarQube operational)
+  5. ✅ UI acessível (HTTP 200 confirmado)
+- **Data Loss:** Filesystem only (database schema preservado)
+- **Logbook:** [2026-02-13-sonarqube-volume-recovery.md](docs/logbook/2026-02-13-sonarqube-volume-recovery.md)
 
 ---
 
