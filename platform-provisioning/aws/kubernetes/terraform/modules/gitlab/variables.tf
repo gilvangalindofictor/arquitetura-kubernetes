@@ -85,6 +85,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "ingress_group_name" {
+  description = "ALB Ingress group name to share ALB (kas, registry, webservice)"
+  type        = string
+  default     = ""
+}
+
 # =============================================================================
 # External Dependencies (outputs de outros módulos)
 # =============================================================================

@@ -53,7 +53,7 @@ locals {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
   profile = "k8s-platform-staging"
 
   default_tags {
@@ -298,7 +298,8 @@ module "gitlab_staging" {
   enable_monitoring = true
 
   # Authentication (OIDC with Keycloak)
-  enable_oidc = true
+  enable_oidc        = true
+  ingress_group_name = "gitlab-staging"
 
   # Tags
   common_tags = local.common_tags

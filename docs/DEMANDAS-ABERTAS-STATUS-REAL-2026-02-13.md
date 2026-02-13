@@ -1,8 +1,15 @@
 # Demandas Abertas - Status Real Auditado (2026-02-13)
 
-**Data da Auditoria:** 2026-02-13 15:00 BRT
+**Data da Auditoria:** 2026-02-13 15:00 BRT (atualizado 18:00 BRT)
 **Executor:** Orquestrador DevOps
-**Método:** Verificação real cluster K8s + documentos + logs
+**Método:** Cross-check AWS real + K8s real + documentação
+
+**⚠️ ATUALIZAÇÃO 18:00 BRT:** Revalidação AWS/K8s completa identificou:
+- ✅ 4 itens JÁ FEITOS (não documentados): +R$ 3.744/ano
+- 🔴 2 problemas NOVOS descobertos: GitLab KAS/Runner quebrados
+- 📊 Savings total ATUALIZADO: R$ 34.752,80/ano (vs R$ 31.200,80 anterior)
+
+**Referência:** [REVALIDACAO-AWS-K8S-2026-02-13.md](REVALIDACAO-AWS-K8S-2026-02-13.md)
 
 ---
 
@@ -36,25 +43,63 @@
 
 ---
 
-### 3. **Keycloak - Persistir Terraform Changes** (30min)
-- **Status:** ⚠️ HOTFIX APLICADO, TF DRIFT
-- **Contexto:** Startup resilience fix aplicado via K8s patch (2026-02-13)
-- **Impacto:** Changes serão perdidos em próximo `terraform apply`
-- **Ação:**
-  - [ ] Run `terraform apply` em `environments/staging`
-  - [ ] Validar keycloak-0 startup após apply
-  - [ ] Considerar aplicar pattern em produção
+### 3. ⚠️ **GitLab KAS/Runner - Parcialmente Resolvido** (2026-02-13 18:00-18:30 BRT)
+- **Status:** ✅ **KAS RESOLVIDO** | ⚠️ **Runner bloqueado (cluster capacity)**
+- **Problema 1:** ✅ GitLab KAS - **RESOLVIDO**
+  - Erro original: `lookup rfrm-redis.data-services.svc.cluster.local: no such host`
+  - Fix aplicado: 6 ConfigMaps atualizados (`rfrm-redis` → `redis`)
+  - Status atual: **2/2 Running** (gitlab-kas-6b5dc5cb7c-kq99c, gitlab-kas-6b5dc5cb7c-s296f)
+- **Problema 2:** ⚠️ GitLab Runner - **BLOQUEADO**
+  - Status: 0/1 CrashLoop (registration 500 error)
+  - Bloqueio: Webservice rollout stuck (insufficient CPU/Memory cluster)
+  - Runner tentativa: 14/30 (aguardando webservice restart)
+  - ETA: 1-2h (após scale cluster OU runner atingir 30 tentativas)
+- **Root Cause:** Redis operator migration (2026-02-13) esqueceu atualizar GitLab ConfigMaps
+  - Service antigo: `rfrm-redis.data-services.svc.cluster.local` (SpotaHome - deletado)
+  - Service atual: `redis.data-services.svc.cluster.local` (OT-Container-Kit)
+- **Fixes Aplicados:**
+  1. ✅ 6 ConfigMaps atualizados via kubectl patch
+  2. ✅ Redis RDB persist fix (chown 999:999 /data)
+  3. ✅ GitLab deployments restarted
+  4. ⚠️ Webservice rollout bloqueado (cluster capacity)
+- **Impacto Atual:**
+  - ✅ GitLab Agent for Kubernetes (KAS) **ONLINE** (2/2 Running)
+  - ⚠️ GitLab CI/CD offline (runner aguardando webservice)
+  - ⚠️ GAP-005 bloqueado até runner recovery
+- **Próxima Ação:**
+  - Scale cluster (add 1 worker) OU aguardar runner 30 tentativas
+- **Arquivo:** [gitlab-redis-dns-troubleshooting.md](logbook/2026-02-13-gitlab-redis-dns-troubleshooting.md)
+
+---
+
+### 4. ✅ **Keycloak - Terraform State Verified** (RESOLVIDO 2026-02-13 18:45 BRT)
+- **Status Original:** ⚠️ HOTFIX APLICADO, TF DRIFT
+- **Status Atual:** ✅ **SINCRONIZADO** (zero drift confirmado)
+- **Contexto:** Hotfix aplicado 2026-02-13: initContainer wait-for-db, startupProbe 60 failures, health-enabled
+- **Verificação:**
+  - ✅ Terraform plan shows zero changes (keycloak module)
+  - ✅ Pod status: 1/1 Running, 0 restarts, 4h uptime
+  - ✅ All 3 hotfixes confirmed active
+  - ✅ Health endpoints returning HTTP 200
+- **Conclusão:** Fixes JÁ estavam persistidos no Terraform desde 2026-02-13 apply
 - **Arquivo:** [2026-02-13-keycloak-startup-fix.md](docs/logbook/2026-02-13-keycloak-startup-fix.md)
 
 ---
 
 ## ⚠️ ALTA PRIORIDADE - Gaps Não Implementados
 
-### 4. **GAP-005: GitLab CI/CD Integration** (3h)
-- **Status:** ❌ NÃO INICIADO
-- **Dependências:** ✅ GAP-002 resolvido, ✅ GAP-004 resolvido (mas quebrado)
-- **Bloqueio:** Runner requer authentication token (GitLab 17.x workflow)
-- **Sub-tarefas:**
+### 5. **GAP-005: GitLab CI/CD Integration** (3h)
+- **Status:** ⏸️ BLOQUEADO por GitLab KAS/Runner crashes (item #3)
+- **Dependências:**
+  - ✅ GAP-002 resolvido
+  - ✅ GAP-004 resolvido
+  - 🔴 **BLOQUEIO:** GitLab Runner crashloop + KAS offline (fix item #3 primeiro)
+- **Bloqueio Original:** Runner requer authentication token (GitLab 17.x workflow)
+- **Bloqueio Descoberto:** Runner registration retorna 500 (webservice internal error por Redis DNS)
+- **Sub-tarefas (após fix item #3):**
+  - [ ] ✅ Fix GitLab Redis DNS (item #3)
+  - [ ] Validar Runner auto-recovery
+  - [ ] Se persistir 500: investigar webservice logs
   - [ ] Acessar GitLab Admin UI (port-forward)
   - [ ] Criar authentication token (Admin → CI/CD → Runners)
   - [ ] Atualizar secret `gitlab-gitlab-runner-secret`

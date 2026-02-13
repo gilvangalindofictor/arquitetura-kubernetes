@@ -131,7 +131,7 @@ A plataforma Kubernetes precisa de uma solução centralizada de autenticação 
 | Client ID | Redirect URIs | Protocol | Secret Storage |
 |-----------|---------------|----------|----------------|
 | argocd | `https://argocd.*/auth/callback` | OIDC | K8s Secret |
-| sonarqube | `https://sonarqube.*/oauth2/callback/oidc` | OIDC | K8s Secret |
+| sonarqube | N/A (usa SAML nativo com GitLab, nao Keycloak direto) | SAML via GitLab | N/A (REMOVER client) |
 | gitlab | `https://gitlab.*/users/auth/openid_connect/callback` | OIDC | K8s Secret |
 | grafana | `https://grafana.*/login/generic_oauth` | OIDC | K8s Secret |
 
@@ -342,7 +342,7 @@ A plataforma Kubernetes precisa de uma solução centralizada de autenticação 
 ### Phase 3: Application Integration (Sprint+1)
 
 - ⏸️ ArgoCD OIDC configuration
-- ⏸️ SonarQube OIDC configuration
+- ⏸️ SonarQube SAML via GitLab (Community nao suporta OIDC)
 - ⏸️ GitLab OIDC configuration
 - ⏸️ Grafana OIDC configuration
 

@@ -30,20 +30,20 @@
 | Keycloak  | Provider central (OIDC)  | PARCIAL | Adicionar Ingress ALB ao modulo TF   |
 | ArgoCD    | Keycloak OIDC            | OK      | Nenhuma (OIDC configurado)           |
 | GitLab    | Keycloak OIDC (OmniAuth) | OK      | Nenhuma (OIDC configurado)           |
-| SonarQube | OIDC env vars SEM plugin | FALHO   | Trocar para GitLab OAuth nativo      |
+| SonarQube | OIDC env vars SEM plugin | FALHO   | Configurar SAML nativo com GitLab    |
 | Grafana   | Sem SSO (adminPassword)  | FALHO   | Adicionar generic_oauth com Keycloak |
 | Harbor    | Sem SSO (adminPassword)  | FALHO   | Adicionar OIDC auth mode             |
 | Vault     | Sem SSO (token auth)     | FALHO   | Adicionar OIDC auth method (P2)      |
 
 ### Decisao: SonarQube Community + Autenticacao
 
-| Aspecto       | Detalhe                                                 |
-| ------------- | ------------------------------------------------------- |
-| SAML 2.0      | NAO disponivel (Developer Edition+)                     |
-| OIDC generico | Requer plugin `sonar-auth-oidc` (nao instalado)         |
-| GitLab OAuth  | NATIVO na Community Edition (`sonar.auth.gitlab.*`)     |
-| Decisao       | Usar GitLab OAuth nativo (chain: SonarQube->GitLab->KC) |
-| Justificativa | Sem dependencia de plugin 3rd party, feature nativa     |
+| Aspecto       | Detalhe                                                                |
+| ------------- | ---------------------------------------------------------------------- |
+| OIDC generico | NAO disponivel na Community Edition (requer plugin `sonar-auth-oidc`)  |
+| SAML 2.0      | NATIVO na Community Edition (disponivel desde SonarQube 9.7+)          |
+| GitLab OAuth  | NATIVO na Community Edition (`sonar.auth.gitlab.*`)                    |
+| Decisao       | Usar SAML nativo com GitLab (chain: SonarQube->SAML->GitLab->OIDC->KC)|
+| Justificativa | SAML nativo sem plugin, integra com GitLab que ja usa Keycloak OIDC    |
 
 ---
 
@@ -137,12 +137,12 @@ O browser precisa resolver esse hostname, entao deve ser o hostname externo.
 
 ---
 
-### Fase 2: SonarQube - Migrar para GitLab OAuth (P1)
+### Fase 2: SonarQube - Migrar para SAML com GitLab (P1)
 
 #### 2.1 Atualizar SonarQube values.yaml.tpl
 
 **Arquivo**: `modules/sonarqube/values.yaml.tpl`
-**Acao**: Remover config OIDC quebrada, adicionar GitLab OAuth nativo
+**Acao**: Remover config OIDC quebrada, adicionar SAML nativo com GitLab
 
 ```yaml
 # REMOVER (linhas 82-98):
@@ -154,34 +154,44 @@ O browser precisa resolver esse hostname, entao deve ser o hostname externo.
 #   - name: SONAR_AUTH_OIDC_GROUPSSYNC ...
 #   - name: SONAR_AUTH_OIDC_GROUPSSYNC_CLAIMNAME ...
 
-# ADICIONAR:
+# ADICIONAR (SAML nativo com GitLab):
 sonarProperties:
-  sonar.auth.gitlab.enabled: "true"
-  sonar.auth.gitlab.url: "${gitlab_url}"
-  sonar.auth.gitlab.applicationId.secured: "${gitlab_app_id}"
-  sonar.auth.gitlab.secret.secured: "${gitlab_app_secret}"
-  sonar.auth.gitlab.allowUsersToSignUp: "true"
-  sonar.auth.gitlab.groupsSync: "true"
+  sonar.auth.saml.enabled: "true"
+  sonar.auth.saml.applicationId: "sonarqube"
+  sonar.auth.saml.providerName: "GitLab"
+  sonar.auth.saml.providerId: "${saml_provider_id}"
+  sonar.auth.saml.loginUrl: "${gitlab_saml_login_url}"
+  sonar.auth.saml.certificate.secured: "${saml_certificate}"
+  sonar.auth.saml.user.login: "login"
+  sonar.auth.saml.user.name: "name"
+  sonar.auth.saml.user.email: "email"
+  sonar.auth.saml.group.name: "groups"
 ```
 
-#### 2.2 Adicionar variaveis GitLab ao modulo SonarQube
+#### 2.2 Adicionar variaveis SAML/GitLab ao modulo SonarQube
 
 **Arquivo**: `modules/sonarqube/variables.tf`
 ```hcl
 variable "gitlab_url" {
-  description = "GitLab URL for OAuth authentication"
+  description = "GitLab URL for SAML authentication"
   type        = string
   default     = ""
 }
 
-variable "gitlab_oauth_app_id" {
-  description = "GitLab OAuth Application ID for SonarQube"
+variable "saml_provider_id" {
+  description = "SAML Provider ID (GitLab entity ID)"
   type        = string
   default     = ""
 }
 
-variable "gitlab_oauth_app_secret" {
-  description = "GitLab OAuth Application Secret for SonarQube"
+variable "gitlab_saml_login_url" {
+  description = "GitLab SAML login URL"
+  type        = string
+  default     = ""
+}
+
+variable "saml_certificate" {
+  description = "SAML IdP certificate (GitLab)"
   type        = string
   default     = ""
   sensitive   = true
@@ -196,22 +206,21 @@ variable "gitlab_oauth_app_secret" {
 
 **Arquivo**: `environments/staging/main.tf` modulo `sonarqube_staging`
 ```hcl
-  # GitLab OAuth (SonarQube Community native)
-  gitlab_url              = "http://gitlab.staging.internal"
-  gitlab_oauth_app_id     = "CRIAR_APP_NO_GITLAB"
-  gitlab_oauth_app_secret = "CRIAR_APP_NO_GITLAB"
+  # SAML com GitLab (SonarQube Community nativo)
+  gitlab_url            = "http://gitlab.staging.internal"
+  saml_provider_id      = "CONFIGURAR_ENTITY_ID_GITLAB"
+  gitlab_saml_login_url = "http://gitlab.staging.internal/users/auth/saml"
+  saml_certificate      = "CERTIFICADO_SAML_GITLAB"
 ```
 
-#### 2.5 Criar GitLab OAuth Application
+#### 2.5 Configurar GitLab como SAML IdP para SonarQube
 
-**Acao manual no GitLab** (Admin > Applications):
-- Name: `SonarQube`
-- Redirect URI: `http://sonarqube.staging.internal/oauth2/callback/gitlab`
-- Scopes: `read_user`, `api` (para groups sync)
-- Trusted: Yes
-- Confidential: Yes
-
-Salvar `Application ID` e `Secret` para uso no Terraform.
+**Acao no GitLab** (Admin > Settings > SAML ou via gitlab.rb/Helm):
+- Configurar GitLab como SAML Identity Provider
+- Assertion Consumer Service URL: `http://sonarqube.staging.internal/oauth2/callback/saml`
+- Name ID Format: `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`
+- Attributes: login, name, email, groups
+- Exportar certificado SAML para uso no SonarQube
 
 ---
 
@@ -312,7 +321,7 @@ Pode ser feito via modulo `vault-config` (atualmente comentado no staging main.t
 | ----------- | --------------------------------------------------------------------- | ------- |
 | `argocd`    | `http://argocd.staging.internal/auth/callback`                        | EXISTE  |
 | `gitlab`    | `http://gitlab.staging.internal/users/auth/openid_connect/callback`   | EXISTE  |
-| `sonarqube` | N/A (usa GitLab OAuth nativo, nao Keycloak direto)                    | REMOVER |
+| `sonarqube` | N/A (usa SAML nativo com GitLab, nao Keycloak direto)                 | REMOVER |
 | `grafana`   | `http://grafana.staging.internal/login/generic_oauth`                 | CRIAR   |
 | `harbor`    | `http://harbor.staging.internal/c/oidc/callback`                      | CRIAR   |
 | `vault`     | `http://vault.staging.internal:8200/ui/vault/auth/oidc/oidc/callback` | P2      |
@@ -331,11 +340,11 @@ Pode ser feito via modulo `vault-config` (atualmente comentado no staging main.t
 3. TF Apply: ArgoCD issuer URL fix (Fase 1.2)
    Validar: login OIDC no ArgoCD via browser
 
-4. Criar GitLab OAuth App para SonarQube (Fase 2.5)
-   Anotar: Application ID + Secret
+4. Configurar GitLab como SAML IdP para SonarQube (Fase 2.5)
+   Exportar: certificado SAML + entity ID
 
-5. TF Apply: SonarQube GitLab OAuth (Fase 2)
-   Validar: login GitLab no SonarQube via browser
+5. TF Apply: SonarQube SAML com GitLab (Fase 2)
+   Validar: login SAML via GitLab no SonarQube
 
 6. TF Apply: Grafana OIDC (Fase 3)
    Validar: login Keycloak no Grafana via browser
@@ -351,5 +360,5 @@ Pode ser feito via modulo `vault-config` (atualmente comentado no staging main.t
 ## Timeline
 
 [13:00:00] Analise | Orq | Diagnostico SSO E2E completo | impacto: alto
-[13:00:00] Decisao | SonarQube Community: GitLab OAuth nativo (OIDC nao nativo sem plugin)
+[13:00:00] Decisao | SonarQube Community: SAML nativo com GitLab (OIDC nao nativo sem plugin)
 [13:00:00] Planejamento | 5 fases, 7 servicos, 3 ALB groups mapeados

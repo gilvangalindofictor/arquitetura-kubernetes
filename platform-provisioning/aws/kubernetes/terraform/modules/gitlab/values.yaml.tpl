@@ -25,6 +25,7 @@ global:
       alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
       alb.ingress.kubernetes.io/success-codes: "200"
       alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
+      %{ if ingress_group_name != "" }alb.ingress.kubernetes.io/group.name: ${ingress_group_name}%{ endif }
       %{ if enable_tls }
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
       alb.ingress.kubernetes.io/certificate-arn: ""  # To be configured in Phase 2
