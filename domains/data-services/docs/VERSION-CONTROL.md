@@ -13,20 +13,20 @@
 
 ### Componentes Principais
 
-| Componente                        | Versão Atual (STAGING)       | Última Disponível | Status          | Localização Terraform                    |
-| --------------------------------- | ---------------------------- | ----------------- | --------------- | ---------------------------------------- |
-| **PostgreSQL RDS**                | 16.4 (db.t3.medium)         | 17.2              | ✅ Current Minor | `modules/postgresql/main.tf` L12         |
-| **OT-Container-Kit Redis Operator** | 0.23.0 (Redis 8.4.1-alpine) | 0.23.0           | ✅ Latest        | `domains/data-services/infra/terraform/main.tf` L165 |
-| **RabbitMQ Cluster Operator**     | 2.19.0 (1 replica)           | 2.19.1            | ✅ Current Patch | `modules/rabbitmq/main.tf` L5-25         |
-| **Velero**                        | NOT IMPLEMENTED              | 1.17.2            | 🚫 Deliberate   | ZERO declarations in Terraform           |
-| **PostgreSQL Backups (RDS)**      | 7-day retention              | Configured        | ✅ Funcionando   | `modules/postgresql/main.tf` L45         |
+| Componente                          | Versão Atual (STAGING)      | Última Disponível | Status          | Localização Terraform                                |
+| ----------------------------------- | --------------------------- | ----------------- | --------------- | ---------------------------------------------------- |
+| **PostgreSQL RDS**                  | 16.4 (db.t3.medium)         | 17.2              | ✅ Current Minor | `modules/postgresql/main.tf` L12                     |
+| **OT-Container-Kit Redis Operator** | 0.23.0 (Redis 8.4.1-alpine) | 0.23.0            | ✅ Latest        | `domains/data-services/infra/terraform/main.tf` L165 |
+| **RabbitMQ Cluster Operator**       | 2.19.0 (1 replica)          | 2.19.1            | ✅ Current Patch | `modules/rabbitmq/main.tf` L5-25                     |
+| **Velero**                          | NOT IMPLEMENTED             | 1.17.2            | 🚫 Deliberate    | ZERO declarations in Terraform                       |
+| **PostgreSQL Backups (RDS)**        | 7-day retention             | Configured        | ✅ Funcionando   | `modules/postgresql/main.tf` L45                     |
 
 ### Migration Log
 
-| Data       | Componente     | De                        | Para                            | ADR             | Resultado          |
-| ---------- | -------------- | ------------------------- | ------------------------------- | --------------- | ------------------ |
-| 2026-02-13 | Redis Operator | SpotaHome 3.3.0 (6.2.6)  | OT-Container-Kit 0.23.0 (8.4.1) | ADR-053-REVISION | ✅ Sucesso (45 min) |
-| 2026-02-11 | All            | -                         | Baseline                        | -               | Levantamento       |
+| Data       | Componente     | De                      | Para                            | ADR              | Resultado          |
+| ---------- | -------------- | ----------------------- | ------------------------------- | ---------------- | ------------------ |
+| 2026-02-13 | Redis Operator | SpotaHome 3.3.0 (6.2.6) | OT-Container-Kit 0.23.0 (8.4.1) | ADR-053-REVISION | ✅ Sucesso (45 min) |
+| 2026-02-11 | All            | -                       | Baseline                        | -                | Levantamento       |
 
 ### ⚠️ NOTA: Histórico de Correções Documentais
 

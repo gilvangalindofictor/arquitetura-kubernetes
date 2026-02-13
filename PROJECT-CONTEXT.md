@@ -153,7 +153,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | Componente                | Status        | Observações                                                                                                        |
 | ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
 | PostgreSQL RDS            | ✅ Completo    | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
-| Redis Operator            | ✅ Completo    | OT-Container-Kit v0.23.0, Redis 8.4.1-alpine, 1 replica staging (migrated from SpotaHome 2026-02-13)              |
+| Redis Operator            | ✅ Completo    | OT-Container-Kit v0.23.0, Redis 8.4.1-alpine, 1 replica staging (migrated from SpotaHome 2026-02-13)               |
 | RabbitMQ Operator         | ✅ Completo    | Official operator, 1 replica staging, namespace data-services                                                      |
 | GitLab CE Staging         | ✅ Completo    | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
 | Vault HA                  | ✅ Completo    | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
