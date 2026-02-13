@@ -94,17 +94,17 @@ postgresql:
 # Health endpoints exposed on HTTP port 8080 (KC_HTTP_MANAGEMENT_HEALTH_ENABLED=false)
 # Paths: /auth/health/ready, /auth/health/live (inherit http-relative-path prefix)
 # Requires: --health-enabled=true in command args
-startupProbe:
+startupProbe: |
   httpGet:
     path: /auth/health/ready
     port: 8080
   initialDelaySeconds: 30
   periodSeconds: 5
   timeoutSeconds: 5
-  failureThreshold: 60  # 330s total (FinOps cold start: RDS + Quarkus build + DB migration)
+  failureThreshold: 60
 
 # Liveness probe (startupProbe gates liveness, so no initialDelaySeconds needed)
-livenessProbe:
+livenessProbe: |
   httpGet:
     path: /auth/health/live
     port: 8080
@@ -114,7 +114,7 @@ livenessProbe:
   failureThreshold: 5
 
 # Readiness probe
-readinessProbe:
+readinessProbe: |
   httpGet:
     path: /auth/health/ready
     port: 8080
