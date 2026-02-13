@@ -147,6 +147,16 @@ redis-operator  3.3.0  (SpotaHome, não OT-Container-Kit!)
 
 ---
 
+### Atualização Operacional (2026-02-13)
+
+- **Ação executada:** Foi aplicado pin da imagem do *operator* Spotahome via Terraform (`image.tag = v1.2.4`) para evitar o uso de `:latest` e corrigir falha de upgrade.
+- **Motivo:** Tentativa de usar `v1.3.0` resultou em `ImagePullBackOff` — tag `v1.3.0` não está disponível no quay.io para o repositório `spotahome/redis-operator`.
+- **Resultado:** Rollout do `redis-operator` completou com sucesso; pod em execução com `quay.io/spotahome/redis-operator:v1.2.4`.
+- **Ação recomendada:** Manter `image.tag` pinado até que `v1.3.0` seja publicado oficialmente; evitar `:latest` em produção.
+
+
+---
+
 ## 3. RabbitMQ: Official Operator é Declarado no Terraform ✅
 
 ### Terraform Declaration (SOURCE OF TRUTH)

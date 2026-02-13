@@ -42,7 +42,7 @@ variable "postgres_operator_version" {
 variable "redis_operator_version" {
   description = "Redis Operator chart version"
   type        = string
-  default     = "0.15.1"
+  default     = "3.3.0"
 }
 
 variable "rabbitmq_operator_version" {

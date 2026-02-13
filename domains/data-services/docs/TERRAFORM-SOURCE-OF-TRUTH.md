@@ -93,6 +93,11 @@ resource "kubectl_manifest" "redis_failover" {
 - Redis Server Image: redis:6.2.6-alpine (2021, suportado mas antigo)
 - Replicas: **STAGING = 1 replica** (Production = 3 replicas planned)
 
+### Recent Changes (2026-02-13)
+
+- O `helm_release.redis_operator` foi atualizado via Terraform para pinar `image.tag = v1.2.4` (motivo: `v1.3.0` não disponível no quay). Apply feito com sucesso e rollout verificado.
+
+
 **Backup Strategy**: NÃO DECLARADO (HA via replicação, sem backup de disco)
 - Risk: Corrupção de dados não é protegida
 - Solução: Velero ou estratégia manual

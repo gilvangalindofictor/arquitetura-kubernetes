@@ -35,17 +35,13 @@ terraform {
 # =============================================================================
 
 provider "kubernetes" {
-  host                   = var.cluster_endpoint
-  cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
-
-  # Autenticação configurada via kubeconfig ou cloud-specific methods
-  # (AWS: exec aws eks get-token, Azure: exec kubelogin, GCP: exec gcloud)
+  # Use local kubeconfig for authentication to honor the active kubectl context.
+  config_path = pathexpand("~/.kube/config")
 }
 
 provider "helm" {
   kubernetes {
-    host                   = var.cluster_endpoint
-    cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
+    config_path = pathexpand("~/.kube/config")
   }
 }
 
@@ -167,8 +163,9 @@ resource "kubernetes_namespace" "redis_operator" {
 # Operator para Redis Cluster HA (master-replica topology)
 
 resource "helm_release" "redis_operator" {
-  name       = "redis-operator"
-  repository = "https://ot-container-kit.github.io/helm-charts"
+  name = "redis-operator"
+  # Use Spotahome helm repo for the redis-operator chart
+  repository = "https://spotahome.github.io/redis-operator"
   chart      = "redis-operator"
   version    = var.redis_operator_version # 0.15.1
 
@@ -177,6 +174,10 @@ resource "helm_release" "redis_operator" {
 
   values = [
     yamlencode({
+      # Pin operator image tag to a stable, immutable version
+      image = {
+        tag = "v1.2.4"
+      }
       # Operator configuration
       redisOperator = {
         replicaCount = 1 # Operator é stateless
