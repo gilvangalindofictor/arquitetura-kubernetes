@@ -9,12 +9,12 @@ output "namespace" {
 
 output "keycloak_url" {
   description = "Keycloak URL (internal cluster DNS)"
-  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080"
+  value       = "http://keycloak-keycloakx-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local/auth"
 }
 
 output "keycloak_admin_url" {
   description = "Keycloak admin console URL"
-  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080/admin"
+  value       = "http://keycloak-keycloakx-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local/auth/admin"
 }
 
 output "admin_password_secret" {
@@ -25,5 +25,5 @@ output "admin_password_secret" {
 
 output "realm_url" {
   description = "Keycloak master realm URL (for OIDC issuer configuration)"
-  value       = "http://keycloak-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local:8080/realms/master"
+  value       = "http://keycloak-keycloakx-http.${kubernetes_namespace.keycloak.metadata[0].name}.svc.cluster.local/auth/realms/master"
 }
