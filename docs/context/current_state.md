@@ -8,9 +8,9 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-18 (STOP-AND-FIX completo + Terraform Apply)
+**Última Atualização**: 2026-02-18 (Vault SSO via Keycloak OIDC)
 
-**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated
+**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated (Vault OIDC adicionado)
 
 **Marco Atual**: Marco 4 - CI/CD Platform (80% completo)
 
@@ -41,6 +41,17 @@
 ---
 
 ## Tasks Recentes
+
+**Vault SSO via Keycloak OIDC (2026-02-18)**:
+
+- ✅ Keycloak client `vault` criado (realm: platform, uuid: f676f69f, confidential)
+- ✅ Grupos Keycloak: `vault-admins` + `vault-readers` criados
+- ✅ Mapper `groups` (oidc-group-membership-mapper) adicionado ao client vault
+- ✅ Vault OIDC auth method ativo em `auth/oidc/` — discovery_url: `http://keycloak.staging.internal/auth/realms/platform`
+- ✅ Roles: `admin` (vault-admins, TTL 8h) + `reader` (any user, TTL 4h)
+- ✅ Policies: `vault-admin` (secret/*, sys/policies/*) + `vault-reader` (secret/data/* read-only)
+- ✅ TF files: vault_policies/vault-admin.hcl, vault_policies/vault-reader.hcl, +4 OIDC vars, jwt_auth_backend + 2 roles + 2 policies
+- ✅ TF commit: `5dcf56a` — `feat(vault): SSO via Keycloak OIDC auth method`
 
 **STOP-AND-FIX Completo + Terraform Apply (2026-02-18)**:
 
@@ -134,7 +145,7 @@
 | RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services | —                         | Official operator                                            |
 | GitLab           | 🟡 Parcial     | 16.7.0       | 1 (2 Pending)                             | gitlab        | PostgreSQL RDS            | Webservice 1/3 Running (capacity), Runner CrashLoop          |
 | Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging                 |
-| Vault            | 🟡 Parcial     | 1.15.0       | 1 (HA degraded)                           | vault         | Raft (EBS)                | Reinitializado 2026-02-13, KMS auto-unseal, 1/3 por capacity |
+| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system  | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running    |
 
 ---
 
@@ -142,7 +153,7 @@
 
 | Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                                                                                                              |
 | --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana. initContainer wait-for-db + startupProbe + toleration critical |
+| Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana, harbor, vault. initContainer wait-for-db + startupProbe + toleration critical |
 | ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running                                                                                   |
 | SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                              |
 | GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)                                                                                        |
@@ -214,13 +225,16 @@
 | Harbor    | 🚧 Parcial  | ⏸️ Pendente      | Usando secrets manuais, migração pendente |
 | GitLab    | ⏸️ Pendente | ⏸️ Pendente      | Usando secrets manuais                    |
 
-**Vault Configuration (2026-02-13)**:
+**Vault Configuration (2026-02-18)**:
 - KV v2 engine at `secret/`
 - Kubernetes auth method configured (ESO service account)
 - Policy `eso-reader` with `read` on `secret/data/*`
 - Role `eso-reader` bound to `external-secrets-system` namespace
 - ClusterSecretStore: `vault-backend` (Ready: True)
 - ExternalSecret: `keycloak-postgresql` (SecretSynced: True)
+- OIDC auth method at `auth/oidc/` — Keycloak realm platform, client `vault` (2026-02-18)
+- Roles: `admin` (vault-admins group, TTL 8h) + `reader` (any user, TTL 4h)
+- Policies: `vault-admin` + `vault-reader` (TF: modules/vault-config/vault_policies/)
 
 ---
 

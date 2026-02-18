@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-13
-**Versão:** 3.1 (Harbor OIDC Login Validated + SSO Smoke Test)
-**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | 🟡 Vault 1/3 (Capacity)
+**Última Atualização:** 2026-02-18
+**Versão:** 3.2 (Vault SSO via Keycloak OIDC)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO
 
 ---
 
@@ -827,11 +827,13 @@ Internet
 
 **Ingress (ALB):**
 
-| Service    | Host                 | ALB DNS                                                                 | Status |
-| ---------- | -------------------- | ----------------------------------------------------------------------- | ------ |
-| webservice | gitlab.example.com   | k8s-gitlabst-gitlabwe-8e0cbdff6f-286694401.us-east-1.elb.amazonaws.com  | ✅      |
-| registry   | registry.example.com | k8s-gitlabst-gitlabre-a1eb00e881-1066765702.us-east-1.elb.amazonaws.com | ✅      |
-| kas        | kas.example.com      | k8s-gitlabst-gitlabka-8a428e63ef-327565850.us-east-1.elb.amazonaws.com  | ✅      |
+| Service    | Host                        | ALB                                                             | Status |
+| ---------- | --------------------------- | --------------------------------------------------------------- | ------ |
+| webservice | gitlab.staging.internal     | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+| registry   | registry.staging.internal   | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+| kas        | kas.staging.internal        | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+
+> ALB IPs (2026-02-13, dinâmicos): 54.209.81.173 / 34.202.111.35 — re-resolver se falhar conectividade
 
 **Secrets:**
 - `gitlab-root-password`: Initial root password (Opaque)
@@ -842,9 +844,11 @@ Internet
 **Observabilidade:** ServiceMonitor criado (Prometheus scraping /-/metrics)
 
 **⚠️ Limitações Conhecidas (ADR-021 Fase 1):**
-- gitlab-runner: CrashLoop devido DNS placeholder `gitlab.example.com` → Resolvido em Fase 2 (custom domain) OU config service interno
-- Webhooks HTTPS externos: Não funcionam (sem domínio/TLS)
-- SSO: Não configurado (Keycloak pendente)
+- Webhooks HTTPS externos: Não funcionam (sem TLS — Fase 2)
+- SSO: Keycloak OIDC pendente (client harbor/oidc ainda placeholder no Vault)
+
+**Resolvido (2026-02-18):**
+- ~~`gitlab.example.com` placeholder~~ → domínio corrigido para `staging.internal` (Ingress + Helm values)
 
 **Validações Completas:**
 - ✅ Terraform idempotency (plan → "No changes")
@@ -967,11 +971,21 @@ Internet
 - **Total:** 45Gi EBS gp2 ($3.60/mês)
 - **Backups:** S3 Raft snapshots 30d retention ($0.20/mês)
 
-**Kubernetes Auth:** (pending vault_config deployment)
+**Kubernetes Auth:**
 - **Mount Path:** `kubernetes`
 - **Policy:** `eso-reader` (read-only `secret/data/*`)
 - **Role:** `eso-reader` (bound to SA `external-secrets/external-secrets-operator`)
 - **JWT Reviewer:** K8s API server token validation
+
+**OIDC Auth (2026-02-18):**
+- **Mount Path:** `auth/oidc/`
+- **Discovery URL:** `http://keycloak.staging.internal/auth/realms/platform`
+- **Client:** `vault` (uuid: f676f69f, confidential, client_secret in Vault)
+- **Keycloak Groups:** `vault-admins` + `vault-readers` (realm: platform)
+- **Roles:** `admin` (bound vault-admins, TTL 8h) + `reader` (any user, TTL 4h)
+- **Policies:** `vault-admin` (secret/*, sys/policies/*) + `vault-reader` (secret/data/* read-only)
+- **Redirect URIs:** UI `http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback` + CLI `localhost:8250`
+- **TF commit:** `5dcf56a` — `feat(vault): SSO via Keycloak OIDC auth method`
 
 **Secrets Managed:**
 - `secret/data/keycloak/postgresql` (username, password, host, database)
@@ -1033,7 +1047,7 @@ Internet
   - Auto-sync 1h, credentials rotacionáveis via Vault KV v2
 
 - **Admin Password:** Terraform random_password (24 chars, managed)
-- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana, Harbor
+- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana, Harbor, Vault
 - **Startup Resilience (2026-02-13):**
   - initContainer `wait-for-db` (busybox nc -z) — resolve race condition FinOps/RDS
   - `--health-enabled=true` — habilita smallrye-health para probes
