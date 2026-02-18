@@ -251,9 +251,16 @@ gitlab-runner:
   install: true
   replicas: ${runner_replicas}
 
-  # Use internal Kubernetes DNS instead of external domain
+  # Use internal Kubernetes DNS — namespace is gitlab-staging (not gitlab)
   # ADR-021 Fase 1: No external domain, use service DNS
-  gitlabUrl: http://gitlab-webservice-default.gitlab.svc.cluster.local:8080
+  # Fix 2026-02-13: namespace corrected from gitlab → gitlab-staging
+  gitlabUrl: http://gitlab-webservice-default.gitlab-staging.svc.cluster.local:8080
+
+  # GitLab 17.x authentication token compatibility:
+  # runners.locked must NOT generate REGISTER_LOCKED env var.
+  # Configuration is server-side when using glrt-* authentication tokens.
+  # Workaround: deployment patched to remove REGISTER_LOCKED env var post-deploy.
+  # See: logbook/2026-02-18-gap005-runner-registration.md
 
   resources:
     requests:
@@ -267,7 +274,7 @@ gitlab-runner:
     config: |
       [[runners]]
         [runners.kubernetes]
-          namespace = "gitlab"
+          namespace = "gitlab-staging"
           image = "ubuntu:22.04"
           privileged = false
           cpu_request = "100m"
