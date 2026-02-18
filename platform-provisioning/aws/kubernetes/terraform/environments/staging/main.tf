@@ -557,6 +557,14 @@ module "sonarqube_staging" {
   saml_sp_certificate = "MIIDXzCCAkegAwIBAgIUbbZIogu+BKzOTxoMG1jIbAqe0tUwDQYJKoZIhvcNAQELBQAwPzEVMBMGA1UEAwwMc29uYXJxdWJlLXNwMRkwFwYDVQQKDBBwbGF0Zm9ybS1zdGFnaW5nMQswCQYDVQQGEwJCUjAeFw0yNjAyMTgyMjA5NDBaFw0zNjAyMTYyMjA5NDBaMD8xFTATBgNVBAMMDHNvbmFycXViZS1zcDEZMBcGA1UECgwQcGxhdGZvcm0tc3RhZ2luZzELMAkGA1UEBhMCQlIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDF3AMuBGobOHWiiPwCdSD4KCX0En9thFa8hi1b0OCmz2C6vy1VeOWlQwWX5yJ1u1RvOl8f6ewbd86r2Jk+GlQbr7SYDQzi0Tj9LlC0FTU0Sine5BqpRz0/EScXK7wCENHF7Y7yWrraM6QitNeFn2IPu83Gxdq04qyfgghmFqAzr5r3+HLvciF5myH6UhfHdFazE1FE7U5kpGoabm66bPEGS3V7xgMsxnTNBwsRP0pCsQpmJ+42oGko+B0aVTX9lhX4zP/Z8RBGmWKLtX2Z5QBzBeFL34DIKYiqcs6o07PTES7AEpAKBaskjFjVJz0mVGMRmIrJ3kInIy0VIMbF88kxAgMBAAGjUzBRMB0GA1UdDgQWBBRH5KIS2G1P/eScorFc1qGA0BtKyDAfBgNVHSMEGDAWgBRH5KIS2G1P/eScorFc1qGA0BtKyDAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBk+M9AynJIEd23XLMO3jug0+XNWenwt9iFGc6FBEyzA9M0jckQSiB538QZE02oAwfrE1Vejb+041idvrL+nZeQd7iS8rCR00ji6LSNQRUj1S4axxioBfj6OniieGpjzS/61YYrtfaXS1FIPOP2WMqSRglEK4ZeJsYCoX8MwRIi976dKHjJMKDAFzDT+1FptmSAIBLBW+py1sGmiKx+JYaOeGl5cD0m+HGmYdupZLmZ7Z14OCp2Fnt1MMY9U3uPdmx/03698w3cQFSRXJVA6uySYmWyRrOkcAkz/PkKiTsas/JQBeUJ31CyQaeCFTBvQ4QwMjjuEq3wMnD8ugTnRpsH"
   saml_sp_secret_name = "sonarqube-sp-saml" # Created by ESO ExternalSecret (see resource below)
 
+  # GitLab OAuth2 Authentication
+  # applicationId + secret injected via sonarSecretProperties (ESO sonarqube-sp-saml → secret.properties)
+  # Vault KV: secret/sonarqube/gitlab → application_id + application_secret
+  gitlab_oauth_enabled = true
+  gitlab_url           = "http://gitlab.staging.internal"
+  gitlab_allow_signup  = false
+  gitlab_groups_sync   = true
+
   # Storage (gp3 — match existing PVC created on 2026-02-18)
   storage_class = "gp3"
 
@@ -568,9 +576,12 @@ module "sonarqube_staging" {
 }
 
 #------------------------------------------------------------------------------
-# SONARQUBE SAML SP — ExternalSecret (Vault → K8s Secret)
-# Vault KV: secret/sonarqube/saml → sonarqube-sp-saml (key: secret.properties)
-# Used by sonarSecretProperties in helm chart (merged by concat-properties init)
+# SONARQUBE Auth Secrets — ExternalSecret (Vault → K8s Secret)
+# Vault KV sources:
+#   secret/sonarqube/saml  → sp_certificate + sp_private_key_pkcs8 (SAML SP signing)
+#   secret/sonarqube/gitlab → application_id + application_secret (GitLab OAuth2)
+# Target: sonarqube-sp-saml (key: secret.properties, merged by concat-properties init)
+# Used by sonarSecretProperties in helm chart
 # eso-reader policy: secret/data/sonarqube/* (ADR-032)
 #------------------------------------------------------------------------------
 
@@ -602,6 +613,20 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
             key      = "secret/data/sonarqube/saml"
             property = "sp_certificate"
           }
+        },
+        {
+          secretKey = "gitlab_application_id"
+          remoteRef = {
+            key      = "secret/data/sonarqube/gitlab"
+            property = "application_id"
+          }
+        },
+        {
+          secretKey = "gitlab_application_secret"
+          remoteRef = {
+            key      = "secret/data/sonarqube/gitlab"
+            property = "application_secret"
+          }
         }
       ]
       target = {
@@ -610,7 +635,7 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
         template = {
           engineVersion = "v2"
           data = {
-            "secret.properties" = "sonar.auth.saml.sp.certificate.secured={{ .sp_certificate }}\nsonar.auth.saml.sp.privateKey.secured={{ .sp_private_key_pkcs8 }}\n"
+            "secret.properties" = "sonar.auth.saml.sp.certificate.secured={{ .sp_certificate }}\nsonar.auth.saml.sp.privateKey.secured={{ .sp_private_key_pkcs8 }}\nsonar.auth.gitlab.applicationId={{ .gitlab_application_id }}\nsonar.auth.gitlab.secret={{ .gitlab_application_secret }}\n"
           }
         }
       }

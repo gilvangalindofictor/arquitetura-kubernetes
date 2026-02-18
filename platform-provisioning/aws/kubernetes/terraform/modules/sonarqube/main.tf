@@ -87,6 +87,11 @@ resource "helm_release" "sonarqube" {
     saml_group_attribute      = var.saml_group_attribute
     saml_sp_certificate       = var.saml_sp_certificate
     saml_sp_secret_name       = var.saml_sp_secret_name
+    # GitLab OAuth2 variables
+    gitlab_oauth_enabled = var.gitlab_oauth_enabled
+    gitlab_url           = var.gitlab_url
+    gitlab_allow_signup  = var.gitlab_allow_signup
+    gitlab_groups_sync   = var.gitlab_groups_sync
   })]
 
   depends_on = [
