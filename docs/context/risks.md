@@ -2602,3 +2602,69 @@ Harbor OIDC login falhava com dois erros distintos: `invalid_grant "Code not val
 **Data Resolução:** 2026-02-13 (diagnóstico + fix em ~90min)
 **Status Final:** ✅ RESOLVIDO (staging, login funcional)
 
+
+---
+
+## 🟢 R-043: PVC Orphan via Volume Cleanup ✅ RESOLVIDO
+
+**Probabilidade:** ALTO (durante operações de limpeza)
+**Impacto:** ALTO (pods CrashLoopBackOff / Init:0/1)
+**Severidade:** 🔴 CRÍTICO (resolvido)
+
+**Descrição:**
+Limpeza de volumes EBS "orphan" (status=available) deletou volumes que ainda eram referenciados por Kubernetes PersistentVolumes. Os pods dependentes entraram em CrashLoopBackOff ou Init:0/1.
+
+**Volumes Deletados (2026-02-11 — orphan cleanup):**
+- vol-0a4116ee02b02f30c → alertmanager-0
+- vol-071e5453c1b3faa4d → redis (default ns, pré-migração)
+- vol-00dd3e92e5a97210b → redis (default ns, pré-migração)
+- vol-0b357582c62f6ce9c → rabbitmq (default ns, pré-operador)
+- vol-0d67b50203df170d0 → rabbitmq (default ns, pré-operador)
+- vol-0da55a8fba84d0a8b → rabbitmq (default ns, pré-operador)
+- vol-046ddaa100a176f46 → loki-write-0
+- vol-0c5a7e8d6246af0d3 → loki-write-1
+- vol-0cd00cc8868b0d8e6 → loki-backend-0
+- vol-0bfd9f8aeba863ea8 → loki-backend-1
+- vol-02c0763fa754b7b64 → tempo-ingester-0
+
+**Pods Afetados (2026-02-18 — STOP-AND-FIX):**
+- `monitoring/alertmanager-kube-prometheus-stack-alertmanager-0` Init:0/1
+- `monitoring/loki-write-0`, `loki-write-1` CrashLoopBackOff
+- `monitoring/loki-backend-0`, `loki-backend-1` CrashLoopBackOff
+- `monitoring/tempo-ingester-0` Init:0/1
+- `default/rabbitmq-server-*` (CR órfão, pré-operador)
+- `default/redis-*` (PVCs órfãs, pré-migração)
+
+**Root Cause:**
+Script de orphan cleanup verificou somente `status=available` nos volumes AWS, mas não cruzou com `kubectl get pv` para garantir que não havia binding K8s ativo. Volumes podem estar `available` no EC2 mas ainda referenciados como `Released` ou com PV não deletado no K8s.
+
+**Fix Executado (STOP-AND-FIX 2026-02-18):**
+1. ✅ Default ns: Deletado RabbitMQCluster CR (cascade deleta SS) + Redis PVCs órfãs
+2. ✅ AlertManager: `scale down → delete PVC → scale up` (novo 2Gi PVC auto-provisionado)
+3. ✅ Loki write×2 + backend×2: `scale down → delete PVC → scale up`
+4. ✅ Tempo ingester-0: `scale down → delete PVC → scale up` (novo 10Gi PVC)
+5. ✅ Todos pods voltaram Running com novos PVCs gp3
+
+**Protocolo Correto para Orphan Cleanup (atualizado):**
+```bash
+# SEMPRE fazer cross-check ANTES de deletar volumes
+kubectl get pv -o jsonpath='{.items[*].spec.awsElasticBlockStore.volumeID}' \
+  | tr ' ' '\n' > /tmp/k8s-pvs.txt
+aws ec2 describe-volumes --filters "Name=status,Values=available" \
+  --query 'Volumes[].VolumeId' --output text | tr '\t' '\n' > /tmp/aws-available.txt
+comm -23 <(sort /tmp/aws-available.txt) <(sort /tmp/k8s-pvs.txt)
+# → Apenas os IDs que aparecem na saída são SAFE to delete
+```
+
+**Lições Aprendidas:**
+1. `status=available` no EC2 ≠ não referenciado pelo K8s (PV pode ter `reclaim=Retain`)
+2. SEMPRE cruzar volumes disponíveis com `kubectl get pv` antes de deletar
+3. Volumes de pré-migração (rabbitmq/redis em default ns) devem ser identificados como órfãos K8s antes de limpar
+4. Orphan Detector Lambda (R$ 1.000/ano prevenção) evitará acúmulo futuro
+
+**Referências:**
+- [Logbook STOP-AND-FIX 2026-02-18](../logbook/2026-02-18-stop-and-fix-pvc-orphan.md)
+- [Pattern Orphan Resources — MEMORY.md](../../.claude/projects/-home-gilvangalindo-projects-Arquitetura-Kubernetes/memory/MEMORY.md)
+
+**Data Resolução:** 2026-02-18 (~45min STOP-AND-FIX)
+**Status Final:** ✅ RESOLVIDO (todos pods Running, novos PVCs provisionados)
