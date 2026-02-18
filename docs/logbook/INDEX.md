@@ -131,6 +131,32 @@ Registro cronológico de todas as atividades, decisões técnicas e resoluções
 
 ---
 
+### Fevereiro 18
+
+- ✅ [2026-02-18-grafana-sso-keycloak-oidc.md](2026-02-18-grafana-sso-keycloak-oidc.md)
+  - **Grafana SSO — Integração Keycloak OIDC (auth.generic_oauth)**
+  - Implementação completa do fluxo OIDC Grafana ↔ Keycloak
+  - Vault: `secret/grafana/oidc` + ExternalSecret `grafana-oidc-credentials`
+  - Problemas resolvidos: assertNoLeakedSecrets, svc.cluster.local redirect, PVC deadlock
+  - Status: ✅ Concluído
+
+- ✅ [2026-02-18-p1-security-finops.md](2026-02-18-p1-security-finops.md)
+  - **P1 Sprint — VPA, Lambda snapshot-cleanup, CoreDNS, Vault ha**
+  - VPA fairwinds v4.4.6 + 12 VPA objects, vault ha.enabled=true
+  - Status: ✅ Terraform Apply sem changes
+
+- ✅ [2026-02-18-gap005-runner-registration.md](2026-02-18-gap005-runner-registration.md)
+  - **GAP-005 GitLab Runner Registration**
+  - Runner id=115 online, token glrt-t1_HhPp1x
+  - Status: ✅ Concluído
+
+- ✅ [2026-02-18-gitlab-domain-fix.md](2026-02-18-gitlab-domain-fix.md)
+  - **GitLab Ingress Domain Drift Fix**
+  - example.com → staging.internal
+  - Status: ✅ Concluído
+
+---
+
 ## Estatísticas
 
 - **Total de Logbooks:** 12 criados + 8 sumários
