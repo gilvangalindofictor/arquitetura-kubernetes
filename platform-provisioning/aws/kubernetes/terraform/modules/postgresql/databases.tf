@@ -4,7 +4,7 @@ provider "postgresql" {
   host            = aws_db_instance.postgresql.address
   port            = aws_db_instance.postgresql.port
   username        = aws_db_instance.postgresql.username
-  password        = random_password.master.result
+  password        = var.master_password_override != null ? var.master_password_override : random_password.master.result
   sslmode         = "require"
   connect_timeout = 15
   superuser       = false

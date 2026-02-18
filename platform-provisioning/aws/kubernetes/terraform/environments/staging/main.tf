@@ -148,6 +148,10 @@ module "postgresql_staging" {
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
   common_tags           = local.common_tags
 
+  # RDS was recreated on 2026-02-09 outside TF with a different master password.
+  # This override uses the actual SM password so the PostgreSQL provider can connect.
+  master_password_override = data.aws_secretsmanager_secret_version.rds_actual_master.secret_string
+
   # Bootstrap additional databases (Harbor, Keycloak)
   additional_databases = [
     {
@@ -219,6 +223,12 @@ data "aws_secretsmanager_secret" "postgresql_password" {
 
 data "aws_secretsmanager_secret_version" "postgresql_password" {
   secret_id = data.aws_secretsmanager_secret.postgresql_password.id
+}
+
+# Actual RDS master password (RDS was recreated on 2026-02-09 outside TF)
+# This secret contains the current working master credentials
+data "aws_secretsmanager_secret_version" "rds_actual_master" {
+  secret_id = "k8s-platform-prod/postgresql-master-20260209142555506800000001"
 }
 
 # Keycloak PostgreSQL Password via Vault + ExternalSecrets
@@ -544,6 +554,9 @@ module "sonarqube_staging" {
     MIICnzCCAYcCBgGcNLCnZTANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhwbGF0Zm9ybTAeFw0yNjAyMDYyMDQwMThaFw0zNjAyMDYyMDQxNThaMBMxETAPBgNVBAMMCHBsYXRmb3JtMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmRnrzQQYRhDLYpp0aSz6xPOnAUSDZLFolGT7FOl4ez4z17ssMm7W5Xw5K3Bb4fI4e2gAudpczCh67VI1G97tLQcaPSf5uzsRrq4Y3iAD9VzKp8fT1hJRQSrIxm/QJxHJN9a/+LFP0l2txSbPrJyIZimR+THtH9CGX+BuYZN0M9bUwxHpvcxb/kRO1niwqNbR+gSDHkdIv1UMcd7BDCJBZuiM9spWvBoWKbv3aqP7y9oIx3wMBg7tLQ4fbDR0PNqiQnvLedR40sN7DJrzv3bab+GPm3rSArMA8PBISHawOcZ6b94TfKl+rSLJoXjppD1hBdjuk6S5j0y9tnxgu5+XAQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBO18QIRIi8UQZC+98WgV98q5iZchM4n+MlU25Rpxdo+xUhtbBMKSVotyWEZo6FXT3pf1rY2A83CcsGb+EKNyynC0rMir9ggu0yR13zho8T+nYoewdACSwey3oH2fwbMI9aT1oc9Z/GQyLmCrBWIcG3qNwRoyqzBOSZzfx9/YX9b8D1CIzQhgjIjMgFAM5HmmT5j8wnmBJfUnAjMtihOXJSAGDgKO8LBRaFz6w62IKFo596aJottqgYnC/SKlv44qGicnBkClejlZnrlX+ENbvmKvGMCQojmECR4q7WtOZc9KjOPxS5GfUoIT5vhhbCrQouydrSBp6He1IRnFC/cypL
   EOT
 
+  # Storage (gp3 — match existing PVC created on 2026-02-18)
+  storage_class = "gp3"
+
   # Monitoring
   enable_monitoring = true
 
@@ -561,6 +574,9 @@ module "kube_prometheus_stack_staging" {
 
   namespace              = "monitoring"
   grafana_admin_password = "admin" # TODO: Mover para Vault/SecretsManager
+
+  # Pin to deployed version (cluster is running 81.4.2 since 2026-02-05)
+  chart_version = "81.4.2"
 
   # Grafana ALB Ingress
   grafana_ingress_enabled    = true

@@ -47,6 +47,13 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "master_password_override" {
+  description = "Override for the master password (used when RDS was created outside TF with a different password)"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "additional_databases" {
   description = "List of additional databases to create (with user/password)"
   type = list(object({

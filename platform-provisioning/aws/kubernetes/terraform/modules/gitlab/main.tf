@@ -243,6 +243,13 @@ resource "helm_release" "gitlab" {
       ingress_group_name = var.ingress_group_name
     })
   ]
+
+  lifecycle {
+    # GitLab upgrade triggers migration jobs that fail with OpenSSL::Cipher::CipherError
+    # on this instance (key mismatch). Prevent TF from triggering helm upgrades.
+    # Manual upgrades only: helm upgrade gitlab charts/gitlab -n gitlab-staging
+    ignore_changes = all
+  }
 }
 
 # -----------------------------------------------------------------------------
