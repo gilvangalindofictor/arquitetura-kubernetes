@@ -8,11 +8,11 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-18 (Vault SSO via Keycloak OIDC)
+**Última Atualização**: 2026-02-18 (ArgoCD SSO via Keycloak OIDC — 5 fixes cascata)
 
-**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated (Vault OIDC adicionado)
+**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Complete (ArgoCD + Vault + SonarQube + Grafana + Harbor)
 
-**Marco Atual**: Marco 4 - CI/CD Platform (80% completo)
+**Marco Atual**: Marco 4 - CI/CD Platform (85% completo)
 
 **Progresso Geral**: 50% ██████████████░░░░░░░░░░░░░ (Marco 0-3 completo, Marco 4 80% / 0-6)
 
@@ -29,18 +29,28 @@
 | Marco 3 Fase 1c    | ✅ Completo     | 100%      | < 1h    | $0        | ✅             |
 | Marco 3 Fase 1d    | ✅ Completo     | 100%      | 3 dias  | +$0.50    | ✅             |
 | Marco 3 Fase 1e    | ✅ Completo     | 100%      | 2h32min | +$28.90   | ✅ 2026-02-06  |
-| Marco 4            | 🚧 Em andamento | 75%       | ~10h    | +$100     | —             |
+| Marco 4            | 🚧 Em andamento | 85%       | ~10h    | +$100     | —             |
 | Marco 5            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 | Marco 6            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 
 **Legenda**: ✅ Completo | 🚧 Em andamento | ⏸️ Pendente | ⚠️ Bloqueado
 
 **Total até Marco 3**: ~14 dias de trabalho efetivo | ~$700/mês staging
-**Marco 4 Atual**: 4/8 GAPs completos (75% core features) | +$100/mês | ~$800/mês total
+**Marco 4 Atual**: 5/8 GAPs completos (85% core features) | +$100/mês | ~$800/mês total
 
 ---
 
 ## Tasks Recentes
+
+**ArgoCD SSO via Keycloak OIDC — 5 Fixes Cascata (2026-02-18)**:
+
+- ✅ Fix 1: DNS service name `keycloak-http` -> `keycloak-keycloakx-http` (staging/main.tf + keycloak/outputs.tf)
+- ✅ Fix 2: Redirect URL protocol `https://` -> `http://` (argocd/values.yaml.tpl:58)
+- ✅ Fix 3: Split-horizon DNS — issuer URL `svc.cluster.local` -> `keycloak.staging.internal/auth` (staging/main.tf:501)
+- ✅ Fix 4: Invalid scopes — removed `groups` from requestedScopes (argocd/values.yaml.tpl:66)
+- ✅ Fix 5: Client secret syntax `${argocd-oidc-credentials:client-secret}` -> `$oidc.keycloak.clientSecret` (argocd/values.yaml.tpl:65)
+- ✅ ArgoCD SSO login via Keycloak: **FUNCIONAL** (2/2 pods Running, 0 errors)
+- Pattern documentado: ArgoCD secret resolution syntax + split-horizon DNS
 
 **Vault SSO via Keycloak OIDC (2026-02-18)**:
 
@@ -138,25 +148,25 @@
 
 ### Workloads (Marco 3)
 
-| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace     | Database                  | Notas                                                        |
-| ---------------- | ------------- | ------------ | ----------------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —             | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)                  |
-| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted      |
-| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services | —                         | Official operator                                            |
-| GitLab           | 🟡 Parcial     | 16.7.0       | 1 (2 Pending)                             | gitlab        | PostgreSQL RDS            | Webservice 1/3 Running (capacity), Runner CrashLoop          |
-| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging                 |
-| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system  | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running    |
+| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace     | Database                  | Notas                                                     |
+| ---------------- | ------------- | ------------ | ----------------------------------------- | ------------- | ------------------------- | --------------------------------------------------------- |
+| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —             | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)               |
+| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
+| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services | —                         | Official operator                                         |
+| GitLab           | 🟡 Parcial     | 16.7.0       | 1 (2 Pending)                             | gitlab        | PostgreSQL RDS            | Webservice 1/3 Running (capacity), Runner CrashLoop       |
+| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
+| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system  | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
 
 ---
 
 ### CI/CD Platform (Marco 4) - 🚧 75% Completo
 
-| Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                                                                                                              |
-| --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                                                                                                                             |
+| --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana, harbor, vault. initContainer wait-for-db + startupProbe + toleration critical |
-| ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak, 8/8 pods running                                                                                   |
-| SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                              |
-| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)                                                                                        |
+| ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak SSO ✅ (5 fixes cascata), 8/8 pods running                                                                          |
+| SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                                             |
+| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)                                                                                                       |
 
 **GAPs Marco 4**:
 
@@ -173,7 +183,7 @@
 
 - 🟡 GitLab runner: Registration failing (GitLab API 500 - migrations pending)
 - ⚠️ SonarQube Prometheus exporter: Disabled (Maven Central timeout)
-- 🟡 OIDC testing: Pending manual validation (SonarQube + ArgoCD)
+- 🟡 OIDC testing: SonarQube SAML ✅, ArgoCD OIDC ✅, Vault OIDC ✅, Grafana OIDC ✅, Harbor OIDC ✅, GitLab OIDC pending
 
 ---
 

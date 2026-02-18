@@ -1,6 +1,6 @@
 # 📚 Índice de Logbooks
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-18
 **Status:** Current (Auto-updated)
 **Owner:** Platform Team
 **Scope:** Chronological Activity Index
@@ -150,9 +150,20 @@ Registro cronológico de todas as atividades, decisões técnicas e resoluções
   - Runner id=115 online, token glrt-t1_HhPp1x
   - Status: ✅ Concluído
 
+- ✅ [2026-02-18-keycloak-service-name-fix.md](2026-02-18-keycloak-service-name-fix.md)
+  - **ArgoCD SSO Keycloak OIDC — 5 Fixes Cascata**
+  - DNS service name, redirect URL protocol, split-horizon DNS, invalid scopes, client secret syntax
+  - Pattern: ArgoCD secret resolution + split-horizon DNS para OIDC
+  - Status: ✅ Concluído (SSO funcional)
+
+- ✅ [2026-02-18-sonarqube-saml-fix.md](2026-02-18-sonarqube-saml-fix.md)
+  - **SonarQube SAML SP Certificate + serverBaseURL Fix**
+  - SP cert/key via Vault+ESO, ACS URL localhost→external hostname
+  - Status: ✅ Concluído
+
 - ✅ [2026-02-18-gitlab-domain-fix.md](2026-02-18-gitlab-domain-fix.md)
   - **GitLab Ingress Domain Drift Fix**
-  - example.com → staging.internal
+  - example.com → staging.internal (Helm values + kubectl patch)
   - Status: ✅ Concluído
 
 - ✅ [2026-02-18-vault-sso-keycloak-oidc.md](2026-02-18-vault-sso-keycloak-oidc.md)
@@ -166,12 +177,12 @@ Registro cronológico de todas as atividades, decisões técnicas e resoluções
 
 ## Estatísticas
 
-- **Total de Logbooks:** 12 criados + 8 sumários
-  - ✅ Logbooks Completos: 12
+- **Total de Logbooks:** 17 criados + 8 sumários
+  - ✅ Logbooks Completos: 17
   - 📋 Sumários Estruturados: 8
-  - **Total Documentado:** 20 entradas
+  - **Total Documentado:** 25 entradas
 
-- **Período coberto:** 2026-01-22 até 2026-02-03
+- **Período coberto:** 2026-01-22 até 2026-02-18
 
 - **Categorias:**
   - Análises técnicas: 1

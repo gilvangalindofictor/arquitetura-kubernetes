@@ -8,45 +8,45 @@
 
 ## 🎯 Índice de Decisões
 
-| ID          | Decisão                                                           | Data           | Status                        | Impacto     |
-| ----------- | ----------------------------------------------------------------- | -------------- | ----------------------------- | ----------- |
-| ADR-001     | Setup e Governança                                                | 2025-12        | ✅ Ativo                       | Alto        |
-| ADR-002     | Estrutura de Domínios                                             | 2025-12        | ✅ Ativo                       | Médio       |
-| ADR-003     | Secrets Management Strategy                                       | 2026-01        | ✅ Ativo                       | Alto        |
-| ADR-004     | Terraform vs Helm para Platform Services                          | 2026-01        | ✅ Ativo                       | Alto        |
-| ADR-005     | Logging Strategy (Loki vs CloudWatch)                             | 2026-01        | ✅ Ativo                       | Alto        |
-| ADR-006     | Network Policies Strategy (Calico)                                | 2026-01        | ✅ Ativo                       | Alto        |
-| ADR-007     | Cluster Autoscaler Strategy                                       | 2026-01        | ✅ Ativo                       | Médio       |
-| ADR-008     | TLS Strategy for ALB Ingresses                                    | 2026-01        | ✅ Ativo                       | Alto        |
-| DEC-009     | ACM Conditional Creation Fix                                      | 2026-01-29     | ✅ Ativo                       | Crítico     |
-| DEC-010     | VPC Reaproveitamento                                              | 2026-01        | ✅ Ativo                       | Alto        |
-| **ADR-020** | **OpenTelemetry Tracing Strategy (Tempo vs Jaeger)**              | **2026-01-29** | **✅ Ativo**                   | **Alto**    |
-| **ADR-021** | **No-Domain Phase 1 Strategy (LoadBalancer Pattern)**             | **2026-01-29** | **✅ Ativo**                   | **Médio**   |
-| **ADR-022** | **Startup/Shutdown Automation Strategy (FinOps)**                 | **2026-01-29** | **✅ Ativo**                   | **Alto**    |
-| **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators**         | **2026-01-29** | **✅ Ativo**                   | **Crítico** |
-| **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)**       | **2026-02-02** | **🚀 Ativo (Staging)**         | **Alto**    |
-| **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado**            | **Alto**    |
-| **ADR-026** | **Multi-Environment Terraform Refactoring**                       | **2026-02-02** | **✅ Aprovado**                | **Crítico** |
-| **ADR-027** | **Shared GitLab with Separated DataServices**                     | **2026-02-02** | **✅ Aprovado**                | **Alto**    |
-| **ADR-028** | **Hybrid Observability with OpenTelemetry**                       | **2026-02-02** | **✅ Aprovado**                | **Alto**    |
-| **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted**              | **2026-02-03** | **✅ Implementado**            | **Crítico** |
-| **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)**         | **2026-02-04** | **✅ Implementado**            | **Alto**    |
-| **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)**                       | **2026-02-05** | **📝 Planejado**               | **Alto**    |
-| **ADR-032** | **External Secrets Operator Integration (Vault Backend)**         | **2026-02-05** | **✅ Em Uso (Keycloak, SonarQube SP)**      | **Alto**    |
-| **ADR-033** | **Harbor Container Registry (S3 + IRSA)**                         | **2026-02-05** | **📝 Planejado**               | **Alto**    |
-| **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy**                        | **2026-02-05** | **📝 Planejado**               | **Médio**   |
-| **ADR-035** | **SonarQube Code Quality Integration**                            | **2026-02-05** | **✅ SAML SSO OK (2026-02-18)** | **Médio**   |
-| **ADR-036** | **Grafana Multi-Cluster Observability Dashboard**                 | **2026-02-05** | **📝 Planejado**               | **Médio**   |
-| **ADR-037** | **FinOps Legacy Structure Cleanup**                               | **2026-02-05** | **✅ Implementado**            | **Baixo**   |
-| **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration**               | **2026-02-04** | **✅ Implementado**            | **Alto**    |
-| **ADR-039** | **Harbor Jobservice PVC RWO Limitation (Staging)**                | **2026-02-05** | **✅ Implementado**            | **Médio**   |
-| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)**       | **2026-02-05** | **🚀 Implementado (Harbor ✅)** | **Médio**   |
-| **ADR-043** | **Policy Engine Selection (Kyverno)**                             | **2026-02-05** | **✅ Aprovado**                | **Alto**    |
-| **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)**                 | **2026-02-04** | **✅ Implementado**            | **Crítico** |
-| **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)**          | **2026-02-05** | **✅ Implementado**            | **Médio**   |
-| **ADR-051** | **Production Environment Zero-Trust Network**                     | **2026-02-09** | **✅ Implementado**            | **Alto**    |
-| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)**               | **2026-02-09** | **✅ 100% Completo**           | **Alto**    |
-| **ADR-053** | **Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)**   | **2026-02-10** | **✅ Implementado**            | **Alto**    |
+| ID          | Decisão                                                           | Data           | Status                                | Impacto     |
+| ----------- | ----------------------------------------------------------------- | -------------- | ------------------------------------- | ----------- |
+| ADR-001     | Setup e Governança                                                | 2025-12        | ✅ Ativo                               | Alto        |
+| ADR-002     | Estrutura de Domínios                                             | 2025-12        | ✅ Ativo                               | Médio       |
+| ADR-003     | Secrets Management Strategy                                       | 2026-01        | ✅ Ativo                               | Alto        |
+| ADR-004     | Terraform vs Helm para Platform Services                          | 2026-01        | ✅ Ativo                               | Alto        |
+| ADR-005     | Logging Strategy (Loki vs CloudWatch)                             | 2026-01        | ✅ Ativo                               | Alto        |
+| ADR-006     | Network Policies Strategy (Calico)                                | 2026-01        | ✅ Ativo                               | Alto        |
+| ADR-007     | Cluster Autoscaler Strategy                                       | 2026-01        | ✅ Ativo                               | Médio       |
+| ADR-008     | TLS Strategy for ALB Ingresses                                    | 2026-01        | ✅ Ativo                               | Alto        |
+| DEC-009     | ACM Conditional Creation Fix                                      | 2026-01-29     | ✅ Ativo                               | Crítico     |
+| DEC-010     | VPC Reaproveitamento                                              | 2026-01        | ✅ Ativo                               | Alto        |
+| **ADR-020** | **OpenTelemetry Tracing Strategy (Tempo vs Jaeger)**              | **2026-01-29** | **✅ Ativo**                           | **Alto**    |
+| **ADR-021** | **No-Domain Phase 1 Strategy (LoadBalancer Pattern)**             | **2026-01-29** | **✅ Ativo**                           | **Médio**   |
+| **ADR-022** | **Startup/Shutdown Automation Strategy (FinOps)**                 | **2026-01-29** | **✅ Ativo**                           | **Alto**    |
+| **ADR-023** | **Migration from Bitnami Charts to Kubernetes Operators**         | **2026-01-29** | **✅ Ativo**                           | **Crítico** |
+| **ADR-024** | **FinOps Automation Multi-Ambiente (EventBridge + Lambda)**       | **2026-02-02** | **🚀 Ativo (Staging)**                 | **Alto**    |
+| **ADR-025** | **Tempo Deployment - Replication Factor Decision (RF=2 vs RF=3)** | **2026-01-31** | **✅ Implementado**                    | **Alto**    |
+| **ADR-026** | **Multi-Environment Terraform Refactoring**                       | **2026-02-02** | **✅ Aprovado**                        | **Crítico** |
+| **ADR-027** | **Shared GitLab with Separated DataServices**                     | **2026-02-02** | **✅ Aprovado**                        | **Alto**    |
+| **ADR-028** | **Hybrid Observability with OpenTelemetry**                       | **2026-02-02** | **✅ Aprovado**                        | **Alto**    |
+| **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted**              | **2026-02-03** | **✅ Implementado**                    | **Crítico** |
+| **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)**         | **2026-02-04** | **✅ Implementado**                    | **Alto**    |
+| **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)**                       | **2026-02-05** | **📝 Planejado**                       | **Alto**    |
+| **ADR-032** | **External Secrets Operator Integration (Vault Backend)**         | **2026-02-05** | **✅ Em Uso (Keycloak, SonarQube SP)** | **Alto**    |
+| **ADR-033** | **Harbor Container Registry (S3 + IRSA)**                         | **2026-02-05** | **📝 Planejado**                       | **Alto**    |
+| **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy**                        | **2026-02-05** | **📝 Planejado**                       | **Médio**   |
+| **ADR-035** | **SonarQube Code Quality Integration**                            | **2026-02-05** | **✅ SAML SSO OK (2026-02-18)**        | **Médio**   |
+| **ADR-036** | **Grafana Multi-Cluster Observability Dashboard**                 | **2026-02-05** | **📝 Planejado**                       | **Médio**   |
+| **ADR-037** | **FinOps Legacy Structure Cleanup**                               | **2026-02-05** | **✅ Implementado**                    | **Baixo**   |
+| **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration**               | **2026-02-04** | **✅ Implementado**                    | **Alto**    |
+| **ADR-039** | **Harbor Jobservice PVC RWO Limitation (Staging)**                | **2026-02-05** | **✅ Implementado**                    | **Médio**   |
+| **ADR-042** | **RollingUpdate Strategy for Stateful Workloads (RWO PVC)**       | **2026-02-05** | **🚀 Implementado (Harbor ✅)**         | **Médio**   |
+| **ADR-043** | **Policy Engine Selection (Kyverno)**                             | **2026-02-05** | **✅ Aprovado**                        | **Alto**    |
+| **ADR-044** | **FinOps Lambda Runtime Downgrade (Python 3.11)**                 | **2026-02-04** | **✅ Implementado**                    | **Crítico** |
+| **ADR-045** | **Harbor Robot Accounts UI Workaround (API Auth Issue)**          | **2026-02-05** | **✅ Implementado**                    | **Médio**   |
+| **ADR-051** | **Production Environment Zero-Trust Network**                     | **2026-02-09** | **✅ Implementado**                    | **Alto**    |
+| **ADR-052** | **OpenTelemetry Collector Gateway Pattern (GAP-7)**               | **2026-02-09** | **✅ 100% Completo**                   | **Alto**    |
+| **ADR-053** | **Tempo OTLP Receivers + Replication Factor Fix (GAP-7 Final)**   | **2026-02-10** | **✅ Implementado**                    | **Alto**    |
 
 | **ADR-054** | **SLI/SLO Baseline Implementation (GAP-001)** | **2026-02-10** | **✅ 98% Completo** | **Alto** |
 | **ADR-055** | **Grafana SLI Dashboards ConfigMap Deployment** | **2026-02-10** | **✅ Implementado** | **Médio** |
@@ -6560,10 +6560,10 @@ Login OIDC do Harbor retornava erros em cascata:
 
 ### Arquivos Modificados
 
-| Arquivo | Alteracao |
-| --- | --- |
+| Arquivo                      | Alteracao                                        |
+| ---------------------------- | ------------------------------------------------ |
 | `modules/harbor/main.tf:358` | `oidc_user_claim: preferred_username` adicionado |
-| `scripts/sso-smoke-test.sh` | `test_harbor_oidc` adicionado ao `main()` |
+| `scripts/sso-smoke-test.sh`  | `test_harbor_oidc` adicionado ao `main()`        |
 
 ### Referências
 
@@ -6618,14 +6618,14 @@ Ativar **OIDC auth method** no Vault (`auth/oidc/`) integrado ao Keycloak realm 
 
 ### Arquivos Modificados
 
-| Arquivo | Alteracao |
-| --- | --- |
-| `modules/vault-config/vault_policies/vault-admin.hcl` | NEW — policy admin |
-| `modules/vault-config/vault_policies/vault-reader.hcl` | NEW — policy reader |
-| `modules/vault-config/variables.tf` | +4 vars OIDC (enabled, client_id, client_secret, discovery_url) |
-| `modules/vault-config/main.tf` | +jwt_auth_backend + 2 roles + 2 policies |
-| `environments/staging/variables.tf` | +vault_oidc_client_secret |
-| `environments/staging/main.tf` | vault_config_staging +oidc_enabled=true |
+| Arquivo                                                | Alteracao                                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------- |
+| `modules/vault-config/vault_policies/vault-admin.hcl`  | NEW — policy admin                                              |
+| `modules/vault-config/vault_policies/vault-reader.hcl` | NEW — policy reader                                             |
+| `modules/vault-config/variables.tf`                    | +4 vars OIDC (enabled, client_id, client_secret, discovery_url) |
+| `modules/vault-config/main.tf`                         | +jwt_auth_backend + 2 roles + 2 policies                        |
+| `environments/staging/variables.tf`                    | +vault_oidc_client_secret                                       |
+| `environments/staging/main.tf`                         | vault_config_staging +oidc_enabled=true                         |
 
 ### Referências
 
@@ -6665,23 +6665,91 @@ Ativar **OIDC auth method** no Vault (`auth/oidc/`) integrado ao Keycloak realm 
 
 ### Campos helm sonarqube 10.7.0 (crítico)
 
-| Campo | Propósito | K8s Secret key |
-|-------|-----------|----------------|
-| `sonarSecretKey` | Chave AES decrypt `.secured` no DB | `sonar-secret.txt` |
+| Campo                   | Propósito                                  | K8s Secret key      |
+| ----------------------- | ------------------------------------------ | ------------------- |
+| `sonarSecretKey`        | Chave AES decrypt `.secured` no DB         | `sonar-secret.txt`  |
 | `sonarSecretProperties` | Injeta sonar.properties via init container | `secret.properties` |
 
 ### Arquivos Modificados
 
-| Arquivo | Alteração |
-|---------|-----------|
+| Arquivo                             | Alteração                                                       |
+| ----------------------------------- | --------------------------------------------------------------- |
 | `modules/sonarqube/values.yaml.tpl` | sonarSecretKey→sonarSecretProperties + sonar.core.serverBaseURL |
-| `modules/sonarqube/variables.tf` | +saml_sp_certificate, +saml_sp_secret_name |
-| `modules/sonarqube/main.tf` | +saml_sp_certificate, +saml_sp_secret_name no templatefile |
-| `environments/staging/main.tf` | +saml_sp_certificate, kubernetes_manifest ExternalSecret |
-| Vault KV | `secret/sonarqube/saml` criado |
-| eso-reader policy | +`secret/data/sonarqube/*` (read/list) |
+| `modules/sonarqube/variables.tf`    | +saml_sp_certificate, +saml_sp_secret_name                      |
+| `modules/sonarqube/main.tf`         | +saml_sp_certificate, +saml_sp_secret_name no templatefile      |
+| `environments/staging/main.tf`      | +saml_sp_certificate, kubernetes_manifest ExternalSecret        |
+| Vault KV                            | `secret/sonarqube/saml` criado                                  |
+| eso-reader policy                   | +`secret/data/sonarqube/*` (read/list)                          |
 
 ### Referências
 
 - [DEC-061 Vault OIDC](#dec-061)
 - [Logbook 2026-02-18 SonarQube SAML Fix](../logbook/2026-02-18-sonarqube-saml-fix.md)
+
+---
+
+## 📝 DEC-063: ArgoCD OIDC Keycloak — 5 Fixes Cascata
+
+**Data:** 2026-02-18
+**Status:** ✅ Implementado
+**Contexto:** ArgoCD SSO via Keycloak OIDC falhava com 5 erros sequenciais
+
+### Problema
+
+ArgoCD OIDC login retornava erros em cadeia:
+1. `no such host keycloak-http.keycloak.svc.cluster.local` — alias service removido
+2. `Invalid redirect URL: protocol and host must match` — url https vs ALB http
+3. Browser redirect para `svc.cluster.local` (irresolvivel externamente) — split-horizon DNS
+4. `Invalid scopes: openid profile email groups` — scope `groups` inexistente no Keycloak
+5. `unauthorized_client: Invalid client credentials` — sintaxe errada de secret reference
+
+### Decisao
+
+Aplicar 5 fixes incrementais:
+
+| #   | Fix                                                                          | Arquivo                              |
+| --- | ---------------------------------------------------------------------------- | ------------------------------------ |
+| 1   | Service name `keycloak-http` -> `keycloak-keycloakx-http`                    | staging/main.tf, keycloak/outputs.tf |
+| 2   | `server.config.url: https://` -> `http://`                                   | argocd/values.yaml.tpl:58            |
+| 3   | `keycloak_url` -> `http://keycloak.staging.internal/auth` (hostname externo) | staging/main.tf:501                  |
+| 4   | Remover `groups` de requestedScopes                                          | argocd/values.yaml.tpl:66            |
+| 5   | `clientSecret: $oidc.keycloak.clientSecret` (referencia `argocd-secret`)     | argocd/values.yaml.tpl:65            |
+
+### Rationale
+
+- **Fix 1:** Keycloakx Helm chart cria service `keycloak-keycloakx-http`, nao `keycloak-http`
+- **Fix 2:** ALB staging esta HTTP-only (sem TLS/ACM), url precisa ser `http://`
+- **Fix 3:** Pattern split-horizon: browser nao resolve `svc.cluster.local`; CoreDNS bridge resolve internamente
+- **Fix 4:** Groups claim disponivel via Group Membership mapper sem scope dedicado
+- **Fix 5:** ArgoCD usa `$key` syntax referenciando keys no `argocd-secret`, nao `${secret-name:key}`
+
+### Pattern: ArgoCD Secret Resolution
+
+**Errado:** `${argocd-oidc-credentials:client-secret}` — template variable syntax, ArgoCD nao resolve
+**Correto:** `$oidc.keycloak.clientSecret` — key no K8s Secret `argocd-secret`
+
+### Arquivos Modificados
+
+| Arquivo                                | Alteracao                                              |
+| -------------------------------------- | ------------------------------------------------------ |
+| `environments/staging/main.tf:501`     | keycloak_url = `http://keycloak.staging.internal/auth` |
+| `environments/staging/main.tf:1020`    | CoreDNS rewrite -> `keycloak-keycloakx-http`           |
+| `modules/keycloak/outputs.tf:12,17,28` | 3 outputs: service name + porta 80 + path /auth        |
+| `modules/argocd/values.yaml.tpl:58`    | url: https -> http                                     |
+| `modules/argocd/values.yaml.tpl:65`    | clientSecret: $oidc.keycloak.clientSecret              |
+| `modules/argocd/values.yaml.tpl:66`    | requestedScopes: removed groups                        |
+
+### Consequencias
+
+- ✅ ArgoCD SSO via Keycloak: **FUNCIONAL** (login flow completo)
+- ✅ ArgoCD pods: 2/2 Running, 0 restarts, logs sem erros
+- ✅ OIDC Discovery: 200 OK via hostname externo
+- ✅ Pattern: split-horizon DNS consistente com Grafana, SonarQube, Vault
+- ⚠️ Vault password rotation side-effect durante TF apply (monitorar ESO sync)
+
+### Referências
+
+- [DEC-060 Harbor OIDC Login Fix](#dec-060)
+- [DEC-061 Vault OIDC](#dec-061)
+- [DEC-062 SonarQube SAML](#dec-062)
+- [Logbook 2026-02-18 ArgoCD SSO](../logbook/2026-02-18-keycloak-service-name-fix.md)
