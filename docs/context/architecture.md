@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-18
-**Versão:** 3.2 (Vault SSO via Keycloak OIDC)
-**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO
+**Versão:** 3.3 (ArgoCD SSO via Keycloak OIDC — 5 fixes cascata)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO | ✅ ArgoCD OIDC SSO
 
 ---
 
@@ -827,11 +827,11 @@ Internet
 
 **Ingress (ALB):**
 
-| Service    | Host                        | ALB                                                             | Status |
-| ---------- | --------------------------- | --------------------------------------------------------------- | ------ |
-| webservice | gitlab.staging.internal     | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
-| registry   | registry.staging.internal   | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
-| kas        | kas.staging.internal        | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+| Service    | Host                      | ALB                                                                 | Status |
+| ---------- | ------------------------- | ------------------------------------------------------------------- | ------ |
+| webservice | gitlab.staging.internal   | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+| registry   | registry.staging.internal | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
+| kas        | kas.staging.internal      | k8s-gitlabstaging-da5a4e8c6d-1143600047.us-east-1.elb.amazonaws.com | ✅      |
 
 > ALB IPs (2026-02-13, dinâmicos): 54.209.81.173 / 34.202.111.35 — re-resolver se falhar conectividade
 
@@ -1033,6 +1033,14 @@ Internet
 - **ApplicationSet:** Hatch, VemSoft, BucketConnector
 - **Sync:** Auto-sync enabled (prune + self-heal)
 - **RBAC:** No secret enumeration (CI role)
+- **OIDC SSO (2026-02-18):** ✅ Keycloak OIDC funcional (5 fixes cascata)
+  - **issuer:** `http://keycloak.staging.internal/auth/realms/platform`
+  - **clientID:** `argocd`
+  - **clientSecret:** `$oidc.keycloak.clientSecret` (key no `argocd-secret`)
+  - **requestedScopes:** `["openid", "profile", "email"]`
+  - **Split-horizon:** issuer usa hostname externo, CoreDNS resolve internamente
+  - **Fixes:** DNS service name, redirect URL protocol, split-horizon, invalid scopes, secret syntax
+  - **Logbook:** [2026-02-18-keycloak-service-name-fix.md](../logbook/2026-02-18-keycloak-service-name-fix.md)
 - **Custo:** $0 (ArgoCD já deployed Marco 2)
 
 **6. Keycloak SSO Platform (GAP-001) — 2h**
@@ -1047,7 +1055,7 @@ Internet
   - Auto-sync 1h, credentials rotacionáveis via Vault KV v2
 
 - **Admin Password:** Terraform random_password (24 chars, managed)
-- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana, Harbor, Vault
+- **OIDC Providers:** ArgoCD (✅ SSO validated), SonarQube (✅ SAML validated), GitLab, Grafana, Harbor, Vault (✅ OIDC validated)
 - **Startup Resilience (2026-02-13):**
   - initContainer `wait-for-db` (busybox nc -z) — resolve race condition FinOps/RDS
   - `--health-enabled=true` — habilita smallrye-health para probes
