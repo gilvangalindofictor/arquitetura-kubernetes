@@ -49,6 +49,8 @@
 | **R-044** | **S3 VPC Gateway Endpoint ausente em subnets workloads**        | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Investigar**             | **Nodes ip-10-0-133-36 e ip-10-0-149-75: TLS timeout S3; fix: add S3 prefix list route** |
 | **R-045** | **SonarQube init SSL timeout (prometheusExporter)**             | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **prometheusExporter.enabled=false no TF module (default)** |
 | **R-046** | **Terraform statically linked binary: DNS falha no WSL2**       | **MÉDIO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **/etc/resolv.conf com 10.255.255.254 resolve; 127.0.0.1 quebra** |
+| **R-047** | **System Node Kubelet Death → EBS Multi-Attach Cascade**        | **BAIXO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Mitigado (2026-02-18)** | **TERMINATE (não STOP) nodes; EBS detach-force + kubectl delete volumeattachment** |
+| **R-048** | **helm --set 'key={}' produz array, não map (nodeSelector)**    | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **Usar --values file.yaml para empty map; --set {} = array → unmarshal error** |
 
 ---
 

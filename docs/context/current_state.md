@@ -8,7 +8,7 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-13 (Harbor Redeploy + Redis TF Fix)
+**Última Atualização**: 2026-02-18 (STOP-AND-FIX completo + Terraform Apply)
 
 **Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Validated
 
@@ -42,6 +42,19 @@
 
 ## Tasks Recentes
 
+**STOP-AND-FIX Completo + Terraform Apply (2026-02-18)**:
+
+- ✅ Tempo ingester: migrado para critical nodegroup (us-east-1b), S3 TLS fix
+- ✅ kube-prometheus-stack nodeSelectors removidos (--values file approach)
+- ✅ alertmanager-0: 2/2 Running, prometheus-0: 2/2 Running, operator: 1/1 Running
+- ✅ SonarQube: password reset via ALTER USER (RDS mismatch fix)
+- ✅ GitLab runner: CI_SERVER_URL fix (:8080), scaled to 0 (token inválido pendente)
+- ✅ EBS Multi-Attach recovery: force-detach + kubectl delete volumeattachment
+- ✅ Node ip-10-0-135-130 terminado (i-03ff24910ba442563) — ASG provisionando substituto
+- ✅ R-047 + R-048 adicionados ao risks.md
+- ✅ Logbook: 2026-02-18-cluster-recovery-afternoon.md criado
+- **Cluster estado**: 7 nodes Ready, ZERO pods unhealthy
+
 **SSO Smoke Tests + Infrastructure Recovery (2026-02-13)**:
 
 - ✅ SSO Smoke Test Suite: 39 PASSED / 0 FAILED / 5 SKIPPED
@@ -72,11 +85,12 @@
 
 **Próximos Passos**:
 
-- [ ] Cluster capacity: adicionar nodes ou rightsizing para GitLab 3/3 + Vault 3/3
-- [ ] GitLab Runner: fix CrashLoopBackOff
-- [ ] Terraform state migration: `terraform state mv` para Redis resources
-- [ ] CoreDNS ConfigMap: codificar em Terraform
-- [ ] Vault HA: escalar para 3/3 replicas
+- [ ] GitLab runner: obter novo registration token via GitLab 17.x admin UI (tokens v15.6+ deprecados)
+- [ ] Persist monitoring fixes: `nodeSelector: {}` no Terraform Helm values para prometheus/alertmanager/operator
+- [ ] Persist Tempo fix: nodeSelector=critical + toleration + GODEBUG no Terraform
+- [ ] Lambda weekend shutdown: alterar STOP → TERMINATE (fix S3 Gateway Endpoint routing)
+- [ ] Savings Plans 1yr (P1): R$ 6.984/ano, ROI 2.340%
+- [ ] Verificar ASG provisionou node substituto para system nodegroup
 
 ---
 

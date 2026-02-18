@@ -45,11 +45,8 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
-  # Node selector para system nodes
-  set {
-    name  = "prometheusOperator.nodeSelector.node-type"
-    value = "system"
-  }
+  # nodeSelector removido: pods podem escalar em qualquer node disponível
+  # (fix 2026-02-18: system nodes 17/17 pods bloqueavam scheduling)
 
   # Tolerations
   set {
@@ -124,11 +121,7 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "2Gi"
   }
 
-  # Node selector
-  set {
-    name  = "prometheus.prometheusSpec.nodeSelector.node-type"
-    value = "system"
-  }
+  # nodeSelector removido: pods podem escalar em qualquer node disponível
 
   # Tolerations
   set {
@@ -235,11 +228,7 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "256Mi"
   }
 
-  # Node selector
-  set {
-    name  = "grafana.nodeSelector.node-type"
-    value = "system"
-  }
+  # nodeSelector removido: grafana pode escalar em qualquer node disponível
 
   # Tolerations
   set {
@@ -409,11 +398,7 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "64Mi"
   }
 
-  # Node selector
-  set {
-    name  = "alertmanager.alertmanagerSpec.nodeSelector.node-type"
-    value = "system"
-  }
+  # nodeSelector removido: alertmanager pode escalar em qualquer node disponível
 
   # Tolerations
   set {
@@ -475,11 +460,7 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
-  # Node selector
-  set {
-    name  = "kube-state-metrics.nodeSelector.node-type"
-    value = "system"
-  }
+  # nodeSelector removido: kube-state-metrics pode escalar em qualquer node disponível
 
   # Tolerations
   set {
