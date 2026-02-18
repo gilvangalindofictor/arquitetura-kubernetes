@@ -86,6 +86,8 @@ plugins:
 # SAML 2.0 Authentication (Keycloak)
 # https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview
 sonarProperties:
+  # Server base URL (MUST be external hostname — browser redirect pattern, ADR-grafana-sso)
+  sonar.core.serverBaseURL: "http://sonarqube.staging.internal"
   sonar.auth.saml.enabled: "true"
   sonar.auth.saml.applicationId: "${saml_application_id}"
   sonar.auth.saml.providerId: "${saml_provider_id}"
@@ -97,8 +99,15 @@ sonarProperties:
   sonar.auth.saml.group.name: "${saml_group_attribute}"
   # Group synchronization
   sonar.auth.saml.groupsSync: "true"
-  # Signature validation
+  # SP certificate (public) — private key via sonarSecretProperties (K8s Secret)
+  sonar.auth.saml.sp.certificate.secured: "${saml_sp_certificate}"
+  # Signature: SP signs AuthnRequests + validates IdP assertions
   sonar.auth.saml.signature.enabled: "true"
+
+# K8s Secret with additional sonar.properties (sonar.auth.saml.sp.privateKey.secured)
+# Secret created by ESO from Vault KV: secret/sonarqube/saml
+# Secret must have key: secret.properties (merged by concat-properties init container)
+sonarSecretProperties: "${saml_sp_secret_name}"
 %{ else ~}
 # Authentication: using default local users
 # To enable SAML SSO, set saml_enabled = true in Terraform

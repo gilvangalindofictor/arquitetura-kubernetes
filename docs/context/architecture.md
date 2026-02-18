@@ -1013,7 +1013,7 @@ Internet
 - **Versão:** Helm external-secrets/external-secrets v0.9.11
 - **CRDs:** 6 instalados (ExternalSecret, SecretStore, ClusterSecretStore)
 - **Backend:** ClusterSecretStore `vault-backend` → Vault K8s auth
-- **Sync:** Keycloak (✅), GitLab (pending), Harbor (pending), SonarQube (pending)
+- **Sync:** Keycloak (✅), SonarQube SAML SP (✅ 2026-02-18), GitLab (pending), Harbor (pending)
 - **Pattern:** ExternalSecret → Vault KV v2 `secret/data/<service>/<resource>`
 - **Refresh:** 1h (configurable per ExternalSecret)
 - **Custo:** $0 (pods nodes existentes)
@@ -1067,16 +1067,17 @@ Internet
 
 #### FASE 2: Code Quality + Security (3h)
 
-**8. SonarQube Community Edition (ADR-034) — 3h**
+##### 8. SonarQube Community Edition (ADR-034/DEC-062) — ✅ SAML SSO OK (2026-02-18)
 - **Versão:** Helm sonarqube/sonarqube v10.7.0
 - **Database:** PostgreSQL RDS shared DB `sonarqube` ($0)
-- **Storage:** S3 plugin analyses archive >90d ($10/mês)
-- **ALB:** `sonarqube.k8s-platform.example.com` ($16.20/mês)
-- **Auth:** Admin token via ESO (Vault sync)
-- **Integration:** GitLab webhook + scanner plugin
-- **Quality Gate:** Critical >0 = FAIL (block merge)
-- **Resources:** 2Gi requests / 4Gi limits + HPA (max 3)
-- **Custo:** +$26.20/mês ($314.40/ano)
+- **ALB:** `sonarqube.staging.internal` (platform-staging group)
+- **Auth:** SAML 2.0 via Keycloak realm `platform` (client: sonarqube)
+- **SP cert/key:** Vault KV `secret/sonarqube/saml` → ESO → `sonarqube-sp-saml` (secret.properties)
+- **sonarSecretProperties:** `sonarqube-sp-saml` (concat-properties init container)
+- **serverBaseURL:** `http://sonarqube.staging.internal` (ACS URL correta no SAMLRequest)
+- **Keycloak:** `saml.client.signature=true`, SP cert carregado, `saml_name_id_format=email`
+- **Resources:** 500m/2Gi requests, 2000m/4Gi limits
+- **Custo:** $0 adicional (ALB compartilhado platform-staging group)
 
 **SUBTOTAL FASE 2:** 3h | **$26.20/mês** ($314.40/ano)
 

@@ -55,15 +55,15 @@ server:
           key: password
 
   config:
-    url: https://${domain}
+    url: http://${domain}
 
     # Keycloak OIDC
     oidc.config: |
       name: Keycloak
       issuer: ${keycloak_url}/realms/platform
       clientID: ${keycloak_client}
-      clientSecret: $${argocd-oidc-credentials:client-secret}
-      requestedScopes: ["openid", "profile", "email", "groups"]
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes: ["openid", "profile", "email"]
 
   rbacConfig:
     policy.default: role:readonly
