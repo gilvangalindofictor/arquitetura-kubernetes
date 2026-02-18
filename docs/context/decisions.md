@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-13
-**Versão:** 3.9 (Harbor OIDC Login Fix + Smoke Test Integration)
+**Última Atualização:** 2026-02-18
+**Versão:** 4.0 (Vault SSO via Keycloak OIDC)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -55,6 +55,7 @@
 | **DEC-058** | **Vault Reinitialization (EBS Volume Loss Recovery)** | **2026-02-13** | **✅ Implementado** | **Crítico** |
 | **DEC-059** | **SSO Smoke Test Validation Suite** | **2026-02-13** | **✅ 39/39 Passed** | **Alto** |
 | **DEC-060** | **Harbor OIDC Login Fix (user_claim + single replica)** | **2026-02-13** | **✅ Implementado** | **Alto** |
+| **DEC-061** | **Vault SSO via Keycloak OIDC Auth Method** | **2026-02-18** | **✅ Implementado** | **Alto** |
 ---
 
 ## 📝 ADR-001: Setup e Governança
@@ -6568,3 +6569,66 @@ Login OIDC do Harbor retornava erros em cascata:
 - [Logbook Harbor OIDC](../logbook/2026-02-13-harbor-oidc-keycloak-integration.md)
 - [DEC-059 SSO Smoke Tests](#dec-059)
 
+---
+
+## 📝 DEC-061: Vault SSO via Keycloak OIDC Auth Method
+
+**Data:** 2026-02-18
+**Status:** ✅ Implementado
+**Contexto:** Vault acessado via root token / token direto — sem SSO, sem RBAC por grupo
+
+### Problema
+
+- Acesso ao Vault exigia root token ou tokens manuais sem expiração controlada
+- Sem mapeamento de grupos Keycloak para políticas Vault
+- Inconsistência com SSO já ativo em Grafana, ArgoCD, GitLab, Harbor, SonarQube
+
+### Decisao
+
+Ativar **OIDC auth method** no Vault (`auth/oidc/`) integrado ao Keycloak realm `platform`.
+
+- **Client Keycloak:** `vault` (uuid: f676f69f, confidential)
+- **client_secret:** armazenado em Vault `secret/grafana/oidc` (padrão ESO)
+- **Groups mapper:** `oidc-group-membership-mapper` adicionado ao client vault
+- **Keycloak grupos:** `vault-admins` + `vault-readers` (realm: platform)
+- **Roles Vault:** `admin` (bound vault-admins, TTL 8h) + `reader` (any user, TTL 4h)
+- **Policies Vault:** `vault-admin` (secret/*, sys/policies/*) + `vault-reader` (secret/data/* read-only)
+- **Redirect URIs:** UI `http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback` + CLI `localhost:8250`
+- **discovery_url:** `http://keycloak.staging.internal/auth/realms/platform`
+
+### Rationale
+
+- Consistência SSO: todos os serviços da plataforma usam Keycloak como IdP
+- RBAC por grupo: vault-admins vs vault-readers sem gerenciar tokens manualmente
+- TTL curto (8h/4h) melhora postura de segurança vs root token sem expiração
+- Padrão OIDC URL externo (hostname `staging.internal`) — mesmo padrão Grafana (DEC-060 aprendizado)
+
+### Alternativa Rejeitada
+
+- **AppRole + CI tokens:** adequado para machine-to-machine, não para acesso humano interativo
+
+### Consequencias
+
+- ✅ Login via Keycloak SSO na UI do Vault (`http://vault.staging.internal`)
+- ✅ CLI: `vault login -method=oidc` abre browser → Keycloak → callback localhost:8250
+- ✅ Grupo `vault-admins` → policy `vault-admin` (full secrets + policies)
+- ✅ Qualquer usuário autenticado → policy `vault-reader` (read-only secrets)
+- ⚠️ Root token continua existindo em K8s Secret (emergência / bootstrap only)
+
+### Arquivos Modificados
+
+| Arquivo | Alteracao |
+| --- | --- |
+| `modules/vault-config/vault_policies/vault-admin.hcl` | NEW — policy admin |
+| `modules/vault-config/vault_policies/vault-reader.hcl` | NEW — policy reader |
+| `modules/vault-config/variables.tf` | +4 vars OIDC (enabled, client_id, client_secret, discovery_url) |
+| `modules/vault-config/main.tf` | +jwt_auth_backend + 2 roles + 2 policies |
+| `environments/staging/variables.tf` | +vault_oidc_client_secret |
+| `environments/staging/main.tf` | vault_config_staging +oidc_enabled=true |
+
+### Referências
+
+- TF commit: `5dcf56a` — `feat(vault): SSO via Keycloak OIDC auth method`
+- [DEC-059 SSO Smoke Tests](#dec-059)
+- [DEC-060 Harbor OIDC Login Fix](#dec-060)
+- [Logbook 2026-02-18 Vault SSO](../logbook/2026-02-18-vault-oidc-keycloak.md)

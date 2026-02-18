@@ -155,6 +155,13 @@ Registro cronológico de todas as atividades, decisões técnicas e resoluções
   - example.com → staging.internal
   - Status: ✅ Concluído
 
+- ✅ [2026-02-18-vault-sso-keycloak-oidc.md](2026-02-18-vault-sso-keycloak-oidc.md)
+  - **Vault SSO — Integração Keycloak OIDC (auth method)**
+  - vault_jwt_auth_backend type=oidc + roles admin/reader + policies vault-admin/vault-reader
+  - Keycloak: client vault + grupos vault-admins/vault-readers + groups mapper
+  - Redirect: Vault UI + CLI (localhost:8250) | discovery: keycloak.staging.internal
+  - Status: ✅ Concluído
+
 ---
 
 ## Estatísticas
