@@ -974,3 +974,54 @@ module "weekly_finops_report" {
     Criticality = "Low"
   })
 }
+
+#------------------------------------------------------------------------------
+# CoreDNS Split-Horizon DNS (ADR-039 Resolution)
+# Purpose: Resolve staging.internal domains inside cluster (OIDC redirects)
+# Problem: Browser OIDC redirects use external DNS (.staging.internal) that
+#          is NOT resolvable from inside the cluster without this config.
+# Pattern: CoreDNS rewrite rules map external → internal svc DNS
+# Ref: R-039 (risks.md) | MEMORY.md CoreDNS Split-Horizon Pattern
+# Status: Migrated from manual ConfigMap to Terraform (2026-02-18)
+#------------------------------------------------------------------------------
+
+resource "kubernetes_config_map_v1" "coredns_split_horizon" {
+  metadata {
+    name      = "coredns-custom"
+    namespace = "kube-system"
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+      "app.kubernetes.io/component"  = "coredns-split-horizon"
+    }
+  }
+
+  data = {
+    "staging.internal.server" = <<-COREFILE
+      staging.internal:53 {
+          errors
+          rewrite name keycloak.staging.internal keycloak-http.keycloak.svc.cluster.local
+          rewrite name gitlab.staging.internal gitlab-webservice-default.gitlab-staging.svc.cluster.local
+          rewrite name argocd.staging.internal argocd-server.argocd.svc.cluster.local
+          rewrite name grafana.staging.internal kube-prometheus-stack-grafana.monitoring.svc.cluster.local
+          rewrite name harbor.staging.internal harbor-core.harbor.svc.cluster.local
+          rewrite name sonarqube.staging.internal sonarqube.sonarqube.svc.cluster.local
+          rewrite name vault.staging.internal vault.vault-system.svc.cluster.local
+          rewrite name rabbitmq.staging.internal rabbitmq.data-services.svc.cluster.local
+          kubernetes cluster.local in-addr.arpa ip6.arpa {
+              pods insecure
+              fallthrough in-addr.arpa ip6.arpa
+          }
+          forward . /etc/resolv.conf
+          cache 30
+          loop
+          reload
+          loadbalance
+      }
+    COREFILE
+  }
+
+  # NOTE: EKS CoreDNS with coredns-custom ConfigMap requires
+  # CoreDNS deployment to be configured with --conf /etc/coredns/Corefile
+  # and Corefile to include: import /etc/coredns/custom/*.server
+  # Verify: kubectl get cm coredns -n kube-system -o yaml | grep import
+}

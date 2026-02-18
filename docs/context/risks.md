@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-13
-**Versão:** 2.9 (Harbor OIDC Multi-Replica Race Condition)
+**Última Atualização:** 2026-02-18
+**Versão:** 3.0 (P1 Security+FinOps — git-secrets, CoreDNS TF, Rotation Policy)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -13,7 +13,7 @@
 | R-001     | State lock travado                                              | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | DynamoDB locking + force-unlock              |
 | R-002     | EKS add-ons deadlock                                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Resolvido                  | Dependency order fixado                      |
 | R-003     | Network Policies bloqueiam tráfego                              | MÉDIO         | ALTO        | 🔴 ALTO        | ✅ Mitigado                   | Mapeamento de fluxos prévio                  |
-| R-004     | Custos S3 Loki excedem estimativa                               | MÉDIO         | BAIXO       | 🟢 BAIXO       | ⚠️ Monitorar                  | CloudWatch billing alerts                    |
+| R-004     | Custos S3 Loki excedem estimativa                               | BAIXO         | BAIXO       | 🟢 BAIXO      | ✅ Mitigado (2026-02-18)     | Lifecycle 30d expire + billing alarm criado  |
 | R-005     | ACM certificate expiration                                      | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | Auto-renewal ACM + alarm                     |
 | R-006     | ALB provisioning timeout                                        | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Tolerado                   | Retry terraform apply                        |
 | R-007     | Pods OOMKilled (memory limits)                                  | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Monitorar                  | Prometheus alerts + tuning                   |
@@ -24,7 +24,7 @@
 | R-012     | Cluster Autoscaler scale-down agressivo                         | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | 5min threshold + PDB configurados            |
 | R-013     | Data loss durante shutdown (ADR-022)                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | PVCs persistem, S3 always-on                 |
 | R-014     | Startup failure após shutdown                                   | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | Health checks automáticos, rollback          |
-| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟢 BAIXO       | ✅ Mitigado (2026-02-18)      | --snapshot + validate-shutdown.sh (7d warn)  |
+| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟢 BAIXO      | ✅ Mitigado (2026-02-18)     | --snapshot + validate-shutdown.sh (7d warn)  |
 | R-016     | Cold start excede tolerância (>10min)                           | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | Target 5-8min, monitorado                    |
 | R-017     | State drift Terraform vs Cluster Autoscaler                     | MÉDIO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | ignore_changes em desired_size               |
 | **R-018** | **Licenciamento Bitnami → Tanzu Standard**                      | **ALTO**      | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)**     | **Migração para Operators**                  |
@@ -41,7 +41,7 @@
 | **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                     | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055)**    | **VPC Endpoint KMS**                         |
 | **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)** | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **TF module reescrito, CR+RBAC alinhados**   |
 | **R-038** | **Vault EBS Volume Loss (Data Permanente)**                     | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Reinit + KV seed + K8s auth reconfig**     |
-| **R-039** | **CoreDNS Split-Horizon Drift**                                 | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **ConfigMap manual, nao codificado em TF**   |
+| **R-039** | **CoreDNS Split-Horizon Drift**                                 | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (2026-02-18)** | **coredns-custom ConfigMap em TF (staging)** |
 | **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)**            | **ALTO**      | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **GitLab 2/3 webservice Pending, Vault 1/3** |
 | **R-041** | **Harbor Admin Password TF Bug (secret name as value)**         | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 + DB schema reset**        |
 | **R-042** | **Harbor OIDC Multi-Replica Race Condition**                    | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Single replica + oidc_user_claim fix**     |
@@ -71,15 +71,15 @@ Credenciais sensíveis (Grafana password, API keys, database credentials) commit
 - ✅ **Pre-commit hook:** Validação automática (block commits com secrets)
 - ✅ **.gitignore:** terraform.tfvars, *.tfvars, *.env (ignored)
 - ✅ **Governance validation:** Hook custom validando padrões de secrets
-
-**Mitigações Adicionais (Futuro):**
-- [ ] **git-secrets AWS plugin:** Scan automático de padrões AWS (Access Keys, etc)
-- [ ] **Periodic audit:** Monthly review de commits históricos
-- [ ] **Rotation policy:** Quarterly rotation de credentials (Secrets Manager)
+- ✅ **git-secrets AWS plugin:** Scan automático de padrões AWS (Access Keys, etc) — 2026-02-18
+- ✅ **Rotation policy:** Quarterly rotation de credentials documentada — 2026-02-18
+  - Runbook: `docs/runbooks/secret-rotation-policy.md`
+  - Calendário 2026 definido (RDS 90d, OIDC 180d, IAM Keys 90d)
 
 **Monitoramento:**
 - CloudTrail: Unauthorized API calls (DetectPortScan rule)
 - GuardDuty: Credential compromise detection (se habilitado)
+- git-secrets: Scan automático em cada commit (pre-commit hook)
 
 ---
 
