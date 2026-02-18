@@ -278,6 +278,95 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
+  # -----------------------------------------------------------------------------
+  # Grafana OIDC — Keycloak SSO (auth.generic_oauth)
+  # ATENÇÃO: ignore_changes=all neste helm_release — set blocks definem IaC como
+  # source of truth, mas apply requer helm upgrade manual após Keycloak ready:
+  #   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  #     -n monitoring --reuse-values \
+  #     --set "grafana.grafana\.ini.auth\.generic_oauth.enabled=true" ...
+  # -----------------------------------------------------------------------------
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.enabled"
+      value = "true"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.name"
+      value = "Keycloak"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.client_id"
+      value = var.grafana_keycloak_client_id
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled && var.grafana_keycloak_client_secret != "" ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.client_secret"
+      value = var.grafana_keycloak_client_secret
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.scopes"
+      value = "openid email profile"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled && var.grafana_keycloak_url != "" ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.auth_url"
+      value = "${var.grafana_keycloak_url}/realms/platform/protocol/openid-connect/auth"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled && var.grafana_keycloak_url != "" ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.token_url"
+      value = "${var.grafana_keycloak_url}/realms/platform/protocol/openid-connect/token"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled && var.grafana_keycloak_url != "" ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.api_url"
+      value = "${var.grafana_keycloak_url}/realms/platform/protocol/openid-connect/userinfo"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.role_attribute_path"
+      value = "contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_oidc_enabled ? [1] : []
+    content {
+      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.allow_sign_up"
+      value = "true"
+    }
+  }
+
   # Ingress (se habilitado)
   dynamic "set" {
     for_each = var.grafana_ingress_enabled ? [1] : []
@@ -491,4 +580,53 @@ resource "helm_release" "kube_prometheus_stack" {
     # Apply changes manually: helm upgrade kube-prometheus-stack -n monitoring
     ignore_changes = all
   }
+}
+
+# -----------------------------------------------------------------------------
+# Grafana OIDC — ExternalSecret (credenciais Keycloak via Vault)
+# Vault path: secret/data/grafana/oidc
+#   keys: client_id, client_secret
+# Pré-requisito: Keycloak client "grafana" criado e secret adicionado ao Vault
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "grafana_oidc_externalsecret" {
+  count = var.grafana_oidc_enabled ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "grafana-oidc-credentials"
+      namespace = kubernetes_namespace.monitoring.metadata[0].name
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "grafana-oidc-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "client_id"
+          remoteRef = {
+            key      = "secret/data/grafana/oidc"
+            property = "client_id"
+          }
+        },
+        {
+          secretKey = "client_secret"
+          remoteRef = {
+            key      = "secret/data/grafana/oidc"
+            property = "client_secret"
+          }
+        }
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.monitoring]
 }
