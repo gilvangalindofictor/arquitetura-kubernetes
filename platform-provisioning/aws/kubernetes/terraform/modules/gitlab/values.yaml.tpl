@@ -11,7 +11,7 @@ global:
 
   # Hosts configuration (ADR-021 Fase 1: no custom domain)
   hosts:
-    domain: example.com  # Placeholder, will use ALB DNS
+    domain: ${domain_name}
     https: ${enable_tls}
 
   # Ingress configuration

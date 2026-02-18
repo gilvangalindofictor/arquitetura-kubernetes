@@ -85,6 +85,8 @@ resource "helm_release" "sonarqube" {
     saml_user_email_attribute = var.saml_user_email_attribute
     saml_user_name_attribute  = var.saml_user_name_attribute
     saml_group_attribute      = var.saml_group_attribute
+    saml_sp_certificate       = var.saml_sp_certificate
+    saml_sp_secret_name       = var.saml_sp_secret_name
   })]
 
   depends_on = [

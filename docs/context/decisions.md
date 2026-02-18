@@ -32,10 +32,10 @@
 | **ADR-029** | **Redis Sentinel User Alignment for PSS Restricted**              | **2026-02-03** | **✅ Implementado**            | **Crítico** |
 | **ADR-030** | **GitLab CE Staging Deployment (IRSA S3 Object Storage)**         | **2026-02-04** | **✅ Implementado**            | **Alto**    |
 | **ADR-031** | **Vault HA Architecture (KMS Auto-Unseal)**                       | **2026-02-05** | **📝 Planejado**               | **Alto**    |
-| **ADR-032** | **External Secrets Operator Integration (Vault Backend)**         | **2026-02-05** | **✅ Em Uso (Keycloak)**       | **Alto**    |
+| **ADR-032** | **External Secrets Operator Integration (Vault Backend)**         | **2026-02-05** | **✅ Em Uso (Keycloak, SonarQube SP)**      | **Alto**    |
 | **ADR-033** | **Harbor Container Registry (S3 + IRSA)**                         | **2026-02-05** | **📝 Planejado**               | **Alto**    |
 | **ADR-034** | **ArgoCD ApplicationSets GitOps Strategy**                        | **2026-02-05** | **📝 Planejado**               | **Médio**   |
-| **ADR-035** | **SonarQube Code Quality Integration**                            | **2026-02-05** | **📝 Planejado**               | **Médio**   |
+| **ADR-035** | **SonarQube Code Quality Integration**                            | **2026-02-05** | **✅ SAML SSO OK (2026-02-18)** | **Médio**   |
 | **ADR-036** | **Grafana Multi-Cluster Observability Dashboard**                 | **2026-02-05** | **📝 Planejado**               | **Médio**   |
 | **ADR-037** | **FinOps Legacy Structure Cleanup**                               | **2026-02-05** | **✅ Implementado**            | **Baixo**   |
 | **ADR-038** | **Harbor PostgreSQL Bootstrap + SSL Configuration**               | **2026-02-04** | **✅ Implementado**            | **Alto**    |
@@ -56,6 +56,7 @@
 | **DEC-059** | **SSO Smoke Test Validation Suite** | **2026-02-13** | **✅ 39/39 Passed** | **Alto** |
 | **DEC-060** | **Harbor OIDC Login Fix (user_claim + single replica)** | **2026-02-13** | **✅ Implementado** | **Alto** |
 | **DEC-061** | **Vault SSO via Keycloak OIDC Auth Method** | **2026-02-18** | **✅ Implementado** | **Alto** |
+| **DEC-062** | **SonarQube SAML SP Certificate + serverBaseURL** | **2026-02-18** | **✅ Implementado** | **Alto** |
 ---
 
 ## 📝 ADR-001: Setup e Governança
@@ -6632,3 +6633,55 @@ Ativar **OIDC auth method** no Vault (`auth/oidc/`) integrado ao Keycloak realm 
 - [DEC-059 SSO Smoke Tests](#dec-059)
 - [DEC-060 Harbor OIDC Login Fix](#dec-060)
 - [Logbook 2026-02-18 Vault SSO](../logbook/2026-02-18-vault-oidc-keycloak.md)
+
+---
+
+## 📝 DEC-062: SonarQube SAML SP Certificate + serverBaseURL
+
+**Data:** 2026-02-18
+**Status:** ✅ Implementado
+**Contexto:** SonarQube SAML com Keycloak retornava "You're not authorized" e depois "Invalid redirect uri"
+
+### Problema
+
+1. `sonar.auth.saml.signature.enabled=true` exige SP cert + private key — nenhum configurado → `Service provider certificate is missing`
+2. `sonar.core.serverBaseURL` não configurado → ACS URL no SAMLRequest era `localhost:9000` → Keycloak rejeitava com "Invalid redirect uri"
+3. `sonarSecretKey` (helm) é para chave AES de decrypt de DB — uso incorreto tentando injetar sonar.properties
+
+### Decisão
+
+- Gerar SP cert/key (self-signed RSA-2048, PKCS8) para staging
+- Armazenar no Vault KV `secret/sonarqube/saml` (sp_certificate + sp_private_key_pkcs8)
+- ESO ExternalSecret `sonarqube-sp-saml` (ns: sonarqube) cria K8s Secret com key `secret.properties`
+- Helm: `sonarSecretProperties: sonarqube-sp-saml` (injeta via `concat-properties` init container)
+- Helm: `sonar.core.serverBaseURL: http://sonarqube.staging.internal` (ACS URL correta)
+- Keycloak: `saml.client.signature=true` + SP cert carregado no client `sonarqube`
+
+### Rationale
+
+- Vault→ESO pattern: consistente com keycloak-postgresql-credentials, harbor-oidc-credentials
+- `sonarSecretProperties` (não `sonarSecretKey`): campo correto para injetar sonar.properties extras
+- `serverBaseURL` pattern: mesmo aprendizado Grafana OIDC (DEC-061) — "browser URLs = external hostname"
+
+### Campos helm sonarqube 10.7.0 (crítico)
+
+| Campo | Propósito | K8s Secret key |
+|-------|-----------|----------------|
+| `sonarSecretKey` | Chave AES decrypt `.secured` no DB | `sonar-secret.txt` |
+| `sonarSecretProperties` | Injeta sonar.properties via init container | `secret.properties` |
+
+### Arquivos Modificados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `modules/sonarqube/values.yaml.tpl` | sonarSecretKey→sonarSecretProperties + sonar.core.serverBaseURL |
+| `modules/sonarqube/variables.tf` | +saml_sp_certificate, +saml_sp_secret_name |
+| `modules/sonarqube/main.tf` | +saml_sp_certificate, +saml_sp_secret_name no templatefile |
+| `environments/staging/main.tf` | +saml_sp_certificate, kubernetes_manifest ExternalSecret |
+| Vault KV | `secret/sonarqube/saml` criado |
+| eso-reader policy | +`secret/data/sonarqube/*` (read/list) |
+
+### Referências
+
+- [DEC-061 Vault OIDC](#dec-061)
+- [Logbook 2026-02-18 SonarQube SAML Fix](../logbook/2026-02-18-sonarqube-saml-fix.md)

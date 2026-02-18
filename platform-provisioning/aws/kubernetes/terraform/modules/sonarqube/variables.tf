@@ -141,3 +141,16 @@ variable "saml_group_attribute" {
   type        = string
   default     = "groups"
 }
+
+variable "saml_sp_certificate" {
+  description = "SAML Service Provider X.509 certificate (PEM base64, no headers) — SonarQube's own cert for signing AuthnRequests"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "saml_sp_secret_name" {
+  description = "K8s Secret name (created by ESO from Vault) containing secret.properties with SP cert + privateKey. Used by sonarSecretProperties."
+  type        = string
+  default     = "sonarqube-sp-saml"
+}
