@@ -285,7 +285,7 @@ module "gitlab_staging" {
 
   # TLS configuration (ADR-021 Phase 1: disabled)
   enable_tls  = false
-  domain_name = ""
+  domain_name = "staging.internal"
 
   # PostgreSQL (external - RDS via module)
   postgresql_host            = module.postgresql_staging.rds_address
@@ -386,6 +386,12 @@ module "vault_config_staging" {
   keycloak_postgresql_host     = "postgresql-external.default.svc.cluster.local"
   keycloak_postgresql_port     = "5432"
   keycloak_postgresql_database = "keycloak"
+
+  # Vault OIDC SSO via Keycloak (Vault UI + CLI login)
+  oidc_enabled             = true
+  keycloak_oidc_url        = "http://keycloak.staging.internal/auth/realms/platform"
+  vault_oidc_client_id     = "vault"
+  vault_oidc_client_secret = var.vault_oidc_client_secret
 
   common_tags = local.common_tags
 }
@@ -498,7 +504,7 @@ module "argocd_staging" {
   replicas             = 2 # HA for critical GitOps service
 
   # Keycloak OIDC integration
-  keycloak_url       = "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth"
+  keycloak_url       = "http://keycloak.staging.internal/auth"
   keycloak_client_id = "argocd"
 
   # Domain (internal only for staging)
@@ -546,6 +552,11 @@ module "sonarqube_staging" {
     MIICnzCCAYcCBgGcNLCnZTANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhwbGF0Zm9ybTAeFw0yNjAyMDYyMDQwMThaFw0zNjAyMDYyMDQxNThaMBMxETAPBgNVBAMMCHBsYXRmb3JtMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmRnrzQQYRhDLYpp0aSz6xPOnAUSDZLFolGT7FOl4ez4z17ssMm7W5Xw5K3Bb4fI4e2gAudpczCh67VI1G97tLQcaPSf5uzsRrq4Y3iAD9VzKp8fT1hJRQSrIxm/QJxHJN9a/+LFP0l2txSbPrJyIZimR+THtH9CGX+BuYZN0M9bUwxHpvcxb/kRO1niwqNbR+gSDHkdIv1UMcd7BDCJBZuiM9spWvBoWKbv3aqP7y9oIx3wMBg7tLQ4fbDR0PNqiQnvLedR40sN7DJrzv3bab+GPm3rSArMA8PBISHawOcZ6b94TfKl+rSLJoXjppD1hBdjuk6S5j0y9tnxgu5+XAQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBO18QIRIi8UQZC+98WgV98q5iZchM4n+MlU25Rpxdo+xUhtbBMKSVotyWEZo6FXT3pf1rY2A83CcsGb+EKNyynC0rMir9ggu0yR13zho8T+nYoewdACSwey3oH2fwbMI9aT1oc9Z/GQyLmCrBWIcG3qNwRoyqzBOSZzfx9/YX9b8D1CIzQhgjIjMgFAM5HmmT5j8wnmBJfUnAjMtihOXJSAGDgKO8LBRaFz6w62IKFo596aJottqgYnC/SKlv44qGicnBkClejlZnrlX+ENbvmKvGMCQojmECR4q7WtOZc9KjOPxS5GfUoIT5vhhbCrQouydrSBp6He1IRnFC/cypL
   EOT
 
+  # SAML SP certificate (SonarQube's own cert for signing AuthnRequests)
+  # SP private key stored in Vault KV secret/sonarqube/saml → ESO → sonarqube-sp-saml (secret.properties)
+  saml_sp_certificate = "MIIDXzCCAkegAwIBAgIUbbZIogu+BKzOTxoMG1jIbAqe0tUwDQYJKoZIhvcNAQELBQAwPzEVMBMGA1UEAwwMc29uYXJxdWJlLXNwMRkwFwYDVQQKDBBwbGF0Zm9ybS1zdGFnaW5nMQswCQYDVQQGEwJCUjAeFw0yNjAyMTgyMjA5NDBaFw0zNjAyMTYyMjA5NDBaMD8xFTATBgNVBAMMDHNvbmFycXViZS1zcDEZMBcGA1UECgwQcGxhdGZvcm0tc3RhZ2luZzELMAkGA1UEBhMCQlIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDF3AMuBGobOHWiiPwCdSD4KCX0En9thFa8hi1b0OCmz2C6vy1VeOWlQwWX5yJ1u1RvOl8f6ewbd86r2Jk+GlQbr7SYDQzi0Tj9LlC0FTU0Sine5BqpRz0/EScXK7wCENHF7Y7yWrraM6QitNeFn2IPu83Gxdq04qyfgghmFqAzr5r3+HLvciF5myH6UhfHdFazE1FE7U5kpGoabm66bPEGS3V7xgMsxnTNBwsRP0pCsQpmJ+42oGko+B0aVTX9lhX4zP/Z8RBGmWKLtX2Z5QBzBeFL34DIKYiqcs6o07PTES7AEpAKBaskjFjVJz0mVGMRmIrJ3kInIy0VIMbF88kxAgMBAAGjUzBRMB0GA1UdDgQWBBRH5KIS2G1P/eScorFc1qGA0BtKyDAfBgNVHSMEGDAWgBRH5KIS2G1P/eScorFc1qGA0BtKyDAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBk+M9AynJIEd23XLMO3jug0+XNWenwt9iFGc6FBEyzA9M0jckQSiB538QZE02oAwfrE1Vejb+041idvrL+nZeQd7iS8rCR00ji6LSNQRUj1S4axxioBfj6OniieGpjzS/61YYrtfaXS1FIPOP2WMqSRglEK4ZeJsYCoX8MwRIi976dKHjJMKDAFzDT+1FptmSAIBLBW+py1sGmiKx+JYaOeGl5cD0m+HGmYdupZLmZ7Z14OCp2Fnt1MMY9U3uPdmx/03698w3cQFSRXJVA6uySYmWyRrOkcAkz/PkKiTsas/JQBeUJ31CyQaeCFTBvQ4QwMjjuEq3wMnD8ugTnRpsH"
+  saml_sp_secret_name = "sonarqube-sp-saml" # Created by ESO ExternalSecret (see resource below)
+
   # Storage (gp3 — match existing PVC created on 2026-02-18)
   storage_class = "gp3"
 
@@ -554,6 +565,59 @@ module "sonarqube_staging" {
 
   # Tags
   common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# SONARQUBE SAML SP — ExternalSecret (Vault → K8s Secret)
+# Vault KV: secret/sonarqube/saml → sonarqube-sp-saml (key: secret.properties)
+# Used by sonarSecretProperties in helm chart (merged by concat-properties init)
+# eso-reader policy: secret/data/sonarqube/* (ADR-032)
+#------------------------------------------------------------------------------
+
+resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
+  manifest = {
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "sonarqube-sp-saml"
+      namespace = "sonarqube"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        kind = "ClusterSecretStore"
+        name = "vault-backend"
+      }
+      data = [
+        {
+          secretKey = "sp_private_key_pkcs8"
+          remoteRef = {
+            key      = "secret/data/sonarqube/saml"
+            property = "sp_private_key_pkcs8"
+          }
+        },
+        {
+          secretKey = "sp_certificate"
+          remoteRef = {
+            key      = "secret/data/sonarqube/saml"
+            property = "sp_certificate"
+          }
+        }
+      ]
+      target = {
+        name           = "sonarqube-sp-saml"
+        creationPolicy = "Owner"
+        template = {
+          engineVersion = "v2"
+          data = {
+            "secret.properties" = "sonar.auth.saml.sp.certificate.secured={{ .sp_certificate }}\nsonar.auth.saml.sp.privateKey.secured={{ .sp_private_key_pkcs8 }}\n"
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [module.sonarqube_staging]
 }
 
 #------------------------------------------------------------------------------
@@ -575,15 +639,13 @@ module "kube_prometheus_stack_staging" {
   grafana_ingress_host       = "grafana.staging.internal"
   grafana_ingress_group_name = "observability-staging"
 
-  # Grafana OIDC — Keycloak SSO
-  # BLOQUEADO: aguardar Keycloak recovery + criação do client "grafana" no realm platform
-  # Para ativar: (1) criar client no Keycloak, (2) seed secret/grafana/oidc no Vault,
-  #   (3) grafana_oidc_enabled = true + terraform apply (cria ExternalSecret),
-  #   (4) helm upgrade manual com --reuse-values + set auth.generic_oauth params
-  grafana_oidc_enabled           = false
-  grafana_keycloak_url           = "http://keycloak.keycloak.svc.cluster.local/auth"
+  # Grafana OIDC — Keycloak SSO (ativado 2026-02-18)
+  # Vault: secret/grafana/oidc {client_id, client_secret} ✅
+  # ExternalSecret grafana-oidc-credentials criado via terraform apply
+  grafana_oidc_enabled           = true
+  grafana_keycloak_url           = "http://keycloak.staging.internal/auth" # externo: browser precisa resolver
   grafana_keycloak_client_id     = "grafana"
-  grafana_keycloak_client_secret = "" # Populado via ExternalSecret grafana-oidc-credentials
+  grafana_keycloak_client_secret = "I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB"
 }
 
 #------------------------------------------------------------------------------

@@ -77,3 +77,32 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+# -----------------------------------------------------------------------------
+# OIDC Auth Method (Keycloak SSO for Vault UI + CLI)
+# -----------------------------------------------------------------------------
+
+variable "oidc_enabled" {
+  description = "Enable Vault OIDC auth method with Keycloak"
+  type        = bool
+  default     = false
+}
+
+variable "keycloak_oidc_url" {
+  description = "Keycloak OIDC discovery base URL (external, browser-resolvable)"
+  type        = string
+  default     = "http://keycloak.staging.internal/auth/realms/platform"
+}
+
+variable "vault_oidc_client_id" {
+  description = "Keycloak client ID for Vault OIDC"
+  type        = string
+  default     = "vault"
+}
+
+variable "vault_oidc_client_secret" {
+  description = "Keycloak client secret for Vault OIDC (from Keycloak vault client)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
