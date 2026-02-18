@@ -65,6 +65,35 @@ variable "grafana_ingress_group_name" {
 }
 
 # -----------------------------------------------------------------------------
+# Grafana OIDC / Keycloak SSO
+# -----------------------------------------------------------------------------
+
+variable "grafana_oidc_enabled" {
+  description = "Habilitar autenticação OIDC via Keycloak no Grafana"
+  type        = bool
+  default     = false
+}
+
+variable "grafana_keycloak_url" {
+  description = "URL base do Keycloak (ex: http://keycloak.staging.internal/auth)"
+  type        = string
+  default     = ""
+}
+
+variable "grafana_keycloak_client_id" {
+  description = "Client ID do Keycloak para o Grafana"
+  type        = string
+  default     = "grafana"
+}
+
+variable "grafana_keycloak_client_secret" {
+  description = "Client Secret do Keycloak para o Grafana (lido do Vault via ExternalSecret)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
 # Alertmanager
 # -----------------------------------------------------------------------------
 

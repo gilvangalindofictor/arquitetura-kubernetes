@@ -574,6 +574,16 @@ module "kube_prometheus_stack_staging" {
   grafana_ingress_enabled    = true
   grafana_ingress_host       = "grafana.staging.internal"
   grafana_ingress_group_name = "observability-staging"
+
+  # Grafana OIDC — Keycloak SSO
+  # BLOQUEADO: aguardar Keycloak recovery + criação do client "grafana" no realm platform
+  # Para ativar: (1) criar client no Keycloak, (2) seed secret/grafana/oidc no Vault,
+  #   (3) grafana_oidc_enabled = true + terraform apply (cria ExternalSecret),
+  #   (4) helm upgrade manual com --reuse-values + set auth.generic_oauth params
+  grafana_oidc_enabled           = false
+  grafana_keycloak_url           = "http://keycloak.keycloak.svc.cluster.local/auth"
+  grafana_keycloak_client_id     = "grafana"
+  grafana_keycloak_client_secret = "" # Populado via ExternalSecret grafana-oidc-credentials
 }
 
 #------------------------------------------------------------------------------
