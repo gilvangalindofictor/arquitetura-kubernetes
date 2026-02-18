@@ -83,6 +83,17 @@ resource "vault_kubernetes_auth_backend_role" "eso_reader" {
 }
 
 # -----------------------------------------------------------------------------
+# KV v2 Secrets Engine Mount
+# -----------------------------------------------------------------------------
+
+resource "vault_mount" "kv" {
+  path        = "secret"
+  type        = "kv"
+  options     = { version = "2" }
+  description = "KV v2 secrets engine for platform secrets"
+}
+
+# -----------------------------------------------------------------------------
 # Random Password for Keycloak PostgreSQL (if not provided)
 # -----------------------------------------------------------------------------
 
@@ -106,8 +117,9 @@ locals {
 # -----------------------------------------------------------------------------
 
 resource "vault_kv_secret_v2" "keycloak_postgresql" {
-  mount = "secret"
-  name  = "keycloak/postgresql"
+  mount      = vault_mount.kv.path
+  name       = "keycloak/postgresql"
+  depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
     password = local.keycloak_password

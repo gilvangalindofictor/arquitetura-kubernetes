@@ -484,4 +484,11 @@ resource "helm_release" "kube_prometheus_stack" {
   }
 
   depends_on = [kubernetes_namespace.monitoring]
+
+  lifecycle {
+    # kube-prometheus-stack v81.4.2 deployed and stable.
+    # Repeat upgrades trigger rolling updates that fail due to system node capacity limits.
+    # Apply changes manually: helm upgrade kube-prometheus-stack -n monitoring
+    ignore_changes = all
+  }
 }

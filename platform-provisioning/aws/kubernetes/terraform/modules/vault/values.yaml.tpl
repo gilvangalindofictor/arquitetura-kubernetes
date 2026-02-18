@@ -37,9 +37,10 @@ server:
     create: false
     name: ${service_account}
 
-  # HA mode with Raft storage
+  # HA mode with Raft storage (always true: Raft single-node or multi-node)
+  # NOTE: ha.enabled MUST be true even for replicas=1 — required for Raft storage + KMS auto-unseal
   ha:
-    enabled: ${replicas > 1 ? "true" : "false"}
+    enabled: true
     replicas: ${replicas}
 
     raft:
