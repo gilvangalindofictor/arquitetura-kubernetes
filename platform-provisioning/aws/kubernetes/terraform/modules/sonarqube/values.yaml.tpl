@@ -82,12 +82,13 @@ plugins:
   install: []
   # - https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/1.14.0/sonarqube-community-branch-plugin-1.14.0.jar
 
-%{ if saml_enabled ~}
-# SAML 2.0 Authentication (Keycloak)
-# https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview
+%{ if saml_enabled || gitlab_oauth_enabled ~}
 sonarProperties:
   # Server base URL (MUST be external hostname — browser redirect pattern, ADR-grafana-sso)
   sonar.core.serverBaseURL: "http://sonarqube.staging.internal"
+%{ if saml_enabled ~}
+  # SAML 2.0 Authentication (Keycloak)
+  # https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview
   sonar.auth.saml.enabled: "true"
   sonar.auth.saml.applicationId: "${saml_application_id}"
   sonar.auth.saml.providerId: "${saml_provider_id}"
@@ -97,20 +98,30 @@ sonarProperties:
   sonar.auth.saml.user.email: "${saml_user_email_attribute}"
   sonar.auth.saml.user.name: "${saml_user_name_attribute}"
   sonar.auth.saml.group.name: "${saml_group_attribute}"
-  # Group synchronization
   sonar.auth.saml.groupsSync: "true"
   # SP certificate (public) — private key via sonarSecretProperties (K8s Secret)
   sonar.auth.saml.sp.certificate.secured: "${saml_sp_certificate}"
   # Signature: SP signs AuthnRequests + validates IdP assertions
   sonar.auth.saml.signature.enabled: "true"
+%{ endif ~}
+%{ if gitlab_oauth_enabled ~}
+  # GitLab OAuth2 Authentication
+  # https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/gitlab/
+  # applicationId + secret injected via sonarSecretProperties (K8s Secret — ESO from Vault secret/sonarqube/gitlab)
+  sonar.auth.gitlab.enabled: "true"
+  sonar.auth.gitlab.url: "${gitlab_url}"
+  sonar.auth.gitlab.allowUsersToSignUp: "${gitlab_allow_signup}"
+  sonar.auth.gitlab.groupsSyncEnabled: "${gitlab_groups_sync}"
+%{ endif ~}
 
-# K8s Secret with additional sonar.properties (sonar.auth.saml.sp.privateKey.secured)
-# Secret created by ESO from Vault KV: secret/sonarqube/saml
-# Secret must have key: secret.properties (merged by concat-properties init container)
+# K8s Secret with additional sonar.properties injected by concat-properties init container
+# Keys merged: SAML SP cert+key (secret/sonarqube/saml) + GitLab applicationId+secret (secret/sonarqube/gitlab)
+# ESO ExternalSecret: sonarqube-sp-saml (ns: sonarqube)
 sonarSecretProperties: "${saml_sp_secret_name}"
 %{ else ~}
 # Authentication: using default local users
-# To enable SAML SSO, set saml_enabled = true in Terraform
+# To enable SAML SSO: set saml_enabled = true
+# To enable GitLab OAuth: set gitlab_oauth_enabled = true
 %{ endif ~}
 
 # Quality Gates

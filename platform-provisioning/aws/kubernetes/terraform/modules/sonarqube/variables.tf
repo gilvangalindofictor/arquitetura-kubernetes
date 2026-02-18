@@ -154,3 +154,28 @@ variable "saml_sp_secret_name" {
   type        = string
   default     = "sonarqube-sp-saml"
 }
+
+# GitLab OAuth2 Authentication Variables
+variable "gitlab_oauth_enabled" {
+  description = "Enable GitLab OAuth2 authentication"
+  type        = bool
+  default     = false
+}
+
+variable "gitlab_url" {
+  description = "GitLab instance URL (self-hosted, e.g. http://gitlab.staging.internal)"
+  type        = string
+  default     = ""
+}
+
+variable "gitlab_allow_signup" {
+  description = "Allow new users to sign up via GitLab OAuth"
+  type        = bool
+  default     = false
+}
+
+variable "gitlab_groups_sync" {
+  description = "Sync GitLab groups to SonarQube"
+  type        = bool
+  default     = true
+}
