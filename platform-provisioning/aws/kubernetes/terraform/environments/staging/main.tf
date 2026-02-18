@@ -498,7 +498,7 @@ module "argocd_staging" {
   replicas             = 2 # HA for critical GitOps service
 
   # Keycloak OIDC integration
-  keycloak_url       = "http://keycloak-http.keycloak.svc.cluster.local/auth"
+  keycloak_url       = "http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth"
   keycloak_client_id = "argocd"
 
   # Domain (internal only for staging)
@@ -1017,7 +1017,7 @@ resource "kubernetes_config_map_v1" "coredns_split_horizon" {
     "staging.internal.server" = <<-COREFILE
       staging.internal:53 {
           errors
-          rewrite name keycloak.staging.internal keycloak-http.keycloak.svc.cluster.local
+          rewrite name keycloak.staging.internal keycloak-keycloakx-http.keycloak.svc.cluster.local
           rewrite name gitlab.staging.internal gitlab-webservice-default.gitlab-staging.svc.cluster.local
           rewrite name argocd.staging.internal argocd-server.argocd.svc.cluster.local
           rewrite name grafana.staging.internal kube-prometheus-stack-grafana.monitoring.svc.cluster.local
