@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-13
-**Versão:** 2.8 (Harbor OIDC/SSO Keycloak Integration)
+**Versão:** 2.9 (Harbor OIDC Multi-Replica Race Condition)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -24,7 +24,7 @@
 | R-012     | Cluster Autoscaler scale-down agressivo                         | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | 5min threshold + PDB configurados            |
 | R-013     | Data loss durante shutdown (ADR-022)                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | PVCs persistem, S3 always-on                 |
 | R-014     | Startup failure após shutdown                                   | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | Health checks automáticos, rollback          |
-| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Planejar                   | Snapshot strategy ou 24/7                    |
+| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟢 BAIXO       | ✅ Mitigado (2026-02-18)      | --snapshot + validate-shutdown.sh (7d warn)  |
 | R-016     | Cold start excede tolerância (>10min)                           | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | Target 5-8min, monitorado                    |
 | R-017     | State drift Terraform vs Cluster Autoscaler                     | MÉDIO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | ignore_changes em desired_size               |
 | **R-018** | **Licenciamento Bitnami → Tanzu Standard**                      | **ALTO**      | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)**     | **Migração para Operators**                  |
@@ -44,6 +44,7 @@
 | **R-039** | **CoreDNS Split-Horizon Drift**                                 | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **ConfigMap manual, nao codificado em TF**   |
 | **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)**            | **ALTO**      | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **GitLab 2/3 webservice Pending, Vault 1/3** |
 | **R-041** | **Harbor Admin Password TF Bug (secret name as value)**         | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 + DB schema reset**        |
+| **R-042** | **Harbor OIDC Multi-Replica Race Condition**                    | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Single replica + oidc_user_claim fix**     |
 
 ---
 
@@ -2551,4 +2552,53 @@ Ausência de VPC Endpoint para `elasticloadbalancing` API → tráfego via NAT G
 
 **Data Resolução:** 2026-02-10 (diagnóstico + fix em ~100min)
 **Status Final:** ✅ RESOLVIDO (produção, monitorado)
+
+---
+
+## 🟢 R-042: Harbor OIDC Multi-Replica Race Condition ✅ RESOLVIDO
+
+**Probabilidade:** MÉDIO
+**Impacto:** ALTO
+**Severidade:** 🟢 BAIXO (resolvido)
+
+**Descrição:**
+Harbor OIDC login falhava com dois erros distintos: `invalid_grant "Code not valid"` e `500 Internal Server Error`.
+
+**Cenário de Falha:**
+
+1. Harbor core com 2 replicas, sem session affinity no ALB
+2. Pod A inicia fluxo OIDC, armazena state/nonce na sessao local
+3. Keycloak redireciona callback para Pod B (via ALB round-robin)
+4. Pod B faz token exchange (sucesso), mas nao tem sessao do Pod A
+5. Processamento pos-token falha, browser retenta, code ja consumido → `"Code not valid"`
+6. Mesmo com 1 replica, `oidc_user_claim` vazio causava 500 no auto-onboard
+
+**Root Cause (duplo):**
+
+| Erro                             | Causa                                                                                 | Fix                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `invalid_grant "Code not valid"` | 2 replicas core sem session affinity                                                  | Scale to 1 replica                                 |
+| `500 Internal Server Error`      | `oidc_user_claim` vazio (Harbor espera `name`, Keycloak retorna `preferred_username`) | `oidc_user_claim: preferred_username` via API + TF |
+
+**Solução Implementada:**
+
+1. ✅ `kubectl scale deployment harbor-core --replicas=1`
+2. ✅ `PUT /api/v2.0/configurations {"oidc_user_claim": "preferred_username"}`
+3. ✅ Terraform atualizado: `modules/harbor/main.tf:358`
+4. ✅ Smoke test: `test_harbor_oidc` adicionado ao `sso-smoke-test.sh`
+
+**Lições Aprendidas:**
+
+1. Harbor OIDC armazena sessao local no pod core — multiplas replicas requerem sticky sessions
+2. `oidc_user_claim` e obrigatorio para auto-onboard com Keycloak (`preferred_username`, nao `name`)
+3. `CODE_TO_TOKEN_ERROR` duplicado no Keycloak (14ms apart) indica race condition de replicas
+4. Token exchange sucesso + 500 = problema pos-exchange (investigar claims, nao o token endpoint)
+
+**Referências:**
+
+- [Logbook Harbor OIDC](../logbook/2026-02-13-harbor-oidc-keycloak-integration.md)
+- [DEC-060](./decisions.md#dec-060)
+
+**Data Resolução:** 2026-02-13 (diagnóstico + fix em ~90min)
+**Status Final:** ✅ RESOLVIDO (staging, login funcional)
 

@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-13
-**Versão:** 3.0 (SSO Smoke Test Validated + Redis Operator Migration)
-**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Redis AUTH (OT-Container-Kit) | 🟡 Vault 1/3 (Capacity)
+**Versão:** 3.1 (Harbor OIDC Login Validated + SSO Smoke Test)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | 🟡 Vault 1/3 (Capacity)
 
 ---
 
@@ -1033,7 +1033,7 @@ Internet
   - Auto-sync 1h, credentials rotacionáveis via Vault KV v2
 
 - **Admin Password:** Terraform random_password (24 chars, managed)
-- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana
+- **OIDC Providers:** ArgoCD, SonarQube, GitLab, Grafana, Harbor
 - **Startup Resilience (2026-02-13):**
   - initContainer `wait-for-db` (busybox nc -z) — resolve race condition FinOps/RDS
   - `--health-enabled=true` — habilita smallrye-health para probes

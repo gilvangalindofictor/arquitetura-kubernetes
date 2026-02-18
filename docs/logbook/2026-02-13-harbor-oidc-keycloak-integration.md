@@ -6,8 +6,8 @@
 | **Demanda** | Integrar Harbor com Keycloak SSO via OIDC               |
 | **Impacto** | Medio - Autenticacao centralizada no container registry |
 | **Agentes** | Claude (executor-terraform)                             |
-| **Status**  | Concluido (OIDC ativo, TF code pendente apply)          |
-| **Duracao** | ~90 minutos                                             |
+| **Status**  | Concluido (OIDC login funcional, TF code persistido)    |
+| **Duracao** | ~180 minutos (config 90min + troubleshooting 90min)     |
 
 ---
 
@@ -50,6 +50,20 @@ Harbor v2.10.0 foi redeployado com autenticacao local (`db_auth`). O objetivo er
 [21:32] TF Code       | main.tf: ExternalSecret + null_resource + admin password fix
 [21:34] TF Code       | eso-reader.hcl: paths harbor adicionados
 [21:35] TF Code       | staging main.tf: enable_oidc=true + oidc_endpoint
+--- Troubleshooting OIDC Login (Fase 2) ---
+[21:59] TESTE LOGIN   | Browser: LOGIN VIA OIDC → Keycloak redirect OK
+[21:59] ERRO          | invalid_grant "Code not valid" → investigacao
+[21:59] DIAGNOSTICO   | 2 Harbor core replicas sem session affinity
+[21:59] EVIDENCIA     | Keycloak log: CODE_TO_TOKEN_ERROR 2x (14ms apart, mesmo code_id)
+[22:00] FIX           | kubectl scale deployment harbor-core --replicas=1
+[22:11] TESTE LOGIN   | Retry com 1 replica → 500 Internal Server Error
+[22:14] DIAGNOSTICO   | Logs Harbor: "unable to recover username for auto onboard, username claim: "
+[22:14] ROOT CAUSE    | oidc_user_claim vazio → Harbor nao sabe qual claim usar como username
+[22:14] EVIDENCIA     | Token Keycloak tem "preferred_username", nao "name" (default Harbor)
+[22:15] FIX           | PUT /api/v2.0/configurations {"oidc_user_claim": "preferred_username"}
+[22:15] FIX TF        | main.tf: oidc_user_claim adicionado ao null_resource
+[22:16] SUCESSO       | OIDC login funcional → usuario testuser onboarded
+[22:17] SMOKE TEST    | test_harbor_oidc adicionado ao main() do sso-smoke-test.sh
 ```
 
 ## Bug Encontrado: Admin Password
@@ -105,6 +119,7 @@ http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/platform/.
   "oidc_scope": "openid,profile,email",
   "oidc_verify_cert": false,
   "oidc_auto_onboard": true,
+  "oidc_user_claim": "preferred_username",
   "oidc_groups_claim": "groups",
   "oidc_admin_group": "harbor-admins"
 }
@@ -112,15 +127,70 @@ http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/platform/.
 
 ## Validacao
 
-| Check                                | Resultado                                                                    |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| Harbor systeminfo auth_mode          | oidc_auth                                                                    |
-| Harbor systeminfo oidc_provider_name | Keycloak                                                                     |
-| GET /c/oidc/login                    | HTTP 302                                                                     |
+| Check                                | Resultado                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| Harbor systeminfo auth_mode          | oidc_auth                                                                   |
+| Harbor systeminfo oidc_provider_name | Keycloak                                                                    |
+| GET /c/oidc/login                    | HTTP 302                                                                    |
 | Redirect URL                         | keycloak.staging.internal/auth/realms/platform/protocol/openid-connect/auth |
-| client_id no redirect                | harbor                                                                       |
-| redirect_uri no redirect             | http://harbor.staging.internal/c/oidc/callback                               |
-| scope no redirect                    | openid+profile+email                                                         |
+| client_id no redirect                | harbor                                                                      |
+| redirect_uri no redirect             | http://harbor.staging.internal/c/oidc/callback                              |
+| scope no redirect                    | openid+profile+email                                                        |
+| OIDC login end-to-end                | OK (testuser onboarded via preferred_username)                              |
+
+## Troubleshooting OIDC Login
+
+### Erro 1: invalid_grant "Code not valid"
+
+**Sintoma:** Apos redirect do Keycloak, Harbor retorna `{"errors":[{"code":"BAD_REQUEST","message":"oauth2: \"invalid_grant\" \"Code not valid\""}]}`
+
+**Investigacao:**
+
+- Keycloak log: `CODE_TO_TOKEN_ERROR, error="invalid_code"` duplicado (2 requests em 14ms)
+- Evidencia: `Code 'xxx' already used for userSession 'N0jDuE0fxRoxVgbi8kx94tzK'`
+- Harbor tinha **2 replicas core** (bbr47 + kqgr5) sem session affinity no ALB
+
+**Causa:** Com 2 replicas, Pod A inicia o fluxo OIDC (armazena state na sessao local). O callback do Keycloak e roteado pelo ALB para Pod B, que nao tem a sessao. O token exchange pode ocorrer 2 vezes (race condition), consumindo o authorization code na primeira tentativa e falhando na segunda.
+
+**Fix:** `kubectl scale deployment harbor-core --replicas=1`
+
+**Fix permanente (para multiplas replicas):**
+
+```yaml
+alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=3600
+```
+
+### Erro 2: 500 Internal Server Error (apos fix replicas)
+
+**Sintoma:** Login OIDC retorna `{"errors":[{"code":"UNKNOWN","message":"internal server error"}]}` mesmo com 1 replica.
+
+**Investigacao:**
+
+- Token exchange com Keycloak: SUCESSO (claims recebidos no log)
+- Claims no token: `at_hash, aud, azp, email, email_verified, preferred_username, sub` (sem `name`)
+- Erro Harbor: `"unable to recover username for auto onboard, username claim: ""`
+- Campo `oidc_user_claim` no Harbor: VAZIO
+
+**Root Cause:** Harbor com `oidc_auto_onboard: true` precisa saber qual claim usar como username. O default do Harbor espera o claim `name`, mas o token do Keycloak retorna `preferred_username` (padrao Keycloak). Com `oidc_user_claim` vazio, Harbor nao consegue extrair o username e retorna 500.
+
+**Fix:**
+
+```bash
+curl -X PUT http://localhost:8080/api/v2.0/configurations \
+  -u "admin:harbor-admin-password" \
+  -H "Content-Type: application/json" \
+  -d '{"oidc_user_claim": "preferred_username"}'
+```
+
+**Fix TF:** `oidc_user_claim` adicionado ao `null_resource.harbor_oidc_config` em `modules/harbor/main.tf:358`
+
+### Erro 3: Unable to get groups from claims (WARNING)
+
+**Sintoma:** `Unable to get groups from claims, groups claims key: groups`
+
+**Causa:** Client `harbor` no Keycloak nao tem protocol mapper para incluir claim `groups` no token. Apenas warning, nao bloqueia login. Necessario para mapeamento de admin group (`harbor-admins`).
+
+**Fix pendente:** Adicionar protocol mapper no Keycloak client `harbor` (type: Group Membership, claim name: `groups`, full group path: OFF)
 
 ## Arquivos Modificados (Terraform)
 
@@ -136,18 +206,24 @@ http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/platform/.
 
 1. **Terraform apply** - Adiado pois Vault root token invalido (ExternalSecret nao vai syncar sem Vault operacional)
 2. **Vault secret seed** - Quando Vault for reinicializado: `vault kv put secret/harbor/oidc client_id=harbor client_secret=TiIzU5eVpu2JCKYrmdykWjsIS1RfLxCu`
-3. **Validacao browser** - Login end-to-end via browser (requer DNS harbor.staging.internal resolvendo)
+3. ~~**Validacao browser** - Login end-to-end via browser~~ **CONCLUIDO** (testuser login OK)
+4. **Keycloak groups mapper** - Adicionar protocol mapper no client `harbor` para claim `groups`
+5. **Harbor core replicas** - Habilitar sticky sessions no ALB antes de escalar para 2+ replicas
 
 ## Licoes Aprendidas
 
-| #   | Licao                                                                                    | Impacto  |
-| --- | ---------------------------------------------------------------------------------------- | -------- |
-| 1   | Harbor OIDC nao suporta config via Helm values - requer API post-deploy                  | Design   |
-| 2   | Keycloak com chart keycloakx usa servico `keycloak-keycloakx-http` (nao `keycloak-http`) | Config   |
-| 3   | Keycloak mantem context path `/auth` (legado) - validar via OIDC discovery               | Config   |
-| 4   | TF template `metadata[0].name` retorna nome do recurso, nao o valor do campo data        | Bug      |
-| 5   | DROP SCHEMA + restart e alternativa viavel para reset de senha Harbor                    | Recovery |
-| 6   | OIDC endpoint deve usar URL externa (browser), nao cluster-internal (redirect vai pro usuario) | Config |
+| #   | Licao                                                                                          | Impacto  |
+| --- | ---------------------------------------------------------------------------------------------- | -------- |
+| 1   | Harbor OIDC nao suporta config via Helm values - requer API post-deploy                        | Design   |
+| 2   | Keycloak com chart keycloakx usa servico `keycloak-keycloakx-http` (nao `keycloak-http`)       | Config   |
+| 3   | Keycloak mantem context path `/auth` (legado) - validar via OIDC discovery                     | Config   |
+| 4   | TF template `metadata[0].name` retorna nome do recurso, nao o valor do campo data              | Bug      |
+| 5   | DROP SCHEMA + restart e alternativa viavel para reset de senha Harbor                          | Recovery |
+| 6   | OIDC endpoint deve usar URL externa (browser), nao cluster-internal (redirect vai pro usuario) | Config   |
+| 7   | Harbor OIDC com multiplas replicas requer session affinity (ALB sticky sessions)                | Design   |
+| 8   | `oidc_user_claim` deve ser `preferred_username` para Keycloak (default Harbor espera `name`)    | Config   |
+| 9   | Keycloak `CODE_TO_TOKEN_ERROR` duplicado indica race condition de replicas no callback          | Debug    |
+| 10  | Token exchange sucesso + 500 = problema pos-exchange (verificar claims, user onboard)           | Debug    |
 
 ## Referencias
 

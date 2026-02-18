@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-02-13
-**Versão:** 3.8 (Redis Operator Migration + Vault Recovery + SSO Validation)
+**Versão:** 3.9 (Harbor OIDC Login Fix + Smoke Test Integration)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -54,6 +54,7 @@
 | **DEC-057** | **Redis Operator Migration: SpotaHome → OT-Container-Kit** | **2026-02-13** | **✅ Implementado** | **Crítico** |
 | **DEC-058** | **Vault Reinitialization (EBS Volume Loss Recovery)** | **2026-02-13** | **✅ Implementado** | **Crítico** |
 | **DEC-059** | **SSO Smoke Test Validation Suite** | **2026-02-13** | **✅ 39/39 Passed** | **Alto** |
+| **DEC-060** | **Harbor OIDC Login Fix (user_claim + single replica)** | **2026-02-13** | **✅ Implementado** | **Alto** |
 ---
 
 ## 📝 ADR-001: Setup e Governança
@@ -6510,7 +6511,60 @@ kubectl logs -n monitoring -l app.kubernetes.io/component=compactor --tail=20
 
 ---
 
-**Última Atualização:** 2026-02-10
-**Total ADRs:** 56 (54 ativo, 2 superseded)
+**Última Atualização:** 2026-02-13
+**Total ADRs:** 57 (55 ativo, 2 superseded)
 **Mantenedor:** DevOps Team + SRE Specialist
+
+---
+
+## 📝 DEC-060: Harbor OIDC Login Fix (user_claim + single replica)
+
+**Data:** 2026-02-13
+**Status:** ✅ Implementado
+**Contexto:** Harbor OIDC login via Keycloak falhava com dois erros distintos apos configuracao inicial
+
+### Problema
+
+Login OIDC do Harbor retornava erros em cascata:
+
+1. `invalid_grant "Code not valid"` — authorization code consumido 2x por race condition entre replicas
+2. `500 Internal Server Error` — `oidc_user_claim` vazio, Harbor nao conseguia extrair username do token
+
+### Decisao
+
+1. **Harbor core single replica** para OIDC — elimina race condition no callback (sessao OIDC e local ao pod)
+2. **`oidc_user_claim` = `preferred_username`** — Keycloak retorna `preferred_username` no token, nao `name` (default Harbor)
+3. **Smoke test integrado** — `test_harbor_oidc` adicionado ao `sso-smoke-test.sh`
+
+### Rationale
+
+- Harbor armazena OIDC state (nonce, PKCE) na sessao local do pod core
+- Com 2+ replicas e ALB sem sticky sessions, o callback pode ser roteado para pod diferente do que iniciou o fluxo
+- O token exchange funciona (back-channel), mas o processamento pos-token falha por falta de sessao
+- Keycloak emite tokens com `preferred_username` (padrao OIDC), Harbor espera `name` por default
+- `oidc_user_claim` nao era configurado pelo Terraform original, ficava vazio
+
+### Alternativa Rejeitada
+
+- ALB sticky sessions (`stickiness.enabled=true`) — mais complexo, requer mudanca no Ingress + teste de failover. Reservado para producao se necessario escalar Harbor core.
+
+### Consequencias
+
+- ✅ Login OIDC funcional (testuser onboarded)
+- ✅ Terraform atualizado com `oidc_user_claim` persistido
+- ✅ Smoke test cobre Harbor OIDC
+- ⚠️ Harbor core limitado a 1 replica (aceitavel para staging)
+- ⚠️ Groups claim pendente (protocol mapper no Keycloak)
+
+### Arquivos Modificados
+
+| Arquivo | Alteracao |
+| --- | --- |
+| `modules/harbor/main.tf:358` | `oidc_user_claim: preferred_username` adicionado |
+| `scripts/sso-smoke-test.sh` | `test_harbor_oidc` adicionado ao `main()` |
+
+### Referências
+
+- [Logbook Harbor OIDC](../logbook/2026-02-13-harbor-oidc-keycloak-integration.md)
+- [DEC-059 SSO Smoke Tests](#dec-059)
 

@@ -213,7 +213,7 @@ wait_for_rds() {
 verify_platform_pods() {
     log "🔍 Verificando pods da plataforma..."
 
-    local critical_namespaces=("observability" "kube-system")
+    local critical_namespaces=("monitoring" "kube-system")
 
     for ns in "${critical_namespaces[@]}"; do
         log "  → Namespace: $ns"
@@ -229,7 +229,7 @@ print_summary() {
     log ""
     log "Cluster: $CLUSTER_NAME"
     log "Region: $AWS_REGION"
-    log "Nodes: $(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo 0)/7"
+    log "Nodes: $(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo 0)/7"
 
     if [ -n "${RDS_INSTANCES[$ENVIRONMENT]}" ]; then
         local rds_status=$(aws rds describe-db-instances \
@@ -248,9 +248,18 @@ print_summary() {
 send_notification() {
     local status="$1"
     local message="$2"
+    local topic_arn="arn:aws:sns:us-east-1:891377105802:k8s-platform-prod-finops-alerts-staging"
 
-    # TODO: Integrar com SNS/Slack
     log "📢 Notification: $status - $message"
+
+    aws sns publish \
+        --topic-arn "$topic_arn" \
+        --subject "[$status] EKS Startup - $ENVIRONMENT" \
+        --message "$(printf 'Environment: %s\nCluster: %s\nStatus: %s\nMessage: %s\nTimestamp: %s' \
+            "$ENVIRONMENT" "$CLUSTER_NAME" "$status" "$message" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')")" \
+        --region "$AWS_REGION" \
+        --output text >> "$LOG_FILE" 2>&1 \
+        || log_warning "SNS publish falhou (non-fatal)"
 }
 
 # -----------------------------------------------------------------------------
