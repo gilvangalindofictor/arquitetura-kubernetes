@@ -83,18 +83,19 @@ validate_environment() {
 drain_critical_pods() {
     log "🔄 Drain de pods críticos (opcional, segurança)..."
 
-    # Lista de deployments que devemos escalar gracefully antes do shutdown
+    # Lista de recursos críticos para escalar gracefully antes do shutdown
+    # Formato: "namespace:tipo:nome"
     local critical_deployments=(
-        "observability:prometheus-kube-prometheus-prometheus"
-        "observability:grafana"
-        "observability:loki-write"
+        "monitoring:statefulset:prometheus-kube-prometheus-prometheus"
+        "monitoring:deployment:kube-prometheus-stack-grafana"
+        "monitoring:statefulset:loki-write"
     )
 
     for deploy in "${critical_deployments[@]}"; do
-        IFS=':' read -r ns name <<< "$deploy"
+        IFS=':' read -r ns kind name <<< "$deploy"
 
-        log "  → Scaling down $ns/$name"
-        kubectl scale deployment "$name" -n "$ns" --replicas=0 2>&1 | tee -a "$LOG_FILE" || true
+        log "  → Scaling down $ns/$kind/$name"
+        kubectl scale "$kind" "$name" -n "$ns" --replicas=0 2>&1 | tee -a "$LOG_FILE" || true
     done
 
     # Aguardar pods terminarem gracefully
@@ -156,6 +157,38 @@ stop_rds_instance() {
             log_success "RDS já está stopped: $rds_name"
             return 0
             ;;
+        "backing-up")
+            log "  → RDS está em backup, aguardando transição para available..."
+            local wait_retries=30
+            local wait_count=0
+            while [ $wait_count -lt $wait_retries ]; do
+                sleep 10
+                ((wait_count++))
+                status=$(aws rds describe-db-instances \
+                    --db-instance-identifier "$rds_name" \
+                    --region "$AWS_REGION" \
+                    --query 'DBInstances[0].DBInstanceStatus' \
+                    --output text 2>/dev/null || echo "unknown")
+                log "  → RDS status: $status (aguardando... $wait_count/$wait_retries)"
+                if [ "$status" == "available" ]; then
+                    break
+                fi
+            done
+            if [ "$status" != "available" ]; then
+                log_warning "RDS não transitou para available em 5min. Stop manual necessário."
+                return 0
+            fi
+            log "  → RDS está available, parando..."
+            if aws rds stop-db-instance \
+                --db-instance-identifier "$rds_name" \
+                --region "$AWS_REGION" \
+                --output text >> "$LOG_FILE" 2>&1; then
+                log_success "RDS $rds_name stop initiated"
+            else
+                log_error "Falha ao parar RDS $rds_name"
+                return 1
+            fi
+            ;;
         "available")
             log "  → RDS está available, parando..."
             aws rds stop-db-instance \
@@ -214,7 +247,7 @@ wait_for_nodes_termination() {
     local retry_count=0
 
     while [ $retry_count -lt $max_retries ]; do
-        node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo 0)
+        node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo 0)
 
         if [ "$node_count" -eq 0 ]; then
             log_success "Todos os nodes foram terminados"
@@ -234,7 +267,7 @@ verify_shutdown() {
     log "🔍 Verificando shutdown completo..."
 
     # Check nodes
-    local node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo -1)
+    local node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo -1)
 
     if [ "$node_count" -eq 0 ]; then
         log_success "Nodes: 0 (shutdown completo)"
@@ -289,7 +322,7 @@ print_summary() {
     log ""
     log "Cluster: $CLUSTER_NAME"
     log "Region: $AWS_REGION"
-    log "Nodes: $(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo "N/A")"
+    log "Nodes: $(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' \n' || echo "N/A")"
 
     if [ -n "${RDS_INSTANCES[$ENVIRONMENT]}" ]; then
         local rds_status=$(aws rds describe-db-instances \
@@ -312,9 +345,18 @@ print_summary() {
 send_notification() {
     local status="$1"
     local message="$2"
+    local topic_arn="arn:aws:sns:us-east-1:891377105802:k8s-platform-prod-finops-alerts-staging"
 
-    # TODO: Integrar com SNS/Slack
     log "📢 Notification: $status - $message"
+
+    aws sns publish \
+        --topic-arn "$topic_arn" \
+        --subject "[$status] EKS Shutdown - $ENVIRONMENT" \
+        --message "$(printf 'Environment: %s\nCluster: %s\nStatus: %s\nMessage: %s\nTimestamp: %s' \
+            "$ENVIRONMENT" "$CLUSTER_NAME" "$status" "$message" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')")" \
+        --region "$AWS_REGION" \
+        --output text >> "$LOG_FILE" 2>&1 \
+        || log_warning "SNS publish falhou (non-fatal)"
 }
 
 show_restart_instructions() {
