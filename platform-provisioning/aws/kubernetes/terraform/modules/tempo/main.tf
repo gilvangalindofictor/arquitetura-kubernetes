@@ -490,6 +490,26 @@ resource "helm_release" "tempo" {
     value = "NoSchedule"
   }
 
+  # nodeSelector: ingester deve rodar em critical nodes (fix R-044 S3 TLS timeout)
+  # Root cause: EC2 stop/start degrada VPC Gateway Endpoint routing no hypervisor/ENI
+  # Critical nodes são sempre terminados+re-provisionados pelo Lambda → sempre fresh
+  set {
+    name  = "ingester.nodeSelector.node-type"
+    value = "critical"
+  }
+
+  # GODEBUG workaround: desabilita HTTP/2 no cliente Go para evitar TLS handshake timeout
+  # no S3 VPC Gateway Endpoint (R-044 belt-and-suspenders)
+  set {
+    name  = "ingester.extraEnv[0].name"
+    value = "GODEBUG"
+  }
+
+  set {
+    name  = "ingester.extraEnv[0].value"
+    value = "http2client=0"
+  }
+
   # Liveness/Readiness Probes (stateful component needs more time)
   set {
     name  = "ingester.livenessProbe.initialDelaySeconds"
