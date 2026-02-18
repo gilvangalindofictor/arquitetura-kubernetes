@@ -74,6 +74,12 @@ variable "enable_monitoring" {
   default     = true
 }
 
+variable "enable_prometheus_exporter" {
+  description = "Enable JMX Prometheus exporter init container (downloads JAR from Maven Central). Disable if egress/TLS issues."
+  type        = bool
+  default     = false # Disabled: sonarqube:10.3.0-community curl SSL timeout (exit code 28)
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

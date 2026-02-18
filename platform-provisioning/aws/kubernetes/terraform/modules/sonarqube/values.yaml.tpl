@@ -64,13 +64,16 @@ ingress:
     - name: ${domain}
       path: /
 
-# Monitoring
+# Prometheus JMX Exporter
+# DISABLED by default: sonarqube:10.3.0-community curl has SSL timeout (exit code 28)
+# TODO: Re-enable with custom downloadURL or pre-cached image
 prometheusExporter:
-  enabled: ${enable_monitoring}
+  enabled: ${enable_prometheus_exporter}
   config:
     rules:
       - pattern: ".*"
 
+# ServiceMonitor (scrapes SonarQube built-in metrics — independent of JMX exporter)
 serviceMonitor:
   enabled: ${enable_monitoring}
 

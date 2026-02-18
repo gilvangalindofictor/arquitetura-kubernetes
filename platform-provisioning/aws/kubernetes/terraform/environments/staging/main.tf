@@ -311,7 +311,7 @@ module "gitlab_staging" {
 # ADR-031, ADR-032, ADR-033
 #------------------------------------------------------------------------------
 
-# Vault HA Cluster - STAGING (3 replicas, KMS auto-unseal)
+# Vault - STAGING (1 replica, KMS auto-unseal, Raft single-node)
 module "vault_staging" {
   source = "../../modules/vault"
 
@@ -321,7 +321,7 @@ module "vault_staging" {
   namespace           = "vault-system"
   oidc_provider_arn   = data.aws_iam_openid_connect_provider.eks.arn
   vault_chart_version = "0.27.0"
-  replicas            = 3     # HA production-ready (ADR-041)
+  replicas            = 1     # Single replica for staging (FinOps cost-optimized)
   storage_class       = "gp3" # Using gp3 (20% cheaper, 3000 IOPS default)
   pvc_size            = "10Gi"
   enable_monitoring   = true
@@ -1003,7 +1003,7 @@ resource "kubernetes_config_map_v1" "coredns_split_horizon" {
           rewrite name gitlab.staging.internal gitlab-webservice-default.gitlab-staging.svc.cluster.local
           rewrite name argocd.staging.internal argocd-server.argocd.svc.cluster.local
           rewrite name grafana.staging.internal kube-prometheus-stack-grafana.monitoring.svc.cluster.local
-          rewrite name harbor.staging.internal harbor-core.harbor.svc.cluster.local
+          rewrite name harbor.staging.internal harbor-core.harbor-system.svc.cluster.local
           rewrite name sonarqube.staging.internal sonarqube.sonarqube.svc.cluster.local
           rewrite name vault.staging.internal vault.vault-system.svc.cluster.local
           rewrite name rabbitmq.staging.internal rabbitmq.data-services.svc.cluster.local
@@ -1134,7 +1134,7 @@ resource "kubectl_manifest" "vpa_harbor_core" {
     kind: VerticalPodAutoscaler
     metadata:
       name: harbor-core
-      namespace: harbor
+      namespace: harbor-system
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation

@@ -213,12 +213,56 @@ wait_for_rds() {
 verify_platform_pods() {
     log "🔍 Verificando pods da plataforma..."
 
-    local critical_namespaces=("monitoring" "kube-system")
+    local critical_namespaces=("kube-system" "vault-system" "keycloak" "external-secrets-system" "monitoring")
 
     for ns in "${critical_namespaces[@]}"; do
         log "  → Namespace: $ns"
         kubectl get pods -n "$ns" -o wide 2>&1 | tee -a "$LOG_FILE"
     done
+}
+
+wait_for_vault() {
+    log "🔐 Aguardando Vault auto-unseal (KMS)..."
+
+    local max_retries=30
+    local retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        local phase
+        phase=$(kubectl get pod vault-0 -n vault-system -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+
+        if [ "$phase" = "Running" ]; then
+            local health_code
+            health_code=$(kubectl exec -n vault-system vault-0 -- \
+                sh -c 'wget -q -O /dev/null -S http://127.0.0.1:8200/v1/sys/health 2>&1 | head -1 | awk "{print \$2}"' \
+                2>/dev/null || echo "000")
+
+            case "$health_code" in
+                200|429)
+                    log_success "✅ Vault unsealed (HTTP $health_code)"
+                    return 0
+                    ;;
+                501)
+                    log_warning "⚠️  Vault not initialized (HTTP 501) — run init.sh"
+                    return 1
+                    ;;
+                503)
+                    log "  → Vault sealed, KMS unseal in progress... (tentativa $((retry_count+1))/$max_retries)"
+                    ;;
+                *)
+                    log "  → Vault health unknown: HTTP $health_code (tentativa $((retry_count+1))/$max_retries)"
+                    ;;
+            esac
+        else
+            log "  → Vault pod status: $phase (tentativa $((retry_count+1))/$max_retries)"
+        fi
+
+        sleep 10
+        ((retry_count++))
+    done
+
+    log_error "❌ Timeout aguardando Vault unseal. Verificar KMS permissions e VPC Endpoint."
+    return 1
 }
 
 print_summary() {
@@ -292,6 +336,7 @@ main() {
     wait_for_rds || { log_warning "RDS pode não estar ready"; }
 
     verify_platform_pods
+    wait_for_vault || log_warning "⚠️  Vault may need manual initialization (run init.sh)"
 
     print_summary
 

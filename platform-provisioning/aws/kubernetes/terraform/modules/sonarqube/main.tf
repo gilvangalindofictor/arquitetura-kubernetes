@@ -74,16 +74,17 @@ resource "helm_release" "sonarqube" {
     domain                     = var.domain
     ingress_group_name         = var.ingress_group_name
     enable_monitoring          = var.enable_monitoring
+    enable_prometheus_exporter = var.enable_prometheus_exporter
     # SAML variables
-    saml_enabled               = var.saml_enabled
-    saml_application_id        = var.saml_application_id
-    saml_provider_id           = var.saml_provider_id
-    saml_login_url             = var.saml_login_url
-    saml_certificate           = var.saml_certificate
-    saml_user_login_attribute  = var.saml_user_login_attribute
-    saml_user_email_attribute  = var.saml_user_email_attribute
-    saml_user_name_attribute   = var.saml_user_name_attribute
-    saml_group_attribute       = var.saml_group_attribute
+    saml_enabled              = var.saml_enabled
+    saml_application_id       = var.saml_application_id
+    saml_provider_id          = var.saml_provider_id
+    saml_login_url            = var.saml_login_url
+    saml_certificate          = var.saml_certificate
+    saml_user_login_attribute = var.saml_user_login_attribute
+    saml_user_email_attribute = var.saml_user_email_attribute
+    saml_user_name_attribute  = var.saml_user_name_attribute
+    saml_group_attribute      = var.saml_group_attribute
   })]
 
   depends_on = [

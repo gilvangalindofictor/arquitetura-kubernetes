@@ -58,15 +58,15 @@ server:
         storage "raft" {
           path = "/vault/data"
 
+%{ if replicas > 1 }
+%{ for i in range(replicas) ~}
           retry_join {
-            leader_api_addr = "http://vault-0.vault-internal:8200"
+            leader_api_addr = "http://vault-${i}.vault-internal:8200"
           }
-          retry_join {
-            leader_api_addr = "http://vault-1.vault-internal:8200"
-          }
-          retry_join {
-            leader_api_addr = "http://vault-2.vault-internal:8200"
-          }
+%{ endfor ~}
+%{ else }
+          # Single-node staging: no retry_join to avoid invalid cluster addresses
+%{ endif }
         }
 
         seal "awskms" {
@@ -122,8 +122,10 @@ server:
 
   livenessProbe:
     enabled: true
-    path: "/v1/sys/health?standbyok=true"
-    initialDelaySeconds: 60
+    path: "/v1/sys/health?standbyok=true&uninitcode=200&sealedcode=200"
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    failureThreshold: 10
 
   # Security context
   securityContext:

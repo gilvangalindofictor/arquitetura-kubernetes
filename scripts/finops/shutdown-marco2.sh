@@ -86,6 +86,8 @@ drain_critical_pods() {
     # Lista de recursos críticos para escalar gracefully antes do shutdown
     # Formato: "namespace:tipo:nome"
     local critical_deployments=(
+        "vault-system:statefulset:vault"
+        "keycloak:statefulset:keycloak-keycloakx"
         "monitoring:statefulset:prometheus-kube-prometheus-prometheus"
         "monitoring:deployment:kube-prometheus-stack-grafana"
         "monitoring:statefulset:loki-write"
