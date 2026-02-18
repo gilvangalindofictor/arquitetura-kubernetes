@@ -2672,3 +2672,43 @@ comm -23 <(sort /tmp/aws-available.txt) <(sort /tmp/k8s-pvs.txt)
 
 **Data Resolução:** 2026-02-18 (~45min STOP-AND-FIX)
 **Status Final:** ✅ RESOLVIDO (todos pods Running, novos PVCs provisionados)
+
+---
+
+## 🟡 R-044: Tempo Ingester S3 TLS Timeout (Go HTTP2 vs Python HTTP1.1)
+
+**Probabilidade:** ALTO (ocorre a cada restart)
+**Impacto:** MÉDIO (traces não armazenadas; Tempo inoperante)
+**Severidade:** 🟡 MÉDIO (não afeta outros serviços)
+
+**Descrição:**
+Tempo ingesters (v2.9.0) crasham ao tentar conectar ao bucket S3 `k8s-platform-tempo-891377105802`. O handshake TLS não é completado (~1m43s timeout), enquanto Python boto3 com as mesmas credenciais IRSA funciona corretamente.
+
+**Diagnóstico (2026-02-18):**
+- IRSA configurado corretamente: `TempoS3Role-k8s-platform-prod` ✅
+- S3 VPC Gateway Endpoint presente na route table do pod subnet ✅
+- STS VPC Interface Endpoint com Private DNS habilitado ✅
+- Debug pod com Tempo SA + Python boto3: `aws s3 ls` funciona ✅
+- Tempo ingester com Go AWS SDK v2: TLS handshake timeout após ~1m43s ❌
+
+**Root Cause (hipótese):**
+Go's HTTP client usa HTTP2 por padrão (ALPN negotiation), enquanto Python usa HTTP1.1. O S3 VPC Gateway Endpoint pode ter incompatibilidade com HTTP2 ALPN ou MTU para pacotes TLS grandes via Go transport.
+
+A duração ~1m43s corresponde ao `response_header_timeout: 2m` do `thanos-io/objstore` (TLS handshake pende até timeout do cliente).
+
+**Campos testados (inválidos em Grafana Tempo 2.9.0 s3.Config):**
+- `path_style_access` — campo inexistente
+- `http.http2_disable` — campo inexistente no s3.Config do Tempo
+- `insecure` — existe mas não resolve o problema de HTTP2
+
+**Fix Sugerido:**
+1. Verificar Grafana Tempo changelog para HTTP2 disable em versões > 2.9.0
+2. Testar `storage.trace.s3.http_config.no_tls_verify` (se disponível em 2.9.0)
+3. Upgrade para Tempo 2.10.x+ (verifica se issue foi corrigido)
+4. Workaround: Nginx proxy com HTTP1.1 forçado na frente do S3 endpoint (complexo)
+
+**Status:** 🟡 PENDENTE — issue pré-existente (ingesters nunca armazenaram traces em produção)
+
+**Data Identificação:** 2026-02-18
+**Referências:**
+- [Logbook STOP-AND-FIX 2026-02-18](../logbook/2026-02-18-stop-and-fix-pvc-orphan.md)
