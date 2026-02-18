@@ -98,6 +98,13 @@ variable "vault_root_token" {
   sensitive   = true
 }
 
+variable "vault_oidc_client_secret" {
+  description = "Keycloak client secret for Vault OIDC SSO (from Keycloak vault client)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 #------------------------------------------------------------------------------
 # Keycloak Variables
 #------------------------------------------------------------------------------

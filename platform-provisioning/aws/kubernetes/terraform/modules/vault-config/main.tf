@@ -116,6 +116,89 @@ locals {
 # Vault KV v2 Secret: Keycloak PostgreSQL Credentials
 # -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# OIDC Auth Method — Keycloak SSO for Vault UI + CLI
+# Pattern: same external URL rule as Grafana/Harbor (never svc.cluster.local)
+# Redirect URIs: Vault UI callback + vault CLI callback
+# -----------------------------------------------------------------------------
+
+resource "vault_jwt_auth_backend" "oidc" {
+  count = var.oidc_enabled ? 1 : 0
+
+  path               = "oidc"
+  type               = "oidc"
+  oidc_discovery_url = var.keycloak_oidc_url
+  oidc_client_id     = var.vault_oidc_client_id
+  oidc_client_secret = var.vault_oidc_client_secret
+  default_role       = "reader"
+  description        = "Keycloak OIDC SSO for ${var.cluster_name}"
+
+  depends_on = [vault_mount.kv]
+}
+
+# Policy: vault-admin (platform admins — Keycloak group: vault-admins)
+resource "vault_policy" "vault_admin" {
+  count  = var.oidc_enabled ? 1 : 0
+  name   = "vault-admin"
+  policy = file("${path.module}/vault_policies/vault-admin.hcl")
+}
+
+# Policy: vault-reader (any authenticated Keycloak user)
+resource "vault_policy" "vault_reader" {
+  count  = var.oidc_enabled ? 1 : 0
+  name   = "vault-reader"
+  policy = file("${path.module}/vault_policies/vault-reader.hcl")
+}
+
+# OIDC Role: admin (bound to Keycloak group vault-admins)
+resource "vault_jwt_auth_backend_role" "admin" {
+  count = var.oidc_enabled ? 1 : 0
+
+  backend   = vault_jwt_auth_backend.oidc[0].path
+  role_name = "admin"
+  role_type = "oidc"
+
+  token_policies = [vault_policy.vault_admin[0].name]
+  token_ttl      = 28800  # 8h
+  token_max_ttl  = 86400  # 24h
+
+  oidc_scopes  = ["openid", "email", "profile"]
+  user_claim   = "email"
+  groups_claim = "groups"
+
+  # Restrict to vault-admins Keycloak group
+  bound_claims = {
+    groups = "vault-admins"
+  }
+
+  allowed_redirect_uris = [
+    "http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback"
+  ]
+}
+
+# OIDC Role: reader (any authenticated Keycloak user — no bound_claims)
+resource "vault_jwt_auth_backend_role" "reader" {
+  count = var.oidc_enabled ? 1 : 0
+
+  backend   = vault_jwt_auth_backend.oidc[0].path
+  role_name = "reader"
+  role_type = "oidc"
+
+  token_policies = [vault_policy.vault_reader[0].name]
+  token_ttl      = 14400  # 4h
+  token_max_ttl  = 28800  # 8h
+
+  oidc_scopes = ["openid", "email", "profile"]
+  user_claim  = "email"
+
+  allowed_redirect_uris = [
+    "http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback"
+  ]
+}
+
+# -----------------------------------------------------------------------------
 resource "vault_kv_secret_v2" "keycloak_postgresql" {
   mount      = vault_mount.kv.path
   name       = "keycloak/postgresql"
