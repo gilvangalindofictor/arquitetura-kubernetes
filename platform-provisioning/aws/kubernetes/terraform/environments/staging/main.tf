@@ -1025,3 +1025,432 @@ resource "kubernetes_config_map_v1" "coredns_split_horizon" {
   # and Corefile to include: import /etc/coredns/custom/*.server
   # Verify: kubectl get cm coredns -n kube-system -o yaml | grep import
 }
+
+#------------------------------------------------------------------------------
+# VPA — Vertical Pod Autoscaler (FinOps P1.5)
+# Purpose: Recommendation mode — collect 30d metrics → enable rightsizing
+# Chart: fairwinds/vpa (https://charts.fairwinds.com/stable)
+# Mode: updater_enabled=false, admission_controller_enabled=false
+#       (recommendation only — no auto-apply in staging)
+# Savings: Habilita R$ 8.712/ano via rightsizing (após 30d metrics)
+# Ref: docs/demands/2026-02-12-finops-roadmap-pos-audit.md
+# Status: Deployed 2026-02-18
+#------------------------------------------------------------------------------
+
+resource "helm_release" "vpa" {
+  name       = "vpa"
+  repository = "https://charts.fairwinds.com/stable"
+  chart      = "vpa"
+  version    = "4.4.6"
+  namespace  = "kube-system"
+  timeout    = 300
+
+  values = [<<-YAML
+    recommender:
+      enabled: true
+      extraArgs:
+        storage: prometheus
+        prometheus-address: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+    updater:
+      enabled: false
+    admissionController:
+      enabled: false
+  YAML
+  ]
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
+}
+
+# VPA Objects — 12 critical workloads (recommendation mode only)
+# updateMode: "Off" = recommendations computed but NOT applied automatically
+# Review recommendations: kubectl get vpa -A
+# Apply manually: kubectl patch <resource> with recommended values
+
+resource "kubectl_manifest" "vpa_vault" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: vault
+      namespace: vault-system
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: vault
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: vault
+          minAllowed:
+            cpu: 100m
+            memory: 128Mi
+          maxAllowed:
+            cpu: 2000m
+            memory: 4Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_keycloak" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: keycloak
+      namespace: keycloak
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: keycloak-keycloakx
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: keycloak
+          minAllowed:
+            cpu: 200m
+            memory: 512Mi
+          maxAllowed:
+            cpu: 2000m
+            memory: 4Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_harbor_core" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: harbor-core
+      namespace: harbor
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: harbor-core
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: core
+          minAllowed:
+            cpu: 50m
+            memory: 128Mi
+          maxAllowed:
+            cpu: 1000m
+            memory: 2Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_gitlab_webservice" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: gitlab-webservice
+      namespace: gitlab-staging
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: gitlab-webservice-default
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: webservice
+          minAllowed:
+            cpu: 200m
+            memory: 1Gi
+          maxAllowed:
+            cpu: 4000m
+            memory: 8Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_gitlab_sidekiq" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: gitlab-sidekiq
+      namespace: gitlab-staging
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: gitlab-sidekiq-all-in-1-v2
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: sidekiq
+          minAllowed:
+            cpu: 100m
+            memory: 256Mi
+          maxAllowed:
+            cpu: 2000m
+            memory: 4Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_argocd" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: argocd-server
+      namespace: argocd
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: argocd-server
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: argocd-server
+          minAllowed:
+            cpu: 50m
+            memory: 64Mi
+          maxAllowed:
+            cpu: 1000m
+            memory: 2Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_prometheus" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: prometheus
+      namespace: monitoring
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: prometheus-kube-prometheus-stack-prometheus
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: prometheus
+          minAllowed:
+            cpu: 100m
+            memory: 256Mi
+          maxAllowed:
+            cpu: 2000m
+            memory: 8Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_grafana" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: grafana
+      namespace: monitoring
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: kube-prometheus-stack-grafana
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: grafana
+          minAllowed:
+            cpu: 50m
+            memory: 64Mi
+          maxAllowed:
+            cpu: 500m
+            memory: 1Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_loki" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: loki-write
+      namespace: monitoring
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: loki-write
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: loki
+          minAllowed:
+            cpu: 50m
+            memory: 64Mi
+          maxAllowed:
+            cpu: 1000m
+            memory: 4Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_tempo" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: tempo-distributor
+      namespace: monitoring
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: tempo-distributor
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: tempo
+          minAllowed:
+            cpu: 50m
+            memory: 64Mi
+          maxAllowed:
+            cpu: 1000m
+            memory: 2Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_rabbitmq" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: rabbitmq
+      namespace: data-services
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: rabbitmq-server
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: rabbitmq
+          minAllowed:
+            cpu: 100m
+            memory: 256Mi
+          maxAllowed:
+            cpu: 1000m
+            memory: 2Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+resource "kubectl_manifest" "vpa_redis" {
+  yaml_body  = <<-YAML
+    apiVersion: autoscaling.k8s.io/v1
+    kind: VerticalPodAutoscaler
+    metadata:
+      name: redis
+      namespace: data-services
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        finops/component: vpa-recommendation
+    spec:
+      targetRef:
+        apiVersion: apps/v1
+        kind: StatefulSet
+        name: redis
+      updatePolicy:
+        updateMode: "Off"
+      resourcePolicy:
+        containerPolicies:
+        - containerName: redis
+          minAllowed:
+            cpu: 50m
+            memory: 64Mi
+          maxAllowed:
+            cpu: 500m
+            memory: 1Gi
+  YAML
+  depends_on = [helm_release.vpa]
+}
+
+#------------------------------------------------------------------------------
+# Snapshot Cleanup Lambda (FinOps P1.6)
+# Purpose: Weekly deletion of old EBS migration snapshots (>30 days)
+# Savings: R$ 216/ano (prevent post-gp2→gp3 snapshot accumulation)
+# Schedule: Weekly Monday 03:00 UTC (midnight BRT)
+# Safety: Skips snapshots used by AMIs + protected tags (FinOps:Keep=true)
+# Ref: docs/demands/2026-02-12-finops-roadmap-pos-audit.md (item #5)
+#------------------------------------------------------------------------------
+
+module "snapshot_cleanup" {
+  source = "../../modules/snapshot-cleanup"
+
+  function_name       = "finops-snapshot-cleanup-staging"
+  aws_region          = var.aws_region
+  schedule_expression = "cron(0 3 ? * MON *)" # Every Monday 03:00 UTC (midnight BRT)
+  retention_days      = 30
+  dry_run             = false
+  alert_email         = var.finops_alert_email
+  log_retention_days  = 7
+
+  common_tags = merge(local.common_tags, {
+    Purpose     = "FinOps EBS snapshot lifecycle cleanup"
+    Schedule    = "Weekly Monday 03:00 UTC"
+    Criticality = "Low"
+  })
+}
