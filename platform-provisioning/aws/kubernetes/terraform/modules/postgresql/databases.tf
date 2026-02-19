@@ -65,6 +65,29 @@ resource "random_password" "keycloak_user" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+# Secrets Manager — keycloak_user (fonte única de verdade; ESO lê daqui via aws-sm store)
+# FIX: garante que SM sempre reflete a senha atual no RDS — evita drift com Vault
+# Ver: docs/logbook/2026-02-19-post-up-investigation.md (STOP-AND-FIX Keycloak)
+resource "aws_secretsmanager_secret" "keycloak_user_password" {
+  name        = "staging/postgresql/keycloak-password"
+  description = "Keycloak PostgreSQL user password (managed by Terraform — anti-drift)"
+
+  tags = merge(var.common_tags, {
+    Name    = "keycloak-postgresql-password"
+    Service = "keycloak"
+  })
+
+  lifecycle {
+    # Evitar recreação se o secret já existia manualmente antes do TF import
+    ignore_changes = [name]
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "keycloak_user_password" {
+  secret_id     = aws_secretsmanager_secret.keycloak_user_password.id
+  secret_string = random_password.keycloak_user.result
+}
+
 resource "postgresql_role" "keycloak_user" {
   name     = "keycloak_user"
   login    = true
@@ -108,6 +131,29 @@ resource "random_password" "sonarqube_user" {
   length           = 32
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# Secrets Manager — sonarqube_user (fonte única de verdade; ESO lê daqui via aws-sm store)
+# FIX: garante que SM sempre reflete a senha atual no RDS — evita drift com Vault
+# Ver: docs/logbook/2026-02-19-post-up-investigation.md (AVISO drift SonarQube)
+resource "aws_secretsmanager_secret" "sonarqube_user_password" {
+  name        = "staging/postgresql/sonarqube-password"
+  description = "SonarQube PostgreSQL user password (managed by Terraform — anti-drift)"
+
+  tags = merge(var.common_tags, {
+    Name    = "sonarqube-postgresql-password"
+    Service = "sonarqube"
+  })
+
+  lifecycle {
+    # Evitar recreação se o secret já existia manualmente antes do TF import
+    ignore_changes = [name]
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "sonarqube_user_password" {
+  secret_id     = aws_secretsmanager_secret.sonarqube_user_password.id
+  secret_string = random_password.sonarqube_user.result
 }
 
 resource "postgresql_role" "sonarqube_user" {

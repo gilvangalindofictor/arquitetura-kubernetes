@@ -6753,3 +6753,71 @@ Aplicar 5 fixes incrementais:
 - [DEC-061 Vault OIDC](#dec-061)
 - [DEC-062 SonarQube SAML](#dec-062)
 - [Logbook 2026-02-18 ArgoCD SSO](../logbook/2026-02-18-keycloak-service-name-fix.md)
+
+---
+
+## 📝 DEC-064: VPC CNI EXTERNALSNAT=true — S3 Gateway Endpoint Fix
+
+**Data:** 2026-02-19
+**Contexto:** Tempo ingester pods em CrashLoopBackOff após startup — TLS handshake timeout para S3.
+**Executores:** Orquestrador DevOps (executor-terraform.md)
+
+### DEC-064 Problema
+
+`tempo-ingester-0/1` falhavam ao conectar no bucket S3 do Tempo:
+
+```text
+err="failed to create store: unexpected error from ListObjects on k8s-platform-tempo-891377105802:
+     Get "https://...s3.us-east-1.amazonaws.com/...": net/http: TLS handshake timeout"
+```
+
+### DEC-064 Root Cause
+
+**Análise anterior (2026-02-18) estava INCORRETA.** A causa real:
+
+1. Node `ip-10-0-153-44` (critical, us-east-1b) possui 3 ENIs (primary + 2 secondary)
+2. Pod IP `10.0.145.81` foi atribuído à **ENI secundária** (device=1, eni-0ef2a5948e1bed18a)
+3. VPC CNI cria `ip rule from 10.0.145.81 lookup VPC_CNI_RT_TABLE` para ENIs secundárias
+4. A routing table criada pelo VPC CNI **NÃO contém** as rotas do S3 VPC Gateway Endpoint
+5. Tráfego S3 ia via NAT Gateway → conexão recusada/timeout pelo endpoint S3
+
+As subnet route tables TÊM a rota S3 (`rtb-00c7af803ee93ac2c`, `rtb-09656e8e3e2f44c62`), mas a per-pod routing table do VPC CNI não.
+
+### DEC-064 Decisão
+
+Ativar `AWS_VPC_K8S_CNI_EXTERNALSNAT=true` no DaemonSet `aws-node` (vpc-cni addon).
+
+**Mecanismo:** Com EXTERNALSNAT=true, pods usam SNAT via IP primário do node para tráfego outbound. O tráfego S3 aparece com source IP = node primary ENI IP, que usa a subnet route table (com a rota S3 Gateway Endpoint).
+
+**Trade-off aceito:** IP de saída para tráfego externo = IP do node (não pod). Aceitável em staging. Sem impacto para tráfego internal cluster-to-cluster.
+
+### DEC-064 Implementação
+
+```bash
+# Aplicado via kubectl patch em 2026-02-19 (STOP-AND-FIX #3)
+kubectl patch daemonset aws-node -n kube-system --type='json' \
+  -p="[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/env/5/value\",\"value\":\"true\"}]"
+
+# Persistido via Terraform em 2026-02-19 (este ADR)
+# environments/staging/eks-addons.tf → aws_eks_addon.vpc_cni
+# configurationValues: {env: {AWS_VPC_K8S_CNI_EXTERNALSNAT: "true"}}
+```
+
+### DEC-064 Consequências
+
+- ✅ Tempo ingester: `1/1 Running` sem TLS timeout
+- ✅ Loki write/backend: protegidos contra mesmo problema
+- ✅ Persiste após upgrades do vpc-cni addon (via TF configurationValues)
+- ✅ Fix gerenciado via Terraform (não mais drift por kubectl patch)
+- ⚠️ IP de saída para tráfego externo = IP do node (trade-off documentado)
+
+### DEC-064 Arquivos Modificados
+
+| Arquivo                                    | Mudança                                                             |
+|--------------------------------------------|---------------------------------------------------------------------|
+| `environments/staging/eks-addons.tf`       | `aws_eks_addon.vpc_cni` com `configurationValues` EXTERNALSNAT=true |
+
+### DEC-064 Referências
+
+- [DEC-063 ArgoCD OIDC — 5 Fixes Cascata](#-dec-063-argocd-oidc-keycloak--5-fixes-cascata)
+- [Logbook 2026-02-19 Post-Up Investigation](../logbook/2026-02-19-post-up-investigation.md)
