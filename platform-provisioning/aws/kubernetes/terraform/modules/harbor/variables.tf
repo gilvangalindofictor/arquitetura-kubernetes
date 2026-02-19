@@ -56,6 +56,13 @@ variable "postgresql_username" {
   default = "harbor_user"
 }
 
+variable "postgresql_password" {
+  description = "Harbor PostgreSQL password (from Vault KV secret/harbor/postgresql via vault-config module)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "redis_host" {
   type = string
 }

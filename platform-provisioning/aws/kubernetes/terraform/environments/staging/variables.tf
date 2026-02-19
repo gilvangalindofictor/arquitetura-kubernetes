@@ -105,6 +105,30 @@ variable "vault_oidc_client_secret" {
   default     = ""
 }
 
+# Grafana OIDC — migrado de hardcode para Vault KV (P0-A ESO gap, 2026-02-19)
+variable "grafana_oidc_client_secret" {
+  description = "Keycloak client secret for Grafana OIDC (migrated from hardcode to Vault KV secret/grafana/oidc)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# SonarQube PostgreSQL — resolve TODO sonarqube/main.tf (P0-B ESO gap, 2026-02-19)
+variable "sonarqube_postgresql_password" {
+  description = "SonarQube PostgreSQL user password (from SM staging/postgresql/sonarqube-password)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# Harbor PostgreSQL — migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
+variable "harbor_postgresql_password" {
+  description = "Harbor PostgreSQL user password (migrated from AWS SM staging/postgresql/gitlab-password to Vault KV secret/harbor/postgresql)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 #------------------------------------------------------------------------------
 # Keycloak Variables
 #------------------------------------------------------------------------------

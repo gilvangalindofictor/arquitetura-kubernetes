@@ -86,12 +86,9 @@ variable "grafana_keycloak_client_id" {
   default     = "grafana"
 }
 
-variable "grafana_keycloak_client_secret" {
-  description = "Client Secret do Keycloak para o Grafana (lido do Vault via ExternalSecret)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
+# DEPRECATED: grafana_keycloak_client_secret removido (2026-02-19)
+# client_secret agora via ESO: grafana-oidc-credentials (Vault: secret/grafana/oidc)
+# Mantido com default="" para compatibilidade — remover na próxima major refactor
 
 # -----------------------------------------------------------------------------
 # Alertmanager

@@ -577,6 +577,24 @@ module "vault_config_staging" {
   vault_oidc_client_id     = "vault"
   vault_oidc_client_secret = var.vault_oidc_client_secret
 
+  # Grafana OIDC — migrado de hardcode para Vault KV (P0-A ESO gap, 2026-02-19)
+  grafana_oidc_client_id     = "grafana"
+  grafana_oidc_client_secret = var.grafana_oidc_client_secret
+
+  # SonarQube PostgreSQL — resolve TODO sonarqube/main.tf (P0-B ESO gap, 2026-02-19)
+  sonarqube_postgresql_password = var.sonarqube_postgresql_password
+  sonarqube_postgresql_username = "sonarqube_user"
+  sonarqube_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  sonarqube_postgresql_port     = "5432"
+  sonarqube_postgresql_database = "sonarqube"
+
+  # Harbor PostgreSQL — migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
+  harbor_postgresql_password = var.harbor_postgresql_password
+  harbor_postgresql_username = "harbor_user"
+  harbor_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  harbor_postgresql_port     = "5432"
+  harbor_postgresql_database = "harbor"
+
   common_tags = local.common_tags
 }
 
@@ -601,11 +619,13 @@ module "harbor_staging" {
   s3_bucket_name = module.s3_buckets_staging.harbor_images_bucket_name
   s3_bucket_arn  = module.s3_buckets_staging.harbor_images_bucket_arn
 
-  # PostgreSQL (shared RDS) - using FQDN from default namespace
+  # PostgreSQL (shared RDS) — password migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
+  # Vault KV: secret/harbor/postgresql (vault-config/main.tf)
   postgresql_host     = "postgresql-external.default.svc.cluster.local"
   postgresql_port     = 5432
   postgresql_database = "harbor"
   postgresql_username = "harbor_user"
+  postgresql_password = var.harbor_postgresql_password
 
   # Redis (shared Operator)
   redis_host            = "${module.redis_staging.redis_master_service}.${module.redis_staging.namespace}.svc.cluster.local"
@@ -853,12 +873,12 @@ module "kube_prometheus_stack_staging" {
   grafana_ingress_group_name = "observability-staging"
 
   # Grafana OIDC — Keycloak SSO (ativado 2026-02-18)
-  # Vault: secret/grafana/oidc {client_id, client_secret} ✅
-  # ExternalSecret grafana-oidc-credentials criado via terraform apply
-  grafana_oidc_enabled           = true
-  grafana_keycloak_url           = "http://keycloak.staging.internal/auth" # externo: browser precisa resolver
-  grafana_keycloak_client_id     = "grafana"
-  grafana_keycloak_client_secret = "I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB"
+  # client_secret MIGRADO para Vault KV: secret/grafana/oidc (2026-02-19)
+  # ESO: grafana-oidc-credentials K8s Secret → Grafana extraEnvFrom → $__env{client_secret}
+  grafana_oidc_enabled       = true
+  grafana_keycloak_url       = "http://keycloak.staging.internal/auth" # externo: browser precisa resolver
+  grafana_keycloak_client_id = "grafana"
+  # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
 }
 
 #------------------------------------------------------------------------------

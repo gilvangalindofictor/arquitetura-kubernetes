@@ -199,6 +199,93 @@ resource "vault_jwt_auth_backend_role" "reader" {
 }
 
 # -----------------------------------------------------------------------------
+# Vault KV v2 — Grafana OIDC credentials
+# Vault path: secret/grafana/oidc
+# ESO ExternalSecret: grafana-oidc-credentials (kube-prometheus-stack/main.tf)
+# Migration: valor migrado de staging/main.tf hardcode (2026-02-19)
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "grafana_oidc" {
+  count      = var.grafana_oidc_client_secret != "" ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "grafana/oidc"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    client_id     = var.grafana_oidc_client_id
+    client_secret = var.grafana_oidc_client_secret
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "grafana"
+      cluster    = var.cluster_name
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — SonarQube PostgreSQL credentials
+# Vault path: secret/sonarqube/postgresql
+# ESO ExternalSecret: sonarqube-postgresql (modules/sonarqube/main.tf)
+# Resolves: TODO comment sonarqube/main.tf:50-52
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "sonarqube_postgresql" {
+  count      = var.sonarqube_postgresql_password != "" ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "sonarqube/postgresql"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.sonarqube_postgresql_password
+    username = var.sonarqube_postgresql_username
+    host     = var.sonarqube_postgresql_host
+    port     = var.sonarqube_postgresql_port
+    database = var.sonarqube_postgresql_database
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "sonarqube"
+      cluster    = var.cluster_name
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Harbor PostgreSQL credentials
+# Vault path: secret/harbor/postgresql
+# ESO ExternalSecret: harbor-postgresql-credentials (modules/harbor/main.tf)
+# Migration: substitui data.aws_secretsmanager_secret "staging/postgresql/gitlab-password"
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "harbor_postgresql" {
+  count      = var.harbor_postgresql_password != "" ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "harbor/postgresql"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.harbor_postgresql_password
+    username = var.harbor_postgresql_username
+    host     = var.harbor_postgresql_host
+    port     = var.harbor_postgresql_port
+    database = var.harbor_postgresql_database
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "harbor"
+      cluster    = var.cluster_name
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
 resource "vault_kv_secret_v2" "keycloak_postgresql" {
   mount      = vault_mount.kv.path
   name       = "keycloak/postgresql"

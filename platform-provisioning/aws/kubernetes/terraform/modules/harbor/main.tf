@@ -38,16 +38,11 @@ resource "random_password" "harbor_admin" {
 }
 
 # -----------------------------------------------------------------------------
-# Read PostgreSQL password from AWS Secrets Manager
+# PostgreSQL password via var (sourced from Vault KV secret/harbor/postgresql)
+# Migration: removed data.aws_secretsmanager_secret "staging/postgresql/gitlab-password"
+# Source of truth: vault_kv_secret_v2.harbor_postgresql (vault-config/main.tf)
+# ESO: harbor-postgresql-credentials ExternalSecret (created below — runtime rotation)
 # -----------------------------------------------------------------------------
-
-data "aws_secretsmanager_secret" "postgresql_password" {
-  name = "staging/postgresql/gitlab-password"
-}
-
-data "aws_secretsmanager_secret_version" "postgresql_password" {
-  secret_id = data.aws_secretsmanager_secret.postgresql_password.id
-}
 
 # -----------------------------------------------------------------------------
 # Read Redis password from Kubernetes secret
@@ -216,7 +211,7 @@ resource "helm_release" "harbor" {
     postgresql_port       = var.postgresql_port
     postgresql_database   = var.postgresql_database
     postgresql_username   = var.postgresql_username
-    postgresql_password   = data.aws_secretsmanager_secret_version.postgresql_password.secret_string
+    postgresql_password   = var.postgresql_password
     redis_host            = var.redis_host
     redis_port            = var.redis_port
     redis_password_secret = data.kubernetes_secret.redis_password.data["password"]
@@ -257,6 +252,80 @@ resource "kubernetes_config_map" "harbor_setup" {
   data = {
     "create-robot-account.sh" = file("${path.module}/scripts/create-robot-account.sh")
   }
+}
+
+# -----------------------------------------------------------------------------
+# Harbor PostgreSQL credentials — ExternalSecret (Vault backend)
+# Vault path: secret/data/harbor/postgresql
+# Keys: postgresql-password, username, host, port, database
+# Source of truth: vault_kv_secret_v2.harbor_postgresql (vault-config/main.tf)
+# Purpose: Runtime secret rotation — Helm chart reads from var.postgresql_password
+#   on first apply; subsequent rotations handled via ESO refresh (1h)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "harbor_postgresql_externalsecret" {
+  depends_on = [kubernetes_namespace.harbor]
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "harbor-postgresql-credentials"
+      namespace = kubernetes_namespace.harbor.metadata[0].name
+      labels = {
+        "app.kubernetes.io/name"       = "harbor-postgresql-credentials"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "harbor-postgresql-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "postgresql-password"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "password"
+          }
+        },
+        {
+          secretKey = "username"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "username"
+          }
+        },
+        {
+          secretKey = "host"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "host"
+          }
+        },
+        {
+          secretKey = "port"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "port"
+          }
+        },
+        {
+          secretKey = "database"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "database"
+          }
+        }
+      ]
+    }
+  })
 }
 
 # -----------------------------------------------------------------------------

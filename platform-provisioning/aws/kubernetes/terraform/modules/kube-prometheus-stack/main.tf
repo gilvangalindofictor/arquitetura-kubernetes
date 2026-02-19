@@ -36,6 +36,24 @@ resource "helm_release" "kube_prometheus_stack" {
   # 30 minutos para primeira instalação, suficiente para downloads de imagens e criação de CRDs
   timeout = 1800
 
+  # Grafana OIDC client_secret via ESO K8s Secret (envValueFrom pattern)
+  # ESO Secret: grafana-oidc-credentials (Vault: secret/grafana/oidc → keys: client_id, client_secret)
+  # Grafana lê GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET via extraEnvFrom (env var = secret key name)
+  # NOTA: lifecycle.ignore_changes=all → requer helm upgrade manual para ativar:
+  #   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  #     -n monitoring --reuse-values \
+  #     --set "grafana.extraEnvFrom[0].secretRef.name=grafana-oidc-credentials"
+  values = [<<-YAML
+    grafana:
+      extraEnvFrom:
+        - secretRef:
+            name: grafana-oidc-credentials
+      grafana.ini:
+        auth.generic_oauth:
+          client_secret: "$__env{client_secret}"
+  YAML
+  ]
+
   # -----------------------------------------------------------------------------
   # Prometheus Operator
   # -----------------------------------------------------------------------------
@@ -311,13 +329,9 @@ resource "helm_release" "kube_prometheus_stack" {
     }
   }
 
-  dynamic "set" {
-    for_each = var.grafana_oidc_enabled && var.grafana_keycloak_client_secret != "" ? [1] : []
-    content {
-      name  = "grafana.grafana\\.ini.auth\\.generic_oauth.client_secret"
-      value = var.grafana_keycloak_client_secret
-    }
-  }
+  # client_secret removido do set block — agora via envValueFrom (ESO K8s Secret)
+  # ESO Secret: grafana-oidc-credentials (Vault: secret/grafana/oidc)
+  # Grafana lê GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET via extraEnvFrom abaixo
 
   dynamic "set" {
     for_each = var.grafana_oidc_enabled ? [1] : []

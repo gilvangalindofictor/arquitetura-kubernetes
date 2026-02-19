@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.12"
     }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
   }
 }
 
@@ -38,18 +42,62 @@ resource "kubernetes_namespace" "sonarqube" {
 
 # -----------------------------------------------------------------------------
 # PostgreSQL Database Bootstrap
+# Note: Database and user were bootstrapped via postgresql module (sonarqube_user)
+# Password managed by Terraform SM anti-drift: staging/postgresql/sonarqube-password
+# Vault KV: secret/sonarqube/postgresql (seeded by vault-config module)
 # -----------------------------------------------------------------------------
 
-# TODO: Bootstrap database via postgresql module
-# Requires: CREATE DATABASE sonarqube; CREATE USER sonarqube_user;
-
 # -----------------------------------------------------------------------------
-# Kubernetes Secret: PostgreSQL Connection
+# Kubernetes Secret: PostgreSQL Connection — via ExternalSecret (Vault backend)
+# Vault path: secret/data/sonarqube/postgresql
+# Keys: postgresql-password, username, host, port, database
+# ClusterSecretStore: vault-backend (Vault K8s auth, eso-reader policy)
+# Prerequisite: vault_kv_secret_v2.sonarqube_postgresql in vault-config/main.tf
 # -----------------------------------------------------------------------------
 
-# TODO: Create via ExternalSecret (Vault backend)
-# Secret name: sonarqube-postgresql
-# Keys: postgresql-username, postgresql-password, postgresql-host, postgresql-port
+resource "kubectl_manifest" "sonarqube_postgresql_externalsecret" {
+  depends_on = [kubernetes_namespace.sonarqube]
+
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: sonarqube-postgresql
+      namespace: ${var.namespace}
+      labels:
+        app.kubernetes.io/name: sonarqube-postgresql
+        app.kubernetes.io/managed-by: terraform
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: sonarqube-postgresql
+        creationPolicy: Owner
+      data:
+        - secretKey: postgresql-password
+          remoteRef:
+            key: secret/data/sonarqube/postgresql
+            property: password
+        - secretKey: username
+          remoteRef:
+            key: secret/data/sonarqube/postgresql
+            property: username
+        - secretKey: host
+          remoteRef:
+            key: secret/data/sonarqube/postgresql
+            property: host
+        - secretKey: port
+          remoteRef:
+            key: secret/data/sonarqube/postgresql
+            property: port
+        - secretKey: database
+          remoteRef:
+            key: secret/data/sonarqube/postgresql
+            property: database
+  YAML
+}
 
 # -----------------------------------------------------------------------------
 # SonarQube Helm Release
@@ -95,7 +143,8 @@ resource "helm_release" "sonarqube" {
   })]
 
   depends_on = [
-    kubernetes_namespace.sonarqube
+    kubernetes_namespace.sonarqube,
+    kubectl_manifest.sonarqube_postgresql_externalsecret
   ]
 
   timeout = 600 # 10 minutes
