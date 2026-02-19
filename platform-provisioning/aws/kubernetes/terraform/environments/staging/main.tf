@@ -642,6 +642,10 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
     }
   }
 
+  field_manager {
+    force_conflicts = true
+  }
+
   depends_on = [module.sonarqube_staging]
 }
 
