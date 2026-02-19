@@ -122,4 +122,4 @@ Antes do primeiro login via GitLab, o usuário GitLab deve existir ou:
 ## Referências
 
 - ADR: SonarQube GitLab via Keycloak federation (não OAuth2 direto — CE limitation)
-- strategies-history.md → "GitLab OAuth Direto — FALHA" + "SonarQube GitLab via Keycloak Federation"
+- strategies-gitlab-sso.md → "GitLab OAuth Direto — FALHA" + "SonarQube GitLab via Keycloak Federation"
