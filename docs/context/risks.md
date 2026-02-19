@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-18
-**Versão:** 3.0 (P1 Security+FinOps — git-secrets, CoreDNS TF, Rotation Policy)
+**Última Atualização:** 2026-02-19
+**Versão:** 3.1 (DEC-065: ESO Zero-Drift — hardcoded secret removido + VPC CNI EXTERNALSNAT)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -51,6 +51,8 @@
 | **R-046** | **Terraform statically linked binary: DNS falha no WSL2**       | **MÉDIO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **/etc/resolv.conf com 10.255.255.254 resolve; 127.0.0.1 quebra** |
 | **R-047** | **System Node Kubelet Death → EBS Multi-Attach Cascade**        | **BAIXO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Mitigado (2026-02-18)** | **TERMINATE (não STOP) nodes; EBS detach-force + kubectl delete volumeattachment** |
 | **R-048** | **helm --set 'key={}' produz array, não map (nodeSelector)**    | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **Usar --values file.yaml para empty map; --set {} = array → unmarshal error** |
+| **R-049** | **Secrets hardcoded no git (Grafana OIDC client_secret)**       | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)** | **Removido do git + rotacionado no Keycloak; Vault KV + ESO** |
+| **R-050** | **ESO drift — sonarqube/harbor PostgreSQL sem Vault**           | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)** | **ExternalSecrets criados; 7 ESO em SecretSynced** |
 
 ---
 
@@ -73,7 +75,8 @@ Credenciais sensíveis (Grafana password, API keys, database credentials) commit
 5. Acesso não autorizado a plataforma
 
 **Mitigações Implementadas:**
-- ✅ **AWS Secrets Manager:** Todas credenciais sensíveis armazenadas externamente
+- ✅ **Vault KV v2 + ESO:** 7 ExternalSecrets sincronizados — zero secrets hardcoded no git (DEC-065, 2026-02-19)
+- ✅ **Grafana OIDC rotacionado:** Secret `I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB` invalidado; novo via Vault KV v3
 - ✅ **Pre-commit hook:** Validação automática (block commits com secrets)
 - ✅ **.gitignore:** terraform.tfvars, *.tfvars, *.env (ignored)
 - ✅ **Governance validation:** Hook custom validando padrões de secrets

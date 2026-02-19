@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-18
-**Versão:** 4.0 (Vault SSO via Keycloak OIDC)
+**Última Atualização:** 2026-02-19
+**Versão:** 4.1 (ESO Zero-Drift + VPC CNI EXTERNALSNAT)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -57,6 +57,9 @@
 | **DEC-060** | **Harbor OIDC Login Fix (user_claim + single replica)** | **2026-02-13** | **✅ Implementado** | **Alto** |
 | **DEC-061** | **Vault SSO via Keycloak OIDC Auth Method** | **2026-02-18** | **✅ Implementado** | **Alto** |
 | **DEC-062** | **SonarQube SAML SP Certificate + serverBaseURL** | **2026-02-18** | **✅ Implementado** | **Alto** |
+| **DEC-063** | **ArgoCD OIDC via Keycloak — 5 Fixes Cascata** | **2026-02-18** | **✅ Implementado** | **Alto** |
+| **DEC-064** | **VPC CNI EXTERNALSNAT=true — S3 Gateway Endpoint Fix** | **2026-02-19** | **✅ Implementado** | **Crítico** |
+| **DEC-065** | **ESO Zero-Drift Secret Management P0/P1** | **2026-02-19** | **✅ Implementado** | **Crítico** |
 ---
 
 ## 📝 ADR-001: Setup e Governança
@@ -6821,3 +6824,88 @@ kubectl patch daemonset aws-node -n kube-system --type='json' \
 
 - [DEC-063 ArgoCD OIDC — 5 Fixes Cascata](#-dec-063-argocd-oidc-keycloak--5-fixes-cascata)
 - [Logbook 2026-02-19 Post-Up Investigation](../logbook/2026-02-19-post-up-investigation.md)
+
+---
+
+## 📝 DEC-065: ESO Zero-Drift Secret Management P0/P1
+
+**Data:** 2026-02-19
+**Status:** ✅ Implementado
+**Impacto:** Crítico (segurança — remoção de secret hardcoded no git)
+**Commit:** e336287
+
+### DEC-065 Contexto
+
+Varredura completa da plataforma identificou gaps críticos onde secrets não estavam sendo gerenciados via External Secrets Operator (ESO) + Vault KV v2, padrão arquitetural definido.
+
+O gap mais grave era um **client_secret HARDCODED no git** (`staging/main.tf`): `grafana_keycloak_client_secret = "I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB"`.
+
+### DEC-065 Gaps Identificados
+
+| Gap | Serviço | Problema | Prioridade |
+|-----|---------|----------|-----------|
+| P0-A | Grafana OIDC | client_secret hardcoded no git | P0 — Crítico |
+| P0-B | SonarQube PostgreSQL | ExternalSecret não implementado (TODO comment) | P0 |
+| P1 | Harbor PostgreSQL | Usando AWS Secrets Manager em vez de Vault | P1 |
+
+### DEC-065 Decisão
+
+Implementar Vault KV v2 + ExternalSecret para todos os gaps. A infraestrutura ESO já estava completa (ClusterSecretStore `vault-backend`, policy `eso-reader`), apenas os recursos faltantes precisavam ser criados.
+
+### DEC-065 Implementação
+
+**P0-A — Grafana OIDC:**
+- `vault_kv_secret_v2.grafana_oidc` → `secret/grafana/oidc` (client_id + client_secret)
+- `kube-prometheus-stack`: `dynamic set` removido → `extraEnvFrom.secretRef` + `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`
+- `staging/main.tf`: linha hardcoded removida do repositório
+- Secret **rotacionado** no Keycloak (secret antigo `I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB` invalidado; Vault KV v3)
+
+**P0-B — SonarQube PostgreSQL:**
+- `vault_kv_secret_v2.sonarqube_postgresql` → `secret/sonarqube/postgresql`
+- `kubectl_manifest.sonarqube_postgresql_externalsecret` (ns: `sonarqube`)
+- K8s Secret `sonarqube-postgresql`: `postgresql-password`, `username`, `host`, `port`, `database`
+
+**P1 — Harbor PostgreSQL:**
+- `data.aws_secretsmanager_secret` removido de `harbor/main.tf`
+- `vault_kv_secret_v2.harbor_postgresql` → `secret/harbor/postgresql`
+- `kubectl_manifest.harbor_postgresql_externalsecret` (ns: `harbor-system`)
+
+### DEC-065 Estado Final — Cobertura ESO (Zero Drift)
+
+| ExternalSecret | Namespace | Vault Path | Status |
+|---|---|---|---|
+| gitlab-ci-credentials | gitlab-staging | secret/gitlab/ci-variables | ✅ SecretSynced |
+| harbor-oidc-credentials | harbor-system | secret/harbor/oidc | ✅ SecretSynced |
+| harbor-postgresql-credentials | harbor-system | secret/harbor/postgresql | ✅ SecretSynced |
+| keycloak-postgresql-credentials | keycloak | secret/keycloak/postgresql | ✅ SecretSynced |
+| grafana-oidc-credentials | monitoring | secret/grafana/oidc | ✅ SecretSynced |
+| sonarqube-postgresql | sonarqube | secret/sonarqube/postgresql | ✅ SecretSynced |
+| sonarqube-sp-saml | sonarqube | secret/sonarqube/saml | ✅ SecretSynced |
+
+### DEC-065 Arquivos Modificados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `modules/vault-config/main.tf` | ADD vault_kv_secret_v2 grafana/oidc, sonarqube/postgresql, harbor/postgresql |
+| `modules/vault-config/variables.tf` | ADD vars para os 3 novos KV secrets |
+| `modules/sonarqube/main.tf` | ADD kubectl provider + ExternalSecret sonarqube-postgresql |
+| `modules/kube-prometheus-stack/main.tf` | REMOVE dynamic set hardcoded; ADD extraEnvFrom |
+| `modules/kube-prometheus-stack/variables.tf` | DEPRECATE grafana_keycloak_client_secret |
+| `environments/staging/main.tf` | REMOVE hardcoded secret; ADD vault_config vars |
+| `environments/staging/variables.tf` | ADD 3 novas sensitive vars |
+| `modules/harbor/main.tf` | REMOVE AWS SM data sources; ADD ExternalSecret |
+| `modules/harbor/variables.tf` | ADD postgresql_password var |
+
+### DEC-065 Consequências
+
+- ✅ Zero secrets hardcoded no repositório git
+- ✅ Auditoria centralizada via Vault KV para todos os secrets críticos
+- ✅ Rotação de credentials feita exclusivamente via Vault
+- ✅ Grafana OIDC client_secret rotacionado — secret antigo invalidado
+- ⚠️ P2 pendente: ArgoCD OIDC client_secret (K8s Secret, não hardcoded)
+- ⚠️ P3 pendente: Redis password Vault KV entry (auditoria)
+
+### DEC-065 Referências
+
+- [DEC-064 VPC CNI EXTERNALSNAT](#-dec-064-vpc-cni-externalsnat--s3-gateway-endpoint-fix)
+- [access/CREDENTIALS.md](../../access/CREDENTIALS.md)

@@ -8,7 +8,7 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-19 (GAP-005 concluído — ESO credentials, runner envFrom, RBAC, namespace fix, templates)
+**Última Atualização**: 2026-02-19 (DEC-065: ESO zero-drift — Grafana OIDC rotacionado + SonarQube/Harbor PostgreSQL via Vault+ESO)
 
 **Estado do Projeto**: Desenvolvimento Ativo - SSO + CI/CD Integration Complete (ArgoCD + Vault + SonarQube + Grafana + Harbor + GitLab CI)
 
@@ -228,26 +228,35 @@
 ## Secrets Management
 
 **Estratégia**: Vault + External Secrets Operator
+**Status**: ✅ ZERO DRIFT — todos os secrets críticos via Vault KV v2 + ESO (DEC-065, 2026-02-19)
 
-**Vault Status (2026-02-13)**: Reinicializado (EBS volumes perdidos). 1/3 replicas por capacity.
+**Vault Status (2026-02-19)**: Operacional. HA Raft + KMS auto-unseal. OIDC SSO ativo.
 
-**Status Migração para Vault**:
-| Aplicação | Status     | External Secret | Detalhes                                                                            |
-| --------- | ---------- | --------------- | ----------------------------------------------------------------------------------- |
-| Keycloak  | ✅ Migrado  | ✅ Configurado   | Admin password, DB credentials via Vault                                            |
-| Harbor    | ✅ Migrado  | ✅ Configurado   | OIDC credentials via ESO (secret/harbor/oidc → harbor-oidc-credentials, 2026-02-18) |
-| GitLab    | ⏸️ Pendente | ⏸️ Pendente      | Usando secrets manuais                                                              |
+**Status Migração para Vault — 7 ExternalSecrets (SecretSynced: True)**:
 
-**Vault Configuration (2026-02-18)**:
+| ExternalSecret | Namespace | Vault Path | Status |
+| --- | --- | --- | --- |
+| grafana-oidc-credentials | monitoring | secret/grafana/oidc | ✅ SecretSynced |
+| sonarqube-postgresql | sonarqube | secret/sonarqube/postgresql | ✅ SecretSynced |
+| sonarqube-sp-saml | sonarqube | secret/sonarqube/saml | ✅ SecretSynced |
+| harbor-postgresql-credentials | harbor-system | secret/harbor/postgresql | ✅ SecretSynced |
+| harbor-oidc-credentials | harbor-system | secret/harbor/oidc | ✅ SecretSynced |
+| keycloak-postgresql-credentials | keycloak | secret/keycloak/postgresql | ✅ SecretSynced |
+| gitlab-ci-credentials | gitlab-staging | secret/gitlab/ci-variables | ✅ SecretSynced |
+
+**Vault Configuration (2026-02-19)**:
 - KV v2 engine at `secret/`
 - Kubernetes auth method configured (ESO service account)
 - Policy `eso-reader` with `read` on `secret/data/*`
 - Role `eso-reader` bound to `external-secrets-system` namespace
 - ClusterSecretStore: `vault-backend` (Ready: True)
-- ExternalSecret: `keycloak-postgresql` (SecretSynced: True)
-- OIDC auth method at `auth/oidc/` — Keycloak realm platform, client `vault` (2026-02-18)
+- OIDC auth method at `auth/oidc/` — Keycloak realm platform, client `vault`
 - Roles: `admin` (vault-admins group, TTL 8h) + `reader` (any user, TTL 4h)
 - Policies: `vault-admin` + `vault-reader` (TF: modules/vault-config/vault_policies/)
+
+**Pendente P2/P3**:
+- ArgoCD OIDC client_secret (K8s Secret, não hardcoded — menor prioridade)
+- Redis password Vault KV entry (auditoria)
 
 ---
 
@@ -359,10 +368,10 @@
    - **Plano**: Migrar para subnet privada quando Vault estável (Marco 4)
    - **Relacionado**: ADR-046
 
-2. **Secrets Hardcoded (Harbor, GitLab)** - Severidade: HIGH
-   - **Impacto**: Secrets em Kubernetes Secrets não criptografados em rest
-   - **Esforço**: S (migração via ESO)
-   - **Plano**: Marco 4, após Vault 100% estável
+2. ~~**Secrets Hardcoded (Harbor, GitLab)**~~ - ✅ **RESOLVIDO (DEC-065, 2026-02-19)**
+   - Grafana OIDC client_secret removido do git + rotacionado
+   - SonarQube PostgreSQL e Harbor PostgreSQL via Vault + ESO
+   - Pendente P2: ArgoCD OIDC (K8s Secret, não hardcoded)
 
 3. **Sem Testes Automatizados (IaC)** - Severidade: MEDIUM
    - **Impacto**: Risco de regressão em mudanças Terraform

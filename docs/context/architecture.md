@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-18
-**Versão:** 3.3 (ArgoCD SSO via Keycloak OIDC — 5 fixes cascata)
-**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO | ✅ ArgoCD OIDC SSO
+**Última Atualização:** 2026-02-19
+**Versão:** 3.4 (ESO Zero-Drift — 7 ExternalSecrets + Grafana OIDC rotacionado)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO | ✅ ArgoCD OIDC SSO | ✅ ESO Zero-Drift
 
 ---
 
@@ -261,8 +261,8 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
   - Prometheus: 20Gi (gp3)
   - Grafana: 5Gi (gp3)
   - Alertmanager: 2Gi (gp3)
-- **Secrets:** Grafana admin password no AWS Secrets Manager
-- **Custo:** $2.56/mês (EBS + Secrets Manager)
+- **Secrets:** Grafana OIDC → Vault `secret/grafana/oidc` → ESO → K8s Secret `grafana-oidc-credentials` (migrado DEC-065, 2026-02-19)
+- **Custo:** $2.56/mês (EBS)
 
 **Scheduling Strategy (Atualizado 2026-02-05):**
 - **Tolerations:**
@@ -722,7 +722,9 @@ Internet
 - **Calico:** Policy engine sem overhead de overlay network
 
 ### Secrets Management
-- **AWS Secrets Manager:** Grafana admin password (KMS encrypted)
+- **AWS Secrets Manager:** RDS postgres_admin password (KMS encrypted)
+- **Vault KV v2:** Todos os secrets de aplicação (grafana/oidc, sonarqube/postgresql, harbor/postgresql, harbor/oidc, keycloak/postgresql, sonarqube/saml, gitlab/ci-variables)
+- **External Secrets Operator:** 7 ExternalSecrets sincronizados (SecretSynced: True) — ZERO DRIFT (DEC-065, 2026-02-19)
 - **Kubernetes Secrets:** Service account tokens (automático)
 
 ---
@@ -1075,9 +1077,10 @@ Internet
 
 #### FASE 2: Code Quality + Security (3h)
 
-##### 8. SonarQube Community Edition (ADR-034/DEC-062) — ✅ SAML SSO OK (2026-02-18)
+##### 8. SonarQube Community Edition (ADR-034/DEC-062/DEC-065) — ✅ SAML SSO OK (2026-02-18)
 - **Versão:** Helm sonarqube/sonarqube v10.7.0
 - **Database:** PostgreSQL RDS shared DB `sonarqube` ($0)
+- **DB Secrets:** Vault `secret/sonarqube/postgresql` → ESO → `sonarqube-postgresql` (DEC-065, 2026-02-19)
 - **ALB:** `sonarqube.staging.internal` (platform-staging group)
 - **Auth:** SAML 2.0 via Keycloak realm `platform` (client: sonarqube)
 - **SP cert/key:** Vault KV `secret/sonarqube/saml` → ESO → `sonarqube-sp-saml` (secret.properties)
