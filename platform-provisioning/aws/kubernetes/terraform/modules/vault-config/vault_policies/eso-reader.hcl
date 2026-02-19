@@ -1,7 +1,9 @@
 # Policy for External Secrets Operator
-# Read-only access to secret/{keycloak,harbor}/* (KV v2)
+# Read-only access to KV v2 paths
 # Used by K8s ServiceAccount: external-secrets-system/external-secrets
 # Security: Granular path restriction (ADR-032)
+# Updated: 2026-02-18 — add sonarqube/*, grafana/*
+# Updated: 2026-02-19 — add gitlab/*
 
 path "secret/data/keycloak/*" {
   capabilities = ["read", "list"]
@@ -16,5 +18,29 @@ path "secret/data/harbor/*" {
 }
 
 path "secret/metadata/harbor/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/data/sonarqube/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/sonarqube/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/data/grafana/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/grafana/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/data/gitlab/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/gitlab/*" {
   capabilities = ["read", "list"]
 }

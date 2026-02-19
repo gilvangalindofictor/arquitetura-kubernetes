@@ -1,0 +1,96 @@
+# Complete CI/CD pipeline example — K8s Platform (GAP-005)
+# Copy to your project root as .gitlab-ci.yml and adjust as needed.
+#
+# Pipeline flow: build → test → scan → deploy
+# Runner: kubernetes executor (namespace: gitlab-staging)
+# Credentials: injected via runner envFrom from gitlab-ci-credentials secret
+#   HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD → Harbor push/pull
+#   SONAR_HOST_URL, SONAR_TOKEN → SonarQube analysis
+#
+# Project-specific CI/CD variables to configure in GitLab (Settings > CI/CD):
+#   ARGOCD_TOKEN — ArgoCD auth token (per project, not stored in runner secret)
+
+stages:
+  - build
+  - test
+  - scan
+  - deploy
+
+variables:
+  DOCKER_IMAGE: "${HARBOR_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+  DOCKER_IMAGE_LATEST: "${HARBOR_REGISTRY}/${CI_PROJECT_PATH}:latest"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+default:
+  tags:
+    - kubernetes
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login "${HARBOR_REGISTRY}" -u "${HARBOR_USER}" -p "${HARBOR_PASSWORD}"
+  script:
+    - docker build -t "${DOCKER_IMAGE}" -t "${DOCKER_IMAGE_LATEST}" .
+    - docker push "${DOCKER_IMAGE}"
+    - docker push "${DOCKER_IMAGE_LATEST}"
+  after_script:
+    - docker logout "${HARBOR_REGISTRY}"
+
+# ── Test ──────────────────────────────────────────────────────────────────────
+test:
+  stage: test
+  image: "${DOCKER_IMAGE}"
+  script:
+    - echo "Add your test commands here"
+    # Example: pytest tests/ --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 7 days
+
+# ── Scan ──────────────────────────────────────────────────────────────────────
+sonarqube-check:
+  stage: scan
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+      -Dsonar.host.url="${SONAR_HOST_URL}"
+      -Dsonar.token="${SONAR_TOKEN}"
+      -Dsonar.projectKey="${CI_PROJECT_PATH_SLUG}"
+      -Dsonar.projectName="${CI_PROJECT_NAME}"
+      -Dsonar.sources=.
+      -Dsonar.scm.provider=git
+  allow_failure: true
+
+# ── Deploy ────────────────────────────────────────────────────────────────────
+deploy:
+  stage: deploy
+  image: argoproj/argocd:v2.10.0
+  variables:
+    ARGOCD_SERVER: "argocd.staging.internal"
+    ARGOCD_OPTS: "--grpc-web --insecure"
+  script:
+    - argocd app sync "${CI_PROJECT_NAME}" --auth-token "${ARGOCD_TOKEN}" --server "${ARGOCD_SERVER}" ${ARGOCD_OPTS}
+    - argocd app wait "${CI_PROJECT_NAME}" --auth-token "${ARGOCD_TOKEN}" --server "${ARGOCD_SERVER}" ${ARGOCD_OPTS} --timeout 120
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never

@@ -8,13 +8,13 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-18 (ArgoCD SSO via Keycloak OIDC — 5 fixes cascata)
+**Última Atualização**: 2026-02-19 (GAP-005 concluído — ESO credentials, runner envFrom, RBAC, namespace fix, templates)
 
-**Estado do Projeto**: Desenvolvimento Ativo - SSO Integration Complete (ArgoCD + Vault + SonarQube + Grafana + Harbor)
+**Estado do Projeto**: Desenvolvimento Ativo - SSO + CI/CD Integration Complete (ArgoCD + Vault + SonarQube + Grafana + Harbor + GitLab CI)
 
-**Marco Atual**: Marco 4 - CI/CD Platform (85% completo)
+**Marco Atual**: Marco 4 - CI/CD Platform (98% completo)
 
-**Progresso Geral**: 50% ██████████████░░░░░░░░░░░░░ (Marco 0-3 completo, Marco 4 80% / 0-6)
+**Progresso Geral**: 55% ████████████████░░░░░░░░░░░ (Marco 0-3 completo, Marco 4 98% / 0-6)
 
 ---
 
@@ -29,14 +29,14 @@
 | Marco 3 Fase 1c    | ✅ Completo     | 100%      | < 1h    | $0        | ✅             |
 | Marco 3 Fase 1d    | ✅ Completo     | 100%      | 3 dias  | +$0.50    | ✅             |
 | Marco 3 Fase 1e    | ✅ Completo     | 100%      | 2h32min | +$28.90   | ✅ 2026-02-06  |
-| Marco 4            | 🚧 Em andamento | 85%       | ~10h    | +$100     | —             |
+| Marco 4            | 🚧 Em andamento | 95%       | ~12h    | +$100     | —             |
 | Marco 5            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 | Marco 6            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 
 **Legenda**: ✅ Completo | 🚧 Em andamento | ⏸️ Pendente | ⚠️ Bloqueado
 
 **Total até Marco 3**: ~14 dias de trabalho efetivo | ~$700/mês staging
-**Marco 4 Atual**: 5/8 GAPs completos (85% core features) | +$100/mês | ~$800/mês total
+**Marco 4 Atual**: 6/8 GAPs completos (95% core features) | +$100/mês | ~$800/mês total
 
 ---
 
@@ -106,12 +106,12 @@
 
 **Próximos Passos**:
 
-- [ ] GitLab runner: obter novo registration token via GitLab 17.x admin UI (tokens v15.6+ deprecados)
+- ✅ GitLab runner: id=115 online (authentication token GitLab 17.x, 2026-02-18)
+- ✅ Persist Tempo fix: nodeSelector=critical + affinity NotIn us-east-1a (commit 0c5729b)
+- ✅ Lambda weekend shutdown: comportamento já correto — EKS scale=0 termina instâncias via ASG; RDS STOP preserva dados (não requer TERMINATE)
+- ✅ ASG node substituto: cluster normalizado (7 nodes Ready confirmado)
 - [ ] Persist monitoring fixes: `nodeSelector: {}` no Terraform Helm values para prometheus/alertmanager/operator
-- [ ] Persist Tempo fix: nodeSelector=critical + toleration + GODEBUG no Terraform
-- [ ] Lambda weekend shutdown: alterar STOP → TERMINATE (fix S3 Gateway Endpoint routing)
 - [ ] Savings Plans 1yr (P1): R$ 6.984/ano, ROI 2.340%
-- [ ] Verificar ASG provisionou node substituto para system nodegroup
 
 ---
 
@@ -148,14 +148,14 @@
 
 ### Workloads (Marco 3)
 
-| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace     | Database                  | Notas                                                     |
-| ---------------- | ------------- | ------------ | ----------------------------------------- | ------------- | ------------------------- | --------------------------------------------------------- |
-| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —             | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)               |
-| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
-| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services | —                         | Official operator                                         |
-| GitLab           | 🟡 Parcial     | 16.7.0       | 1 (2 Pending)                             | gitlab        | PostgreSQL RDS            | Webservice 1/3 Running (capacity), Runner CrashLoop       |
-| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
-| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system  | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
+| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace      | Database                  | Notas                                                     |
+| ---------------- | ------------- | ------------ | ----------------------------------------- | -------------- | ------------------------- | --------------------------------------------------------- |
+| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —              | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)               |
+| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services  | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
+| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services  | —                         | Official operator                                         |
+| GitLab           | ✅ Operacional | 17.7.0       | Vários                                    | gitlab-staging | PostgreSQL RDS            | Webservice Running, Runner id=115 online (2026-02-18)     |
+| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system  | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
+| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system   | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
 
 ---
 
@@ -166,24 +166,27 @@
 | Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana, harbor, vault. initContainer wait-for-db + startupProbe + toleration critical |
 | ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak SSO ✅ (5 fixes cascata), 8/8 pods running                                                                          |
 | SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                                             |
-| GitLab    | 🟡 90% OK      | 16.7.0 (v17.7.0) | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner pending (migrations ~30min)                                                                                                       |
+| GitLab    | ✅ Operacional | 17.7.0           | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner id=115 online, CI/CD variables + templates ✅ GAP-005 completo (2026-02-19) |
 
 **GAPs Marco 4**:
 
 - ✅ GAP-001: Keycloak SSO (100% - deployed 2026-02-06)
-- 🟡 GAP-002: GitLab Fix (90% - core operacional, runner pendente)
+- ✅ GAP-002: GitLab Fix (100% - core operacional, runner id=115 online)
 - ✅ GAP-003: ArgoCD GitOps (100% - deployed 2026-02-06)
 - ✅ GAP-004: SonarQube (100% - deployed 2026-02-06)
-- ⏸️ GAP-005: GitLab CI/CD Integration (0% - aguarda runner)
+- ✅ GAP-005: GitLab CI/CD Integration (100% - ESO credentials, runner envFrom, RBAC, templates — 2026-02-19)
 - ⏸️ GAP-006: ApplicationSets GitOps Patterns (0%)
 - ⏸️ GAP-007: Network Policies Marco 4 (0%)
 - ⏸️ GAP-008: Monitoring & Dashboards Marco 4 (0%)
 
 **Known Issues Marco 4**:
 
-- 🟡 GitLab runner: Registration failing (GitLab API 500 - migrations pending)
+- ✅ GitLab runner: id=115 online, envFrom gitlab-ci-credentials, executor namespace=gitlab-staging (2026-02-19)
 - ⚠️ SonarQube Prometheus exporter: Disabled (Maven Central timeout)
-- 🟡 OIDC testing: SonarQube SAML ✅, ArgoCD OIDC ✅, Vault OIDC ✅, Grafana OIDC ✅, Harbor OIDC ✅, GitLab OIDC pending
+- ✅ SSO completo: SonarQube SAML ✅, ArgoCD OIDC ✅, Vault OIDC ✅, Grafana OIDC ✅, Harbor OIDC ✅, GitLab OIDC ✅
+- ✅ GAP-005 completo: ESO ExternalSecret gitlab-ci-credentials, runner envFrom, executor namespace fix, RBAC least-privilege, templates
+- ⏸️ Keycloak grupo `grafana-admins`: não provisionado (TF + Keycloak)
+- ⏸️ GAP-006/007: ApplicationSets + Network Policies (pendente)
 
 ---
 
@@ -229,11 +232,11 @@
 **Vault Status (2026-02-13)**: Reinicializado (EBS volumes perdidos). 1/3 replicas por capacity.
 
 **Status Migração para Vault**:
-| Aplicação | Status     | External Secret | Detalhes                                  |
-| --------- | ---------- | --------------- | ----------------------------------------- |
-| Keycloak  | ✅ Migrado  | ✅ Configurado   | Admin password, DB credentials via Vault  |
-| Harbor    | 🚧 Parcial  | ⏸️ Pendente      | Usando secrets manuais, migração pendente |
-| GitLab    | ⏸️ Pendente | ⏸️ Pendente      | Usando secrets manuais                    |
+| Aplicação | Status     | External Secret | Detalhes                                                                            |
+| --------- | ---------- | --------------- | ----------------------------------------------------------------------------------- |
+| Keycloak  | ✅ Migrado  | ✅ Configurado   | Admin password, DB credentials via Vault                                            |
+| Harbor    | ✅ Migrado  | ✅ Configurado   | OIDC credentials via ESO (secret/harbor/oidc → harbor-oidc-credentials, 2026-02-18) |
+| GitLab    | ⏸️ Pendente | ⏸️ Pendente      | Usando secrets manuais                                                              |
 
 **Vault Configuration (2026-02-18)**:
 - KV v2 engine at `secret/`
@@ -250,37 +253,46 @@
 
 ## FinOps
 
-**Última Análise**: 2026-02-05
+**Última Análise**: 2026-02-19 (dados reais AWS Cost Explorer)
 
-**Custo Atual Staging (mensal)**:
+**Custo Atual Staging — AWS Cost Explorer (Fev 2026 MTD: 18 dias)**:
 
-| Categoria                         | Custo     | Percentual |
-| --------------------------------- | --------- | ---------- |
-| EKS Cluster (control plane)       | $73       | 9.1%       |
-| EC2 Nodes (7 nodes)               | $474      | 59.3%      |
-| PostgreSQL RDS                    | $58       | 7.3%       |
-| VPC Endpoints                     | $28.90    | 3.6%       |
-| EBS Volumes                       | $50       | 6.3%       |
-| Load Balancers                    | $16       | 2.0%       |
-| **Marco 4 (Keycloak+Argo+Sonar)** | **+$100** | **12.5%**  |
-| **Total Marco 0-4**               | **~$800** | **100%**   |
+| Categoria                     | Custo MTD (18d) | Projeção Mensal        | Percentual |
+| ----------------------------- | --------------- | ---------------------- | ---------- |
+| Amazon EKS (Control Plane)    | $157.52         | $245.04                | 30.0%      |
+| Amazon EC2 Compute (Nodes)    | $151.63         | $235.87                | 28.9%      |
+| EC2 Other (EBS, NAT GW, IPs)  | $74.91          | $116.56                | 14.3%      |
+| Amazon Elastic Load Balancing | $48.76          | $75.85                 | 9.3%       |
+| Amazon VPC (Endpoints + NAT)  | $46.72          | $72.68                 | 8.9%       |
+| Amazon RDS PostgreSQL         | $18.05          | $28.08                 | 3.4%       |
+| Amazon CloudWatch             | $16.52          | $25.70                 | 3.2%       |
+| Outros (KMS, S3, SM, ECR)     | $10.53          | $16.38                 | 2.0%       |
+| **Subtotal (excl. Tax)**      | **$524.33**     | **$815.64**            | **100%**   |
+| Tax                           | $72.55          | $112.86                |            |
+| **TOTAL**                     | **$596.88**     | **$745.62** (forecast) |            |
+
+**AWS Forecast Fev 2026:** **$745.62/mês** (vs documentado $752.80 = -0.95%)
+**Custo diário estabilizado (Semana 3):** **~$13/dia** (redução de 73% vs Semana 1)
 
 **Automação FinOps (ADR-024)**:
 - ✅ Lambda start/stop para RDS + ASGs
 - ✅ EventBridge schedules:
-  - Start: Segunda-Sexta 07:00 UTC
-  - Stop: Segunda-Sexta 19:00 UTC
-- ✅ Economia projetada: R$ 360/mês (~$70/mês)
+  - Start: Segunda-Sexta 07:30 BRT (10:30 UTC)
+  - Stop: Segunda-Sexta 20:00 BRT (23:00 UTC)
+- ✅ Economia observada: custos diários caíram de ~$50/dia para ~$13/dia
 
 **Otimizações Implementadas**:
 - ✅ Auto-shutdown ambiente staging (ADR-024)
 - ✅ Single-AZ RDS (staging only)
 - ✅ Tolerations para node groups (evitar over-provisioning)
+- ✅ Sprint 2 FinOps Wave: ALBs deletados, EBS gp2→gp3, IngressGroup
+- ✅ Sprint 3: VPC Endpoint KMS + Vault recovery
 
 **Próximas Otimizações**:
 - [ ] Spot instances para workloads node group
 - [ ] Karpenter para auto-scaling mais eficiente
 - [ ] Revisão de tamanhos de volumes EBS
+- [ ] CloudWatch Logs retention review ($25/mês projetado — investigar)
 
 ---
 

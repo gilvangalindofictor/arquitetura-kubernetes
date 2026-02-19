@@ -1,0 +1,13 @@
+# Deploy template — kubectl apply para staging
+# Requires: KUBECONFIG ou in-cluster via runner serviceAccount
+
+.deploy-staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  environment:
+    name: staging
+  script:
+    - kubectl set image deployment/${APP_NAME} ${APP_NAME}="${DOCKER_IMAGE}" -n "${K8S_NAMESPACE:-staging}"
+    - kubectl rollout status deployment/${APP_NAME} -n "${K8S_NAMESPACE:-staging}" --timeout=120s
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

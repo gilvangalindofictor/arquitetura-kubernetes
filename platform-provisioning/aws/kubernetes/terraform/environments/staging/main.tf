@@ -34,6 +34,10 @@ terraform {
       source  = "hashicorp/vault"
       version = "~> 3.25"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 
@@ -313,6 +317,186 @@ module "gitlab_staging" {
 
   # Tags
   common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# GITLAB CI/CD — Runner Credentials (GAP-005)
+# Vault KV → ESO ExternalSecret → K8s Secret → Runner envFrom
+# Vault paths:
+#   secret/gitlab/ci-variables → harbor_registry_url, harbor_robot_user,
+#                                 harbor_robot_password, sonar_host_url, sonar_token
+# eso-reader policy: secret/data/gitlab/* (added 2026-02-19)
+# Note: lifecycle.ignore_changes=all on helm_release.gitlab → envFrom via kubectl patch
+#------------------------------------------------------------------------------
+
+resource "kubernetes_manifest" "gitlab_ci_credentials_eso" {
+  manifest = {
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "gitlab-ci-credentials"
+      namespace = "gitlab-staging"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        kind = "ClusterSecretStore"
+        name = "vault-backend"
+      }
+      data = [
+        {
+          secretKey = "HARBOR_REGISTRY"
+          remoteRef = {
+            key      = "secret/data/gitlab/ci-variables"
+            property = "harbor_registry_url"
+          }
+        },
+        {
+          secretKey = "HARBOR_USER"
+          remoteRef = {
+            key      = "secret/data/gitlab/ci-variables"
+            property = "harbor_robot_user"
+          }
+        },
+        {
+          secretKey = "HARBOR_PASSWORD"
+          remoteRef = {
+            key      = "secret/data/gitlab/ci-variables"
+            property = "harbor_robot_password"
+          }
+        },
+        {
+          secretKey = "SONAR_HOST_URL"
+          remoteRef = {
+            key      = "secret/data/gitlab/ci-variables"
+            property = "sonar_host_url"
+          }
+        },
+        {
+          secretKey = "SONAR_TOKEN"
+          remoteRef = {
+            key      = "secret/data/gitlab/ci-variables"
+            property = "sonar_token"
+          }
+        }
+      ]
+      target = {
+        name           = "gitlab-ci-credentials"
+        creationPolicy = "Owner"
+      }
+    }
+  }
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  depends_on = [module.gitlab_staging]
+}
+
+resource "null_resource" "gitlab_runner_envfrom" {
+  depends_on = [kubernetes_manifest.gitlab_ci_credentials_eso]
+
+  triggers = {
+    secret_name = "gitlab-ci-credentials"
+    namespace   = "gitlab-staging"
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      kubectl patch deployment gitlab-gitlab-runner -n gitlab-staging --type='json' -p='[
+        {"op":"add","path":"/spec/template/spec/containers/0/envFrom","value":[{"secretRef":{"name":"gitlab-ci-credentials"}}]}
+      ]' || true
+    EOT
+  }
+}
+
+# Fix: executor namespace was "gitlab" (non-existent) → "gitlab-staging"
+# Helm lifecycle.ignore_changes=all → must patch configmap directly
+# Uses python3 interpreter to avoid bash quoting issues with TOML content
+resource "null_resource" "gitlab_runner_namespace_fix" {
+  depends_on = [module.gitlab_staging]
+
+  triggers = {
+    executor_namespace = "gitlab-staging"
+    s3_bucket          = "k8s-platform-gitlab-artifacts-891377105802"
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["python3", "-c"]
+    command     = <<-EOT
+      import json, subprocess
+      toml = "\n".join([
+        "[[runners]]",
+        "  [runners.kubernetes]",
+        "    namespace = \"gitlab-staging\"",
+        "    image = \"ubuntu:22.04\"",
+        "    privileged = false",
+        "    cpu_request = \"100m\"",
+        "    memory_request = \"256Mi\"",
+        "    service_cpu_request = \"50m\"",
+        "    service_memory_request = \"128Mi\"",
+        "    helper_cpu_request = \"50m\"",
+        "    helper_memory_request = \"128Mi\"",
+        "  [runners.cache]",
+        "    Type = \"s3\"",
+        "    Shared = true",
+        "    [runners.cache.s3]",
+        "      BucketName = \"k8s-platform-gitlab-artifacts-891377105802\"",
+        "      BucketLocation = \"us-east-1\"",
+        ""
+      ])
+      patch = json.dumps({"data": {"config.template.toml": toml}})
+      r = subprocess.run(
+        ["kubectl", "patch", "configmap", "gitlab-gitlab-runner",
+         "-n", "gitlab-staging", "--type", "merge", "-p", patch],
+        capture_output=True
+      )
+      print(r.stdout.decode() + r.stderr.decode())
+    EOT
+  }
+}
+
+# Tighten runner RBAC: replace Helm wildcard with least-privilege rules
+# Original: resources=['*'], verbs=['*'] (Helm chart gitlab-runner-0.71.0)
+# force_conflicts=true to override Helm field manager
+resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
+  manifest = {
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "Role"
+    metadata = {
+      name      = "gitlab-gitlab-runner"
+      namespace = "gitlab-staging"
+      labels = {
+        "app"                          = "gitlab-gitlab-runner"
+        "app.kubernetes.io/managed-by" = "Terraform"
+        "chart"                        = "gitlab-runner-0.71.0"
+      }
+    }
+    rules = [
+      {
+        apiGroups = [""]
+        resources = ["pods", "pods/exec", "pods/log"]
+        verbs      = ["get", "list", "watch", "create", "delete", "patch", "update"]
+      },
+      {
+        apiGroups = [""]
+        resources = ["secrets"]
+        verbs      = ["get", "list", "watch", "create", "delete", "update"]
+      },
+      {
+        apiGroups = [""]
+        resources = ["configmaps", "serviceaccounts"]
+        verbs      = ["get", "list", "watch"]
+      }
+    ]
+  }
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  depends_on = [module.gitlab_staging]
 }
 
 #------------------------------------------------------------------------------

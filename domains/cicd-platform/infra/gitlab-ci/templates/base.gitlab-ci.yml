@@ -1,0 +1,33 @@
+# Base template — K8s Platform CI/CD
+# Include this in your project .gitlab-ci.yml:
+#   include:
+#     - project: 'platform/templates'
+#       file: '/gitlab-ci/templates/base.gitlab-ci.yml'
+#
+# Credentials injected via ESO ExternalSecret → gitlab-ci-credentials Secret → runner envFrom:
+#   HARBOR_REGISTRY  = harbor.staging.internal
+#   HARBOR_USER      = robot$gitlab-ci
+#   HARBOR_PASSWORD  = <vault managed>
+#   SONAR_HOST_URL   = http://sonarqube.staging.internal
+#   SONAR_TOKEN      = <vault managed>
+
+stages:
+  - build
+  - test
+  - scan
+  - deploy
+
+variables:
+  DOCKER_IMAGE: "${HARBOR_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+  DOCKER_IMAGE_LATEST: "${HARBOR_REGISTRY}/${CI_PROJECT_PATH}:latest"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+default:
+  tags:
+    - kubernetes
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure

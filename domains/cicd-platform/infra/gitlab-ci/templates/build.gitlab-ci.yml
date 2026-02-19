@@ -1,0 +1,16 @@
+# Build template — Docker build + push to Harbor
+# Requires: HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD (from runner envFrom)
+
+.build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login "${HARBOR_REGISTRY}" -u "${HARBOR_USER}" -p "${HARBOR_PASSWORD}"
+  script:
+    - docker build -t "${DOCKER_IMAGE}" -t "${DOCKER_IMAGE_LATEST}" .
+    - docker push "${DOCKER_IMAGE}"
+    - docker push "${DOCKER_IMAGE_LATEST}"
+  after_script:
+    - docker logout "${HARBOR_REGISTRY}"

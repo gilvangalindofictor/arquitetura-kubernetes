@@ -1,0 +1,84 @@
+# Exemplo completo — Java Spring Boot com Maven
+# Copia para o root do projeto como .gitlab-ci.yml
+#
+# Variáveis injetadas automaticamente via runner envFrom (ESO → gitlab-ci-credentials):
+#   HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD, SONAR_HOST_URL, SONAR_TOKEN
+#
+# Variáveis a definir por projeto (GitLab CI/CD Settings > Variables):
+#   APP_NAME     = nome do deployment K8s
+#   K8S_NAMESPACE = namespace de destino
+
+stages:
+  - build
+  - test
+  - scan
+  - package
+  - deploy
+
+variables:
+  DOCKER_IMAGE: "${HARBOR_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_SHORT_SHA}"
+  MAVEN_OPTS: "-Dmaven.repo.local=${CI_PROJECT_DIR}/.m2"
+
+cache:
+  paths:
+    - .m2/
+
+build:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - mvn package -DskipTests -q
+
+test:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - mvn test
+  artifacts:
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+    when: always
+
+sonarqube:
+  stage: scan
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - sonar-scanner
+      -Dsonar.host.url="${SONAR_HOST_URL}"
+      -Dsonar.token="${SONAR_TOKEN}"
+      -Dsonar.projectKey="${CI_PROJECT_PATH_SLUG}"
+      -Dsonar.projectName="${CI_PROJECT_NAME}"
+      -Dsonar.java.binaries=target/classes
+  allow_failure: true
+
+docker-build:
+  stage: package
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker login "${HARBOR_REGISTRY}" -u "${HARBOR_USER}" -p "${HARBOR_PASSWORD}"
+  script:
+    - docker build -t "${DOCKER_IMAGE}" .
+    - docker push "${DOCKER_IMAGE}"
+  after_script:
+    - docker logout "${HARBOR_REGISTRY}"
+  only:
+    - main
+    - develop
+
+deploy-staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  environment:
+    name: staging
+    url: http://${APP_NAME}.staging.internal
+  script:
+    - kubectl set image deployment/${APP_NAME} ${APP_NAME}="${DOCKER_IMAGE}" -n "${K8S_NAMESPACE:-staging}"
+    - kubectl rollout status deployment/${APP_NAME} -n "${K8S_NAMESPACE:-staging}" --timeout=120s
+  only:
+    - main
