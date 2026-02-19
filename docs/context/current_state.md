@@ -29,14 +29,14 @@
 | Marco 3 Fase 1c    | ✅ Completo     | 100%      | < 1h    | $0        | ✅             |
 | Marco 3 Fase 1d    | ✅ Completo     | 100%      | 3 dias  | +$0.50    | ✅             |
 | Marco 3 Fase 1e    | ✅ Completo     | 100%      | 2h32min | +$28.90   | ✅ 2026-02-06  |
-| Marco 4            | 🚧 Em andamento | 95%       | ~12h    | +$100     | —             |
+| Marco 4            | 🚧 Em andamento | 98%       | ~12h    | +$100     | —             |
 | Marco 5            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 | Marco 6            | ⏸️ Pendente     | 0%        | TBD     | TBD       | —             |
 
 **Legenda**: ✅ Completo | 🚧 Em andamento | ⏸️ Pendente | ⚠️ Bloqueado
 
 **Total até Marco 3**: ~14 dias de trabalho efetivo | ~$700/mês staging
-**Marco 4 Atual**: 6/8 GAPs completos (95% core features) | +$100/mês | ~$800/mês total
+**Marco 4 Atual**: 5/8 GAPs completos (98% core features) | +$100/mês | ~$800/mês total
 
 ---
 
