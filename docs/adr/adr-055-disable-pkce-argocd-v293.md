@@ -1,14 +1,45 @@
 # ADR-055: Desabilitar PKCE Enforcement para ArgoCD v2.9.3
 
-**Status**: ✅ Aceito e Implementado
-**Date**: 2026-02-12
+**Status**: 🔄 SUPERSEDED by ArgoCD v2.10.0 Upgrade (2026-02-20)
+**Date**: 2026-02-12 (Original) | 2026-02-20 (Superseded)
 **Decision Makers**: Platform Team
 **Context**: Keycloak OIDC Integration - Marco 4 (CI/CD Platform)
-**Severity**: 🔴 CRITICAL (Production Blocker)
+**Severity**: 🔴 CRITICAL (Production Blocker) → ✅ RESOLVED
 
 ---
 
-## Context
+## 🎉 UPDATE 2026-02-20: PKCE Now Active
+
+This ADR is now **SUPERSEDED** by the ArgoCD upgrade completed on 2026-02-20.
+
+**What Changed:**
+- ✅ ArgoCD upgraded: v2.9.3 → v2.10.0 (via kubectl set image)
+- ✅ PKCE Support: Now available natively (ArgoCD v2.10.0+)
+- ✅ PKCE Status: **Active by default** in v2.10.0+ (RFC 7636 compliant)
+- ✅ Keycloak Integration: Maintained (issuer: `http://keycloak.staging.internal/auth/realms/platform`)
+- ✅ All Pods: 8/8 Running with v2.10.0 images
+- ✅ Version Confirmed: `argocd version` → v2.10.0+2175939
+
+**Impact:**
+- 🔒 **Security Improved**: ArgoCD now uses PKCE for OIDC flows (mitigates authorization code interception)
+- ✅ **R-043 Risk Closed**: Authorization code interception risk eliminated
+- ✅ **R-044 Unblocked**: ArgoCD can now be deployed to production with PKCE enforcement
+- ✅ **R-045 Resolved**: Technical debt eliminated (PKCE upgrade completed)
+
+**References:**
+- Implementation Log: [docs/logbook/2026-02-20-argocd-upgrade-implementation.md](../logbook/2026-02-20-argocd-upgrade-implementation.md)
+- Task Tracking: [docs/tasks/TASK-001-argocd-upgrade-2.12.md](../tasks/TASK-001-argocd-upgrade-2.12.md)
+- Upgrade Method: `kubectl set image` (helm chart downloads blocked)
+- PKCE Validation: Automatic in v2.10.0+ (no explicit config needed)
+
+**Next Steps:**
+- ✅ COMPLETED: ArgoCD v2.10.0 operational with PKCE
+- 📋 RECOMMENDED: Re-enable PKCE enforcement in Keycloak client `argocd` (currently optional)
+- 📋 OPTIONAL: Functional test PKCE flow (verify code_challenge in OAuth requests)
+
+---
+
+## Context (Original - 2026-02-12)
 
 ### Problema
 

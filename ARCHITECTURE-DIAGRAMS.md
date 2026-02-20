@@ -1,9 +1,10 @@
 # 🏗️ Arquitetura Visual - Plataforma Kubernetes
 
-> **Última Atualização**: 2026-01-22  
+> **Última Atualização**: 2026-02-20  
 > **Status**: 4/6 domínios implementados  
 > **Conformidade SAD v1.2**: 89.6% média  
 > **Tipo**: Diagramas evolutivos (atualizar conforme implementação)
+> **🎉 Novidade**: ArgoCD v2.10.0 com PKCE ativo (upgrade 2026-02-20)
 
 ---
 
@@ -317,10 +318,10 @@ graph TB
         end
         
         subgraph "argocd namespace"
-            ARGOCD_SERVER[ArgoCD Server<br/>2 réplicas<br/>Web UI + API]
-            ARGOCD_CONTROLLER[ArgoCD Controller<br/>2 réplicas<br/>App reconciliation]
-            ARGOCD_REPO[ArgoCD Repo Server<br/>2 réplicas<br/>Git operations]
-            ARGOCD_DEX[ArgoCD Dex<br/>Keycloak OIDC]
+            ARGOCD_SERVER[ArgoCD Server v2.10.0<br/>2 réplicas<br/>Web UI + API + PKCE]
+            ARGOCD_CONTROLLER[ArgoCD Controller v2.10.0<br/>2 réplicas<br/>App reconciliation]
+            ARGOCD_REPO[ArgoCD Repo Server v2.10.0<br/>2 réplicas<br/>Git operations]
+            ARGOCD_DEX[ArgoCD Dex<br/>Keycloak OIDC + PKCE]
         end
         
         subgraph "backstage namespace"

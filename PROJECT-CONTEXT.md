@@ -77,8 +77,8 @@
 
 **SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
 
-- Marco atual: **Marco 4** (CI/CD Pipeline — Keycloak OIDC, ArgoCD, SonarQube, GitLab CI/CD)
-- Quickstart MVP: **80% completo** (Task#2 Node Upgrade ✅, Tasks #1,3,4,5 pendentes)
+- Marco atual: **Marco 4** (CI/CD Pipeline — Keycloak OIDC ✅, ArgoCD v2.10.0 ✅, SonarQube 🔴, GitLab CI/CD 📋)
+- Quickstart MVP: **82% completo** (Task#1 ArgoCD ✅, Task#2 Node ✅, Tasks #3,4,5 pendentes)
 - Progresso Marco 3: **100% completo** (Todos os componentes operacionais)
 - Próximo: Completar Quickstart MVP (GitLab OIDC, E2E App, FinOps Dashboards)
 
@@ -436,7 +436,7 @@ product: ^[a-z0-9-]+$
 - **GitLab CE** 7.7.0 - Git + CI (2 réplicas webservice, PostgreSQL, Redis, Minio S3)
 - **SonarQube** 10.3.0 - Code Quality (PostgreSQL, 20Gi storage)
 - **Harbor** 1.14.0 - Registry (100Gi, Trivy scanning, Chartmuseum)
-- **ArgoCD** 5.51.6 - GitOps (2 réplicas, Keycloak OIDC)
+- **ArgoCD** v2.10.0 - GitOps (2 réplicas, Keycloak OIDC, ✅ PKCE active)
 - **Backstage** 1.7.0 - Developer Portal (GitLab integration, Software Templates)
 
 **Contratos Providos**: Git Repository (99.5% SLA), CI (10 concurrent runners), Registry (100Gi), GitOps (99.9%), Developer Catalog
@@ -562,8 +562,9 @@ Kubernetes/
 ### Marco 4 — CI/CD Pipeline Completo (EM ANDAMENTO 🚀)
 
 **STATUS:** Sprint 1 QUASE COMPLETO - Keycloak implementado no código (aguarda `terraform apply`)
-**DURAÇÃO ESTIMADA:** 7-11h restantes (ArgoCD + SonarQube + GitLab CI/CD)
+**DURAÇÃO ESTIMADA:** 4-8h restantes (SonarQube fix + GitLab CI/CD)
 **CUSTO INCREMENTAL:** +$100/mês
+**🎉 CONCLUÍDO (2026-02-20):** ArgoCD v2.10.0 upgrade com PKCE ativo
 
 #### Sprint 1: Pre-Requisites — STATUS: 80% COMPLETO
 - [x] **GAP-001:** Keycloak SSO Platform ✅ **CÓDIGO IMPLEMENTADO** (2026-02-06)
@@ -586,14 +587,17 @@ Kubernetes/
 
 #### Sprint 2: Core CI/CD Components (4-6h)
 
-- [x] **GAP-003:** ArgoCD Deploy ✅ COMPLETO (2026-02-06)
+- [x] **GAP-003:** ArgoCD Deploy ✅ COMPLETO (2026-02-06) | 🎉 UPGRADED (2026-02-20)
   - ✅ Deployed via Helm chart v5.51.6 (ArgoCD v2.9.3)
+  - 🎉 **UPGRADED:** v2.9.3 → v2.10.0 (kubectl set image, 2026-02-20)
+  - ✅ **PKCE Active:** Native support in v2.10.0+ (RFC 7636 compliant)
   - ✅ PostgreSQL RDS integration (external database)
   - ✅ OIDC Keycloak integration (realm platform)
   - ✅ RBAC configurado (argocd-admins group)
   - ✅ AppProjects criados (platform, applications)
   - ✅ HA: 2 replicas server/repo-server, 8 pods Running
   - 📝 Logbook: [2026-02-06-argocd-gitops-deployment.md](docs/logbook/2026-02-06-argocd-gitops-deployment.md)
+  - 📝 Upgrade Log: [2026-02-20-argocd-upgrade-implementation.md](docs/logbook/2026-02-20-argocd-upgrade-implementation.md)
 
 - [x] **GAP-004:** SonarQube Deploy ✅ COMPLETO (2026-02-06) | 🔴 BROKEN (2026-02-13)
   - ✅ Deployed SonarQube Community 10.3.0 (Helm chart)

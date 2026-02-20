@@ -1,10 +1,11 @@
 # Copilot Context - Projeto Kubernetes
 
-> **Última Atualização**: 2026-01-22
+> **Última Atualização**: 2026-02-20
 > **Fase Atual**: 2 (Implementação de Domínios)
 > **Status SAD**: v1.2 🔒 CONGELADO (Freeze #3)
 > **Governança**: AI-First com rastreabilidade obrigatória + **STRICT-RULES** ⚠️
 > **Orquestrador**: Kubernetes (ADR-021)
+> **🎉 Novidade**: ArgoCD v2.10.0 com PKCE ativo (upgrade 2026-02-20)
 
 > 📘 **NOTA**: Este arquivo mantém compatibilidade legado. Ver [/PROJECT-CONTEXT.md](../PROJECT-CONTEXT.md) para contexto consolidado completo.
 
@@ -55,7 +56,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | Domínio | Status | Responsabilidade | Stack Principal |
 |---------|--------|------------------|-----------------|
 | **platform-core** | 🔄 Planejado | Fundação (gateway, auth, service mesh, certificados) | Kong, Keycloak, Istio/Linkerd, cert-manager, NGINX |
-| **cicd-platform** | 🔄 Planejado (🎯 **Primeiro Objetivo**) | Esteira CI/CD + governança via Backstage | GitLab, SonarQube, ArgoCD, Backstage Spotify |
+| **cicd-platform** | 🔄 Planejado (🎯 **Primeiro Objetivo**, 🎉 ArgoCD v2.10.0 ✅) | Esteira CI/CD + governança via Backstage | GitLab, SonarQube, ArgoCD, Backstage Spotify |
 | **observability** | ✅ Validado (APROVADO) | Métricas, logs, traces, visualização | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Kiali |
 | **data-services** | 🔄 Planejado | DBaaS, CacheaaS, MQaaS (HA + backup) | PostgreSQL, Redis, RabbitMQ, Velero, Alertmanager |
 | **secrets-management** | 🔄 Planejado | Cofre integrado com CI/CD | HashiCorp Vault ou External Secrets Operator |
@@ -128,7 +129,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 #### cicd-platform (Esteira DevOps) — **Primeiro Objetivo**
 - GitLab (Git self-hosted + CI pipelines)
 - SonarQube (Qualidade de código)
-- ArgoCD (Continuous Deployment)
+- ArgoCD (Continuous Deployment) — ✅ v2.10.0 com PKCE ativo (upgrade 2026-02-20)
 - Backstage Spotify (Developer Portal + Catálogo + Governança)
 - Tekton (Pipelines avançados - futuro)
 - **Stacks Suportadas**: Go, .NET, Python, Node.js (polyglot)
