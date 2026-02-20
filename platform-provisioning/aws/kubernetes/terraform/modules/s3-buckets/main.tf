@@ -428,14 +428,13 @@ resource "aws_s3_bucket" "fct_proposals" {
 
   bucket = "k8s-platform-fct-proposals-${var.aws_account_id}"
 
-  tags = merge(var.common_tags, {
-    Name          = "FCT Proposals Unified Storage"
-    Purpose       = "ETL proposal files (Hatch + VemSoft)"
-    DataSource    = "hatch-etl,vemsoft-etl"
-    LGPD          = "PII"
-    DataRetention = "7-years"
-    ObjectTagging = "enabled"
-  })
+  # NOTE: Tags applied via provider default_tags only
+  # Manual tags (Name, Purpose, etc.) must be applied via AWS CLI after creation
+  # Reason: Terraform/AWS provider tag conflict (InvalidTag error)
+
+  lifecycle {
+    ignore_changes = [tags, tags_all]
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "fct_proposals" {
@@ -480,12 +479,12 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "fct_proposals" {
 
   tiering {
     access_tier = "ARCHIVE_ACCESS"
-    days        = 30
+    days        = 90
   }
 
   tiering {
     access_tier = "DEEP_ARCHIVE_ACCESS"
-    days        = 90
+    days        = 180
   }
 }
 

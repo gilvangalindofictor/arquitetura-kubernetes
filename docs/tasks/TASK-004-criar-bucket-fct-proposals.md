@@ -312,6 +312,88 @@ aws s3api delete-bucket --bucket fct-proposals
 
 ---
 
-**Status:** 📋 TODO
-**Última Atualização:** 2026-02-19
+**Status:** ✅ DONE
+**Última Atualização:** 2026-02-20
 **Tracking Issue:** #TBD
+**Implementado por:** Terraform (modules/s3-buckets)
+**Commit:** TBD (pending commit)
+
+---
+
+## 🎉 Completion Summary (2026-02-20)
+
+### Infrastructure Provisioned
+
+✅ **S3 Bucket Created**
+- Name: `k8s-platform-fct-proposals-891377105802`
+- Region: `sa-east-1` (São Paulo - LGPD compliance)
+- Method: Terraform module `s3-buckets` with `enable_fct_proposals = true`
+
+✅ **Security Configurations**
+- Public Access: Blocked (all 4 settings)
+- Encryption: AES256 with BucketKey enabled
+- Versioning: Enabled
+
+✅ **Cost Optimization**
+- Intelligent-Tiering: ARCHIVE_ACCESS after 90 days, DEEP_ARCHIVE_ACCESS after 180 days
+  - **Note**: Original spec (30d/90d) adjusted to (90d/180d) to meet AWS minimum requirements
+- Lifecycle: Noncurrent versions expire after 2555 days (7 years - LGPD retention)
+- Multipart upload cleanup: 7 days
+
+✅ **IAM Policies Created**
+- `hatch-etl-s3-fct-proposals`: S3 access for Hatch ETL (arn:aws:iam::891377105802:policy/hatch-etl-s3-fct-proposals)
+- `bucketconnector-s3-fct-proposals`: S3 admin for BucketConnector CLI (arn:aws:iam::891377105802:policy/bucketconnector-s3-fct-proposals)
+
+### Deviations from Original Spec
+
+1. **Intelligent-Tiering Days**: 30d/90d → 90d/180d (AWS validation requirement)
+2. **Provisioning Method**: AWS CLI commands → Terraform IaC (better for reproducibility)
+3. **Bucket Name**: `fct-proposals` → `k8s-platform-fct-proposals-891377105802` (naming convention + unique ID)
+4. **Tags**: Applied via provider default_tags (not resource tags due to TF/AWS provider conflict)
+
+### Validation Completed
+
+```bash
+# Bucket exists in sa-east-1
+✅ aws s3api get-bucket-location --bucket k8s-platform-fct-proposals-891377105802
+   → LocationConstraint: sa-east-1
+
+# Versioning enabled
+✅ aws s3api get-bucket-versioning --bucket k8s-platform-fct-proposals-891377105802
+   → Status: Enabled
+
+# Encryption AES256
+✅ aws s3api get-bucket-encryption --bucket k8s-platform-fct-proposals-891377105802
+   → SSEAlgorithm: AES256, BucketKeyEnabled: true
+
+# Intelligent-Tiering 90d/180d
+✅ aws s3api get-bucket-intelligent-tiering-configuration \
+     --bucket k8s-platform-fct-proposals-891377105802 --id proposals-tiering --region sa-east-1
+   → ARCHIVE_ACCESS: 90 days, DEEP_ARCHIVE_ACCESS: 180 days
+
+# IAM policies exist
+✅ aws iam list-policies --scope Local --query "Policies[?contains(PolicyName, 'fct-proposals')]"
+   → hatch-etl-s3-fct-proposals, bucketconnector-s3-fct-proposals
+```
+
+### Pending Manual Steps
+
+- [ ] **Tag Application**: Apply bucket tags manually via AWS CLI (TF tag conflict workaround)
+  ```bash
+  aws s3api put-bucket-tagging \
+    --bucket k8s-platform-fct-proposals-891377105802 \
+    --tagging 'TagSet=[{Key=Name,Value=FCT Proposals ETL Storage},{Key=Purpose,Value=Data Lake},{Key=Service,Value=Hatch-ETL}]' \
+    --region sa-east-1
+  ```
+
+- [ ] **BucketConnector Testing**: Test upload/download with BucketConnector CLI (Sprint-004)
+- [ ] **Hatch ETL Integration**: Attach IAM policy to Hatch ETL role (Sprint-5.5)
+- [ ] **VemSoft ETL Integration**: Implement S3 integration (FEATURE-S3-BUCKET-INTEGRATION)
+
+### Technical Notes
+
+- **Cross-region deployment**: Terraform provider alias `aws.sa_east_1` working correctly
+- **WSL2 DNS workarounds**: Required /etc/hosts entries for `s3.sa-east-1.amazonaws.com` and bucket-specific subdomain
+- **Terraform targeted apply**: Used `-target` to avoid Vault provider connectivity issues during WSL2 execution
+
+---
