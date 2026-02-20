@@ -153,17 +153,22 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
 - **Região:** us-east-1
 - **OIDC Provider:** Habilitado para IRSA
 
-### Node Groups (8 nodes total - scaled 2026-02-06)
+### Node Groups (9 nodes total - scaled 2026-02-20)
 
-| Node Group | Tipo      | Quantidade | vCPU | RAM  | Disco | Workload                   |
-| ---------- | --------- | ---------- | ---- | ---- | ----- | -------------------------- |
-| system     | t3.medium | 2          | 4    | 8GB  | 50GB  | Platform services críticos |
-| workloads  | t3.large  | 3          | 6    | 24GB | 50GB  | Aplicações usuário         |
-| critical   | t3.xlarge | 3          | 12   | 48GB | 50GB  | Vault HA, databases HA     |
+| Node Group | Tipo      | Quantidade | vCPU | RAM  | Disco | Workload                   | Autoscaling |
+| ---------- | --------- | ---------- | ---- | ---- | ----- | -------------------------- | ----------- |
+| system     | t3.medium | 3          | 12   | 24GB | 150GB | Platform services críticos | ✅ Enabled  |
+| workloads  | t3.large  | 3          | 18   | 72GB | 150GB | Aplicações usuário         | ✅ Enabled  |
+| critical   | t3.xlarge | 3          | 36   | 144GB| 150GB | Vault HA, databases HA     | ✅ Enabled  |
 
-**Scaling Event (2026-02-06):**
-- **Trigger:** Cluster CPU saturation (5/7 nodes >90% usage)
-- **Action:** NodeGroup "critical" scaled 2→3 (desired size)
+**Scaling History:**
+
+- **2026-02-06:** NodeGroup "critical" scaled 2→3 (CPU saturation >90%)
+- **2026-02-20:** NodeGroup "system" scaled 2→3 (pod capacity 17/17 — Grafana Pending 18h)
+  - Trigger: Grafana pod Pending 18h, node @ 100% pod capacity (t3.medium limit)
+  - Root cause: Volume affinity conflict + node capacity + Cluster Autoscaler disabled
+  - Fix: ASG tags `k8s.io/cluster-autoscaler/*` = "owned" (autoscaling habilitado)
+  - Impact: +R$ 432/ano (1 node adicional), +R$ 768/ano ROI (evita intervenção manual)
 - **New Node:** ip-10-0-148-70.ec2.internal (t3.xlarge, us-east-1b)
 - **Cost Impact:** +$121.47/mês ($1,457.64/ano) - temporary
 - **Rationale:** Vault StatefulSet não conseguia agendar vault-0 (FailedScheduling)
@@ -300,9 +305,13 @@ A infraestrutura está dividida em **3 Marcos Terraform** com ownership explíci
 - **Versão:** Chart v9.43.2
 - **Namespace:** kube-system
 - **IRSA Role:** ClusterAutoscalerRole-k8s-platform-prod
-- **Configuração:** Scale-down habilitado (5 min unneeded), min=max (desabilitado auto-scale por enquanto)
+- **Configuração:** Scale-up/down habilitado (5 min unneeded)
+- **ASG Tags:** `k8s.io/cluster-autoscaler/k8s-platform-prod` = "owned" (✅ enabled 2026-02-20)
+- **Node Groups Managed:** system (2-4), workloads (2-6), critical (2-4)
 - **ServiceMonitor:** Integrado Prometheus
+- **Status:** ✅ Functional (zero AccessDenied errors pós-fix 2026-02-20)
 - **Custo:** $0 (usa nodes existentes)
+- **Fix 2026-02-20:** ASG tags `disabled` → `owned` habilitou autoscaling automático
 
 ### Fase 7: Test Applications
 - **Namespace:** test-apps

@@ -8,11 +8,11 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-19 (DEC-065: ESO zero-drift — Grafana OIDC rotacionado + SonarQube/Harbor PostgreSQL via Vault+ESO)
+**Última Atualização**: 2026-02-20 (Grafana Rescue + Cluster Autoscaler Fix — 18h Pending resolved, autoscaling habilitado)
 
-**Estado do Projeto**: Desenvolvimento Ativo - SSO + CI/CD Integration Complete (ArgoCD + Vault + SonarQube + Grafana + Harbor + GitLab CI)
+**Estado do Projeto**: Desenvolvimento Ativo - SSO + CI/CD Integration Complete + Infrastructure Resilience (Autoscaling)
 
-**Marco Atual**: Marco 4 - CI/CD Platform (98% completo)
+**Marco Atual**: Marco 4 - CI/CD Platform (98% completo) + FinOps Optimization (74% roadmap)
 
 **Progresso Geral**: 55% ████████████████░░░░░░░░░░░ (Marco 0-3 completo, Marco 4 98% / 0-6)
 
@@ -41,6 +41,23 @@
 ---
 
 ## Tasks Recentes
+
+**Grafana Pod Pending 18h + Cluster Autoscaler Fix (2026-02-20)**:
+
+- ❌ Incident: Grafana Pending 18h (desde 2026-02-19 11:00) → monitoring dashboards indisponíveis
+- ✅ Root Cause #1: Volume node affinity conflict — PVC vinculado a node terminado (ip-10-0-144-19)
+- ✅ Root Cause #2: Node group system @ 100% capacidade (17/17 pods — t3.medium ENI limit)
+- ✅ Root Cause #3: Cluster Autoscaler AccessDenied — ASG tag `k8s.io/cluster-autoscaler/*` = "disabled"
+- ✅ Fix #1: PVC Recovery Pattern — scale 0 → delete PVC → scale 1 (novo volume criado)
+- ✅ Fix #2: Node group system scale manual — 2→3 nodes (+R$ 432/ano, +1 node ip-10-0-137-170)
+- ✅ Fix #3: ASG tags updated — system/critical/workloads = "owned" (habilita autoscaling)
+- ✅ Grafana: Running (3/3 Ready) @ ip-10-0-137-170.ec2.internal
+- ✅ Cluster Autoscaler: functional (zero AccessDenied errors, logs normal)
+- ✅ Terraform: cluster-autoscaler-tags.tf criado (6 resources, apply pendente)
+- ✅ Savings: +R$ 768/ano ROI (economia operacional vs custo node adicional)
+- ✅ Logbook: 2026-02-20-grafana-pending-node-capacity-fix.md (311 linhas, análise completa)
+- ✅ Commit: `efd6424` — fix(infra): resolve Grafana Pending 18h + enable Cluster Autoscaler
+- Pattern documentado: Cluster Autoscaler ASG Tags + PVC Recovery (MEMORY.md)
 
 **ArgoCD SSO via Keycloak OIDC — 5 Fixes Cascata (2026-02-18)**:
 
