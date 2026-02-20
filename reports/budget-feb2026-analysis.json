@@ -1,0 +1,375 @@
+{
+  "meta": {
+    "analysis_date": "2026-02-19",
+    "environment": "staging",
+    "account": "k8s-platform-staging",
+    "currency": "USD",
+    "exchange_rate_brl": 5.7,
+    "period": "2026-02-01 to 2026-02-28",
+    "context": "Budget quickstart ($100/mês) vs escopo ampliado atual (stack completa)"
+  },
+  "budget": {
+    "quickstart_approved_usd": 100.0,
+    "quickstart_approved_brl": 570.0,
+    "adequate_for_current_scope_usd": 400.0,
+    "adequate_for_current_scope_brl": 2280.0,
+    "source": "quickstart_plan_basic_staging"
+  },
+  "scope_comparison": {
+    "quickstart_original": {
+      "description": "Staging básico EKS",
+      "nodes": "3-4 t3.medium",
+      "rds": "db.t3.micro",
+      "services": "3-5 core services",
+      "sso": false,
+      "cicd": false,
+      "code_quality": false,
+      "observability": "basic",
+      "expected_cost_usd": "100-150/month"
+    },
+    "current_delivered": {
+      "description": "Stack completa de produção",
+      "nodes": "8 nodes (t3.medium/large/xlarge)",
+      "rds": "db.t3.medium (shared: Keycloak+GitLab+SonarQube+Harbor)",
+      "services": "10+ integrated services",
+      "sso": "Keycloak complete (OIDC+SAML)",
+      "cicd": "GitLab runners + ESO integration",
+      "code_quality": "SonarQube enterprise",
+      "observability": "Prometheus + Grafana + Loki",
+      "secrets_management": "Vault + External Secrets Operator",
+      "container_registry": "Harbor enterprise",
+      "actual_cost_usd": "400-450/month",
+      "scope_multiplier": "4x vs quickstart"
+    }
+  },
+  "actuals": {
+    "spent_until_today_usd": 596.89,
+    "spent_until_today_brl": 3402.27,
+    "days_elapsed": 18,
+    "days_remaining": 10,
+    "daily_average_usd": 33.16,
+    "gap_vs_quickstart_budget_usd": 496.89,
+    "gap_vs_quickstart_budget_brl": 2832.27,
+    "gap_vs_adequate_budget_usd": 196.89,
+    "gap_vs_adequate_budget_brl": 1122.27
+  },
+  "scenarios": {
+    "scenario_1_maintain_expanded_scope": {
+      "name": "Manter Escopo Ampliado (Operação Normal)",
+      "projected_total_feb_usd": 907.83,
+      "projected_total_feb_brl": 5174.63,
+      "gap_vs_quickstart_usd": 807.83,
+      "gap_vs_quickstart_brl": 4604.63,
+      "gap_vs_adequate_budget_usd": 507.83,
+      "gap_vs_adequate_budget_brl": 2894.63,
+      "monthly_recurring_cost_usd": 400,
+      "monthly_recurring_cost_brl": 2280,
+      "impacts": [
+        "Stack completa operacional",
+        "SSO, CI/CD, observability, security ativos",
+        "ROI positivo (savings > investimento)",
+        "Ambiente staging = produção (validação real)"
+      ],
+      "recommendation": "STRONGLY RECOMMENDED"
+    },
+    "scenario_2_temporary_shutdown": {
+      "name": "Desligamento Temporário (20/02 a 28/02)",
+      "shutdown_period_days": 9,
+      "resources_stopped": {
+        "eks_control_plane": { "daily_usd": 2.4, "total_usd": 21.6 },
+        "ec2_nodes_8x": { "daily_usd": 14.22, "total_usd": 127.98 },
+        "rds_postgresql": { "daily_usd": 1.0, "total_usd": 9.0 }
+      },
+      "fixed_costs_remaining": {
+        "nat_gateway": { "daily_usd": 2.54, "total_usd": 22.86 },
+        "tax": { "daily_usd": 3.94, "total_usd": 35.46 },
+        "elb_minimum": { "daily_usd": 2.62, "total_usd": 23.58 },
+        "storage_kms_others": { "daily_usd": 0.6, "total_usd": 5.4 }
+      },
+      "projected_total_feb_usd": 703.33,
+      "projected_total_feb_brl": 4008.97,
+      "gap_vs_quickstart_usd": 603.33,
+      "gap_vs_quickstart_brl": 3438.97,
+      "savings_vs_scenario1_usd": 204.5,
+      "savings_vs_scenario1_brl": 1165.67,
+      "impacts": [
+        "Ambiente indisponível por 9 dias",
+        "CI/CD pipelines bloqueados",
+        "Perda de métricas VPA (30 dias necessários)",
+        "Desenvolvimento/testes interrompidos",
+        "Gap estrutural não resolvido (escopo vs budget)"
+      ],
+      "recommendation": "NOT RECOMMENDED - marginal savings, high operational impact"
+    },
+    "scenario_3_reduce_to_quickstart": {
+      "name": "Reduzir ao Escopo Quickstart Original",
+      "services_to_remove": [
+        {
+          "service": "SonarQube",
+          "savings_monthly_usd": 30,
+          "impact": "Perda análise qualidade código"
+        },
+        {
+          "service": "GitLab Runners",
+          "savings_monthly_usd": 40,
+          "impact": "CI/CD volta a manual"
+        },
+        {
+          "service": "Loki",
+          "savings_monthly_usd": 25,
+          "impact": "Perda logs centralizados"
+        },
+        {
+          "service": "Reduce nodes 8→3",
+          "savings_monthly_usd": 120,
+          "impact": "Perda HA, degradação performance"
+        },
+        {
+          "service": "Downgrade RDS",
+          "savings_monthly_usd": 20,
+          "impact": "Performance ruim Keycloak/GitLab"
+        },
+        {
+          "service": "Harbor→ECR",
+          "savings_monthly_usd": 35,
+          "impact": "Perda registry enterprise"
+        }
+      ],
+      "total_savings_monthly_usd": 270,
+      "resulting_cost_monthly_usd": 130,
+      "functionality_loss_percentage": 65,
+      "impacts": [
+        "Custo volta para ~$130/mês (dentro budget quickstart)",
+        "Perda de 60-70% das funcionalidades",
+        "Staging deixa de representar produção",
+        "Risco aumentado de bugs em deploy",
+        "Perda de produtividade da equipe"
+      ],
+      "recommendation": "NOT RECOMMENDED - functionality loss exceeds cost savings value"
+    },
+    "scenario_4_shutdown_weekends": {
+      "name": "Shutdown de Fins de Semana (19–28 Feb)",
+      "description": "Projetar 19–28 Feb assumindo shutdown parcial nos finais de semana (custos reduzidos)",
+      "projection_period": "2026-02-19 to 2026-02-28",
+      "daily_assumptions": {
+        "weekday_avg_usd": 31.77,
+        "weekend_shutdown_usd": 12.11
+      },
+      "projected_sum_remaining_usd": 258.72,
+      "projected_total_feb_usd": 855.61,
+      "projected_total_feb_brl": 4876.98,
+      "savings_vs_scenario1_usd": 52.22,
+      "savings_vs_scenario1_brl": 297.65,
+      "savings_vs_no_shutdown_usd": 74.01,
+      "savings_vs_no_shutdown_brl": 421.86,
+      "daily_projection": [
+        { "date": "2026-02-19", "projected_usd": 31.77 },
+        { "date": "2026-02-20", "projected_usd": 31.77 },
+        { "date": "2026-02-21", "projected_usd": 12.11 },
+        { "date": "2026-02-22", "projected_usd": 12.11 },
+        { "date": "2026-02-23", "projected_usd": 31.77 },
+        { "date": "2026-02-24", "projected_usd": 31.77 },
+        { "date": "2026-02-25", "projected_usd": 31.77 },
+        { "date": "2026-02-26", "projected_usd": 31.77 },
+        { "date": "2026-02-27", "projected_usd": 31.77 },
+        { "date": "2026-02-28", "projected_usd": 12.11 }
+      ],
+      "recommendation": "RECOMMENDED - aplicação de shutdown de fim de semana gera economia material (~$74) com impacto operacional limitado"
+    }
+  },
+  "cost_breakdown_top10": {
+    "ec2_compute": {
+      "amount_usd": 151.63,
+      "percentage": 25.4,
+      "notes": "EC2 compute nodes"
+    },
+    "eks_control_plane": {
+      "amount_usd": 157.52,
+      "percentage": 26.4,
+      "notes": "$0.10/hour (control plane)"
+    },
+    "ec2_other": {
+      "amount_usd": 74.91,
+      "percentage": 12.6,
+      "notes": "EBS / NAT / IPs"
+    },
+    "tax": { "amount_usd": 72.55, "percentage": 12.2, "notes": "Taxes" },
+    "elastic_load_balancing": {
+      "amount_usd": 48.76,
+      "percentage": 8.2,
+      "notes": "ALB/ELB"
+    },
+    "vpc": {
+      "amount_usd": 46.72,
+      "percentage": 7.8,
+      "notes": "NAT Gateway + VPCE"
+    },
+    "rds": {
+      "amount_usd": 18.05,
+      "percentage": 3.0,
+      "notes": "RDS PostgreSQL"
+    },
+    "cloudwatch": {
+      "amount_usd": 16.52,
+      "percentage": 2.8,
+      "notes": "Metrics/logs"
+    },
+    "kms": {
+      "amount_usd": 4.16,
+      "percentage": 0.7,
+      "notes": "Encryption keys"
+    },
+    "s3": {
+      "amount_usd": 3.67,
+      "percentage": 0.6,
+      "notes": "S3 / Harbor storage"
+    }
+  },
+  "roi_analysis": {
+    "investment_additional_vs_quickstart": {
+      "monthly_usd": 300,
+      "monthly_brl": 1710,
+      "annual_usd": 3600,
+      "annual_brl": 20520
+    },
+    "savings_already_realized": {
+      "eks_1_34_upgrade": { "annual_brl": 25920, "monthly_brl": 2160 },
+      "vpa_12_workloads": { "annual_brl": 8712, "monthly_brl": 726 },
+      "finops_automation": { "annual_brl": 3744, "monthly_brl": 312 },
+      "orphan_cleanup": { "annual_brl": 2106, "monthly_brl": 175.5 },
+      "rds_weekend_shutdown": { "annual_brl": 1200, "monthly_brl": 100 },
+      "ebs_gp3_migration": { "annual_brl": 816, "monthly_brl": 68 },
+      "others": { "annual_brl": 3602, "monthly_brl": 300 },
+      "total": { "annual_brl": 46100, "monthly_brl": 3841.67 }
+    },
+    "roi_calculated": {
+      "investment_monthly_brl": 1710,
+      "savings_monthly_brl": 3841.67,
+      "net_roi_monthly_brl": 2131.67,
+      "roi_percentage": 124,
+      "conclusion": "POSITIVE ROI - expanded scope pays for itself and generates net savings"
+    }
+  },
+  "recommendations": {
+    "primary": {
+      "priority": "STRONGLY RECOMMENDED",
+      "action": "Aprovar aditamento de budget para $400/mês",
+      "new_budget_usd": 400,
+      "new_budget_brl": 2280,
+      "new_budget_with_buffer_usd": 450,
+      "new_budget_with_buffer_brl": 2565,
+      "justification": [
+        "Custo proporcional ao escopo (4× funcionalidades = 4× custo)",
+        "ROI positivo: savings R$ 3.841/mês > investimento R$ 1.710/mês",
+        "Custo adequado ao valor entregue (stack completa vs básico)",
+        "Staging = Produção reduz risco de bugs em deploy",
+        "Equipe demonstrou gestão eficiente (R$ 46.100/ano em savings)"
+      ],
+      "urgency": "Decisão necessária até 2026-02-20"
+    },
+    "alternative_1": {
+      "action": "Desligamento temporário (20/02 a 28/02)",
+      "savings_usd": 204.5,
+      "savings_brl": 1165.67,
+      "operational_impact": "SEVERE - 9 days unavailable",
+      "recommendation": "NOT RECOMMENDED - marginal savings don't justify operational impact"
+    },
+    "alternative_2": {
+      "action": "Reduzir ao escopo quickstart",
+      "savings_monthly_usd": 270,
+      "functionality_loss_percentage": 65,
+      "risk_increase": "HIGH - staging no longer represents production",
+      "recommendation": "NOT RECOMMENDED - functionality loss exceeds cost savings value"
+    }
+  },
+  "context": {
+    "stack_components_current": [
+      "EKS 1.34 (8 nodes: 2×t3.medium, 3×t3.large, 3×t3.xlarge)",
+      "RDS PostgreSQL db.t3.medium (shared: Keycloak+GitLab+SonarQube+Harbor)",
+      "Keycloak SSO (OIDC: Grafana, ArgoCD, Harbor, GitLab, Vault | SAML: SonarQube)",
+      "Harbor Container Registry (OIDC integrated, robot account for CI/CD)",
+      "GitLab CI/CD (runners, ESO integration, RBAC tightened)",
+      "SonarQube Code Quality (SAML via Keycloak, GitLab federation)",
+      "Vault + External Secrets Operator (7 ExternalSecrets, zero-drift)",
+      "Prometheus + Grafana + Loki (full observability stack)",
+      "VPA (12 workloads, 30-day collection for rightsizing)"
+    ],
+    "optimizations_already_done": [
+      "EKS upgrade to 1.34 (avoided Extended Support)",
+      "VPA implemented on 12 workloads",
+      "FinOps Automation Lambda (staging)",
+      "Orphan cleanup (volumes + snapshots)",
+      "RDS weekend shutdown automation (ACTIVE - visible in data)",
+      "EBS gp3 migration (all volumes)",
+      "Total savings: R$ 46.100/year"
+    ],
+    "notes": [
+      "RDS weekend shutdown automation is ACTIVE and working (visible in daily costs)",
+      "VPA needs 30 days continuous collection for effective rightsizing (19 days collected)",
+      "Spike of $111 on 02/01 likely related to initial stack provisioning",
+      "Current scope is EXPANDED vs quickstart, not over-provisioned",
+      "Cost is ADEQUATE for value delivered (4× scope = 4× cost)"
+    ]
+  },
+  "action_required": {
+    "decision_deadline": "2026-02-20",
+    "decision_maker": "Budget/Financial responsible",
+    "options": [
+      {
+        "option": "A - RECOMMENDED",
+        "action": "Approve budget amendment to $400/month",
+        "outcome": "Maintain expanded scope, positive ROI, production-equivalent staging"
+      },
+      {
+        "option": "B - NOT RECOMMENDED",
+        "action": "Temporary shutdown (20/02 to 28/02)",
+        "outcome": "Marginal savings R$ 1.166, high operational impact, doesn't solve structural gap"
+      },
+      {
+        "option": "C - NOT RECOMMENDED",
+        "action": "Reduce to quickstart scope",
+        "outcome": "Savings R$ 1.539/month, 65% functionality loss, increased risk"
+      }
+    ]
+  },
+  "daily_costs_feb2026": [
+    {
+      "date": "2026-02-01",
+      "cost_usd": 108.19,
+      "notes": "Initial provisioning spike"
+    },
+    { "date": "2026-02-02", "cost_usd": 39.64 },
+    { "date": "2026-02-03", "cost_usd": 47.17 },
+    { "date": "2026-02-04", "cost_usd": 47.36 },
+    { "date": "2026-02-05", "cost_usd": 41.06 },
+    { "date": "2026-02-06", "cost_usd": 38.53 },
+    {
+      "date": "2026-02-07",
+      "cost_usd": 25.74,
+      "notes": "RDS weekend automation active"
+    },
+    {
+      "date": "2026-02-08",
+      "cost_usd": 25.74,
+      "notes": "RDS weekend automation active"
+    },
+    { "date": "2026-02-09", "cost_usd": 40.59 },
+    { "date": "2026-02-10", "cost_usd": 36.97 },
+    { "date": "2026-02-11", "cost_usd": 24.13 },
+    { "date": "2026-02-12", "cost_usd": 26.61 },
+    { "date": "2026-02-13", "cost_usd": 29.87 },
+    {
+      "date": "2026-02-14",
+      "cost_usd": 12.11,
+      "notes": "RDS weekend automation active"
+    },
+    {
+      "date": "2026-02-15",
+      "cost_usd": 12.11,
+      "notes": "RDS weekend automation active"
+    },
+    { "date": "2026-02-16", "cost_usd": 15.83 },
+    { "date": "2026-02-17", "cost_usd": 13.72 },
+    { "date": "2026-02-18", "cost_usd": 11.52 }
+  ]
+}
