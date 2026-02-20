@@ -180,7 +180,7 @@
 
 | Aplicação | Status        | Versão           | Réplicas | Namespace      | Database       | Notas                                                                                                                                             |
 | --------- | ------------- | ---------------- | -------- | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana, harbor, vault. initContainer wait-for-db + startupProbe + toleration critical |
+| Keycloak  | ✅ Operacional | 26.5.1 (Quarkus) | 1        | keycloak       | PostgreSQL RDS | SSO centralizado, OIDC clients: argocd, sonarqube, gitlab, grafana, harbor, vault. Backup automation: CronJob daily 02:00 UTC → S3 (IRSA, 30d retention) ✅ TASK-003 |
 | ArgoCD    | ✅ Operacional | 2.9.3            | 2/2      | argocd         | PostgreSQL RDS | GitOps platform, OIDC Keycloak SSO ✅ (5 fixes cascata), 8/8 pods running                                                                          |
 | SonarQube | ✅ Operacional | 10.3.0-community | 1        | sonarqube      | PostgreSQL RDS | Code quality, OIDC Keycloak, PVC 20Gi                                                                                                             |
 | GitLab    | ✅ Operacional | 17.7.0           | Vários   | gitlab-staging | PostgreSQL RDS | Core OK, runner id=115 online, CI/CD variables + templates ✅ GAP-005 completo (2026-02-19) |

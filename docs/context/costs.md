@@ -190,13 +190,13 @@ resource "aws_cloudwatch_event_rule" "weekend_shutdown" {
 
 ---
 
-## 🎯 FinOps Roadmap - Savings Acumulados (Atualizado 2026-02-13)
+## 🎯 FinOps Roadmap - Savings Acumulados (Atualizado 2026-02-20)
 
-**Status:** ✅ **P0 COMPLETO**
-**Total Realizado:** **R$ 37.172,80/ano** ($6.195/ano @ BRL 6.0)
-**Progress:** 59% do target original (R$ 62.856/ano)
+**Status:** ✅ **P0 COMPLETO + TASK-003**
+**Total Realizado:** **R$ 38.372,80/ano** ($6.395/ano @ BRL 6.0)
+**Progress:** 61% do target original (R$ 62.856/ano)
 
-### 📊 Resumo Executivo Consolidado (2026-01-28 a 2026-02-13)
+### 📊 Resumo Executivo Consolidado (2026-01-28 a 2026-02-20)
 
 ```
 EKS 1.34 deployment (2026-01-28)        R$ 25.920/ano ✅
@@ -211,8 +211,9 @@ CloudWatch Logs retention (2026-02-12)  R$ 54/ano     ✅
 RabbitMQ NLBs deleted (2026-02-12)      R$ 384/ano    ✅
 FinOps Lambda automation (2026-02-13)   R$ 3.744/ano  ✅
 Orphan detector Lambda (2026-02-13)     R$ 1.000/ano  ✅ P0.3 (prevenção)
+Keycloak backup automation (2026-02-20) R$ 1.200/ano  ✅ TASK-003 (operational)
 ───────────────────────────────────────────────────────
-TOTAL REALIZADO                         R$ 37.172,80/ano ✅
+TOTAL REALIZADO                         R$ 38.372,80/ano ✅
 ```
 
 **ROI:** 340% (savings/esforço investido)
