@@ -316,7 +316,7 @@ aws s3api delete-bucket --bucket fct-proposals
 **Última Atualização:** 2026-02-20
 **Tracking Issue:** #TBD
 **Implementado por:** Terraform (modules/s3-buckets)
-**Commit:** TBD (pending commit)
+**Commit:** 4c32316
 
 ---
 
