@@ -378,13 +378,11 @@ aws s3api delete-bucket --bucket fct-proposals
 
 ### Pending Manual Steps
 
-- [ ] **Tag Application**: Apply bucket tags manually via AWS CLI (TF tag conflict workaround)
-  ```bash
-  aws s3api put-bucket-tagging \
-    --bucket k8s-platform-fct-proposals-891377105802 \
-    --tagging 'TagSet=[{Key=Name,Value=FCT Proposals ETL Storage},{Key=Purpose,Value=Data Lake},{Key=Service,Value=Hatch-ETL}]' \
-    --region sa-east-1
-  ```
+- [x] **Tag Application**: ✅ **COMPLETED** (2026-02-20)
+  - Applied 12 tags via AWS CLI (merged with TF provider default_tags)
+  - Tags: Name, Purpose, Service + 9 provider tags preserved
+  - Method: JSON file (`/tmp/fct-bucket-tags-merged.json`)
+  - Validation: All 12 tags confirmed via `get-bucket-tagging`
 
 - [ ] **BucketConnector Testing**: Test upload/download with BucketConnector CLI (Sprint-004)
 - [ ] **Hatch ETL Integration**: Attach IAM policy to Hatch ETL role (Sprint-5.5)
