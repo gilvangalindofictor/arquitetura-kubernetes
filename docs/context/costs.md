@@ -1,7 +1,7 @@
 # 💰 Análise de Custos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-13
-**Versão:** 3.6 (FinOps P0 Completion + Orphan Detector)
+**Última Atualização:** 2026-02-19
+**Versão:** 3.7 (AWS Cost Explorer Real Data - Feb 2026)
 **Framework:** FinOps + TCO Analysis
 
 ---
@@ -22,13 +22,110 @@
 | **Custo por Node**                    | **~$98/mês**       | $685.70 ÷ 7 nodes                              |
 | **Custo por Pod (Platform)**          | **~$19/mês**       | $685.70 ÷ 36 pods observability                |
 
-### Tendência de Custos (Atualizada 2026-02-02)
+### Tendência de Custos (Atualizada 2026-02-19)
 
 ```
 Marco 0: $0.07/mês → Marco 1: $550/mês → Marco 2: $666/mês → Marco 2 Fase 8: $685.70/mês → Marco 3 Fase 1: $704.20/mês
 ```
 
 **Marco 3 Real vs Projetado:** $704.20 vs $737.10 planejado = **-$32.90/mês economia adicional** (-4.5%)
+
+---
+
+## 📊 AWS Cost Explorer — Dados Reais (2026-02-19)
+
+**Fonte:** AWS Cost Explorer API (`ce:GetCostAndUsage`)
+**Conta:** 891377105802 (k8s-platform-prod)
+**Período MTD:** 2026-02-01 a 2026-02-18 (18 dias)
+
+### Fevereiro 2026 — MTD por Serviço
+
+| Serviço AWS                                | Custo MTD (18d) | % Total  | Projeção Mensal (28d) |
+| ------------------------------------------ | --------------- | -------- | --------------------- |
+| Amazon EKS (Control Plane)                 | $157.52         | 30.0%    | $245.04               |
+| Amazon EC2 Compute (Nodes)                 | $151.63         | 28.9%    | $235.87               |
+| EC2 Other (EBS, NAT GW, IPs)               | $74.91          | 14.3%    | $116.56               |
+| Tax                                        | $72.55          | 13.8%    | $112.86               |
+| Amazon Elastic Load Balancing              | $48.76          | 9.3%     | $75.85                |
+| Amazon VPC (Endpoints + NAT)               | $46.72          | 8.9%     | $72.68                |
+| Amazon RDS PostgreSQL                      | $18.05          | 3.4%     | $28.08                |
+| Amazon CloudWatch                          | $16.52          | 3.2%     | $25.70                |
+| AWS KMS                                    | $4.16           | 0.8%     | $6.47                 |
+| Amazon S3                                  | $3.67           | 0.7%     | $5.71                 |
+| AWS Secrets Manager                        | $1.73           | 0.3%     | $2.69                 |
+| Outros (ECR, ECS, DynamoDB, Cost Explorer) | $0.97           | 0.2%     | $1.51                 |
+| **TOTAL**                                  | **$596.88**     | **100%** | **$928.47** (linear)  |
+
+**AWS Forecast (machine learning):** **$745.62/mês** (inclui tendência de queda)
+
+### Comparação Janeiro vs Fevereiro 2026
+
+| Serviço                | Jan 2026 (full) | Fev 2026 (MTD 18d) | Fev Forecast | Delta Jan→Fev  |
+| ---------------------- | --------------- | ------------------ | ------------ | -------------- |
+| EKS Control Plane      | $52.86          | $157.52            | $245.04      | **+363%** (1)  |
+| EC2 Compute            | $55.86          | $151.63            | $235.87      | **+322%** (2)  |
+| EC2 Other (EBS/NAT)    | $76.77          | $74.91             | $116.56      | +52%           |
+| Elastic Load Balancing | $3.24           | $48.76             | $75.85       | **+2241%** (3) |
+| VPC                    | $12.68          | $46.72             | $72.68       | **+473%** (4)  |
+| RDS                    | $2.50           | $18.05             | $28.08       | **+1023%** (5) |
+| CloudWatch             | $0.32           | $16.52             | $25.70       | +7931%         |
+| S3                     | $5.53           | $3.67              | $5.71        | +3%            |
+| Tax                    | $29.18          | $72.55             | $112.86      | +287%          |
+| **TOTAL**              | **$240.20**     | **$596.88**        | **$745.62**  | **+210%**      |
+
+**Notas de variação:**
+1. EKS: Janeiro teve cluster parcialmente desligado; Fevereiro operação contínua
+2. EC2: Fev tem 7 nodes ativos vs menos nodes em Jan (scaling progressivo)
+3. ALB: GitLab staging ALBs + IngressGroup consolidation adicionados em Fev
+4. VPC: 3 VPC Endpoints (STS, EC2, KMS) adicionados em Fev; antes eram 0
+5. RDS: PostgreSQL RDS ativo full-time em Fev (Marco 3 Data Services)
+
+### Tendência Diária — Fevereiro 2026
+
+```
+Fev 01: $108.19 ████████████████████████████████████████████ (deploy burst)
+Fev 02: $ 39.64 ████████████████
+Fev 03: $ 47.17 ███████████████████
+Fev 04: $ 47.36 ███████████████████
+Fev 05: $ 41.06 ████████████████
+Fev 06: $ 38.53 ███████████████
+Fev 07: $ 25.74 ██████████           (sábado - shutdown)
+Fev 08: $ 25.74 ██████████           (domingo - shutdown)
+Fev 09: $ 40.59 ████████████████
+Fev 10: $ 36.97 ██████████████       (Sprint 2 FinOps Wave)
+Fev 11: $ 24.13 █████████            (ALBs deletados)
+Fev 12: $ 26.61 ██████████
+Fev 13: $ 29.87 ████████████
+Fev 14: $ 12.11 █████                (sexta → shutdown weekend)
+Fev 15: $ 12.11 █████                (sábado)
+Fev 16: $ 15.83 ██████               (domingo)
+Fev 17: $ 13.72 █████
+Fev 18: $ 11.52 ████                 (custo mínimo diário atingido)
+```
+
+**Análise de Tendência:**
+- **Semana 1 (1-7 Fev):** Média $49.67/dia — deploy inicial Marco 3, ALBs ativos
+- **Semana 2 (8-14 Fev):** Média $29.15/dia — Sprint 2 FinOps (ALBs deletados, EBS migration)
+- **Semana 3 (15-18 Fev):** Média $13.30/dia — **custo estabilizado pós-otimizações**
+- **Redução:** -73% (Semana 1 → Semana 3)
+
+### Impacto FinOps Observado (Real vs Documentado)
+
+| Métrica                             | Documentado    | Real (Cost Explorer)  | Status         |
+| ----------------------------------- | -------------- | --------------------- | -------------- |
+| Custo mensal total (forecast)       | $752.80/mês    | $745.62/mês           | ✅ -0.95% (-$7) |
+| Custo diário estabilizado           | ~$25/dia       | ~$13/dia              | ✅ -48% melhor  |
+| Economia FinOps shutdown (weekends) | ~$8-10/weekend | $12-14/dia economia   | ✅ Confirmado   |
+| Top 3 custos (EKS+EC2+EC2-Other)    | ~65% do total  | 73.2% MTD             | ⚠️ Concentrado  |
+| VPC Endpoints impacto               | +$28.90/mês    | $46.72 MTD ($72 proj) | ⚠️ +149% (6)    |
+| CloudWatch impacto                  | ~$10/mês       | $16.52 MTD ($25 proj) | ⚠️ +150%        |
+
+**(6)** VPC Endpoints + NAT Gateway combinados; VPCE KMS adicionado em Fev elevou custo VPC.
+
+### Dados Brutos
+
+- **Raw JSON:** `reports/aws-costs.json` (atualizado 2026-02-19)
+- **Comando:** `aws ce get-cost-and-usage --profile k8s-platform-prod --time-period Start=2026-02-01,End=2026-02-19`
 
 ---
 
