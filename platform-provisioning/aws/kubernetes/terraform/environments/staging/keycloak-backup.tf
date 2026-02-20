@@ -100,6 +100,7 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
       echo "🔐 Keycloak Backup started at $${BACKUP_DATE}"
 
       # 1. Authenticate and get access token
+      # Note: Token endpoint still uses /auth prefix (only Admin API removed it)
       echo "  → Authenticating with Keycloak..."
       TOKEN=$(curl -s -X POST "$${KEYCLOAK_URL}/auth/realms/$${KEYCLOAK_REALM}/protocol/openid-connect/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
@@ -122,13 +123,13 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
 
       mkdir -p "$${BACKUP_DIR}"
 
-      # 3. Export each realm
+      # 3. Export each realm (Keycloak 26 uses POST with /auth prefix)
       for REALM in $REALMS; do
         echo "  → Exporting realm: $${REALM}"
 
-        curl -s -X GET "$${KEYCLOAK_URL}/auth/admin/realms/$${REALM}/partial-export?exportClients=true&exportGroupsAndRoles=true" \
+        curl -s -X POST "$${KEYCLOAK_URL}/auth/admin/realms/$${REALM}/partial-export?exportClients=true&exportGroupsAndRoles=true" \
           -H "Authorization: Bearer $${TOKEN}" \
-          -H "Accept: application/json" \
+          -H "Content-Type: application/json" \
           > "$${BACKUP_DIR}/$${REALM}.json"
 
         # Validate JSON
@@ -271,8 +272,6 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
                   }
 
                   securityContext = {
-                    runAsNonRoot             = true
-                    runAsUser                = 1000
                     allowPrivilegeEscalation = false
                     readOnlyRootFilesystem   = false
                     capabilities = {

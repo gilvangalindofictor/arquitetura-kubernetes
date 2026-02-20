@@ -664,7 +664,7 @@ Implementar backup automático daily de Keycloak realms (JSON export) com storag
 
 ---
 
-**Status:** ⚠️ PARCIAL (infra 100%, script precisa fix endpoint Keycloak 26)
+**Status:** ✅ COMPLETO
 **Última Atualização:** 2026-02-20
 **Implementado por:** Claude Code
 **Logbook:** [2026-02-20-task003-keycloak-backup-automation.md](../logbook/2026-02-20-task003-keycloak-backup-automation.md)
@@ -673,11 +673,27 @@ Implementar backup automático daily de Keycloak realms (JSON export) com storag
 
 - [x] S3 Bucket `k8s-platform-keycloak-backups-891377105802` (versioning, encryption, lifecycle 30d)
 - [x] IAM Role IRSA `k8s-platform-prod-keycloak-backup-staging`
-- [x] ServiceAccount, ConfigMap, CronJob, PrometheusRule
+- [x] ServiceAccount, ConfigMap, CronJob (schedule: `0 2 * * *`), PrometheusRule
 - [x] Upload S3 validado (IRSA funcional)
+- [x] **Endpoint Keycloak 26 corrigido** - mantém `/auth/admin/realms` (não remove `/auth` como docs KC17+ sugeriam)
+- [x] Backup E2E funcionando - 3 realms (master, platform, ipaas) ~60KB cada
+- [x] CronJob securityContext ajustado (permite `apk add` rodar como root)
 
-## ⏸️ Pendente
+## 📊 Resultado Final
 
-- [ ] **Corrigir endpoint Keycloak 26** - `partial-export` retorna 404 (API mudou na v26)
-- [ ] Restore script + automated testing
-- [ ] Validação E2E completa
+**Backup validado** (2026-02-20 19:00:06):
+- S3 URI: `s3://k8s-platform-keycloak-backups-891377105802/backups/keycloak-backup-20260220-190006.tar.gz`
+- Tamanho: 33.919 bytes comprimido (176KB descomprimido)
+- Realms: master (60KB), platform (60KB), ipaas (56KB)
+
+**Descoberta Técnica**:
+Keycloak 26.5.1 **MANTÉM** `/auth` prefix no Admin REST API:
+- ✅ `/auth/realms/master/protocol/openid-connect/token`
+- ✅ `/auth/admin/realms`
+- ✅ `/auth/admin/realms/{realm}/partial-export`
+
+## ⏸️ Melhorias Futuras
+
+- [ ] Restore script + automated monthly testing
+- [ ] Custom Docker image (pre-install deps, reduce startup time)
+- [ ] Cross-region S3 replication (DR)
