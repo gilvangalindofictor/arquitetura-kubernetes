@@ -1,6 +1,6 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
-> **Data**: 2026-02-06  
+> **Data**: 2026-02-06
 > **Última Revisão**: 2026-02-20 (🆕 TASK-001 ArgoCD v2.10.0 upgrade)
 > **Fonte**: Análise de documentos de contexto (current_state.md, gap analysis, risks.md)
 > **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 em planejamento
@@ -531,15 +531,15 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ## 💰 CUSTO ESTIMADO TOTAL
 
-| Item                    | Custo/Mês     | Status           |
-| ----------------------- | ------------- | ---------------- |
+| Item                    | Custo/Mês     | Status          |
+| ----------------------- | ------------- | --------------- |
 | **Marco 0-3 (Atual)**   | $700          | ✅ Operacional   |
 | GAP-001: Keycloak       | +$35          | ✅ **Deployed**  |
 | GAP-003: ArgoCD         | +$15          | ✅ **Deployed**  |
 | GAP-004: SonarQube      | +$50          | ✅ **Deployed**  |
 | GAP-002/005/006/007/008 | $0            | 🟡 Parcial       |
 | **Marco 4 TOTAL**       | **+$100**     | **✅ 75% Done**  |
-| **PLATAFORMA ATUAL**    | **~$800/mês** | **Operacional**  |
+| **PLATAFORMA ATUAL**    | **~$800/mês** | **Operacional** |
 
 **ROI Marco 4**: $6.600/ano economia vs SaaS
 

@@ -172,7 +172,7 @@
   - Zero downtime: Rolling update
   - Atraso: 1 dia (deadline 2026-02-19)
 - **Ação:** ✅ Nenhuma - upgrade completo
-- **Arquivos:** 
+- **Arquivos:**
   - [2026-02-06-argocd-gitops-deployment.md](docs/logbook/2026-02-06-argocd-gitops-deployment.md)
   - 🆕 [2026-02-20-argocd-upgrade-implementation.md](docs/logbook/2026-02-20-argocd-upgrade-implementation.md)
   - 🆕 [TASK-001-argocd-upgrade-2.12.md](docs/tasks/TASK-001-argocd-upgrade-2.12.md)
@@ -262,13 +262,13 @@
 
 ### Status Consolidado
 
-| Categoria | Quantidade | Tempo Estimado | Status |
-|-----------|-----------|----------------|--------|
-| 🔴 **CRÍTICO** | 3 tarefas | 4-8h + decisão CTO | 🚨 Ação imediata |
-| ⚠️ **ALTA** | 3 tarefas | 6h | ⏸️ Aguardando |
-| ✅ **RESOLVIDO** | 4 tarefas | - | ✅ Documentar |
-| 🟡 **MÉDIA** | 2 tarefas | 8-10h | ⏸️ Planejado |
-| 🟢 **BAIXA** | 3 tarefas | 17-23h | ⏸️ Diferido |
+| Categoria       | Quantidade | Tempo Estimado     | Status          |
+| --------------- | ---------- | ------------------ | --------------- |
+| 🔴 **CRÍTICO**   | 3 tarefas  | 4-8h + decisão CTO | 🚨 Ação imediata |
+| ⚠️ **ALTA**      | 3 tarefas  | 6h                 | ⏸️ Aguardando    |
+| ✅ **RESOLVIDO** | 4 tarefas  | -                  | ✅ Documentar    |
+| 🟡 **MÉDIA**     | 2 tarefas  | 8-10h              | ⏸️ Planejado     |
+| 🟢 **BAIXA**     | 3 tarefas  | 17-23h             | ⏸️ Diferido      |
 
 **Total:** 15 demandas | **Novos Problemas:** 1 (SonarQube) | **Resolvidos Hoje:** 1 (GAP-002)
 

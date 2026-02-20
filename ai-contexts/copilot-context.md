@@ -53,14 +53,14 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 
 ### Domínios
 
-| Domínio | Status | Responsabilidade | Stack Principal |
-|---------|--------|------------------|-----------------|
-| **platform-core** | 🔄 Planejado | Fundação (gateway, auth, service mesh, certificados) | Kong, Keycloak, Istio/Linkerd, cert-manager, NGINX |
-| **cicd-platform** | 🔄 Planejado (🎯 **Primeiro Objetivo**, 🎉 ArgoCD v2.10.0 ✅) | Esteira CI/CD + governança via Backstage | GitLab, SonarQube, ArgoCD, Backstage Spotify |
-| **observability** | ✅ Validado (APROVADO) | Métricas, logs, traces, visualização | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Kiali |
-| **data-services** | 🔄 Planejado | DBaaS, CacheaaS, MQaaS (HA + backup) | PostgreSQL, Redis, RabbitMQ, Velero, Alertmanager |
-| **secrets-management** | 🔄 Planejado | Cofre integrado com CI/CD | HashiCorp Vault ou External Secrets Operator |
-| **security** | 🔄 Planejado | Policies, runtime security, compliance | OPA/Kyverno, Falco, Trivy, RBAC, Network Policies |
+| Domínio                | Status                                                    | Responsabilidade                                     | Stack Principal                                        |
+| ---------------------- | --------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ |
+| **platform-core**      | 🔄 Planejado                                               | Fundação (gateway, auth, service mesh, certificados) | Kong, Keycloak, Istio/Linkerd, cert-manager, NGINX     |
+| **cicd-platform**      | 🔄 Planejado (🎯 **Primeiro Objetivo**, 🎉 ArgoCD v2.10.0 ✅) | Esteira CI/CD + governança via Backstage             | GitLab, SonarQube, ArgoCD, Backstage Spotify           |
+| **observability**      | ✅ Validado (APROVADO)                                     | Métricas, logs, traces, visualização                 | OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Kiali |
+| **data-services**      | 🔄 Planejado                                               | DBaaS, CacheaaS, MQaaS (HA + backup)                 | PostgreSQL, Redis, RabbitMQ, Velero, Alertmanager      |
+| **secrets-management** | 🔄 Planejado                                               | Cofre integrado com CI/CD                            | HashiCorp Vault ou External Secrets Operator           |
+| **security**           | 🔄 Planejado                                               | Policies, runtime security, compliance               | OPA/Kyverno, Falco, Trivy, RBAC, Network Policies      |
 
 ### Estrutura do Projeto
 
@@ -245,26 +245,26 @@ Total: **12 ADRs**
 
 ### Agentes Especializados
 
-| Agente | Responsabilidade |
-|--------|------------------|
-| **Gestor** | Coordenação geral, priorização |
-| **Arquiteto** | Decisões arquiteturais, ADRs |
-| **Architect Guardian** | Validação absoluta contra SAD |
-| **SRE** | Operações, runbooks, monitoramento |
-| **Facilitador Brainstorm** | Ideação e solução de problemas |
-| **Revisor** | Code review, validação de qualidade |
-| **Executor MCP** | Execução de tarefas via MCP |
+| Agente                     | Responsabilidade                    |
+| -------------------------- | ----------------------------------- |
+| **Gestor**                 | Coordenação geral, priorização      |
+| **Arquiteto**              | Decisões arquiteturais, ADRs        |
+| **Architect Guardian**     | Validação absoluta contra SAD       |
+| **SRE**                    | Operações, runbooks, monitoramento  |
+| **Facilitador Brainstorm** | Ideação e solução de problemas      |
+| **Revisor**                | Code review, validação de qualidade |
+| **Executor MCP**           | Execução de tarefas via MCP         |
 
 ### Prompts Especializados
 
-| Prompt | Uso |
-|--------|-----|
-| **orchestrator-guide** | Setup completo do projeto |
-| **develop-feature** | Desenvolver feature em domínio |
-| **bugfix** | Corrigir bugs em domínio |
-| **refactoring** | Refatorar infraestrutura |
-| **domain-creation** | Criar novo domínio |
-| **automatic-audit** | Auditar consistência e drift |
+| Prompt                 | Uso                            |
+| ---------------------- | ------------------------------ |
+| **orchestrator-guide** | Setup completo do projeto      |
+| **develop-feature**    | Desenvolver feature em domínio |
+| **bugfix**             | Corrigir bugs em domínio       |
+| **refactoring**        | Refatorar infraestrutura       |
+| **domain-creation**    | Criar novo domínio             |
+| **automatic-audit**    | Auditar consistência e drift   |
 
 ---
 
@@ -416,26 +416,26 @@ ABSOLUTAMENTE PROIBIDO:
 
 #### ✅ Documentos ÚNICOS (Atualizar, NUNCA Duplicar)
 
-| Documento | Localização | Regra |
-|-----------|-------------|-------|
-| **README.md** | `/` | ✅ ÚNICO na raiz |
-| **README.md** | `/domains/{domain}/` | ✅ 1 por domínio |
-| **sad.md** | `/SAD/docs/` | ✅ ÚNICO global |
-| **sad-freeze-record.md** | `/SAD/docs/` | ✅ ÚNICO global |
-| **execution-plan.md** | `/docs/plan/` | ✅ ÚNICO global |
-| **log-de-progresso.md** | `/docs/logs/` | ✅ ÚNICO global |
-| **copilot-context.md** | `/ai-contexts/` | ✅ ÚNICO global (ESTE) |
-| **VALIDATION-REPORT.md** | `/domains/{domain}/docs/` | ✅ 1 por domínio |
+| Documento                | Localização               | Regra                 |
+| ------------------------ | ------------------------- | --------------------- |
+| **README.md**            | `/`                       | ✅ ÚNICO na raiz       |
+| **README.md**            | `/domains/{domain}/`      | ✅ 1 por domínio       |
+| **sad.md**               | `/SAD/docs/`              | ✅ ÚNICO global        |
+| **sad-freeze-record.md** | `/SAD/docs/`              | ✅ ÚNICO global        |
+| **execution-plan.md**    | `/docs/plan/`             | ✅ ÚNICO global        |
+| **log-de-progresso.md**  | `/docs/logs/`             | ✅ ÚNICO global        |
+| **copilot-context.md**   | `/ai-contexts/`           | ✅ ÚNICO global (ESTE) |
+| **VALIDATION-REPORT.md** | `/domains/{domain}/docs/` | ✅ 1 por domínio       |
 
 #### ✅ Documentos MÚLTIPLOS (Seguir Padrões)
 
-| Tipo | Padrão | Localização | Exemplo |
-|------|--------|-------------|---------|
-| **ADRs Sistêmicos** | `adr-XXX-*.md` | `/SAD/docs/adrs/` | `adr-022-banco-dados.md` |
-| **ADRs de Domínio** | `adr-XXX-*.md` | `/domains/{domain}/docs/adr/` | `adr-001-estrutura-inicial.md` |
-| **Agentes** | `{nome}.md` | `/docs/agents/` | `gestor.md` |
-| **Skills** | `{nome}.md` | `/docs/skills/` | `arquitetura.md` |
-| **Runbooks** | `{nome}.md` | `/domains/{domain}/docs/runbooks/` | `troubleshooting.md` |
+| Tipo                | Padrão         | Localização                        | Exemplo                        |
+| ------------------- | -------------- | ---------------------------------- | ------------------------------ |
+| **ADRs Sistêmicos** | `adr-XXX-*.md` | `/SAD/docs/adrs/`                  | `adr-022-banco-dados.md`       |
+| **ADRs de Domínio** | `adr-XXX-*.md` | `/domains/{domain}/docs/adr/`      | `adr-001-estrutura-inicial.md` |
+| **Agentes**         | `{nome}.md`    | `/docs/agents/`                    | `gestor.md`                    |
+| **Skills**          | `{nome}.md`    | `/docs/skills/`                    | `arquitetura.md`               |
+| **Runbooks**        | `{nome}.md`    | `/domains/{domain}/docs/runbooks/` | `troubleshooting.md`           |
 
 #### 📋 Workflow de Criação OBRIGATÓRIO
 

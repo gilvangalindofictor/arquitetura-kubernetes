@@ -141,12 +141,12 @@ time="2026-02-12T19:38:52Z" level=info msg="Successfully authenticated user test
 
 ### Configuração Atual (Post-Decision)
 
-| Client | PKCE Enforcement | Justificativa |
-|--------|------------------|---------------|
-| **GitLab** | ✅ S256 (SHA-256) | GitLab 16.x+ suporta PKCE nativo, segurança moderna |
-| **ArgoCD** | ❌ Desabilitado | ArgoCD v2.9.3 sem suporte PKCE, backward compatibility |
-| **Grafana** | ⏸️ Pending | Não testado ainda, Grafana 10.x+ suporta PKCE |
-| **SonarQube** | ⏸️ Pending | Não testado ainda, compatibilidade desconhecida |
+| Client        | PKCE Enforcement | Justificativa                                          |
+| ------------- | ---------------- | ------------------------------------------------------ |
+| **GitLab**    | ✅ S256 (SHA-256) | GitLab 16.x+ suporta PKCE nativo, segurança moderna    |
+| **ArgoCD**    | ❌ Desabilitado   | ArgoCD v2.9.3 sem suporte PKCE, backward compatibility |
+| **Grafana**   | ⏸️ Pending        | Não testado ainda, Grafana 10.x+ suporta PKCE          |
+| **SonarQube** | ⏸️ Pending        | Não testado ainda, compatibilidade desconhecida        |
 
 ---
 
@@ -380,13 +380,13 @@ time="2026-02-12T19:38:52Z" level=info msg="Successfully authenticated user test
 
 ## Version Compatibility Matrix
 
-| Application | Current Version | PKCE Support | PKCE Enabled | Upgrade Target | Notes |
-|-------------|-----------------|--------------|--------------|----------------|-------|
-| **Keycloak** | 26.5.1 | ✅ Full | ✅ Partial (per client) | N/A | PKCE enforcement por client |
-| **GitLab** | 16.x+ | ✅ Native | ✅ S256 | N/A | OmniAuth gem PKCE support |
-| **ArgoCD** | v2.9.3 | ❌ No | ❌ Disabled | v2.12+ | PKCE added in v2.10.0 |
-| **Grafana** | 10.x+ | ✅ Native | ⏸️ Pending | N/A | oauth2-proxy supports PKCE |
-| **SonarQube** | 10.x+ | ⚠️ Unknown | ⏸️ Pending | TBD | Requires validation |
+| Application   | Current Version | PKCE Support | PKCE Enabled           | Upgrade Target | Notes                       |
+| ------------- | --------------- | ------------ | ---------------------- | -------------- | --------------------------- |
+| **Keycloak**  | 26.5.1          | ✅ Full       | ✅ Partial (per client) | N/A            | PKCE enforcement por client |
+| **GitLab**    | 16.x+           | ✅ Native     | ✅ S256                 | N/A            | OmniAuth gem PKCE support   |
+| **ArgoCD**    | v2.9.3          | ❌ No         | ❌ Disabled             | v2.12+         | PKCE added in v2.10.0       |
+| **Grafana**   | 10.x+           | ✅ Native     | ⏸️ Pending              | N/A            | oauth2-proxy supports PKCE  |
+| **SonarQube** | 10.x+           | ⚠️ Unknown    | ⏸️ Pending              | TBD            | Requires validation         |
 
 ---
 

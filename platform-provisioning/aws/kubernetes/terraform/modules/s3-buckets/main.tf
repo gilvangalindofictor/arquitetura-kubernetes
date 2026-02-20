@@ -426,7 +426,7 @@ resource "aws_s3_bucket" "fct_proposals" {
   count    = var.enable_fct_proposals ? 1 : 0
   provider = aws.sa_east_1
 
-  bucket = "fct-proposals"
+  bucket = "k8s-platform-fct-proposals-${var.aws_account_id}"
 
   tags = merge(var.common_tags, {
     Name          = "FCT Proposals Unified Storage"
@@ -455,7 +455,7 @@ resource "aws_s3_bucket_versioning" "fct_proposals" {
   bucket   = aws_s3_bucket.fct_proposals[0].id
 
   versioning_configuration {
-    status = "Disabled"
+    status = "Enabled"
   }
 }
 
@@ -502,6 +502,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "fct_proposals" {
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 2555  # 7 years (LGPD retention)
     }
   }
 }

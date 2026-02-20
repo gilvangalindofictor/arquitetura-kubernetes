@@ -22,11 +22,11 @@ terraform {
 provider "kubernetes" {
   host                   = var.cluster_endpoint
   cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args =  [
+    args = [
       "eks",
       "get-token",
       "--cluster-name",
@@ -43,11 +43,11 @@ provider "helm" {
   kubernetes {
     host                   = var.cluster_endpoint
     cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
-    
+
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args        = [
+      args = [
         "eks",
         "get-token",
         "--cluster-name",
@@ -609,24 +609,24 @@ output "namespaces" {
 output "usage_instructions" {
   value       = <<-EOT
     CI/CD Platform deployed successfully!
-    
+
     1. GitLab: https://${var.gitlab_domain}
        - Initial root password: kubectl get secret -n ${kubernetes_namespace.gitlab.metadata[0].name} gitlab-gitlab-initial-root-password -o jsonpath='{.data.password}' | base64 -d
-    
+
     2. SonarQube: https://${var.sonarqube_domain}
        - Default credentials: admin/admin (change on first login)
-    
+
     3. Harbor: https://${var.harbor_domain}
        - User: admin
        - Password: ${var.harbor_admin_password}
-    
+
     4. ArgoCD: https://${var.argocd_domain}
        - User: admin
        - Password: kubectl get secret -n ${kubernetes_namespace.argocd.metadata[0].name} argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
-    
+
     5. Backstage: https://${var.backstage_domain}
        - Integrated with GitLab catalog
-    
+
     Next Steps:
     - Configure GitLab CI integration with SonarQube
     - Configure GitLab to push images to Harbor

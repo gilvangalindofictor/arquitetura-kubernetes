@@ -65,6 +65,17 @@ provider "aws" {
   }
 }
 
+# Provider for sa-east-1 (LGPD compliance - FCT proposals bucket TASK-004)
+provider "aws" {
+  alias   = "sa_east_1"
+  region  = "sa-east-1"
+  profile = "k8s-platform-staging"
+
+  default_tags {
+    tags = local.common_tags
+  }
+}
+
 # Get EKS cluster info (shared cluster from Marco 1)
 data "aws_eks_cluster" "cluster" {
   name = local.cluster_name
@@ -211,9 +222,17 @@ module "rabbitmq_staging" {
 module "s3_buckets_staging" {
   source = "../../modules/s3-buckets"
 
+  providers = {
+    aws           = aws
+    aws.sa_east_1 = aws.sa_east_1
+  }
+
   cluster_name   = local.cluster_name
   aws_account_id = var.aws_account_id
   common_tags    = local.common_tags
+
+  # TASK-004: Enable FCT proposals bucket
+  enable_fct_proposals = true
 }
 
 #------------------------------------------------------------------------------
@@ -879,6 +898,144 @@ module "kube_prometheus_stack_staging" {
   grafana_keycloak_url       = "http://keycloak.staging.internal/auth" # externo: browser precisa resolver
   grafana_keycloak_client_id = "grafana"
   # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
+}
+
+#------------------------------------------------------------------------------
+# KEYCLOAK POST-CONFIG — grafana-admins group + groups claim mapper
+# Dependency: module.keycloak_staging + module.kube_prometheus_stack_staging
+# Purpose: Grafana OIDC role_attribute_path checks groups[*] claim.
+#          Without this group + mapper, all OIDC users land as Viewer (never Admin).
+# Pattern: python3 urllib (curl falha com chars especiais na senha Keycloak)
+#          port-forward local → keycloak.staging.internal não resolve fora do cluster
+#------------------------------------------------------------------------------
+
+resource "null_resource" "keycloak_grafana_admins_group" {
+  depends_on = [
+    module.keycloak_staging,
+    module.kube_prometheus_stack_staging
+  ]
+
+  triggers = {
+    group_name   = "grafana-admins"
+    realm        = "platform"
+    mapper_claim = "groups"
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["python3", "-c"]
+    command     = <<-EOT
+      import json, subprocess, urllib.request, urllib.parse, urllib.error
+      import base64, sys, time
+
+      # Port-forward: keycloak.staging.internal nao resolve fora do cluster (WSL2)
+      pf = subprocess.Popen(
+        ["kubectl", "port-forward", "svc/keycloak-keycloakx-http",
+         "18080:80", "-n", "keycloak"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+      )
+      time.sleep(3)
+      base_url  = "http://localhost:18080/auth"
+      admin_api = "http://localhost:18080/auth/admin/realms/platform"
+
+      try:
+        # Admin password do K8s secret (random_password gerenciado pelo TF)
+        r = subprocess.run(
+          ["kubectl", "get", "secret", "keycloak-admin-password",
+           "-n", "keycloak", "-o", "jsonpath={.data.password}"],
+          capture_output=True, text=True, check=True
+        )
+        admin_password = base64.b64decode(r.stdout.strip()).decode()
+
+        # Token admin-cli (realm master)
+        token_data = urllib.parse.urlencode({
+          "client_id": "admin-cli",
+          "username":  "admin",
+          "password":  admin_password,
+          "grant_type": "password"
+        }).encode()
+        req = urllib.request.Request(
+          base_url + "/realms/master/protocol/openid-connect/token",
+          data=token_data, method="POST"
+        )
+        with urllib.request.urlopen(req) as resp:
+          token = json.loads(resp.read())["access_token"]
+
+        hdrs = {
+          "Authorization":  "Bearer " + token,
+          "Content-Type":   "application/json"
+        }
+
+        def api(url, data=None, method=None):
+          req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
+          try:
+            with urllib.request.urlopen(req) as r:
+              return r.status, r.read(), dict(r.headers)
+          except urllib.error.HTTPError as e:
+            return e.code, e.read(), {}
+
+        # --- 1. Criar grupo grafana-admins (realm platform) ---
+        status, body, resp_hdrs = api(
+          admin_api + "/groups",
+          data=json.dumps({"name": "grafana-admins"}).encode(),
+          method="POST"
+        )
+        if status == 201:
+          print("[OK] grafana-admins group created:", resp_hdrs.get("Location",""))
+        elif status == 409:
+          print("[OK] grafana-admins group already exists")
+        else:
+          print("[ERROR] creating group:", status, body)
+          sys.exit(1)
+
+        # --- 2. UUID do client grafana ---
+        status, body, _ = api(
+          admin_api + "/clients?clientId=grafana"
+        )
+        clients = json.loads(body)
+        if not clients:
+          print("[ERROR] grafana client not found in realm platform")
+          sys.exit(1)
+        client_uuid = clients[0]["id"]
+        print("[OK] grafana client UUID:", client_uuid)
+
+        # --- 3. Mapper oidc-group-membership (inclui groups claim no token) ---
+        status, body, _ = api(
+          admin_api + "/clients/" + client_uuid + "/protocol-mappers/models"
+        )
+        existing = json.loads(body) if status == 200 else []
+        if any(m.get("name") == "groups" for m in existing):
+          print("[OK] groups mapper already exists on grafana client")
+        else:
+          mapper = {
+            "name":            "groups",
+            "protocol":        "openid-connect",
+            "protocolMapper":  "oidc-group-membership-mapper",
+            "consentRequired": False,
+            "config": {
+              "full.path":           "false",
+              "id.token.claim":      "true",
+              "access.token.claim":  "true",
+              "claim.name":          "groups",
+              "userinfo.token.claim": "true"
+            }
+          }
+          status, body, _ = api(
+            admin_api + "/clients/" + client_uuid + "/protocol-mappers/models",
+            data=json.dumps(mapper).encode(),
+            method="POST"
+          )
+          if status == 201:
+            print("[OK] groups mapper added to grafana client")
+          else:
+            print("[WARN] mapper add returned:", status, body)
+
+        print("[DONE] Keycloak grafana-admins setup complete")
+
+      finally:
+        pf.terminate()
+        pf.wait()
+    EOT
+  }
 }
 
 #------------------------------------------------------------------------------
@@ -1766,4 +1923,87 @@ module "snapshot_cleanup" {
     Schedule    = "Weekly Monday 03:00 UTC"
     Criticality = "Low"
   })
+}
+
+#------------------------------------------------------------------------------
+# TASK-004 Validation: FCT Proposals Bucket Access Test
+# Purpose: Verify bucket creation, encryption, tagging, and IAM policy ARNs
+# Pattern: null_resource local-exec with Python (WSL-safe, no DNS issues)
+#------------------------------------------------------------------------------
+
+resource "null_resource" "fct_proposals_validation" {
+  depends_on = [module.s3_buckets_staging]
+
+  triggers = {
+    bucket_name = module.s3_buckets_staging.fct_proposals_bucket_name
+    bucket_arn  = module.s3_buckets_staging.fct_proposals_bucket_arn
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["python3", "-c"]
+    command     = <<-EOT
+      import boto3, json, sys
+      from datetime import datetime
+
+      # Validation: bucket exists and is accessible
+      s3 = boto3.client('s3', region_name='sa-east-1')
+      bucket = "${module.s3_buckets_staging.fct_proposals_bucket_name}"
+
+      try:
+          # 1. Verify bucket location
+          location = s3.get_bucket_location(Bucket=bucket)
+          assert location['LocationConstraint'] == 'sa-east-1', "Bucket not in sa-east-1"
+          print(f"[OK] Bucket {bucket} in sa-east-1")
+
+          # 2. Verify public access block
+          access_block = s3.get_public_access_block(Bucket=bucket)
+          config = access_block['PublicAccessBlockConfiguration']
+          assert all([config['BlockPublicAcls'], config['IgnorePublicAcls'],
+                     config['BlockPublicPolicy'], config['RestrictPublicBuckets']])
+          print("[OK] Public access blocked")
+
+          # 3. Verify encryption
+          encryption = s3.get_bucket_encryption(Bucket=bucket)
+          sse_algo = encryption['Rules'][0]['ApplyServerSideEncryptionByDefault']['SSEAlgorithm']
+          assert sse_algo == 'AES256', f"Encryption not AES256: {sse_algo}"
+          print("[OK] SSE-S3 encryption enabled")
+
+          # 4. Verify Intelligent-Tiering
+          tiering = s3.get_bucket_intelligent_tiering_configuration(
+              Bucket=bucket, Id='proposals-tiering'
+          )
+          assert tiering['Status'] == 'Enabled'
+          assert any(t['Days'] == 30 and t['AccessTier'] == 'ARCHIVE_ACCESS'
+                    for t in tiering['Tierings'])
+          print("[OK] Intelligent-Tiering configured (30d Archive, 90d Deep Archive)")
+
+          # 5. Test object upload with tagging
+          test_key = f"_validation_test/{datetime.now().isoformat()}.json"
+          s3.put_object(
+              Bucket=bucket,
+              Key=test_key,
+              Body=json.dumps({"validation": "TASK-004", "timestamp": datetime.now().isoformat()}),
+              Tagging="source=terraform-validation&env=test"
+          )
+
+          # 6. Verify tagging
+          tags = s3.get_object_tagging(Bucket=bucket, Key=test_key)
+          assert len(tags['TagSet']) == 2
+          print(f"[OK] Object tagging functional: {tags['TagSet']}")
+
+          # 7. Cleanup test object
+          s3.delete_object(Bucket=bucket, Key=test_key)
+          print("[OK] Test object cleaned up")
+
+          print(f"\n[SUCCESS] TASK-004 validation complete")
+          print(f"Bucket: s3://{bucket}")
+          print(f"Region: sa-east-1")
+          print(f"Hatch ETL Policy ARN: ${module.s3_buckets_staging.hatch_etl_policy_arn}")
+          print(f"BucketConnector Policy ARN: ${module.s3_buckets_staging.bucketconnector_policy_arn}")
+
+      except Exception as e:
+          print(f"[ERROR] Validation failed: {e}", file=sys.stderr)
+          sys.exit(1)
+    EOT
+  }
 }

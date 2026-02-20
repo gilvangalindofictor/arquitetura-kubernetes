@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura Visual - Plataforma Kubernetes
 
-> **Última Atualização**: 2026-02-20  
-> **Status**: 4/6 domínios implementados  
-> **Conformidade SAD v1.2**: 89.6% média  
+> **Última Atualização**: 2026-02-20
+> **Status**: 4/6 domínios implementados
+> **Conformidade SAD v1.2**: 89.6% média
 > **Tipo**: Diagramas evolutivos (atualizar conforme implementação)
 > **🎉 Novidade**: ArgoCD v2.10.0 com PKCE ativo (upgrade 2026-02-20)
 
@@ -30,7 +30,7 @@ graph TB
     subgraph "CLOUD PROVIDER (Azure/AWS/GCP)"
         PROV[Platform Provisioning<br/>Clusters + VPC + Storage]
     end
-    
+
     subgraph "KUBERNETES CLUSTER"
         subgraph "PLATFORM-CORE #1"
             KONG[Kong API Gateway<br/>Routing + Rate Limiting]
@@ -39,11 +39,11 @@ graph TB
             CERT[cert-manager<br/>TLS Certificates]
             NGINX[NGINX Ingress<br/>LoadBalancer]
         end
-        
+
         subgraph "SECRETS-MANAGEMENT #2"
             VAULT[Vault HA Cluster<br/>Dynamic Secrets + PKI]
         end
-        
+
         subgraph "OBSERVABILITY #3"
             OTEL[OpenTelemetry<br/>Traces + Metrics + Logs]
             PROM[Prometheus<br/>Time-Series DB]
@@ -51,7 +51,7 @@ graph TB
             LOKI[Loki<br/>Log Aggregation]
             TEMPO[Tempo<br/>Distributed Tracing]
         end
-        
+
         subgraph "CICD-PLATFORM #4"
             GITLAB[GitLab CE<br/>Git + CI/CD]
             SONAR[SonarQube<br/>Code Quality]
@@ -59,79 +59,79 @@ graph TB
             ARGOCD[ArgoCD<br/>GitOps]
             BACKSTAGE[Backstage<br/>Developer Portal]
         end
-        
+
         subgraph "DATA-SERVICES #5"
             POSTGRES[Postgres Operator<br/>PostgreSQL HA]
             REDIS[Redis Operator<br/>Cache HA]
             RABBITMQ[RabbitMQ Operator<br/>Message Queue]
             VELERO[Velero<br/>Backup/Restore]
         end
-        
+
         subgraph "SECURITY #6"
             KYVERNO[Kyverno<br/>Policy Engine]
             FALCO[Falco<br/>Runtime Security]
             TRIVY[Trivy Operator<br/>Vulnerability Scanning]
         end
     end
-    
+
     subgraph "EXTERNAL USERS"
         DEVS[Developers]
         OPS[Platform Engineers]
         USERS[End Users]
     end
-    
+
     %% Dependências Críticas
     PROV -->|Outputs: cluster_endpoint<br/>storage_class| KONG
     PROV -->|Outputs| KEYCLOAK
-    
+
     KEYCLOAK -->|OIDC Provider| ARGOCD
     KEYCLOAK -->|OIDC Provider| GITLAB
     KONG -->|API Gateway| USERS
-    
+
     CERT -->|TLS Certificates| NGINX
     NGINX -->|Ingress Routes| KONG
     NGINX -->|Ingress Routes| KEYCLOAK
-    
+
     LINKERD -.->|mTLS Sidecar| GITLAB
     LINKERD -.->|mTLS Sidecar| HARBOR
     LINKERD -.->|mTLS Sidecar| ARGOCD
-    
+
     VAULT -->|Secrets| GITLAB
     VAULT -->|Secrets| HARBOR
     VAULT -->|Secrets| ARGOCD
-    
+
     OTEL -->|Metrics| PROM
     OTEL -->|Logs| LOKI
     OTEL -->|Traces| TEMPO
     PROM -->|Data Source| GRAFANA
     LOKI -->|Data Source| GRAFANA
     TEMPO -->|Data Source| GRAFANA
-    
+
     GITLAB -->|Push Images| HARBOR
     GITLAB -->|Quality Gates| SONAR
     ARGOCD -->|Deploy Apps| POSTGRES
     ARGOCD -->|Deploy Apps| REDIS
-    
+
     BACKSTAGE -->|Catalog| GITLAB
     BACKSTAGE -->|Software Templates| GITLAB
-    
+
     DEVS -->|Code Push| GITLAB
     DEVS -->|Portal| BACKSTAGE
     OPS -->|Dashboards| GRAFANA
     OPS -->|GitOps| ARGOCD
-    
+
     KYVERNO -.->|Policy Validation| GITLAB
     FALCO -.->|Runtime Alerts| GRAFANA
     TRIVY -.->|CVE Reports| HARBOR
-    
+
     VELERO -->|Backup| POSTGRES
     VELERO -->|Backup| REDIS
-    
+
     %% Estilos
     classDef implemented fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef pending fill:#FFC107,stroke:#F57C00,color:#000
     classDef external fill:#2196F3,stroke:#1565C0,color:#fff
-    
+
     class KONG,KEYCLOAK,LINKERD,CERT,NGINX implemented
     class OTEL,PROM,GRAFANA,LOKI,TEMPO implemented
     class GITLAB,SONAR,HARBOR,ARGOCD,BACKSTAGE implemented
@@ -154,26 +154,26 @@ graph TB
 ```mermaid
 graph LR
     START([Platform Provisioning<br/>AKS/EKS/GKE]) --> PC[#1 Platform-Core<br/>Kong, Keycloak, Linkerd<br/>cert-manager, NGINX]
-    
+
     PC --> SM[#2 Secrets-Management<br/>Vault HA Cluster<br/>⚠️ ADR-002 Pendente]
-    
+
     SM --> OBS[#3 Observability<br/>OTEL, Prometheus<br/>Grafana, Loki, Tempo]
-    
+
     OBS --> CICD[#4 CI/CD Platform<br/>GitLab, SonarQube<br/>Harbor, ArgoCD, Backstage]
-    
+
     OBS --> DATA[#5 Data Services<br/>Postgres, Redis<br/>RabbitMQ Operators]
-    
+
     CICD --> SEC[#6 Security<br/>Kyverno, Falco, Trivy<br/>⚠️ ADR-002 Pendente]
-    
+
     DATA --> SEC
-    
+
     SEC --> READY([✅ Plataforma Completa<br/>Pronta para Workloads])
-    
+
     %% Estilos
     classDef done fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef pending fill:#FFC107,stroke:#F57C00,color:#000
     classDef milestone fill:#9C27B0,stroke:#6A1B9A,color:#fff
-    
+
     class PC,OBS,CICD,DATA done
     class SM,SEC pending
     class START,READY milestone
@@ -199,36 +199,36 @@ graph TB
             KONG_DB[(PostgreSQL<br/>10Gi storage)]
             KONG_SVC[Kong Service<br/>8000, 8443, 8001]
         end
-        
+
         subgraph "keycloak namespace"
             KC_DEPLOY[Keycloak Deployment<br/>2 réplicas<br/>CPU: 1000m, Mem: 2Gi]
             KC_DB[(PostgreSQL<br/>10Gi storage)]
             KC_SVC[Keycloak Service<br/>8080, 8443]
         end
-        
+
         subgraph "linkerd namespace"
             LINKERD_CP[Linkerd Control Plane<br/>2 réplicas HA<br/>identity, proxy-injector]
             LINKERD_VIZ[Linkerd Viz<br/>Dashboard + Prometheus]
             LINKERD_PROXY[Linkerd Proxy<br/>Sidecar mTLS]
         end
-        
+
         subgraph "cert-manager namespace"
             CERT_CONTROLLER[cert-manager Controller<br/>HTTP-01 challenge]
             CERT_WEBHOOK[cert-manager Webhook<br/>CRD validation]
             CERT_CA[cert-manager CA Injector<br/>Trust anchors]
         end
-        
+
         subgraph "ingress-nginx namespace"
             NGINX_DEPLOY[NGINX Ingress Controller<br/>2 réplicas<br/>CPU: 200m, Mem: 256Mi]
             NGINX_SVC[LoadBalancer Service<br/>80, 443]
         end
     end
-    
+
     subgraph "EXTERNAL ACCESS"
         INTERNET([Internet])
         DNS[DNS Records<br/>*.example.com]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_AUTH[Authentication<br/>SLA: 99.95%<br/>OIDC endpoints]
         CONTRACT_GATEWAY[API Gateway<br/>SLA: 99.9%<br/>Rate limiting, Routing]
@@ -236,40 +236,40 @@ graph TB
         CONTRACT_CERTS[Certificates<br/>SLA: 99.9%<br/>Auto-renewal]
         CONTRACT_INGRESS[Ingress<br/>SLA: 99.9%<br/>LoadBalancer]
     end
-    
+
     %% Fluxo de Tráfego
     INTERNET --> DNS
     DNS --> NGINX_SVC
     NGINX_SVC --> NGINX_DEPLOY
     NGINX_DEPLOY --> KONG_SVC
     NGINX_DEPLOY --> KC_SVC
-    
+
     KONG_DEPLOY --> KONG_DB
     KC_DEPLOY --> KC_DB
-    
+
     %% Linkerd Injection
     LINKERD_CP -.->|Inject Sidecar| KONG_DEPLOY
     LINKERD_CP -.->|Inject Sidecar| KC_DEPLOY
     LINKERD_PROXY -.->|mTLS| LINKERD_PROXY
-    
+
     %% cert-manager TLS
     CERT_CONTROLLER -->|Issue Certificates| NGINX_DEPLOY
     CERT_CONTROLLER -->|Issue Certificates| KONG_DEPLOY
     CERT_CONTROLLER -->|Issue Certificates| KC_DEPLOY
-    
+
     %% Contratos
     KC_DEPLOY --> CONTRACT_AUTH
     KONG_DEPLOY --> CONTRACT_GATEWAY
     LINKERD_CP --> CONTRACT_MESH
     CERT_CONTROLLER --> CONTRACT_CERTS
     NGINX_DEPLOY --> CONTRACT_INGRESS
-    
+
     %% Estilos
     classDef component fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef storage fill:#FF9800,stroke:#E65100,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef external fill:#9E9E9E,stroke:#424242,color:#fff
-    
+
     class KONG_DEPLOY,KC_DEPLOY,LINKERD_CP,CERT_CONTROLLER,NGINX_DEPLOY component
     class KONG_DB,KC_DB storage
     class CONTRACT_AUTH,CONTRACT_GATEWAY,CONTRACT_MESH,CONTRACT_CERTS,CONTRACT_INGRESS contract
@@ -303,12 +303,12 @@ graph TB
             GITLAB_REDIS[(Redis<br/>1Gi)]
             GITLAB_MINIO[(Minio S3<br/>50Gi artifacts)]
         end
-        
+
         subgraph "sonarqube namespace"
             SONAR_APP[SonarQube<br/>1 réplica<br/>CPU: 2000m, Mem: 4Gi]
             SONAR_DB[(PostgreSQL<br/>20Gi)]
         end
-        
+
         subgraph "harbor namespace"
             HARBOR_CORE[Harbor Core<br/>Registry API]
             HARBOR_REGISTRY[Harbor Registry<br/>100Gi images]
@@ -316,20 +316,20 @@ graph TB
             HARBOR_TRIVY[Trivy Scanner<br/>CVE detection]
             HARBOR_DB[(PostgreSQL<br/>10Gi)]
         end
-        
+
         subgraph "argocd namespace"
             ARGOCD_SERVER[ArgoCD Server v2.10.0<br/>2 réplicas<br/>Web UI + API + PKCE]
             ARGOCD_CONTROLLER[ArgoCD Controller v2.10.0<br/>2 réplicas<br/>App reconciliation]
             ARGOCD_REPO[ArgoCD Repo Server v2.10.0<br/>2 réplicas<br/>Git operations]
             ARGOCD_DEX[ArgoCD Dex<br/>Keycloak OIDC + PKCE]
         end
-        
+
         subgraph "backstage namespace"
             BACKSTAGE_APP[Backstage<br/>2 réplicas<br/>Developer Portal]
             BACKSTAGE_DB[(PostgreSQL<br/>10Gi)]
         end
     end
-    
+
     subgraph "DEVELOPER WORKFLOW"
         DEV[Developer]
         CODE[1. Code Push]
@@ -339,7 +339,7 @@ graph TB
         DEPLOY[5. GitOps Deploy]
         PORTAL[6. Catalog Update]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_GIT[Git Repository<br/>SLA: 99.5%<br/>50Gi storage]
         CONTRACT_CI[Continuous Integration<br/>10 concurrent runners<br/>P95 < 10min]
@@ -347,7 +347,7 @@ graph TB
         CONTRACT_GITOPS[GitOps<br/>SLA: 99.9%<br/>Auto-sync < 5min]
         CONTRACT_CATALOG[Developer Catalog<br/>Software Templates<br/>Sync < 15min]
     end
-    
+
     %% Workflow
     DEV -->|git push| CODE
     CODE --> GITLAB_WEB
@@ -364,7 +364,7 @@ graph TB
     ARGOCD_CONTROLLER -->|kubectl apply| PORTAL
     PORTAL --> BACKSTAGE_APP
     BACKSTAGE_APP -->|API| GITLAB_WEB
-    
+
     %% Dependencies
     GITLAB_WEB --> GITLAB_DB
     GITLAB_WEB --> GITLAB_REDIS
@@ -376,20 +376,20 @@ graph TB
     ARGOCD_SERVER --> ARGOCD_DEX
     ARGOCD_DEX -.->|OIDC| KC_EXT[Keycloak<br/>platform-core]
     BACKSTAGE_APP --> BACKSTAGE_DB
-    
+
     %% Contratos
     GITLAB_WEB --> CONTRACT_GIT
     GITLAB_RUNNER --> CONTRACT_CI
     HARBOR_REGISTRY --> CONTRACT_REGISTRY
     ARGOCD_CONTROLLER --> CONTRACT_GITOPS
     BACKSTAGE_APP --> CONTRACT_CATALOG
-    
+
     %% Estilos
     classDef component fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef storage fill:#FF9800,stroke:#E65100,color:#fff
     classDef workflow fill:#9C27B0,stroke:#6A1B9A,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
-    
+
     class GITLAB_WEB,SONAR_APP,HARBOR_CORE,ARGOCD_SERVER,BACKSTAGE_APP component
     class GITLAB_DB,GITLAB_REDIS,GITLAB_MINIO,SONAR_DB,HARBOR_DB,HARBOR_REGISTRY,BACKSTAGE_DB storage
     class DEV,CODE,CI,SCAN,BUILD,DEPLOY,PORTAL workflow
@@ -419,30 +419,30 @@ graph TB
             OTEL_COL[OpenTelemetry Collector<br/>Traces + Metrics + Logs<br/>2 réplicas]
             OTEL_AGENT[OTEL Agent<br/>DaemonSet<br/>1 pod per node]
         end
-        
+
         subgraph "Storage Layer"
             PROM[Prometheus<br/>Time-Series DB<br/>100Gi storage<br/>Retention: 15 dias]
             LOKI[Loki<br/>Log Aggregation<br/>50Gi storage<br/>Retention: 7 dias]
             TEMPO[Tempo<br/>Distributed Tracing<br/>20Gi storage<br/>Retention: 7 dias]
         end
-        
+
         subgraph "Visualization Layer"
             GRAFANA[Grafana<br/>Dashboards<br/>10Gi storage]
             KIALI[Kiali<br/>Service Mesh Viz<br/>Linkerd integration]
         end
-        
+
         subgraph "Alerting Layer"
             ALERTMGR[Alertmanager<br/>Alert routing<br/>Slack, Email, PagerDuty]
         end
     end
-    
+
     subgraph "DATA SOURCES (All Domains)"
         PCORE[Platform-Core<br/>ServiceMonitors]
         CICD[CI/CD Platform<br/>ServiceMonitors]
         DATA[Data Services<br/>ServiceMonitors]
         APPS[Applications<br/>Custom Metrics]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_METRICS[Metrics Storage<br/>SLA: 99.9%<br/>Prometheus Query]
         CONTRACT_LOGS[Log Aggregation<br/>LogQL queries<br/>7 dias retention]
@@ -450,44 +450,44 @@ graph TB
         CONTRACT_VIZ[Visualization<br/>Grafana dashboards<br/>Custom queries]
         CONTRACT_ALERTS[Alerting<br/>Multi-channel<br/>< 1min latency]
     end
-    
+
     %% Data Flow
     PCORE -->|Scrape /metrics| OTEL_AGENT
     CICD -->|Scrape /metrics| OTEL_AGENT
     DATA -->|Scrape /metrics| OTEL_AGENT
     APPS -->|Scrape /metrics| OTEL_AGENT
-    
+
     OTEL_AGENT -->|Forward| OTEL_COL
     OTEL_COL -->|Metrics| PROM
     OTEL_COL -->|Logs| LOKI
     OTEL_COL -->|Traces| TEMPO
-    
+
     PROM -->|Data Source| GRAFANA
     LOKI -->|Data Source| GRAFANA
     TEMPO -->|Data Source| GRAFANA
-    
+
     PROM -->|Evaluate Rules| ALERTMGR
     ALERTMGR -->|Notify| SLACK[Slack]
     ALERTMGR -->|Notify| EMAIL[Email]
     ALERTMGR -->|Notify| PD[PagerDuty]
-    
+
     KIALI -.->|Query| PROM
     KIALI -.->|Linkerd API| LINKERD_EXT[Linkerd Control Plane]
-    
+
     %% Contratos
     PROM --> CONTRACT_METRICS
     LOKI --> CONTRACT_LOGS
     TEMPO --> CONTRACT_TRACES
     GRAFANA --> CONTRACT_VIZ
     ALERTMGR --> CONTRACT_ALERTS
-    
+
     %% Estilos
     classDef component fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef storage fill:#FF9800,stroke:#E65100,color:#fff
     classDef source fill:#9C27B0,stroke:#6A1B9A,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef external fill:#9E9E9E,stroke:#424242,color:#fff
-    
+
     class OTEL_COL,OTEL_AGENT,GRAFANA,KIALI,ALERTMGR component
     class PROM,LOKI,TEMPO storage
     class PCORE,CICD,DATA,APPS source
@@ -519,20 +519,20 @@ graph TB
         subgraph "postgres-operator namespace"
             PG_OP[Zalando Postgres Operator<br/>Controller<br/>Patroni + Spilo]
         end
-        
+
         subgraph "redis-operator namespace"
             REDIS_OP[Redis Cluster Operator<br/>Controller<br/>Master-Replica HA]
         end
-        
+
         subgraph "rabbitmq-system namespace"
             RABBIT_OP[RabbitMQ Cluster Operator<br/>Controller<br/>Quorum Queues]
         end
-        
+
         subgraph "velero namespace"
             VELERO[Velero<br/>Backup Controller<br/>S3-compatible storage]
         end
     end
-    
+
     subgraph "INSTANCES CRIADAS (via CRDs)"
         subgraph "application namespace"
             PG_CLUSTER[PostgreSQL Cluster<br/>1 master + 2 replicas<br/>10Gi storage per pod]
@@ -540,47 +540,47 @@ graph TB
             RABBIT_CLUSTER[RabbitMQ Cluster<br/>3 nodes<br/>10Gi storage per node]
         end
     end
-    
+
     subgraph "BACKUP STORAGE"
         S3[S3-compatible Storage<br/>Minio / AWS S3<br/>Azure Blob / GCP GCS]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_PG[PostgreSQL as a Service<br/>SLA: 99.9%<br/>HA via Patroni<br/>Auto-failover &lt; 30s]
         CONTRACT_REDIS[Redis as a Service<br/>SLA: 99.9%<br/>Cluster mode<br/>Persistence AOF/RDB]
         CONTRACT_RABBIT[RabbitMQ as a Service<br/>SLA: 99.9%<br/>Quorum queues<br/>Management UI]
         CONTRACT_BACKUP[Backup/Restore<br/>RPO: 24h daily<br/>RTO: &lt; 1h<br/>PVC + CRD backup]
     end
-    
+
     %% Operator manages Instances
     PG_OP -->|Watch CRD: acid.zalan.do/v1/postgresql| PG_CLUSTER
     REDIS_OP -->|Watch CRD: redis.opstreelabs.in/v1beta1| REDIS_CLUSTER
     RABBIT_OP -->|Watch CRD: rabbitmq.com/v1beta1| RABBIT_CLUSTER
-    
+
     %% Backup
     VELERO -.->|Schedule backup: Daily 2AM| PG_CLUSTER
     VELERO -.->|Schedule backup: Daily 2AM| REDIS_CLUSTER
     VELERO -.->|Schedule backup: Daily 2AM| RABBIT_CLUSTER
     VELERO -->|Store snapshots| S3
-    
+
     %% Contratos
     PG_CLUSTER --> CONTRACT_PG
     REDIS_CLUSTER --> CONTRACT_REDIS
     RABBIT_CLUSTER --> CONTRACT_RABBIT
     VELERO --> CONTRACT_BACKUP
-    
+
     %% Usage Example
     APP[Application Pod<br/>myapp-deployment] -->|my-postgres.app.svc:5432| PG_CLUSTER
     APP -->|my-redis.app.svc:6379| REDIS_CLUSTER
     APP -->|my-rabbitmq.app.svc:5672| RABBIT_CLUSTER
-    
+
     %% Estilos
     classDef operator fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef instance fill:#FF9800,stroke:#E65100,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef storage fill:#9E9E9E,stroke:#424242,color:#fff
     classDef app fill:#9C27B0,stroke:#6A1B9A,color:#fff
-    
+
     class PG_OP,REDIS_OP,RABBIT_OP,VELERO operator
     class PG_CLUSTER,REDIS_CLUSTER,RABBIT_CLUSTER instance
     class CONTRACT_PG,CONTRACT_REDIS,CONTRACT_RABBIT,CONTRACT_BACKUP contract
@@ -611,33 +611,33 @@ graph TB
             VAULT_CONSUL[(Consul Backend<br/>Raft consensus<br/>5Gi per pod)]
             VAULT_INJECTOR[Vault Agent Injector<br/>Sidecar secrets]
         end
-        
+
         subgraph "Opção 2: ESO (Alternativa)"
             ESO_CONTROLLER[External Secrets Operator<br/>Controller<br/>1 réplica]
             ESO_WEBHOOK[ESO Webhook<br/>SecretStore CRD]
         end
     end
-    
+
     subgraph "SECRET STORES (Cloud-specific)"
         AWS_SM[AWS Secrets Manager]
         AZURE_KV[Azure Key Vault]
         GCP_SM[GCP Secret Manager]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_STATIC[Static Secrets<br/>K8s Secret sync<br/>Auto-rotation]
         CONTRACT_DYNAMIC[Dynamic Secrets<br/>Database credentials<br/>TTL-based]
         CONTRACT_PKI[PKI/TLS<br/>Certificate generation<br/>Auto-renewal]
         CONTRACT_ENCRYPTION[Encryption as a Service<br/>Transit encryption<br/>Key rotation]
     end
-    
+
     subgraph "CONSUMERS"
         GITLAB_C[GitLab<br/>DB credentials]
         HARBOR_C[Harbor<br/>Admin password]
         ARGOCD_C[ArgoCD<br/>Git SSH keys]
         APP_C[Applications<br/>API keys, passwords]
     end
-    
+
     %% Vault Option
     VAULT_SERVER --> VAULT_CONSUL
     VAULT_INJECTOR -.->|Inject secrets<br/>via sidecar| GITLAB_C
@@ -645,23 +645,23 @@ graph TB
     VAULT_SERVER -->|Dynamic DB creds| APP_C
     VAULT_SERVER -->|PKI engine| CONTRACT_PKI
     VAULT_SERVER -->|Transit engine| CONTRACT_ENCRYPTION
-    
+
     %% ESO Option
     ESO_CONTROLLER -.->|Sync from cloud| AWS_SM
     ESO_CONTROLLER -.->|Sync from cloud| AZURE_KV
     ESO_CONTROLLER -.->|Sync from cloud| GCP_SM
     ESO_CONTROLLER -.->|Create K8s Secret| GITLAB_C
-    
+
     %% Contratos
     VAULT_SERVER --> CONTRACT_STATIC
     VAULT_SERVER --> CONTRACT_DYNAMIC
     ESO_CONTROLLER -.-> CONTRACT_STATIC
-    
+
     %% Decisão
     DECISION{ADR-002<br/>Vault vs ESO?}
     DECISION -->|Cloud-Agnostic Total| VAULT_SERVER
     DECISION -.->|Simplicidade + Cloud KMS| ESO_CONTROLLER
-    
+
     %% Estilos
     classDef vault fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef eso fill:#FFC107,stroke:#F57C00,color:#000
@@ -669,7 +669,7 @@ graph TB
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef consumer fill:#9C27B0,stroke:#6A1B9A,color:#fff
     classDef decision fill:#F44336,stroke:#C62828,color:#fff
-    
+
     class VAULT_SERVER,VAULT_CONSUL,VAULT_INJECTOR vault
     class ESO_CONTROLLER,ESO_WEBHOOK eso
     class AWS_SM,AZURE_KV,GCP_SM cloud
@@ -697,78 +697,78 @@ graph TB
             subgraph "Opção 1: Kyverno (Recomendado)"
                 KYVERNO[Kyverno Controller<br/>Policy validation<br/>Policy mutation<br/>Policy generation]
             end
-            
+
             subgraph "Opção 2: OPA (Alternativa)"
                 OPA[OPA Gatekeeper<br/>Admission webhook<br/>Rego policies]
             end
         end
-        
+
         subgraph "Runtime Security"
             FALCO[Falco<br/>DaemonSet<br/>Syscall monitoring<br/>Runtime alerts]
         end
-        
+
         subgraph "Vulnerability Scanning"
             TRIVY_OP[Trivy Operator<br/>Controller<br/>Image scanning<br/>CVE reports]
         end
-        
+
         subgraph "Network Security"
             NETPOL[Network Policies<br/>L3/L4 firewall<br/>Namespace isolation]
         end
     end
-    
+
     subgraph "POLICY TYPES"
         POL_ADMISSION[Admission Policies<br/>- Require labels<br/>- Disallow privileged<br/>- Enforce resource limits]
         POL_MUTATION[Mutation Policies<br/>- Add default labels<br/>- Inject sidecars<br/>- Add NetworkPolicy]
         POL_GENERATION[Generation Policies<br/>- Auto-create RBAC<br/>- Auto-create NetworkPolicy<br/>- Auto-create ConfigMap]
     end
-    
+
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_POLICY[Policy Enforcement<br/>Admission webhook<br/>Audit mode + Enforce]
         CONTRACT_RUNTIME[Runtime Security<br/>Real-time alerts<br/>Threat detection]
         CONTRACT_VULN[Vulnerability Scanning<br/>CVE detection<br/>Image signing]
         CONTRACT_NETWORK[Network Segmentation<br/>Zero-trust networking<br/>Namespace isolation]
     end
-    
+
     subgraph "MONITORED RESOURCES"
         PODS[Pods<br/>Policy validation]
         IMAGES[Images<br/>CVE scanning]
         SYSCALLS[System Calls<br/>Runtime behavior]
         TRAFFIC[Network Traffic<br/>L3/L4 policies]
     end
-    
+
     %% Kyverno Option
     KYVERNO -->|Validate| POL_ADMISSION
     KYVERNO -->|Mutate| POL_MUTATION
     KYVERNO -->|Generate| POL_GENERATION
     KYVERNO -->|Webhook| PODS
-    
+
     %% OPA Option
     OPA -.->|Validate: Rego| POL_ADMISSION
     OPA -.->|Webhook| PODS
-    
+
     %% Falco Runtime
     FALCO -->|Monitor syscalls| SYSCALLS
     FALCO -->|Alert to| GRAFANA_EXT[Grafana<br/>observability]
-    
+
     %% Trivy Scanning
     TRIVY_OP -->|Scan| IMAGES
     TRIVY_OP -->|Report to| HARBOR_EXT[Harbor<br/>cicd-platform]
-    
+
     %% Network Policies
     NETPOL -->|Apply rules| TRAFFIC
     NETPOL -.->|Complement| LINKERD_EXT[Linkerd mTLS<br/>platform-core]
-    
+
     %% Contratos
     KYVERNO --> CONTRACT_POLICY
     FALCO --> CONTRACT_RUNTIME
     TRIVY_OP --> CONTRACT_VULN
     NETPOL --> CONTRACT_NETWORK
-    
+
     %% Decisão
     DECISION{ADR-002<br/>Kyverno vs OPA?}
     DECISION -->|YAML policies + Mutation/Generation| KYVERNO
     DECISION -.->|Rego flexibility: Validation only| OPA
-    
+
     %% Estilos
     classDef kyverno fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef opa fill:#FFC107,stroke:#F57C00,color:#000
@@ -776,7 +776,7 @@ graph TB
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef resource fill:#9C27B0,stroke:#6A1B9A,color:#fff
     classDef decision fill:#F44336,stroke:#C62828,color:#fff
-    
+
     class KYVERNO kyverno
     class OPA opa
     class FALCO,TRIVY_OP,NETPOL runtime
@@ -811,19 +811,19 @@ sequenceDiagram
     participant PG as PostgreSQL
     participant PROM as Prometheus
     participant GRAF as Grafana
-    
+
     Note over Dev,GRAF: Fluxo Completo: Code → Production
-    
+
     %% 1. Developer Push
     Dev->>GL: 1. git push main
     GL->>KC: 2. Authenticate (OIDC)
     KC-->>GL: Token OK
-    
+
     %% 2. CI Pipeline
     GL->>GL: 3. Trigger .gitlab-ci.yml
     GL->>SQ: 4. Static Analysis
     SQ-->>GL: Quality Gate PASS
-    
+
     %% 3. Build + Push
     GL->>VAULT: 5. Get Harbor credentials
     VAULT-->>GL: username + password
@@ -831,7 +831,7 @@ sequenceDiagram
     GL->>HB: 7. docker push
     HB->>HB: 8. Trivy CVE scan
     HB-->>GL: Image SAFE
-    
+
     %% 4. GitOps Deploy
     GL->>GL: 9. Update manifests repo
     AR->>GL: 10. Poll repo (3min)
@@ -839,25 +839,25 @@ sequenceDiagram
     KC-->>AR: Token OK
     AR->>HB: 12. Pull image
     HB-->>AR: Image OK
-    
+
     %% 5. Database Setup
     AR->>PG: 13. Create PostgreSQL CRD
     PG->>PG: 14. Provision HA cluster
     AR->>VAULT: 15. Get DB credentials
     VAULT-->>AR: Generated creds (TTL: 24h)
     AR->>AR: 16. Create Secret
-    
+
     %% 6. Deploy Application
     AR->>AR: 17. kubectl apply
     AR->>PROM: 18. Expose metrics /metrics
     PROM->>PROM: 19. Scrape metrics (15s)
-    
+
     %% 7. Monitoring
     Dev->>GRAF: 20. Check dashboard
     GRAF->>PROM: Query metrics
     PROM-->>GRAF: Time-series data
     GRAF-->>Dev: Dashboard OK
-    
+
     Note over Dev,GRAF: Total Time: ~10-15 minutes
 ```
 
@@ -880,64 +880,64 @@ sequenceDiagram
 ```mermaid
 graph TB
     START([Developer: git push]) --> GITLAB_CI[GitLab CI Pipeline]
-    
+
     GITLAB_CI --> LINT[Lint + Unit Tests]
     LINT --> SONAR[SonarQube Analysis]
     SONAR --> QG{Quality Gate?}
     QG -->|FAIL| NOTIFY_FAIL[Notify Slack: Failed]
     QG -->|PASS| BUILD[Docker Build]
-    
+
     BUILD --> PUSH[Push to Harbor]
     PUSH --> TRIVY[Trivy CVE Scan]
     TRIVY --> CVE{CVE Critical?}
     CVE -->|YES| NOTIFY_CVE[Notify Security Team]
     CVE -->|NO| UPDATE_MANIFEST[Update GitOps Manifest]
-    
+
     UPDATE_MANIFEST --> ARGOCD_POLL[ArgoCD Poll Repo]
     ARGOCD_POLL --> ARGOCD_SYNC[ArgoCD Sync]
     ARGOCD_SYNC --> CREATE_NS[Create Namespace]
     CREATE_NS --> CREATE_NETPOL[Generate Network Policy<br/>via Kyverno]
-    
+
     CREATE_NETPOL --> NEED_DB{Need Database?}
     NEED_DB -->|YES| CREATE_PG[Create PostgreSQL CRD]
     CREATE_PG --> PG_HA[Postgres Operator<br/>Provision HA Cluster]
     PG_HA --> VAULT_DB[Vault: Generate DB Creds]
     VAULT_DB --> SECRET_DB[Create K8s Secret]
-    
+
     NEED_DB -->|NO| DEPLOY_APP
     SECRET_DB --> DEPLOY_APP[Deploy Application]
-    
+
     DEPLOY_APP --> INJECT_LINKERD[Linkerd: Inject Proxy]
     INJECT_LINKERD --> INJECT_VAULT[Vault: Inject Secrets<br/>via Sidecar]
     INJECT_VAULT --> POD_START[Pod Starting]
-    
+
     POD_START --> KYVERNO_CHECK{Kyverno Validation}
     KYVERNO_CHECK -->|FAIL| REJECT[Reject Pod]
     KYVERNO_CHECK -->|PASS| POD_RUN[Pod Running]
-    
+
     POD_RUN --> EXPOSE_METRICS[Expose /metrics]
     EXPOSE_METRICS --> PROM_SCRAPE[Prometheus Scrape]
     PROM_SCRAPE --> FALCO_MONITOR[Falco: Monitor Syscalls]
-    
+
     FALCO_MONITOR --> HEALTHY{Health Check OK?}
     HEALTHY -->|FAIL| ROLLBACK[ArgoCD Rollback]
     HEALTHY -->|OK| UPDATE_BACKSTAGE[Backstage: Update Catalog]
-    
+
     UPDATE_BACKSTAGE --> DONE([✅ Deployment Complete])
-    
+
     %% Parallel Monitoring
     PROM_SCRAPE -.-> GRAFANA[Grafana Dashboards]
     FALCO_MONITOR -.-> GRAFANA
     POD_RUN -.-> LOKI[Loki: Aggregate Logs]
     POD_RUN -.-> TEMPO[Tempo: Trace Requests]
-    
+
     %% Estilos
     classDef success fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef fail fill:#F44336,stroke:#C62828,color:#fff
     classDef process fill:#2196F3,stroke:#1565C0,color:#fff
     classDef decision fill:#FF9800,stroke:#E65100,color:#fff
     classDef milestone fill:#9C27B0,stroke:#6A1B9A,color:#fff
-    
+
     class DEPLOY_APP,POD_RUN,DONE success
     class NOTIFY_FAIL,NOTIFY_CVE,REJECT,ROLLBACK fail
     class GITLAB_CI,BUILD,PUSH,ARGOCD_SYNC,CREATE_PG,VAULT_DB process
@@ -956,15 +956,15 @@ graph TB
 
 ## 📊 Resumo de Recursos por Domínio
 
-| Domínio | CPU (cores) | Memory (Gi) | Storage (Gi) | Status | SLA |
-|---------|-------------|-------------|--------------|--------|-----|
-| **Platform-Core** | 4.2 | 8 | 20 | ✅ Implementado | 99.9% |
-| **Secrets-Management** | 2.0 | 4 | 15 | ⚠️ ADR-002 | 99.9% |
-| **Observability** | 3.0 | 8 | 180 | ✅ Implementado | 99.9% |
-| **CI/CD Platform** | 7.5 | 16 | 211 | ✅ Implementado | 99.5% |
-| **Data Services** | 0.5 | 2 | 10 (operators) | ✅ Implementado | 99.9% |
-| **Security** | 1.5 | 3 | 5 | ⚠️ ADR-002 | 99.9% |
-| **TOTAL** | **18.7** | **41** | **441** | **67% Completo** | **99.7% Avg** |
+| Domínio                | CPU (cores) | Memory (Gi) | Storage (Gi)   | Status           | SLA           |
+| ---------------------- | ----------- | ----------- | -------------- | ---------------- | ------------- |
+| **Platform-Core**      | 4.2         | 8           | 20             | ✅ Implementado   | 99.9%         |
+| **Secrets-Management** | 2.0         | 4           | 15             | ⚠️ ADR-002        | 99.9%         |
+| **Observability**      | 3.0         | 8           | 180            | ✅ Implementado   | 99.9%         |
+| **CI/CD Platform**     | 7.5         | 16          | 211            | ✅ Implementado   | 99.5%         |
+| **Data Services**      | 0.5         | 2           | 10 (operators) | ✅ Implementado   | 99.9%         |
+| **Security**           | 1.5         | 3           | 5              | ⚠️ ADR-002        | 99.9%         |
+| **TOTAL**              | **18.7**    | **41**      | **441**        | **67% Completo** | **99.7% Avg** |
 
 **Nota**: Data Services storage é por operator. Instances criadas adicionam ~75Gi (30Gi PG + 15Gi Redis + 30Gi RabbitMQ) por aplicação.
 
@@ -978,18 +978,18 @@ Este documento evolui com a implementação e está **protegido por hook de vali
 
 O hook `validate-architecture-diagrams.sh` **bloqueia commits** se estes arquivos mudarem sem atualização de diagramas:
 
-| Arquivo Modificado | Diagrama(s) Obrigatórios |
-|-------------------|--------------------------|
-| `SAD/docs/sad.md` | #1 Visão Geral, #2 Ordem de Deploy |
-| `SAD/docs/adrs/*.md` | #1 Visão Geral (se nova decisão sistêmica) |
-| `domains/platform-core/infra/terraform/main.tf` | #3 Platform-Core |
-| `domains/cicd-platform/infra/terraform/main.tf` | #4 CI/CD Platform |
-| `domains/observability/infra/terraform/main.tf` | #5 Observability |
-| `domains/data-services/infra/terraform/main.tf` | #6 Data Services |
-| `domains/secrets-management/docs/adr/adr-002-*.md` | #7 Secrets Management (decisão) |
-| `domains/security/docs/adr/adr-002-*.md` | #8 Security (decisão) |
-| `PROJECT-CONTEXT.md` (contratos) | #9 Comunicação Entre Domínios |
-| Novos domínios criados | #1, #2, #10 |
+| Arquivo Modificado                                 | Diagrama(s) Obrigatórios                   |
+| -------------------------------------------------- | ------------------------------------------ |
+| `SAD/docs/sad.md`                                  | #1 Visão Geral, #2 Ordem de Deploy         |
+| `SAD/docs/adrs/*.md`                               | #1 Visão Geral (se nova decisão sistêmica) |
+| `domains/platform-core/infra/terraform/main.tf`    | #3 Platform-Core                           |
+| `domains/cicd-platform/infra/terraform/main.tf`    | #4 CI/CD Platform                          |
+| `domains/observability/infra/terraform/main.tf`    | #5 Observability                           |
+| `domains/data-services/infra/terraform/main.tf`    | #6 Data Services                           |
+| `domains/secrets-management/docs/adr/adr-002-*.md` | #7 Secrets Management (decisão)            |
+| `domains/security/docs/adr/adr-002-*.md`           | #8 Security (decisão)                      |
+| `PROJECT-CONTEXT.md` (contratos)                   | #9 Comunicação Entre Domínios              |
+| Novos domínios criados                             | #1, #2, #10                                |
 
 ### 🛠️ Processo de Atualização
 
@@ -1052,7 +1052,7 @@ git commit --no-verify
 
 ---
 
-**Autor**: System Architect  
-**Versão**: 1.0  
-**Data**: 2026-01-05  
+**Autor**: System Architect
+**Versão**: 1.0
+**Data**: 2026-01-05
 **Próxima Revisão**: Após deploy de cada domínio

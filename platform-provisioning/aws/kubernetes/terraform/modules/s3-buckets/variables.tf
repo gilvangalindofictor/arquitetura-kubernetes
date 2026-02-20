@@ -25,8 +25,3 @@ variable "enable_fct_proposals" {
   default     = false
 }
 
-variable "fct_proposals_region" {
-  description = "AWS region for fct-proposals bucket (sa-east-1 for LGPD compliance)"
-  type        = string
-  default     = "sa-east-1"
-}

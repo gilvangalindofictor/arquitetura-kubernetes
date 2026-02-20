@@ -68,23 +68,32 @@ output "keycloak_backup_s3_policy_arn" {
 # Summary
 output "buckets_summary" {
   description = "Summary of all S3 buckets created"
-  value = {
-    gitlab_artifacts = {
-      name   = aws_s3_bucket.gitlab_artifacts.id
-      arn    = aws_s3_bucket.gitlab_artifacts.arn
-      region = aws_s3_bucket.gitlab_artifacts.region
-    }
-    harbor_images = {
-      name   = aws_s3_bucket.harbor_images.id
-      arn    = aws_s3_bucket.harbor_images.arn
-      region = aws_s3_bucket.harbor_images.region
-    }
-    keycloak_backups = {
-      name   = aws_s3_bucket.keycloak_backups.id
-      arn    = aws_s3_bucket.keycloak_backups.arn
-      region = aws_s3_bucket.keycloak_backups.region
-    }
-  }
+  value = merge(
+    {
+      gitlab_artifacts = {
+        name   = aws_s3_bucket.gitlab_artifacts.id
+        arn    = aws_s3_bucket.gitlab_artifacts.arn
+        region = aws_s3_bucket.gitlab_artifacts.region
+      }
+      harbor_images = {
+        name   = aws_s3_bucket.harbor_images.id
+        arn    = aws_s3_bucket.harbor_images.arn
+        region = aws_s3_bucket.harbor_images.region
+      }
+      keycloak_backups = {
+        name   = aws_s3_bucket.keycloak_backups.id
+        arn    = aws_s3_bucket.keycloak_backups.arn
+        region = aws_s3_bucket.keycloak_backups.region
+      }
+    },
+    var.enable_fct_proposals ? {
+      fct_proposals = {
+        name   = aws_s3_bucket.fct_proposals[0].id
+        arn    = aws_s3_bucket.fct_proposals[0].arn
+        region = aws_s3_bucket.fct_proposals[0].region
+      }
+    } : {}
+  )
 }
 
 # FCT Proposals Bucket (TASK-004)

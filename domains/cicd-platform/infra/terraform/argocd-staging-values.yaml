@@ -1,0 +1,54 @@
+global:
+  domain: argocd-test.platform.local
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+redis:
+  enabled: true
+
+configs:
+  cm:
+    admin.enabled: "true"
+    url: "https://argocd-test.platform.local"
+  params:
+    server.insecure: "true"
