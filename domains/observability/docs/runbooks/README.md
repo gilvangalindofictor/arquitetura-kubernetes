@@ -1,12 +1,38 @@
 # Runbooks
 
-This directory contains runbooks for responding to alerts defined in `infra/grafana/alerts`. Each runbook provides a step-by-step guide for on-call engineers to diagnose and mitigate issues.
+This directory contains runbooks for responding to alerts defined in `infra/alerts/`. Each runbook provides a step-by-step guide for on-call engineers to diagnose and mitigate issues.
 
 ## Structure
 
+### General Alerts (pre-existing)
 -   `runbook-high-error-rate.md`: Steps to take when the `HighErrorRate` alert fires.
 -   `runbook-high-latency.md`: Steps to take when the `HighLatency` alert fires.
 -   `runbook-instance-down.md`: Steps to take when the `InstanceDown` alert fires.
+
+### DT-005: Infrastructure Alerts
+-   `dt005-node-not-ready.md`: Node in NotReady state (critical)
+-   `dt005-node-disk-pressure.md`: Node disk usage above thresholds (warning/critical)
+-   `dt005-node-memory-pressure.md`: Node memory running low (warning/critical)
+-   `dt005-pvc-near-full.md`: PersistentVolumeClaim approaching capacity (warning/critical)
+
+### DT-005: Application Alerts
+-   `dt005-pod-crash-looping.md`: Pod restarting repeatedly / OOMKilled (critical)
+-   `dt005-pod-not-ready.md`: Pod running but failing readiness checks (warning)
+-   `dt005-deployment-replicas-mismatch.md`: Deployment has fewer replicas than desired (warning/critical)
+-   `dt005-high-5xx-rate.md`: High 5xx error rate on ingress endpoints (warning/critical)
+
+### DT-005: Data Services Alerts
+-   `dt005-postgresql-connections-high.md`: PostgreSQL connection pool approaching limit (warning/critical)
+-   `dt005-postgresql-down.md`: PostgreSQL instance unreachable (critical)
+-   `dt005-redis-high-memory.md`: Redis memory usage high / Redis down (warning/critical)
+-   `dt005-redis-down.md`: Redis instance unreachable (critical)
+-   `dt005-rabbitmq-queue-depth.md`: RabbitMQ queue backlog / RabbitMQ down (warning/critical)
+-   `dt005-rabbitmq-down.md`: RabbitMQ instance unreachable (critical)
+
+### DT-005: Security Alerts
+-   `dt005-certificate-expiring.md`: TLS certificate nearing expiration (warning/critical)
+-   `dt005-vault-sealed.md`: Vault sealed or down (critical)
+-   `dt005-external-secret-sync-failure.md`: External Secrets Operator sync failures (warning/critical)
 
 ## How to Use
 

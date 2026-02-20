@@ -159,8 +159,8 @@ resource "vault_jwt_auth_backend_role" "admin" {
   role_type = "oidc"
 
   token_policies = [vault_policy.vault_admin[0].name]
-  token_ttl      = 28800  # 8h
-  token_max_ttl  = 86400  # 24h
+  token_ttl      = 28800 # 8h
+  token_max_ttl  = 86400 # 24h
 
   oidc_scopes  = ["openid", "email", "profile"]
   user_claim   = "email"
@@ -186,8 +186,8 @@ resource "vault_jwt_auth_backend_role" "reader" {
   role_type = "oidc"
 
   token_policies = [vault_policy.vault_reader[0].name]
-  token_ttl      = 14400  # 4h
-  token_max_ttl  = 28800  # 8h
+  token_ttl      = 14400 # 4h
+  token_max_ttl  = 28800 # 8h
 
   oidc_scopes = ["openid", "email", "profile"]
   user_claim  = "email"
@@ -196,6 +196,61 @@ resource "vault_jwt_auth_backend_role" "reader" {
     "http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback"
   ]
+}
+
+# -----------------------------------------------------------------------------
+# Random Passwords — Auto-generated secrets (V-001/V-002)
+# Used when var.XXX_password is empty (default="")
+# Pattern: random_password → vault_kv_secret_v2 → ESO → K8s Secret
+# -----------------------------------------------------------------------------
+
+resource "random_password" "grafana_admin" {
+  count            = var.grafana_admin_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "argocd_postgresql" {
+  count            = var.argocd_postgresql_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "argocd_oidc" {
+  count            = var.argocd_oidc_client_secret == "" ? 1 : 0
+  length           = 48
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Grafana Admin Password (V-001 Remediation)
+# Vault path: secret/grafana/admin
+# ESO ExternalSecret: grafana-admin-credentials (kube-prometheus-stack/main.tf)
+# Migration: hardcoded "admin" → Vault KV + ESO + existingSecret (2026-02-20)
+# eso-reader policy already covers secret/data/grafana/* (eso-reader.hcl)
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "grafana_admin" {
+  count      = var.grafana_admin_password != "" || length(random_password.grafana_admin) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "grafana/admin"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.grafana_admin_password != "" ? var.grafana_admin_password : random_password.grafana_admin[0].result
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "grafana"
+      cluster     = var.cluster_name
+      remediation = "V-001"
+    }
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -305,6 +360,65 @@ resource "vault_kv_secret_v2" "keycloak_postgresql" {
       managed_by = "terraform"
       service    = "keycloak"
       cluster    = var.cluster_name
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — ArgoCD PostgreSQL credentials
+# Vault path: secret/argocd/postgresql
+# ESO ExternalSecret: argocd-postgresql-credentials (modules/argocd/main.tf)
+# V-002 remediation: ArgoCD PostgreSQL credentials to Vault+ESO
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "argocd_postgresql" {
+  count      = var.argocd_postgresql_password != "" || length(random_password.argocd_postgresql) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "argocd/postgresql"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.argocd_postgresql_password != "" ? var.argocd_postgresql_password : random_password.argocd_postgresql[0].result
+    username = var.argocd_postgresql_username
+    host     = var.argocd_postgresql_host
+    port     = var.argocd_postgresql_port
+    database = var.argocd_postgresql_database
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "argocd"
+      cluster     = var.cluster_name
+      remediation = "V-002"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — ArgoCD OIDC client secret (Keycloak)
+# Vault path: secret/argocd/oidc
+# ESO ExternalSecret: argocd-oidc-credentials (modules/argocd/main.tf)
+# V-002 remediation: ArgoCD OIDC client secret to Vault+ESO
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "argocd_oidc" {
+  count      = var.argocd_oidc_client_secret != "" || length(random_password.argocd_oidc) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "argocd/oidc"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    client_id     = var.argocd_oidc_client_id
+    client_secret = var.argocd_oidc_client_secret != "" ? var.argocd_oidc_client_secret : random_password.argocd_oidc[0].result
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "argocd"
+      cluster     = var.cluster_name
+      remediation = "V-002"
     }
   }
 }

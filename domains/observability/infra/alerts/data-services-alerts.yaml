@@ -1,0 +1,416 @@
+# =============================================================================
+# DT-005: Data Services Alerts (Warning/Critical)
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Monitored Services: PostgreSQL, Redis, RabbitMQ
+#
+# Alerts:
+#   - PostgreSQLConnectionPoolHigh (warning @ 70%, critical @ 85%)
+#   - PostgreSQLSlowQueries (warning)
+#   - PostgreSQLReplicationLag (warning/critical)
+#   - PostgreSQLDown (critical)
+#   - RedisHighMemoryUsage (warning @ 80%, critical @ 90%)
+#   - RedisDown (critical)
+#   - RabbitMQQueueDepthHigh (warning @ 1000, critical @ 5000)
+#   - RabbitMQDown (critical)
+#   - RabbitMQHighMemoryUsage (warning)
+#
+# Note: Redis-specific Sentinel/Master/Replica alerts exist in
+#       platform-provisioning/aws/kubernetes/terraform/modules/redis/prometheus-rules.tf
+#       PostgreSQL connection alerts also in custom-sli-alerts.yaml (SLI context)
+#       This file provides consolidated data-services coverage.
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dt005-data-services-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: data-services-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: DT-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # PostgreSQL Alerts
+    # Metrics source: postgres-exporter (pg_stat_*, pg_settings_*)
+    # =========================================================================
+    - name: data-services.postgresql
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # PostgreSQLConnectionPoolHighWarning - Usage > 70%
+        # -----------------------------------------------------------------
+        - alert: PostgreSQLConnectionPoolHighWarning
+          expr: |
+            (
+              sum by (instance, datname) (pg_stat_database_numbackends{datname!~"template.*|postgres"})
+              /
+              pg_settings_max_connections
+            ) * 100 > 70
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: postgresql
+            component: connections
+            demand: DT-005
+          annotations:
+            summary: 'PostgreSQL connection pool usage at {{ $value | printf "%.1f" }}%'
+            description: |
+              PostgreSQL instance {{ $labels.instance }} connection usage is at {{ $value | printf "%.1f" }}%
+              (warning threshold: 70%).
+
+              If connections continue to grow, new connections will be rejected.
+
+              Actions:
+              1. Check active connections by database:
+                 SELECT datname, count(*) FROM pg_stat_activity GROUP BY datname ORDER BY count DESC;
+              2. Check for idle connections:
+                 SELECT count(*) FROM pg_stat_activity WHERE state = 'idle';
+              3. Identify long-running transactions:
+                 SELECT pid, now() - xact_start AS duration, query FROM pg_stat_activity WHERE state != 'idle' ORDER BY duration DESC LIMIT 10;
+              4. Review connection pooling (PgBouncer) if applicable
+
+              Runbook: domains/observability/docs/runbooks/dt005-postgresql-connections-high.md
+            dashboard_url: "https://grafana.internal/d/postgresql-overview"
+
+        # -----------------------------------------------------------------
+        # PostgreSQLConnectionPoolHighCritical - Usage > 85%
+        # -----------------------------------------------------------------
+        - alert: PostgreSQLConnectionPoolHighCritical
+          expr: |
+            (
+              sum by (instance, datname) (pg_stat_database_numbackends{datname!~"template.*|postgres"})
+              /
+              pg_settings_max_connections
+            ) * 100 > 85
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: postgresql
+            component: connections
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: PostgreSQL connection pool at {{ $value | printf "%.1f" }}%'
+            description: |
+              PostgreSQL instance {{ $labels.instance }} connection usage is at {{ $value | printf "%.1f" }}%
+              (critical threshold: 85%). New connections will fail imminently.
+
+              Impact: SEVERE - Applications will be unable to connect to the database.
+
+              Immediate Actions:
+              1. Kill idle connections:
+                 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle' AND query_start < now() - interval '10 minutes';
+              2. Identify connection leaks by client:
+                 SELECT client_addr, application_name, count(*) FROM pg_stat_activity GROUP BY client_addr, application_name ORDER BY count DESC;
+              3. Emergency: increase max_connections in RDS parameter group
+              4. Restart application pods with connection leaks
+
+              Runbook: domains/observability/docs/runbooks/dt005-postgresql-connections-high.md
+
+        # -----------------------------------------------------------------
+        # PostgreSQLSlowQueries - Slow query rate increasing
+        # -----------------------------------------------------------------
+        - alert: PostgreSQLSlowQueries
+          expr: |
+            rate(pg_stat_database_conflicts{datname!~"template.*|postgres"}[5m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: postgresql
+            component: performance
+            demand: DT-005
+          annotations:
+            summary: "PostgreSQL database conflicts detected on {{ $labels.datname }}"
+            description: |
+              PostgreSQL database {{ $labels.datname }} on {{ $labels.instance }} is experiencing
+              query conflicts at a rate of {{ $value | printf "%.2f" }}/s.
+
+              This may indicate lock contention, long-running transactions, or replication conflicts.
+
+              Actions:
+              1. Check for lock contention:
+                 SELECT * FROM pg_locks WHERE NOT granted;
+              2. Identify blocked queries:
+                 SELECT blocked_locks.pid AS blocked_pid, blocking_locks.pid AS blocking_pid, blocked_activity.query
+                 FROM pg_locks blocked_locks JOIN pg_stat_activity blocked_activity ON blocked_locks.pid = blocked_activity.pid
+                 JOIN pg_locks blocking_locks ON blocking_locks.locktype = blocked_locks.locktype;
+              3. Review recent application deployments for schema changes
+
+              Runbook: domains/observability/docs/runbooks/dt005-postgresql-connections-high.md
+
+        # -----------------------------------------------------------------
+        # PostgreSQLDown - Instance not responding
+        # -----------------------------------------------------------------
+        - alert: PostgreSQLDown
+          expr: |
+            pg_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: postgresql
+            component: availability
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: PostgreSQL instance {{ $labels.instance }} is DOWN"
+            description: |
+              PostgreSQL exporter cannot reach instance {{ $labels.instance }}
+              for more than 2 minutes.
+
+              Impact: CRITICAL - All dependent services will experience database connection failures.
+
+              Immediate Actions:
+              1. Check PostgreSQL pod status: kubectl get pods -n <namespace> -l app=postgresql
+              2. Check PostgreSQL logs: kubectl logs -n <namespace> -l app=postgresql --tail=200
+              3. Check PVC: kubectl get pvc -n <namespace> | grep postgresql
+              4. If RDS: check AWS RDS console for instance health and events
+              5. Escalate to database team immediately
+
+              Runbook: domains/observability/docs/runbooks/dt005-postgresql-down.md
+
+    # =========================================================================
+    # Redis Alerts (complementary to Terraform-managed rules)
+    # Metrics source: redis-exporter
+    # =========================================================================
+    - name: data-services.redis
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # RedisHighMemoryUsageWarning - Memory > 80%
+        # -----------------------------------------------------------------
+        - alert: RedisHighMemoryUsageWarning
+          expr: |
+            (
+              redis_memory_used_bytes
+              /
+              redis_memory_max_bytes
+            ) * 100 > 80
+            and
+            redis_memory_max_bytes > 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: redis
+            component: memory
+            demand: DT-005
+          annotations:
+            summary: 'Redis memory usage at {{ $value | printf "%.1f" }}% on {{ $labels.instance }}'
+            description: |
+              Redis instance {{ $labels.instance }} memory usage is at {{ $value | printf "%.1f" }}%.
+
+              If memory usage exceeds maxmemory, Redis will start evicting keys
+              based on the configured eviction policy.
+
+              Actions:
+              1. Check memory info: redis-cli INFO memory
+              2. Check key distribution: redis-cli --bigkeys
+              3. Review eviction policy: redis-cli CONFIG GET maxmemory-policy
+              4. Consider clearing expired keys: redis-cli BGSAVE
+
+              Runbook: domains/observability/docs/runbooks/dt005-redis-high-memory.md
+            dashboard_url: "https://grafana.internal/d/redis-overview"
+
+        # -----------------------------------------------------------------
+        # RedisHighMemoryUsageCritical - Memory > 90%
+        # -----------------------------------------------------------------
+        - alert: RedisHighMemoryUsageCritical
+          expr: |
+            (
+              redis_memory_used_bytes
+              /
+              redis_memory_max_bytes
+            ) * 100 > 90
+            and
+            redis_memory_max_bytes > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: redis
+            component: memory
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: Redis memory at {{ $value | printf "%.1f" }}% on {{ $labels.instance }}'
+            description: |
+              Redis instance {{ $labels.instance }} memory is at {{ $value | printf "%.1f" }}%.
+              Evictions are likely occurring. Data loss risk if eviction policy is noeviction.
+
+              Impact: SEVERE - Key evictions, potential application errors, cache misses.
+
+              Immediate Actions:
+              1. Check evictions: redis-cli INFO stats | grep evicted_keys
+              2. Find biggest keys: redis-cli --bigkeys
+              3. Flush unnecessary data if safe: redis-cli FLUSHDB (CAUTION!)
+              4. Consider increasing maxmemory or scaling Redis
+
+              Runbook: domains/observability/docs/runbooks/dt005-redis-high-memory.md
+
+        # -----------------------------------------------------------------
+        # RedisDown - Instance not responding
+        # -----------------------------------------------------------------
+        - alert: RedisDown
+          expr: |
+            redis_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: redis
+            component: availability
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Redis instance {{ $labels.instance }} is DOWN"
+            description: |
+              Redis exporter cannot reach instance {{ $labels.instance }}
+              for more than 2 minutes.
+
+              Impact: CRITICAL - Cache unavailable, session store down, application performance severely degraded.
+
+              Immediate Actions:
+              1. Check Redis pod: kubectl get pods -n <namespace> -l app=redis
+              2. Check Redis logs: kubectl logs -n <namespace> -l app=redis --tail=200
+              3. Check Redis Sentinel status (if HA): redis-cli -p 26379 SENTINEL masters
+              4. Verify PVC health: kubectl get pvc -n <namespace> | grep redis
+
+              Runbook: domains/observability/docs/runbooks/dt005-redis-down.md
+
+    # =========================================================================
+    # RabbitMQ Alerts
+    # Metrics source: rabbitmq-prometheus plugin
+    # =========================================================================
+    - name: data-services.rabbitmq
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # RabbitMQQueueDepthHighWarning - > 1000 messages
+        # -----------------------------------------------------------------
+        - alert: RabbitMQQueueDepthHighWarning
+          expr: |
+            rabbitmq_queue_messages > 1000
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: rabbitmq
+            component: queue
+            demand: DT-005
+          annotations:
+            summary: 'RabbitMQ queue {{ $labels.queue }} has {{ $value | printf "%.0f" }} messages'
+            description: |
+              Queue {{ $labels.queue }} on vhost {{ $labels.vhost }} has {{ $value | printf "%.0f" }} messages
+              (warning threshold: 1000). Consumers may not be keeping up with producers.
+
+              Actions:
+              1. Check consumer count: rabbitmqctl list_queues name consumers messages
+              2. Check consumer status in the application
+              3. Check for slow consumers or processing errors
+              4. Consider scaling consumer pods
+
+              Runbook: domains/observability/docs/runbooks/dt005-rabbitmq-queue-depth.md
+            dashboard_url: "https://grafana.internal/d/rabbitmq-overview"
+
+        # -----------------------------------------------------------------
+        # RabbitMQQueueDepthHighCritical - > 5000 messages
+        # -----------------------------------------------------------------
+        - alert: RabbitMQQueueDepthHighCritical
+          expr: |
+            rabbitmq_queue_messages > 5000
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: rabbitmq
+            component: queue
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: RabbitMQ queue {{ $labels.queue }} has {{ $value | printf "%.0f" }} messages'
+            description: |
+              Queue {{ $labels.queue }} on vhost {{ $labels.vhost }} has {{ $value | printf "%.0f" }} messages
+              (critical threshold: 5000). Consumer backlog is severe.
+
+              Impact: SEVERE - Message processing delay, potential memory exhaustion in RabbitMQ.
+
+              Immediate Actions:
+              1. Scale consumer pods: kubectl scale deployment/<consumer> --replicas=<N> -n <namespace>
+              2. Check for dead-lettered messages: rabbitmqctl list_queues name messages_dead_lettered
+              3. Check RabbitMQ memory: rabbitmqctl status | grep memory
+              4. If messages are stale, consider purging: rabbitmqctl purge_queue <queue-name> (CAUTION!)
+
+              Runbook: domains/observability/docs/runbooks/dt005-rabbitmq-queue-depth.md
+
+        # -----------------------------------------------------------------
+        # RabbitMQHighMemoryUsage - Memory nearing high watermark
+        # -----------------------------------------------------------------
+        - alert: RabbitMQHighMemoryUsage
+          expr: |
+            (
+              rabbitmq_process_resident_memory_bytes
+              /
+              rabbitmq_resident_memory_limit_bytes
+            ) * 100 > 80
+            and
+            rabbitmq_resident_memory_limit_bytes > 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: rabbitmq
+            component: memory
+            demand: DT-005
+          annotations:
+            summary: 'RabbitMQ memory usage at {{ $value | printf "%.1f" }}%'
+            description: |
+              RabbitMQ instance {{ $labels.instance }} memory usage is at {{ $value | printf "%.1f" }}%
+              of the configured high watermark.
+
+              When RabbitMQ reaches the high watermark, it will block all publishers.
+
+              Actions:
+              1. Check queue depths: rabbitmqctl list_queues name messages
+              2. Identify queues with unacknowledged messages
+              3. Check for memory leaks in consumers
+              4. Consider increasing the memory high watermark or pod memory limits
+
+              Runbook: domains/observability/docs/runbooks/dt005-rabbitmq-queue-depth.md
+
+        # -----------------------------------------------------------------
+        # RabbitMQDown - Instance not responding
+        # -----------------------------------------------------------------
+        - alert: RabbitMQDown
+          expr: |
+            rabbitmq_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: rabbitmq
+            component: availability
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: RabbitMQ instance {{ $labels.instance }} is DOWN"
+            description: |
+              RabbitMQ exporter cannot reach instance {{ $labels.instance }}
+              for more than 2 minutes.
+
+              Impact: CRITICAL - Message queue unavailable, async processing halted.
+
+              Immediate Actions:
+              1. Check RabbitMQ pod: kubectl get pods -n <namespace> -l app=rabbitmq
+              2. Check RabbitMQ logs: kubectl logs -n <namespace> -l app=rabbitmq --tail=200
+              3. Check cluster status: rabbitmqctl cluster_status
+              4. Verify PVC and disk space
+
+              Runbook: domains/observability/docs/runbooks/dt005-rabbitmq-down.md

@@ -1,0 +1,319 @@
+# =============================================================================
+# DT-005: Application Alerts (Warning/Critical)
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Alerts:
+#   - PodCrashLooping (critical — restarts > 5 in 10min)
+#   - PodNotReady (warning — not ready > 5min)
+#   - DeploymentReplicasMismatch (warning/critical)
+#   - High5xxErrorRate (warning @ 1%, critical @ 5%)
+#   - ContainerOOMKilled (warning)
+#   - JobFailed (warning)
+#
+# Note: Some overlap with general-alerts.yaml (HighErrorRate) and
+#       custom-sli-alerts.yaml (ServiceHighErrorRate5xx). This file provides
+#       platform-wide generic coverage using ingress-nginx metrics.
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dt005-application-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: application-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: DT-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Pod Health Alerts
+    # =========================================================================
+    - name: application.pod-health
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # PodCrashLooping - Restarts > 5 in 10 minutes
+        # Metrics source: kube-state-metrics
+        # -----------------------------------------------------------------
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total[10m]) > 5
+          for: 0m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: pod
+            demand: DT-005
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} is crash looping"
+            description: |
+              Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+              has restarted {{ $value | printf "%.0f" }} times in the last 10 minutes.
+
+              This indicates a persistent application failure (crash loop backoff).
+
+              Impact: Service degradation or unavailability for the affected workload.
+
+              Diagnostic Steps:
+              1. Check pod status: kubectl get pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. View current logs: kubectl logs {{ $labels.pod }} -n {{ $labels.namespace }} -c {{ $labels.container }}
+              3. View previous crash logs: kubectl logs {{ $labels.pod }} -n {{ $labels.namespace }} -c {{ $labels.container }} --previous
+              4. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              5. Common causes: OOMKilled, misconfiguration, missing secrets, dependency failure
+
+              Runbook: domains/observability/docs/runbooks/dt005-pod-crash-looping.md
+            dashboard_url: "https://grafana.internal/d/pod-overview"
+
+        # -----------------------------------------------------------------
+        # PodNotReady - Pod not ready for > 5 minutes
+        # -----------------------------------------------------------------
+        - alert: PodNotReady
+          expr: |
+            min_over_time(
+              kube_pod_status_ready{condition="true"}[5m]
+            ) == 0
+            and
+            kube_pod_status_phase{phase=~"Running"}  == 1
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: pod
+            demand: DT-005
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been not ready for > 5 minutes"
+            description: |
+              Pod {{ $labels.namespace }}/{{ $labels.pod }} is in Running phase but not passing
+              readiness checks for more than 5 minutes.
+
+              This means the pod is running but not serving traffic (removed from Service endpoints).
+
+              Actions:
+              1. Check readiness probe: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }} | grep -A5 "Readiness"
+              2. Check application health endpoint manually
+              3. Check pod logs for startup or dependency errors
+              4. Verify ConfigMaps/Secrets are correctly mounted
+
+              Runbook: domains/observability/docs/runbooks/dt005-pod-not-ready.md
+            dashboard_url: "https://grafana.internal/d/pod-overview"
+
+        # -----------------------------------------------------------------
+        # ContainerOOMKilled - Container killed by OOM
+        # -----------------------------------------------------------------
+        - alert: ContainerOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: pod
+            demand: DT-005
+          annotations:
+            summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled"
+            description: |
+              Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+              was terminated due to Out Of Memory (OOMKilled).
+
+              This indicates the container exceeded its memory limit.
+
+              Actions:
+              1. Check current memory limits: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }} | grep -A3 "Limits"
+              2. Review memory usage trends in Grafana
+              3. Increase memory limits if the application genuinely needs more
+              4. Investigate memory leaks if usage grows unbounded
+
+              Runbook: domains/observability/docs/runbooks/dt005-pod-crash-looping.md
+
+    # =========================================================================
+    # Deployment Health Alerts
+    # =========================================================================
+    - name: application.deployment-health
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # DeploymentReplicasMismatch - Desired != Available replicas
+        # -----------------------------------------------------------------
+        - alert: DeploymentReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas
+            !=
+            kube_deployment_status_replicas_available
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: deployment
+            demand: DT-005
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch for > 15 minutes"
+            description: |
+              Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has a replica count mismatch.
+              Desired: {{ with printf "kube_deployment_spec_replicas{namespace='%s', deployment='%s'}" $labels.namespace $labels.deployment | query }}{{ . | first | value }}{{ end }}
+              Available: {{ with printf "kube_deployment_status_replicas_available{namespace='%s', deployment='%s'}" $labels.namespace $labels.deployment | query }}{{ . | first | value }}{{ end }}
+
+              This indicates pods are failing to start or pass readiness checks.
+
+              Actions:
+              1. Check deployment status: kubectl get deployment {{ $labels.deployment }} -n {{ $labels.namespace }}
+              2. Check ReplicaSet: kubectl get rs -n {{ $labels.namespace }} -l app={{ $labels.deployment }}
+              3. Check pending pods: kubectl get pods -n {{ $labels.namespace }} -l app={{ $labels.deployment }} --field-selector=status.phase!=Running
+              4. Common causes: insufficient resources, image pull failures, node affinity issues
+
+              Runbook: domains/observability/docs/runbooks/dt005-deployment-replicas-mismatch.md
+            dashboard_url: "https://grafana.internal/d/deployment-overview"
+
+        # -----------------------------------------------------------------
+        # DeploymentReplicasMismatchCritical - After 30 minutes
+        # -----------------------------------------------------------------
+        - alert: DeploymentReplicasMismatchCritical
+          expr: |
+            kube_deployment_spec_replicas
+            !=
+            kube_deployment_status_replicas_available
+          for: 30m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: deployment
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch for > 30 minutes"
+            description: |
+              Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has had a persistent replica count
+              mismatch for over 30 minutes. This requires immediate investigation.
+
+              Impact: SEVERE - Reduced availability, potential service degradation.
+
+              Immediate Actions:
+              1. Check all pods: kubectl get pods -n {{ $labels.namespace }} -l app={{ $labels.deployment }}
+              2. Describe failing pod: kubectl describe pod <pod-name> -n {{ $labels.namespace }}
+              3. Check cluster resource availability: kubectl describe nodes | grep -A5 "Allocated resources"
+              4. Consider rollback if recent deployment: kubectl rollout undo deployment/{{ $labels.deployment }} -n {{ $labels.namespace }}
+
+              Runbook: domains/observability/docs/runbooks/dt005-deployment-replicas-mismatch.md
+
+    # =========================================================================
+    # HTTP Error Rate Alerts (Platform-wide via ingress-nginx)
+    # =========================================================================
+    - name: application.http-errors
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # High5xxErrorRateWarning - > 1% 5xx in 5 minutes (ingress-level)
+        # Complement to service-specific alerts in custom-sli-alerts.yaml
+        # -----------------------------------------------------------------
+        - alert: High5xxErrorRateWarning
+          expr: |
+            (
+              sum by (exported_namespace, ingress) (
+                rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+              )
+              /
+              sum by (exported_namespace, ingress) (
+                rate(nginx_ingress_controller_requests[5m])
+              )
+            ) * 100 > 1
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: ingress
+            component: http
+            demand: DT-005
+          annotations:
+            summary: 'High 5xx rate ({{ $value | printf "%.1f" }}%) on ingress {{ $labels.ingress }} in {{ $labels.exported_namespace }}'
+            description: |
+              Ingress {{ $labels.ingress }} in namespace {{ $labels.exported_namespace }}
+              has a 5xx error rate of {{ $value | printf "%.2f" }}% over the last 5 minutes.
+
+              Actions:
+              1. Check upstream service pods: kubectl get pods -n {{ $labels.exported_namespace }}
+              2. Check service logs: kubectl logs -n {{ $labels.exported_namespace }} -l app=<service> --tail=100
+              3. Check ingress-nginx logs for upstream errors
+              4. Verify backend service health endpoints
+
+              Runbook: domains/observability/docs/runbooks/dt005-high-5xx-rate.md
+            dashboard_url: "https://grafana.internal/d/ingress-overview"
+
+        # -----------------------------------------------------------------
+        # High5xxErrorRateCritical - > 5% 5xx in 5 minutes
+        # -----------------------------------------------------------------
+        - alert: High5xxErrorRateCritical
+          expr: |
+            (
+              sum by (exported_namespace, ingress) (
+                rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+              )
+              /
+              sum by (exported_namespace, ingress) (
+                rate(nginx_ingress_controller_requests[5m])
+              )
+            ) * 100 > 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: ingress
+            component: http
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: High 5xx rate ({{ $value | printf "%.1f" }}%) on ingress {{ $labels.ingress }}'
+            description: |
+              Ingress {{ $labels.ingress }} in namespace {{ $labels.exported_namespace }}
+              has a 5xx error rate of {{ $value | printf "%.2f" }}% (critical threshold: 5%).
+
+              Impact: SEVERE - Significant portion of user requests are failing.
+
+              Immediate Actions:
+              1. Check backend pods: kubectl get pods -n {{ $labels.exported_namespace }} -o wide
+              2. Check for recent deployments: kubectl rollout history deployment -n {{ $labels.exported_namespace }}
+              3. Consider rollback if post-deployment: kubectl rollout undo deployment/<name> -n {{ $labels.exported_namespace }}
+              4. Check pod resource usage: kubectl top pods -n {{ $labels.exported_namespace }}
+
+              Runbook: domains/observability/docs/runbooks/dt005-high-5xx-rate.md
+
+    # =========================================================================
+    # Job Alerts
+    # =========================================================================
+    - name: application.jobs
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # KubeJobFailed - A Kubernetes Job has failed
+        # -----------------------------------------------------------------
+        - alert: KubeJobFailed
+          expr: |
+            kube_job_status_failed > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: job
+            demand: DT-005
+          annotations:
+            summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} has failed"
+            description: |
+              Kubernetes Job {{ $labels.job_name }} in namespace {{ $labels.namespace }} has failed.
+
+              Actions:
+              1. Check job details: kubectl describe job {{ $labels.job_name }} -n {{ $labels.namespace }}
+              2. Check pod logs: kubectl logs -n {{ $labels.namespace }} -l job-name={{ $labels.job_name }}
+              3. Check if this is a CronJob: kubectl get cronjob -n {{ $labels.namespace }}
+              4. Investigate failure reason and consider manual re-run if safe
+
+              Runbook: domains/observability/docs/runbooks/dt005-pod-crash-looping.md

@@ -113,6 +113,14 @@ variable "grafana_oidc_client_secret" {
   default     = ""
 }
 
+# V-001 Remediation: Grafana admin password → Vault KV (2026-02-20)
+variable "grafana_admin_password" {
+  description = "Grafana admin password (V-001: seeds Vault KV secret/grafana/admin, replaces hardcoded 'admin')"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # SonarQube PostgreSQL — resolve TODO sonarqube/main.tf (P0-B ESO gap, 2026-02-19)
 variable "sonarqube_postgresql_password" {
   description = "SonarQube PostgreSQL user password (from SM staging/postgresql/sonarqube-password)"
@@ -124,6 +132,22 @@ variable "sonarqube_postgresql_password" {
 # Harbor PostgreSQL — migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
 variable "harbor_postgresql_password" {
   description = "Harbor PostgreSQL user password (migrated from AWS SM staging/postgresql/gitlab-password to Vault KV secret/harbor/postgresql)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# ArgoCD PostgreSQL — V-002 remediation (2026-02-20)
+variable "argocd_postgresql_password" {
+  description = "ArgoCD PostgreSQL user password (V-002: migrated to Vault KV secret/argocd/postgresql)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# ArgoCD OIDC — V-002 remediation (2026-02-20)
+variable "argocd_oidc_client_secret" {
+  description = "Keycloak client secret for ArgoCD OIDC (V-002: migrated to Vault KV secret/argocd/oidc)"
   type        = string
   sensitive   = true
   default     = ""

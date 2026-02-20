@@ -41,6 +41,12 @@ variable "max_allocated_storage" {
   default     = 500
 }
 
+variable "multi_az" {
+  description = "Enable Multi-AZ deployment for RDS (doubles compute cost). Recommended: false for staging, true for production."
+  type        = bool
+  default     = false # FinOps: Single-AZ default, override per environment (DT-004)
+}
+
 variable "common_tags" {
   description = "Common tags"
   type        = map(string)
@@ -62,4 +68,10 @@ variable "additional_databases" {
     password = string
   }))
   default = []
+}
+
+variable "deletion_protection" {
+  description = "Enable deletion protection for RDS instance (DT-004). Recommended: true for production, false for staging."
+  type        = bool
+  default     = false
 }

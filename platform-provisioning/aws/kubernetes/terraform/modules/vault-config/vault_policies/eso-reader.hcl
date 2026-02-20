@@ -4,6 +4,7 @@
 # Security: Granular path restriction (ADR-032)
 # Updated: 2026-02-18 — add sonarqube/*, grafana/*
 # Updated: 2026-02-19 — add gitlab/*
+# Updated: 2026-02-20 — add argocd/* (V-002 remediation)
 
 path "secret/data/keycloak/*" {
   capabilities = ["read", "list"]
@@ -42,5 +43,13 @@ path "secret/data/gitlab/*" {
 }
 
 path "secret/metadata/gitlab/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/data/argocd/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/argocd/*" {
   capabilities = ["read", "list"]
 }

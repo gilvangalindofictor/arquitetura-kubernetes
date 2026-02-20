@@ -1,5 +1,6 @@
 # ArgoCD Helm Chart Values
 # Terraform-managed configuration
+# Secrets: ESO ExternalSecrets (Vault KV v2) — V-002 remediation
 
 global:
   domain: ${domain}
@@ -7,7 +8,7 @@ global:
 # External PostgreSQL Configuration
 configs:
   secret:
-    # Database credentials from K8s secret
+    # Database password from ESO-managed K8s secret (argocd-postgresql-credentials)
     postgresPassword: $${argocd-postgresql-credentials:password}
 
   params:
@@ -27,7 +28,7 @@ server:
       value: critical
       effect: NoSchedule
 
-  # External Database Configuration
+  # External Database Configuration (ESO-managed secret: argocd-postgresql-credentials)
   envFrom:
     - secretRef:
         name: argocd-postgresql-credentials
@@ -57,12 +58,13 @@ server:
   config:
     url: http://${domain}
 
-    # Keycloak OIDC
+    # Keycloak OIDC — client_secret via ESO (Vault: secret/argocd/oidc)
+    # ArgoCD syntax: $<secret-name>:<key> resolves from K8s Secret in argocd namespace
     oidc.config: |
       name: Keycloak
       issuer: ${keycloak_url}/realms/platform
       clientID: ${keycloak_client}
-      clientSecret: $oidc.keycloak.clientSecret
+      clientSecret: $argocd-oidc-credentials:client_secret
       requestedScopes: ["openid", "profile", "email"]
 
   rbacConfig:

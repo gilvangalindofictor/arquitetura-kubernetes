@@ -1,4 +1,29 @@
-# Subnet Group for RDS
+# -----------------------------------------------------------------------------
+# DT-001: PostgreSQL Private Subnet Migration
+# -----------------------------------------------------------------------------
+# CURRENT STATE: RDS may be deployed in public subnets (db subnet group created
+# with public subnet IDs during initial provisioning or manual recreation).
+# TARGET STATE: RDS in private subnets only (no internet-routable IPs).
+#
+# MIGRATION NOTES:
+# - Changing db_subnet_group_name on an existing RDS instance FORCES REPLACEMENT
+#   (AWS limitation: subnet group change = destroy + recreate).
+# - If the current RDS subnet group already uses private subnets (verify via AWS
+#   Console or CLI), then no recreation is needed - only `publicly_accessible = false`
+#   will be applied as an in-place update.
+# - If recreation IS required:
+#   1. Create manual snapshot BEFORE terraform apply
+#   2. terraform apply (will recreate RDS with private subnet group)
+#   3. Verify connectivity from all consumers (GitLab, Harbor, Keycloak, ArgoCD, SonarQube)
+#   4. Update CoreDNS/ExternalName service if RDS endpoint changes
+#
+# VERIFICATION COMMAND:
+#   aws rds describe-db-instances \
+#     --db-instance-identifier k8s-platform-prod-postgresql \
+#     --query 'DBInstances[0].{SubnetGroup:DBSubnetGroup.DBSubnetGroupName,PubliclyAccessible:PubliclyAccessible,Subnets:DBSubnetGroup.Subnets[*].SubnetIdentifier}'
+# -----------------------------------------------------------------------------
+
+# Subnet Group for RDS (DT-001: Must use private subnets only)
 resource "aws_db_subnet_group" "postgresql" {
   name       = "${var.cluster_name}-postgresql"
   subnet_ids = var.private_subnet_ids
@@ -8,18 +33,28 @@ resource "aws_db_subnet_group" "postgresql" {
   })
 }
 
-# Security Group for PostgreSQL
+# Security Group for PostgreSQL (DT-001: Restrict to private subnets + VPC CIDR)
 resource "aws_security_group" "postgresql" {
   name_prefix = "${var.cluster_name}-postgresql-"
-  description = "Security group for PostgreSQL RDS"
+  description = "Security group for PostgreSQL RDS - private subnet access only (DT-001)"
   vpc_id      = var.vpc_id
 
+  # Allow PostgreSQL from private subnets (where EKS pods run)
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = var.private_subnet_cidrs
-    description = "PostgreSQL from private subnets (pods)"
+    description = "PostgreSQL from private subnets (EKS pods: GitLab, Harbor, Keycloak, ArgoCD, SonarQube)"
+  }
+
+  # Allow PostgreSQL from VPC CIDR (for pod-to-RDS via VPC CNI secondary CIDR)
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "PostgreSQL from VPC CIDR (VPC CNI pod networking, DT-001 connectivity guarantee)"
   }
 
   egress {
@@ -74,8 +109,10 @@ resource "aws_db_instance" "postgresql" {
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  # Single-AZ for cost savings (Marco 3 Fase 1)
-  multi_az = false
+  # Multi-AZ configurable per environment (DT-004)
+  # Staging: false (accept downtime, FinOps cost-optimized)
+  # Production: true (99.95% SLA, automatic failover)
+  multi_az = var.multi_az
 
   db_name  = "platform"
   username = "postgres_admin"
@@ -83,6 +120,7 @@ resource "aws_db_instance" "postgresql" {
 
   db_subnet_group_name   = aws_db_subnet_group.postgresql.name
   vpc_security_group_ids = [aws_security_group.postgresql.id]
+  publicly_accessible    = false # DT-001: Explicit deny public access (defense in depth)
 
   # Backups
   backup_retention_period = 7
@@ -94,10 +132,10 @@ resource "aws_db_instance" "postgresql" {
   monitoring_interval             = 60
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
 
-  # Deletion protection
+  # Deletion protection (DT-004: parametrized per environment)
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.cluster_name}-postgresql-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
-  deletion_protection       = false # Set to true for production
+  deletion_protection       = var.deletion_protection
 
   # Performance Insights
   performance_insights_enabled          = true

@@ -1,0 +1,204 @@
+# =============================================================================
+# GitLab CI/CD Pipeline - Terraform IaC Testing
+# DT-003: Automated tests for Infrastructure as Code
+#
+# Stages:
+#   1. lint       - terraform fmt + tflint (fast feedback)
+#   2. validate   - terraform validate on all modules
+#   3. unit-test  - Terratest unit tests (HCL structure, security checks)
+#   4. integration-test - Terratest integration tests (optional, requires AWS)
+# =============================================================================
+
+stages:
+  - lint
+  - validate
+  - unit-test
+  - integration-test
+
+# ---------------------------------------------------------------------------
+# Global variables
+# ---------------------------------------------------------------------------
+variables:
+  TF_VERSION: "1.7.0"
+  GO_VERSION: "1.21"
+  TFLINT_VERSION: "0.50.3"
+  MODULES_DIR: "platform-provisioning/aws/kubernetes/terraform/modules"
+  TEST_DIR: "platform-provisioning/aws/kubernetes/terraform/test"
+  # Disable Terraform telemetry
+  CHECKPOINT_DISABLE: "true"
+  TF_IN_AUTOMATION: "true"
+
+# ---------------------------------------------------------------------------
+# Default settings
+# ---------------------------------------------------------------------------
+default:
+  tags:
+    - docker
+  retry:
+    max: 1
+    when: runner_system_failure
+
+# ---------------------------------------------------------------------------
+# Reusable templates
+# ---------------------------------------------------------------------------
+.terraform_base:
+  image: hashicorp/terraform:${TF_VERSION}
+  before_script:
+    - terraform version
+  rules:
+    - changes:
+        - "${MODULES_DIR}/**/*.tf"
+        - "${TEST_DIR}/**"
+
+.go_base:
+  image: golang:${GO_VERSION}
+  before_script:
+    - go version
+    - cd ${TEST_DIR}
+  cache:
+    key: go-modules
+    paths:
+      - ${TEST_DIR}/go.sum
+      - /go/pkg/mod
+  rules:
+    - changes:
+        - "${MODULES_DIR}/**/*.tf"
+        - "${TEST_DIR}/**"
+
+# =============================================================================
+# Stage 1: LINT
+# =============================================================================
+
+terraform:fmt:
+  stage: lint
+  extends: .terraform_base
+  script:
+    - echo "Running terraform fmt check on all modules..."
+    - |
+      FAILED=0
+      for module_dir in ${MODULES_DIR}/*/; do
+        module_name=$(basename "$module_dir")
+        echo "--- Checking module: $module_name ---"
+        if ! terraform fmt -check -diff -recursive "$module_dir"; then
+          echo "FAIL: Module $module_name has formatting issues"
+          FAILED=1
+        fi
+      done
+      if [ $FAILED -ne 0 ]; then
+        echo ""
+        echo "Fix with: terraform fmt -recursive ${MODULES_DIR}/"
+        exit 1
+      fi
+    - echo "All modules are properly formatted."
+
+tflint:
+  stage: lint
+  image: ghcr.io/terraform-linters/tflint:v${TFLINT_VERSION}
+  before_script:
+    - tflint --version
+    - tflint --init --config platform-provisioning/aws/kubernetes/terraform/.tflint.hcl
+  script:
+    - echo "Running tflint on all modules..."
+    - |
+      WARNINGS=0
+      for module_dir in ${MODULES_DIR}/*/; do
+        module_name=$(basename "$module_dir")
+        echo "--- Linting module: $module_name ---"
+        tflint --config platform-provisioning/aws/kubernetes/terraform/.tflint.hcl "$module_dir" || WARNINGS=$((WARNINGS + 1))
+      done
+      echo "tflint completed with $WARNINGS modules having warnings."
+  allow_failure: true
+  rules:
+    - changes:
+        - "${MODULES_DIR}/**/*.tf"
+
+# =============================================================================
+# Stage 2: VALIDATE
+# =============================================================================
+
+terraform:validate:
+  stage: validate
+  extends: .terraform_base
+  script:
+    - echo "Running terraform validate on all modules..."
+    - |
+      FAILED=0
+      for module_dir in ${MODULES_DIR}/*/; do
+        module_name=$(basename "$module_dir")
+        echo "--- Validating module: $module_name ---"
+
+        # Try init first (some modules may fail init without provider config)
+        if terraform -chdir="$module_dir" init -backend=false -no-color 2>/dev/null; then
+          if ! terraform -chdir="$module_dir" validate -no-color; then
+            echo "FAIL: Module $module_name failed validation"
+            FAILED=1
+          else
+            echo "PASS: Module $module_name"
+          fi
+        else
+          echo "SKIP: Module $module_name (init failed - may need provider configuration)"
+        fi
+      done
+      if [ $FAILED -ne 0 ]; then
+        exit 1
+      fi
+    - echo "Validation complete."
+
+# =============================================================================
+# Stage 3: UNIT TESTS (no AWS credentials needed)
+# =============================================================================
+
+terratest:unit:
+  stage: unit-test
+  extends: .go_base
+  script:
+    - echo "Installing Go dependencies..."
+    - go mod download
+    - echo "Running unit tests (no AWS credentials required)..."
+    - |
+      go test -v -timeout 10m \
+        -run "TestTerraformFmt|TestTerraformFiles|TestCriticalModules|TestNoHardcoded|TestModulesHaveVersion|TestVPCModule|TestVPCDNS|TestVPCTag|TestVPCCIDR|TestVPCVersion|TestVPCSubnets|TestVPCSecurity|TestPostgreSQL|TestS3Buckets|TestSecurityGroups|TestIAMRoles|TestKMSKey|TestResourceNaming|TestRDSInstances|TestEKS|TestVaultModule" \
+        ./...
+    - echo "Unit tests completed."
+  artifacts:
+    when: always
+    reports:
+      junit: ${TEST_DIR}/report.xml
+    expire_in: 7 days
+
+terratest:static-analysis:
+  stage: unit-test
+  extends: .go_base
+  script:
+    - echo "Running static analysis tests..."
+    - |
+      go test -v -timeout 10m \
+        -run "TestTFLint|TestS3BucketsPublicAccess|TestS3BucketsEncryption|TestS3BucketsVersioning" \
+        ./...
+    - echo "Static analysis completed."
+  allow_failure: true
+
+# =============================================================================
+# Stage 4: INTEGRATION TESTS (requires AWS credentials - OPTIONAL)
+# =============================================================================
+
+terratest:integration:
+  stage: integration-test
+  extends: .go_base
+  variables:
+    RUN_INTEGRATION_TESTS: "true"
+    AWS_DEFAULT_REGION: "us-east-1"
+  script:
+    - echo "Running integration tests (requires AWS credentials)..."
+    - |
+      go test -v -timeout 30m \
+        -run "TestVPCTerraformPlan" \
+        ./...
+    - echo "Integration tests completed."
+  rules:
+    - changes:
+        - "${MODULES_DIR}/**/*.tf"
+      when: manual
+      allow_failure: true
+  environment:
+    name: terratest

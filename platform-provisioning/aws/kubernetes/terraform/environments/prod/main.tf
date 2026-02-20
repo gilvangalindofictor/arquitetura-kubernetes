@@ -117,7 +117,7 @@ data "terraform_remote_state" "marco1" {
 # DATA SERVICES - PROD (Production-Grade with HA)
 #------------------------------------------------------------------------------
 
-# PostgreSQL RDS - PROD (db.t3.medium, Multi-AZ)
+# PostgreSQL RDS - PROD (db.t3.medium, Multi-AZ, DT-004: production-grade HA)
 module "postgresql_prod" {
   source = "../../modules/postgresql"
 
@@ -129,6 +129,8 @@ module "postgresql_prod" {
   instance_class        = var.postgresql_instance_class        # db.t3.medium
   allocated_storage     = var.postgresql_allocated_storage     # 100 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 500 GB
+  multi_az              = true                                 # DT-004: Multi-AZ mandatory for production (99.95% SLA)
+  deletion_protection   = true                                 # DT-004: Protect against accidental deletion in production
   common_tags           = local.common_tags
 }
 

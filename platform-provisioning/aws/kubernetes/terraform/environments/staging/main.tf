@@ -149,7 +149,7 @@ data "terraform_remote_state" "marco1" {
 # DATA SERVICES - STAGING (Cost-Optimized)
 #------------------------------------------------------------------------------
 
-# PostgreSQL RDS - STAGING (db.t3.micro, single-AZ)
+# PostgreSQL RDS - STAGING (db.t3.micro, single-AZ, DT-004: cost-optimized)
 module "postgresql_staging" {
   source = "../../modules/postgresql"
 
@@ -161,6 +161,7 @@ module "postgresql_staging" {
   instance_class        = var.postgresql_instance_class        # db.t3.micro
   allocated_storage     = var.postgresql_allocated_storage     # 20 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
+  multi_az              = false                                # DT-004: Single-AZ accepted for staging (FinOps)
   common_tags           = local.common_tags
 
   # RDS was recreated on 2026-02-09 outside TF with a different master password.
@@ -496,17 +497,17 @@ resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
       {
         apiGroups = [""]
         resources = ["pods", "pods/exec", "pods/log"]
-        verbs      = ["get", "list", "watch", "create", "delete", "patch", "update"]
+        verbs     = ["get", "list", "watch", "create", "delete", "patch", "update"]
       },
       {
         apiGroups = [""]
         resources = ["secrets"]
-        verbs      = ["get", "list", "watch", "create", "delete", "update"]
+        verbs     = ["get", "list", "watch", "create", "delete", "update"]
       },
       {
         apiGroups = [""]
         resources = ["configmaps", "serviceaccounts"]
-        verbs      = ["get", "list", "watch"]
+        verbs     = ["get", "list", "watch"]
       }
     ]
   }
@@ -600,6 +601,10 @@ module "vault_config_staging" {
   grafana_oidc_client_id     = "grafana"
   grafana_oidc_client_secret = var.grafana_oidc_client_secret
 
+  # Grafana Admin Password — V-001 remediation (2026-02-20)
+  # Seed Vault KV secret/grafana/admin with a strong password
+  grafana_admin_password = var.grafana_admin_password
+
   # SonarQube PostgreSQL — resolve TODO sonarqube/main.tf (P0-B ESO gap, 2026-02-19)
   sonarqube_postgresql_password = var.sonarqube_postgresql_password
   sonarqube_postgresql_username = "sonarqube_user"
@@ -613,6 +618,19 @@ module "vault_config_staging" {
   harbor_postgresql_host     = "postgresql-external.default.svc.cluster.local"
   harbor_postgresql_port     = "5432"
   harbor_postgresql_database = "harbor"
+
+  # ArgoCD PostgreSQL — V-002 remediation (2026-02-20)
+  # Vault KV: secret/argocd/postgresql → ESO ExternalSecret: argocd-postgresql-credentials
+  argocd_postgresql_password = var.argocd_postgresql_password
+  argocd_postgresql_username = "argocd_user"
+  argocd_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  argocd_postgresql_port     = "5432"
+  argocd_postgresql_database = "argocd"
+
+  # ArgoCD OIDC — V-002 remediation (2026-02-20)
+  # Vault KV: secret/argocd/oidc → ESO ExternalSecret: argocd-oidc-credentials
+  argocd_oidc_client_id     = "argocd"
+  argocd_oidc_client_secret = var.argocd_oidc_client_secret
 
   common_tags = local.common_tags
 }
@@ -707,7 +725,8 @@ module "keycloak_staging" {
 #------------------------------------------------------------------------------
 # ARGOCD - GitOps Platform (GAP-003)
 # OIDC integration with Keycloak, external PostgreSQL, RBAC
-# Pattern: Following Keycloak deployment (K8s secrets due to Vault permissions issue)
+# Secrets: Vault KV v2 + ESO (V-002 remediation, 2026-02-20)
+# ESO ExternalSecrets: argocd-postgresql-credentials, argocd-oidc-credentials
 #------------------------------------------------------------------------------
 
 module "argocd_staging" {
@@ -715,7 +734,9 @@ module "argocd_staging" {
 
   depends_on = [
     module.keycloak_staging,
-    module.postgresql_staging
+    module.postgresql_staging,
+    module.external_secrets_staging,
+    module.vault_config_staging
   ]
 
   # Cluster info
@@ -880,8 +901,10 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
 module "kube_prometheus_stack_staging" {
   source = "../../modules/kube-prometheus-stack"
 
-  namespace              = "monitoring"
-  grafana_admin_password = "admin" # TODO: Mover para Vault/SecretsManager
+  namespace = "monitoring"
+  # V-001 REMEDIATED: grafana_admin_password hardcoded "admin" removed (2026-02-20)
+  # Admin password now managed by: Vault KV (secret/grafana/admin) → ESO → K8s Secret → existingSecret
+  grafana_admin_use_existing_secret = true
 
   # Pin to deployed version (cluster is running 81.4.2 since 2026-02-05)
   chart_version = "81.4.2"

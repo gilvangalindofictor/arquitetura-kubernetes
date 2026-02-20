@@ -1,62 +1,105 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-19
-**Versão:** 3.1 (DEC-065: ESO Zero-Drift — hardcoded secret removido + VPC CNI EXTERNALSNAT)
+**Última Atualização:** 2026-02-20
+**Versão:** 3.3 (V-001/V-002 DEPLOYED — 2/8 vulnerabilidades remediadas)
 **Framework:** Baseado em executor-terraform.md
 
 ---
 
 ## 📊 Matriz de Riscos
 
-| ID        | Risco                                                           | Probabilidade | Impacto     | Severidade    | Status                       | Mitigação                                    |
-| --------- | --------------------------------------------------------------- | ------------- | ----------- | ------------- | ---------------------------- | -------------------------------------------- |
-| R-001     | State lock travado                                              | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | DynamoDB locking + force-unlock              |
-| R-002     | EKS add-ons deadlock                                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Resolvido                  | Dependency order fixado                      |
-| R-003     | Network Policies bloqueiam tráfego                              | MÉDIO         | ALTO        | 🔴 ALTO        | ✅ Mitigado                   | Mapeamento de fluxos prévio                  |
-| R-004     | Custos S3 Loki excedem estimativa                               | BAIXO         | BAIXO       | 🟢 BAIXO      | ✅ Mitigado (2026-02-18)     | Lifecycle 30d expire + billing alarm criado  |
-| R-005     | ACM certificate expiration                                      | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | Auto-renewal ACM + alarm                     |
-| R-006     | ALB provisioning timeout                                        | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Tolerado                   | Retry terraform apply                        |
-| R-007     | Pods OOMKilled (memory limits)                                  | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Monitorar                  | Prometheus alerts + tuning                   |
-| R-008     | Vendor lock-in AWS                                              | ALTO          | BAIXO       | 🟡 MÉDIO       | ✅ Aceito                     | Trade-off custo vs portabilidade             |
-| R-009     | Single AZ failure (2 AZs only)                                  | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Aceito                     | RTO 15min (recreate nodes)                   |
-| R-010     | Secrets leak em Git                                             | BAIXO         | CRÍTICO     | 🔴 ALTO        | ✅ Mitigado                   | AWS Secrets Manager + pre-commit hooks       |
-| R-011     | Drift entre Terraform state e recursos                          | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | Terraform plan daily + drift detection       |
-| R-012     | Cluster Autoscaler scale-down agressivo                         | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                   | 5min threshold + PDB configurados            |
-| R-013     | Data loss durante shutdown (ADR-022)                            | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | PVCs persistem, S3 always-on                 |
-| R-014     | Startup failure após shutdown                                   | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                   | Health checks automáticos, rollback          |
-| R-015     | RDS 7-day auto-restart (Marco 3)                                | MÉDIO         | MÉDIO       | 🟢 BAIXO      | ✅ Mitigado (2026-02-18)     | --snapshot + validate-shutdown.sh (7d warn)  |
-| R-016     | Cold start excede tolerância (>10min)                           | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | Target 5-8min, monitorado                    |
-| R-017     | State drift Terraform vs Cluster Autoscaler                     | MÉDIO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                   | ignore_changes em desired_size               |
-| **R-018** | **Licenciamento Bitnami → Tanzu Standard**                      | **ALTO**      | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)**     | **Migração para Operators**                  |
-| **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)**                    | **ALTO**      | **BAIXO**   | **🟢 BAIXO**   | ✅ **Aceito**                 | **Resolvido ADR-021 Fase 2**                 |
-| **R-020** | **Harbor API Auth Issue (Robot Account Creation)**              | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 TF bug + DB reset**        |
-| **R-026** | **Vault HA Degraded (vault-0 CrashLoop)**                       | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido**              | **Delete pod fix**                           |
-| **R-029** | **Keycloak Secrets via AWS SM (Technical Debt)**                | **BAIXO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **RESOLVED**               | **Refactored 2026-02-06**                    |
-| **R-030** | **Missing VPC Endpoints (CSI Driver Blocked)**                  | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-046)**    | **VPC Endpoints STS+EC2**                    |
-| **R-031** | **Harbor Redis Password Mismatch**                              | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-09)** | **3x ConfigMap/Secret patched**              |
-| **R-032** | **Cluster Autoscaler Network Timeout**                          | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ⚠️ **Diagnosticado**          | **SG egress 443 + NAT Gateway**              |
-| **R-033** | **Terraform State Lock (Stale/Long-running)**                   | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Monitorado**             | **Background apply legítimo**                |
-| **R-034** | **Tempo OTLP Integration Blocker (GAP-7)**                      | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Bloqueado**              | **3 soluções propostas**                     |
-| **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)**                | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (ADR-053)**    | **VPC Endpoint ELB**                         |
-| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                     | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055)**    | **VPC Endpoint KMS**                         |
-| **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)** | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **TF module reescrito, CR+RBAC alinhados**   |
-| **R-038** | **Vault EBS Volume Loss (Data Permanente)**                     | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Reinit + KV seed + K8s auth reconfig**     |
-| **R-039** | **CoreDNS Split-Horizon Drift**                                 | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (2026-02-18)** | **coredns-custom ConfigMap em TF (staging)** |
-| **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)**            | **ALTO**      | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **GitLab 2/3 webservice Pending, Vault 1/3** |
-| **R-041** | **Harbor Admin Password TF Bug (secret name as value)**         | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Fix main.tf:214 + DB schema reset**        |
-| **R-042** | **Harbor OIDC Multi-Replica Race Condition**                    | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)** | **Single replica + oidc_user_claim fix**     |
-| **R-043** | **Orphan Cleanup deletou EBS ainda referenciados por PVs**      | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **Scale down→delete PVC→scale up; cross-check PVs antes deletar** |
-| **R-044** | **S3 VPC Gateway Endpoint ausente em subnets workloads**        | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Investigar**             | **Nodes ip-10-0-133-36 e ip-10-0-149-75: TLS timeout S3; fix: add S3 prefix list route** |
-| **R-045** | **SonarQube init SSL timeout (prometheusExporter)**             | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **prometheusExporter.enabled=false no TF module (default)** |
-| **R-046** | **Terraform statically linked binary: DNS falha no WSL2**       | **MÉDIO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Monitorar**              | **/etc/resolv.conf com 10.255.255.254 resolve; 127.0.0.1 quebra** |
-| **R-047** | **System Node Kubelet Death → EBS Multi-Attach Cascade**        | **BAIXO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Mitigado (2026-02-18)** | **TERMINATE (não STOP) nodes; EBS detach-force + kubectl delete volumeattachment** |
-| **R-048** | **helm --set 'key={}' produz array, não map (nodeSelector)**    | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)** | **Usar --values file.yaml para empty map; --set {} = array → unmarshal error** |
-| **R-049** | **Secrets hardcoded no git (Grafana OIDC client_secret)**       | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)** | **Removido do git + rotacionado no Keycloak; Vault KV + ESO** |
-| **R-050** | **ESO drift — sonarqube/harbor PostgreSQL sem Vault**           | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)** | **ExternalSecrets criados; 7 ESO em SecretSynced** |
+| ID        | Risco                                                             | Probabilidade | Impacto     | Severidade    | Status                                  | Mitigação                                                                                |
+| --------- | ----------------------------------------------------------------- | ------------- | ----------- | ------------- | --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| R-001     | State lock travado                                                | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                              | DynamoDB locking + force-unlock                                                          |
+| R-002     | EKS add-ons deadlock                                              | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Resolvido                             | Dependency order fixado                                                                  |
+| R-003     | Network Policies bloqueiam tráfego                                | MÉDIO         | ALTO        | 🔴 ALTO        | ✅ Mitigado                              | Mapeamento de fluxos prévio                                                              |
+| R-004     | Custos S3 Loki excedem estimativa                                 | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado (2026-02-18)                 | Lifecycle 30d expire + billing alarm criado                                              |
+| R-005     | ACM certificate expiration                                        | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                              | Auto-renewal ACM + alarm                                                                 |
+| R-006     | ALB provisioning timeout                                          | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Tolerado                              | Retry terraform apply                                                                    |
+| R-007     | Pods OOMKilled (memory limits)                                    | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ⚠️ Monitorar                             | Prometheus alerts + tuning                                                               |
+| R-008     | Vendor lock-in AWS                                                | ALTO          | BAIXO       | 🟡 MÉDIO       | ✅ Aceito                                | Trade-off custo vs portabilidade                                                         |
+| R-009     | Single AZ failure (2 AZs only)                                    | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Aceito                                | RTO 15min (recreate nodes)                                                               |
+| R-010     | Secrets leak em Git                                               | BAIXO         | CRÍTICO     | 🔴 ALTO        | ✅ Mitigado                              | AWS Secrets Manager + pre-commit hooks                                                   |
+| R-011     | Drift entre Terraform state e recursos                            | MÉDIO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                              | Terraform plan daily + drift detection                                                   |
+| R-012     | Cluster Autoscaler scale-down agressivo                           | BAIXO         | MÉDIO       | 🟡 MÉDIO       | ✅ Mitigado                              | 5min threshold + PDB configurados                                                        |
+| R-013     | Data loss durante shutdown (ADR-022)                              | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                              | PVCs persistem, S3 always-on                                                             |
+| R-014     | Startup failure após shutdown                                     | BAIXO         | ALTO        | 🟡 MÉDIO       | ✅ Mitigado                              | Health checks automáticos, rollback                                                      |
+| R-015     | RDS 7-day auto-restart (Marco 3)                                  | MÉDIO         | MÉDIO       | 🟢 BAIXO       | ✅ Mitigado (2026-02-18)                 | --snapshot + validate-shutdown.sh (7d warn)                                              |
+| R-016     | Cold start excede tolerância (>10min)                             | BAIXO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                              | Target 5-8min, monitorado                                                                |
+| R-017     | State drift Terraform vs Cluster Autoscaler                       | MÉDIO         | BAIXO       | 🟢 BAIXO       | ✅ Mitigado                              | ignore_changes em desired_size                                                           |
+| **R-018** | **Licenciamento Bitnami → Tanzu Standard**                        | **ALTO**      | **CRÍTICO** | **🟢 EVITADO** | ✅ **Mitigado (ADR-023)**                | **Migração para Operators**                                                              |
+| **R-019** | **GitLab Runner DNS Issue (ADR-021 Fase 1)**                      | **ALTO**      | **BAIXO**   | **🟢 BAIXO**   | ✅ **Aceito**                            | **Resolvido ADR-021 Fase 2**                                                             |
+| **R-020** | **Harbor API Auth Issue (Robot Account Creation)**                | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **Fix main.tf:214 TF bug + DB reset**                                                    |
+| **R-026** | **Vault HA Degraded (vault-0 CrashLoop)**                         | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido**                         | **Delete pod fix**                                                                       |
+| **R-029** | **Keycloak Secrets via AWS SM (Technical Debt)**                  | **BAIXO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **RESOLVED**                          | **Refactored 2026-02-06**                                                                |
+| **R-030** | **Missing VPC Endpoints (CSI Driver Blocked)**                    | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-046)**               | **VPC Endpoints STS+EC2**                                                                |
+| **R-031** | **Harbor Redis Password Mismatch**                                | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-09)**            | **3x ConfigMap/Secret patched**                                                          |
+| **R-032** | **Cluster Autoscaler Network Timeout**                            | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ⚠️ **Diagnosticado**                     | **SG egress 443 + NAT Gateway**                                                          |
+| **R-033** | **Terraform State Lock (Stale/Long-running)**                     | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Monitorado**                        | **Background apply legítimo**                                                            |
+| **R-034** | **Tempo OTLP Integration Blocker (GAP-7)**                        | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Bloqueado**                         | **3 soluções propostas**                                                                 |
+| **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)**                  | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (ADR-053)**               | **VPC Endpoint ELB**                                                                     |
+| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                       | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055)**               | **VPC Endpoint KMS**                                                                     |
+| **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)**   | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **TF module reescrito, CR+RBAC alinhados**                                               |
+| **R-038** | **Vault EBS Volume Loss (Data Permanente)**                       | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **Reinit + KV seed + K8s auth reconfig**                                                 |
+| **R-039** | **CoreDNS Split-Horizon Drift**                                   | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (2026-02-18)**             | **coredns-custom ConfigMap em TF (staging)**                                             |
+| **R-040** | **Cluster Capacity Degraded (7 nodes insufficient)**              | **ALTO**      | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Monitorar**                         | **GitLab 2/3 webservice Pending, Vault 1/3**                                             |
+| **R-041** | **Harbor Admin Password TF Bug (secret name as value)**           | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **Fix main.tf:214 + DB schema reset**                                                    |
+| **R-042** | **Harbor OIDC Multi-Replica Race Condition**                      | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **Single replica + oidc_user_claim fix**                                                 |
+| **R-043** | **Orphan Cleanup deletou EBS ainda referenciados por PVs**        | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)**            | **Scale down→delete PVC→scale up; cross-check PVs antes deletar**                        |
+| **R-044** | **S3 VPC Gateway Endpoint ausente em subnets workloads**          | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Investigar**                        | **Nodes ip-10-0-133-36 e ip-10-0-149-75: TLS timeout S3; fix: add S3 prefix list route** |
+| **R-045** | **SonarQube init SSL timeout (prometheusExporter)**               | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)**            | **prometheusExporter.enabled=false no TF module (default)**                              |
+| **R-046** | **Terraform statically linked binary: DNS falha no WSL2**         | **MÉDIO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Monitorar**                         | **/etc/resolv.conf com 10.255.255.254 resolve; 127.0.0.1 quebra**                        |
+| **R-047** | **System Node Kubelet Death → EBS Multi-Attach Cascade**          | **BAIXO**     | **ALTO**    | **🟡 MÉDIO**   | ⚠️ **Mitigado (2026-02-18)**             | **TERMINATE (não STOP) nodes; EBS detach-force + kubectl delete volumeattachment**       |
+| **R-048** | **helm --set 'key={}' produz array, não map (nodeSelector)**      | **MÉDIO**     | **BAIXO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-18)**            | **Usar --values file.yaml para empty map; --set {} = array → unmarshal error**           |
+| **R-049** | **Secrets hardcoded no git (Grafana OIDC client_secret)**         | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)**   | **Removido do git + rotacionado no Keycloak; Vault KV + ESO**                            |
+| **R-050** | **ESO drift — sonarqube/harbor PostgreSQL sem Vault**             | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (DEC-065, 2026-02-19)**   | **ExternalSecrets criados; 7 ESO em SecretSynced**                                       |
+| **R-051** | **V-001 CRITICAL: `grafana_admin_password = "admin"` hardcoded**  | **ALTO**      | **CRÍTICO** | **🟢 BAIXO**   | ✅ **RESOLVIDO (DEC-067, 2026-02-20)**   | **random_password auto-gen (32 chars) + ExternalSecret + Vault KV v3**                   |
+| **R-052** | **ArgoCD sem ExternalSecrets (PostgreSQL + OIDC) — V-002**        | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **RESOLVIDO (DEC-068, 2026-02-20)**   | **2 ExternalSecrets + random_password (32/48 chars) + ESO policy atualizada**            |
+| **R-053** | **Harbor secrets plaintext em Helm values — V-003/V-004/V-005**   | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **ABERTO (DT-002 Audit, 2026-02-20)** | **Migrar Harbor PostgreSQL/admin/Redis passwords para Vault + ESO**                      |
+| **R-054** | **RDS Production era Single-AZ no codigo (documentado Multi-AZ)** | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (DT-004, 2026-02-20)**    | **`multi_az = var.multi_az` parametrizado; prod=true**                                   |
+| **R-055** | **IaC sem testes automatizados (risco regressao)**                | **MÉDIO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (DT-003, 2026-02-20)**     | **Terratest framework: 290+ assertions, CI pipeline 4 stages**                           |
 
 ---
 
 ## 🔴 Riscos Críticos (ALTO Impacto)
+
+### R-051: V-001 CRITICAL — Grafana Admin Password Hardcoded
+
+**Probabilidade:** ALTO → 🟢 BAIXO (RESOLVIDO)
+**Impacto:** CRÍTICO
+**Severidade:** 🔴 CRÍTICO → 🟢 BAIXO
+**Status:** ✅ **RESOLVIDO (DEC-067, 2026-02-20)** — Deployed via terraform apply staging
+
+**Descrição:**
+`grafana_admin_password = "admin"` hardcoded em `platform-provisioning/aws/kubernetes/terraform/environments/staging/main.tf:884`. Password "admin" e o default do Grafana e e trivialmente exploitavel.
+
+**Cenário de Falha (MITIGADO):**
+1. ~~Atacante descobre URL do Grafana (via DNS scan ou reconhecimento)~~
+2. ~~Login com `admin/admin` (credenciais default)~~
+3. ~~Acesso completo a dashboards, data sources, alertas~~
+4. ~~Possivel acesso a Prometheus/Loki (data sources configurados)~~
+5. ~~Exfiltracao de metricas, logs, e configuracao do cluster~~
+
+**Remediacao COMPLETA (✅ 2026-02-20):**
+- [x] Remover `grafana_admin_password = "admin"` de `environments/staging/main.tf:884`
+- [x] Implementar random_password auto-generation (32 caracteres)
+- [x] Criar secret no Vault: `secret/grafana/admin` com password forte gerado (dX}j:7*B&oy!{*7q!wKj1ukxC[OS5nRN)
+- [x] Criar ExternalSecret para Grafana admin password (grafana-admin-credentials)
+- [x] Rotacionar password no Grafana (pod restart automático com novo secret)
+- [x] Validar acesso via OIDC (ja configurado) como metodo primario
+
+**Deployment (2026-02-20):**
+- Terraform apply staging: 7 recursos criados (3 random_password + 3 vault_kv_secret_v2 + 1 vault_policy)
+- ExternalSecret: grafana-admin-credentials (SecretSynced: True)
+- Grafana pods: 3/3 Running com nova senha
+- Nova senha admin: auto-gerada 32 caracteres (Vault KV v3)
+
+**Contexto DT-002 Audit:**
+- Cobertura ESO atualizada: 10/15 secrets (67%) — +3 ExternalSecrets (V-001/V-002)
+- 8 vulnerabilidades total encontradas (1 CRITICAL ✅ RESOLVIDO, 1 HIGH ✅ RESOLVIDO, 6 pendentes)
+- Ver detalhes completos em [demands-backlog.md](../../demands-backlog.md) secao DT-002
+
+---
 
 ### R-010: Secrets Leak em Git
 

@@ -35,9 +35,22 @@ variable "prometheus_retention" {
 # -----------------------------------------------------------------------------
 
 variable "grafana_admin_password" {
-  description = "Senha do admin do Grafana"
+  description = "DEPRECATED (V-001): Use grafana_admin_use_existing_secret=true instead. Kept for backward compat."
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+variable "grafana_admin_use_existing_secret" {
+  description = "Use ExternalSecret (Vault → ESO) for Grafana admin password instead of plaintext (V-001 remediation)"
+  type        = bool
+  default     = false
+}
+
+variable "grafana_admin_existing_secret_name" {
+  description = "Name of the K8s Secret created by ESO for Grafana admin credentials"
+  type        = string
+  default     = "grafana-admin-credentials"
 }
 
 variable "grafana_storage_size" {

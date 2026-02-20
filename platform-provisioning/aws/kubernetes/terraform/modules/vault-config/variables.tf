@@ -79,6 +79,17 @@ variable "common_tags" {
 }
 
 # -----------------------------------------------------------------------------
+# Grafana Admin Password (Vault KV seed — V-001 remediation)
+# -----------------------------------------------------------------------------
+
+variable "grafana_admin_password" {
+  description = "Grafana admin password (V-001: migrated from hardcoded 'admin' to Vault KV)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
 # Grafana OIDC credentials (Vault KV seed)
 # -----------------------------------------------------------------------------
 
@@ -189,6 +200,58 @@ variable "vault_oidc_client_id" {
 
 variable "vault_oidc_client_secret" {
   description = "Keycloak client secret for Vault OIDC (from Keycloak vault client)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# ArgoCD PostgreSQL credentials (Vault KV seed) — V-002 remediation
+# -----------------------------------------------------------------------------
+
+variable "argocd_postgresql_password" {
+  description = "ArgoCD PostgreSQL user password (V-002: migrated to Vault KV)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "argocd_postgresql_username" {
+  description = "ArgoCD PostgreSQL username"
+  type        = string
+  default     = "argocd_user"
+}
+
+variable "argocd_postgresql_host" {
+  description = "ArgoCD PostgreSQL host (RDS endpoint via ExternalName)"
+  type        = string
+  default     = "postgresql-external.default.svc.cluster.local"
+}
+
+variable "argocd_postgresql_port" {
+  description = "ArgoCD PostgreSQL port"
+  type        = string
+  default     = "5432"
+}
+
+variable "argocd_postgresql_database" {
+  description = "ArgoCD PostgreSQL database name"
+  type        = string
+  default     = "argocd"
+}
+
+# -----------------------------------------------------------------------------
+# ArgoCD OIDC credentials (Vault KV seed) — V-002 remediation
+# -----------------------------------------------------------------------------
+
+variable "argocd_oidc_client_id" {
+  description = "Keycloak client ID for ArgoCD OIDC"
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_oidc_client_secret" {
+  description = "Keycloak client secret for ArgoCD OIDC (V-002: migrated to Vault KV)"
   type        = string
   sensitive   = true
   default     = ""

@@ -1,0 +1,309 @@
+# =============================================================================
+# DT-005: Security Alerts (Warning/Critical)
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Alerts:
+#   - CertificateExpiringSoon (warning @ 30 days, critical @ 7 days)
+#   - VaultSealedAlert (critical)
+#   - VaultDown (critical)
+#   - ExternalSecretSyncFailure (warning/critical)
+#   - ExternalSecretNotReady (warning)
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dt005-security-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: security-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: DT-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Certificate Expiration Alerts
+    # Metrics source: cert-manager (if installed) or x509_cert_expiry
+    # =========================================================================
+    - name: security.certificates
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # CertificateExpiringSoonWarning - Expires in < 30 days
+        # cert-manager exports: certmanager_certificate_expiration_timestamp_seconds
+        # -----------------------------------------------------------------
+        - alert: CertificateExpiringSoonWarning
+          expr: |
+            (
+              certmanager_certificate_expiration_timestamp_seconds - time()
+            ) / 86400 < 30
+            and
+            certmanager_certificate_expiration_timestamp_seconds > 0
+          for: 1h
+          labels:
+            severity: warning
+            team: platform-sre
+            service: cert-manager
+            component: certificates
+            demand: DT-005
+          annotations:
+            summary: 'Certificate {{ $labels.name }} in {{ $labels.namespace }} expires in {{ $value | printf "%.0f" }} days'
+            description: |
+              TLS certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
+              expires in {{ $value | printf "%.0f" }} days.
+
+              cert-manager should auto-renew the certificate before expiration. If this alert
+              fires, it may indicate a renewal failure.
+
+              Actions:
+              1. Check certificate status: kubectl get certificate {{ $labels.name }} -n {{ $labels.namespace }}
+              2. Describe certificate: kubectl describe certificate {{ $labels.name }} -n {{ $labels.namespace }}
+              3. Check cert-manager logs: kubectl logs -n cert-manager -l app=cert-manager --tail=100
+              4. Check CertificateRequest: kubectl get certificaterequest -n {{ $labels.namespace }}
+              5. Verify ACME/Issuer status: kubectl get clusterissuer -o wide
+
+              Runbook: domains/observability/docs/runbooks/dt005-certificate-expiring.md
+            dashboard_url: "https://grafana.internal/d/cert-manager-overview"
+
+        # -----------------------------------------------------------------
+        # CertificateExpiringSoonCritical - Expires in < 7 days
+        # -----------------------------------------------------------------
+        - alert: CertificateExpiringSoonCritical
+          expr: |
+            (
+              certmanager_certificate_expiration_timestamp_seconds - time()
+            ) / 86400 < 7
+            and
+            certmanager_certificate_expiration_timestamp_seconds > 0
+          for: 10m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: cert-manager
+            component: certificates
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: Certificate {{ $labels.name }} in {{ $labels.namespace }} expires in {{ $value | printf "%.0f" }} days'
+            description: |
+              TLS certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
+              expires in {{ $value | printf "%.0f" }} days. URGENT action required.
+
+              Impact: CRITICAL - HTTPS endpoints will fail when certificate expires.
+              Affected services will become unreachable via TLS.
+
+              Immediate Actions:
+              1. Force cert-manager renewal:
+                 kubectl delete certificaterequest -n {{ $labels.namespace }} -l cert-manager.io/certificate-name={{ $labels.name }}
+              2. Check issuer health: kubectl get clusterissuer -o wide
+              3. Check cert-manager controller logs for errors
+              4. If ACME: verify DNS records and ACME account status
+              5. Manual workaround: create temporary self-signed cert if needed
+
+              Runbook: domains/observability/docs/runbooks/dt005-certificate-expiring.md
+
+        # -----------------------------------------------------------------
+        # CertificateExpiringSoonKubeAPI - Kubernetes API/kubelet certs
+        # Uses kube-apiserver exposed certificate metrics
+        # -----------------------------------------------------------------
+        - alert: KubeAPIServerCertExpiringSoon
+          expr: |
+            apiserver_client_certificate_expiration_seconds_count > 0
+            and
+            histogram_quantile(0.01, rate(apiserver_client_certificate_expiration_seconds_bucket[5m])) < 604800
+          for: 1h
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: certificates
+            demand: DT-005
+          annotations:
+            summary: "Kubernetes API client certificate expiring within 7 days"
+            description: |
+              A client certificate used to authenticate to the Kubernetes API server
+              will expire within 7 days.
+
+              For EKS, AWS manages the cluster CA and API server certs. But client certs
+              (e.g., for webhook servers or service accounts) may need manual renewal.
+
+              Actions:
+              1. Identify which component uses the expiring cert
+              2. Rotate the certificate before expiration
+              3. For EKS: check AWS docs for certificate rotation procedures
+
+              Runbook: domains/observability/docs/runbooks/dt005-certificate-expiring.md
+
+    # =========================================================================
+    # Vault Alerts
+    # Metrics source: vault built-in metrics (/v1/sys/metrics)
+    # =========================================================================
+    - name: security.vault
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # VaultSealedAlert - Vault instance is sealed
+        # -----------------------------------------------------------------
+        - alert: VaultSealedAlert
+          expr: |
+            vault_core_unsealed == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: vault
+            component: seal-status
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Vault instance {{ $labels.instance }} is SEALED"
+            description: |
+              HashiCorp Vault instance {{ $labels.instance }} has been in sealed state
+              for more than 2 minutes.
+
+              When Vault is sealed, NO secrets can be read or written. All applications
+              depending on Vault for secrets will fail.
+
+              Impact: CRITICAL - Secret management unavailable.
+              Affected: All services using Vault (via ESO, direct API, etc.)
+
+              Immediate Actions:
+              1. Check Vault status: vault status
+              2. Unseal Vault: vault operator unseal <key>
+              3. If auto-unseal (AWS KMS): check KMS key access and IAM permissions
+              4. Check Vault pod logs: kubectl logs -n vault -l app=vault --tail=200
+              5. Verify Vault storage backend (Consul/Raft) health
+
+              Runbook: domains/observability/docs/runbooks/dt005-vault-sealed.md
+            dashboard_url: "https://grafana.internal/d/vault-overview"
+
+        # -----------------------------------------------------------------
+        # VaultDown - Vault instance not responding
+        # -----------------------------------------------------------------
+        - alert: VaultDown
+          expr: |
+            up{job=~".*vault.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: vault
+            component: availability
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Vault instance {{ $labels.instance }} is DOWN"
+            description: |
+              Vault instance {{ $labels.instance }} is not responding to Prometheus scrapes.
+
+              Impact: CRITICAL - Secret management completely unavailable.
+
+              Immediate Actions:
+              1. Check Vault pods: kubectl get pods -n vault -l app=vault
+              2. Describe pod: kubectl describe pod -n vault -l app=vault
+              3. Check logs: kubectl logs -n vault -l app=vault --tail=200
+              4. Check storage backend
+              5. If EKS: verify IRSA and IAM roles for KMS auto-unseal
+
+              Runbook: domains/observability/docs/runbooks/dt005-vault-sealed.md
+
+    # =========================================================================
+    # External Secrets Operator (ESO) Alerts
+    # Metrics source: external-secrets-operator metrics
+    # =========================================================================
+    - name: security.external-secrets
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # ExternalSecretSyncFailure - ESO failed to sync a secret
+        # -----------------------------------------------------------------
+        - alert: ExternalSecretSyncFailure
+          expr: |
+            externalsecret_status_condition{condition="Ready", status="False"} == 1
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: external-secrets
+            component: sync
+            demand: DT-005
+          annotations:
+            summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} sync failed"
+            description: |
+              ExternalSecret {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has failed to sync from the secret store for more than 10 minutes.
+
+              This means the Kubernetes Secret is stale and may contain outdated credentials.
+
+              Actions:
+              1. Check ExternalSecret status: kubectl get externalsecret {{ $labels.name }} -n {{ $labels.namespace }} -o yaml
+              2. Check ESO controller logs: kubectl logs -n external-secrets -l app.kubernetes.io/name=external-secrets --tail=100
+              3. Verify SecretStore/ClusterSecretStore connectivity: kubectl get clustersecretstore -o wide
+              4. Check Vault status (if Vault backend): vault status
+              5. Verify IAM/IRSA permissions
+
+              Runbook: domains/observability/docs/runbooks/dt005-external-secret-sync-failure.md
+
+        # -----------------------------------------------------------------
+        # ExternalSecretSyncFailureCritical - ESO sync failed > 30 min
+        # -----------------------------------------------------------------
+        - alert: ExternalSecretSyncFailureCritical
+          expr: |
+            externalsecret_status_condition{condition="Ready", status="False"} == 1
+          for: 30m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: external-secrets
+            component: sync
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} sync failed for > 30 min"
+            description: |
+              ExternalSecret {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has been in a failed state for over 30 minutes.
+
+              Impact: SEVERE - The Kubernetes Secret may be expired or contain revoked credentials.
+              Services depending on this secret may fail on restart.
+
+              Immediate Actions:
+              1. Check if the secret store (Vault) is accessible
+              2. Force sync: kubectl annotate externalsecret {{ $labels.name }} -n {{ $labels.namespace }} force-sync=$(date +%s)
+              3. Check if the secret path exists in Vault
+              4. Verify no recent permission changes in Vault policies
+
+              Runbook: domains/observability/docs/runbooks/dt005-external-secret-sync-failure.md
+
+        # -----------------------------------------------------------------
+        # ExternalSecretNotReady - Multiple ESO secrets failing
+        # -----------------------------------------------------------------
+        - alert: MultipleExternalSecretsNotReady
+          expr: |
+            count(externalsecret_status_condition{condition="Ready", status="False"} == 1) > 3
+          for: 15m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: external-secrets
+            component: sync
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Multiple ExternalSecrets ({{ $value }}) are failing to sync"
+            description: |
+              More than 3 ExternalSecrets are in a failed sync state simultaneously.
+              This likely indicates a systemic issue with the secret store backend (Vault).
+
+              Impact: CRITICAL - Multiple services may have stale or missing credentials.
+
+              Immediate Actions:
+              1. Check Vault connectivity: vault status
+              2. Check ClusterSecretStore: kubectl get clustersecretstore vault-backend -o yaml
+              3. Check ESO operator: kubectl get pods -n external-secrets
+              4. List all failing ExternalSecrets: kubectl get externalsecret -A | grep -v "SecretSynced"
+              5. Check IAM and network policies
+
+              Runbook: domains/observability/docs/runbooks/dt005-external-secret-sync-failure.md

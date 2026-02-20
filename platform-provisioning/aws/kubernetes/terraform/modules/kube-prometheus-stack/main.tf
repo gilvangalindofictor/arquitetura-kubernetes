@@ -203,10 +203,34 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
-  # Admin credentials
-  set {
-    name  = "grafana.adminPassword"
-    value = var.grafana_admin_password
+  # Admin credentials — V-001 remediation:
+  # When grafana_admin_use_existing_secret=true, uses K8s Secret from ESO (Vault → ESO → existingSecret)
+  # When false (legacy), falls back to plaintext grafana.adminPassword (DEPRECATED)
+
+  # Legacy: plaintext password (only when NOT using existing secret)
+  dynamic "set" {
+    for_each = var.grafana_admin_use_existing_secret ? [] : [1]
+    content {
+      name  = "grafana.adminPassword"
+      value = var.grafana_admin_password
+    }
+  }
+
+  # V-001: existingSecret from ESO (Vault: secret/grafana/admin)
+  dynamic "set" {
+    for_each = var.grafana_admin_use_existing_secret ? [1] : []
+    content {
+      name  = "grafana.admin.existingSecret"
+      value = var.grafana_admin_existing_secret_name
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.grafana_admin_use_existing_secret ? [1] : []
+    content {
+      name  = "grafana.admin.passwordKey"
+      value = "admin-password"
+    }
   }
 
   # Persistence
@@ -594,6 +618,50 @@ resource "helm_release" "kube_prometheus_stack" {
     # Apply changes manually: helm upgrade kube-prometheus-stack -n monitoring
     ignore_changes = all
   }
+}
+
+# -----------------------------------------------------------------------------
+# Grafana Admin Password — ExternalSecret (V-001 Remediation)
+# Vault path: secret/data/grafana/admin
+#   key: password → mapped to K8s secret key: admin-password
+# Target: grafana-admin-credentials (referenced by grafana.admin.existingSecret)
+# eso-reader policy: secret/data/grafana/* (already granted in eso-reader.hcl)
+# Prerequisite: vault kv put secret/grafana/admin password=<strong-password>
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "grafana_admin_externalsecret" {
+  count = var.grafana_admin_use_existing_secret ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "grafana-admin-credentials"
+      namespace = kubernetes_namespace.monitoring.metadata[0].name
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = var.grafana_admin_existing_secret_name
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "admin-password"
+          remoteRef = {
+            key      = "secret/data/grafana/admin"
+            property = "password"
+          }
+        }
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.monitoring]
 }
 
 # -----------------------------------------------------------------------------
