@@ -1,6 +1,7 @@
 # Demandas Abertas - Status Real Auditado (2026-02-13)
 
 **Data da Auditoria:** 2026-02-13 15:00 BRT (atualizado 18:00 BRT)
+**Última Revisão:** 2026-02-20 11:30 BRT (🆕 ArgoCD v2.10.0 upgrade)
 **Executor:** Orquestrador DevOps
 **Método:** Cross-check AWS real + K8s real + documentação
 
@@ -153,17 +154,28 @@
 
 ---
 
-### 8. ✅ **GAP-003: ArgoCD Deploy** (RESOLVIDO 2026-02-06)
-- **Status:** ✅ 100% COMPLETO
-- **Deployment:** ArgoCD v5.51.6 (v2.9.3), 8 pods Running
+### 8. ✅ **GAP-003: ArgoCD Deploy** (RESOLVIDO 2026-02-06) | 🎉 **UPGRADED 2026-02-20**
+- **Status Original:** ✅ 100% COMPLETO (2026-02-06)
+- **Status Atual:** ✅ **UPGRADED TO v2.10.0** (2026-02-20)
+- **Deployment Original:** ArgoCD v5.51.6 (v2.9.3), 8 pods Running
+- **Deployment Atual:** ArgoCD v2.10.0, 8 pods Running (✅ PKCE ativo)
 - **Features:**
   - ✅ PostgreSQL RDS integration
   - ✅ OIDC Keycloak integration
   - ✅ RBAC (argocd-admins group)
   - ✅ AppProjects (platform, applications)
   - ✅ HA (2 replicas server/repo-server)
-- **Ação:** ✅ Nenhuma - documentação OK
-- **Arquivo:** [2026-02-06-argocd-gitops-deployment.md](docs/logbook/2026-02-06-argocd-gitops-deployment.md)
+  - 🎉 **PKCE Support:** Ativo por padrão em v2.10.0+ (RFC 7636)
+- **Upgrade Details (TASK-001):**
+  - Método: kubectl set image (helm chart downloads 404)
+  - Duração: 1h 14min (10:12-11:26)
+  - Zero downtime: Rolling update
+  - Atraso: 1 dia (deadline 2026-02-19)
+- **Ação:** ✅ Nenhuma - upgrade completo
+- **Arquivos:** 
+  - [2026-02-06-argocd-gitops-deployment.md](docs/logbook/2026-02-06-argocd-gitops-deployment.md)
+  - 🆕 [2026-02-20-argocd-upgrade-implementation.md](docs/logbook/2026-02-20-argocd-upgrade-implementation.md)
+  - 🆕 [TASK-001-argocd-upgrade-2.12.md](docs/tasks/TASK-001-argocd-upgrade-2.12.md)
 
 ---
 

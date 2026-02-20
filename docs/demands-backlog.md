@@ -1,6 +1,7 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
-> **Data**: 2026-02-06
+> **Data**: 2026-02-06  
+> **Última Revisão**: 2026-02-20 (🆕 TASK-001 ArgoCD v2.10.0 upgrade)
 > **Fonte**: Análise de documentos de contexto (current_state.md, gap analysis, risks.md)
 > **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 em planejamento
 
@@ -25,7 +26,7 @@
 **Componentes Deployados**:
 
 - ✅ Keycloak SSO (GAP-001)
-- ✅ ArgoCD GitOps (GAP-003)
+- ✅ ArgoCD GitOps (GAP-003) — 🎉 **UPGRADED v2.10.0** (2026-02-20, TASK-001)
 - ✅ SonarQube Code Quality (GAP-004)
 - 🟡 GitLab (90% - GAP-002, runner pendente)
 
@@ -148,11 +149,11 @@ Corrigir falhas nos componentes GitLab que impediam funcionamento da pipeline CI
 
 ## 🟡 DEMANDAS ALTAS (Não-bloqueantes)
 
-### ✅ GAP-003: ArgoCD Deploy [COMPLETO]
+### ✅ GAP-003: ArgoCD Deploy [COMPLETO] | 🎉 UPGRADED [v2.10.0 - 2026-02-20]
 
-**Prioridade**: 🟡 ALTA
-**Status**: ✅ **DEPLOYED** (2026-02-06)
-**Duração Real**: ~2h
+**Prioridade**: 🟡 ALTA → ✅ **CONCLUÍDO**
+**Status**: ✅ **DEPLOYED** (2026-02-06) + ✅ **UPGRADED v2.10.0** (2026-02-20)
+**Duração Real**: ~2h (deploy) + 1.5h (upgrade TASK-001)
 **Custo**: +$15/mês
 
 **Descrição**:
@@ -160,7 +161,21 @@ Deploy ArgoCD como plataforma GitOps para gerenciamento de aplicações Kubernet
 
 **Pré-requisito**: GAP-001 (Keycloak) ✅ concluído
 
-**Entregáveis**:
+**🆕 UPGRADE v2.10.0 (TASK-001 - 2026-02-20):**
+- **Versão Anterior:** v2.9.3 (chart 5.51.6) — sem PKCE support
+- **Versão Atual:** v2.10.0 — ✅ PKCE ativo por padrão (RFC 7636)
+- **Método:** kubectl set image (helm chart downloads 404)
+- **Duração:** 1h 14min (10:12-11:26)
+- **Zero Downtime:** Rolling update
+- **Atraso:** 1 dia (deadline 2026-02-19)
+- **Validações:**
+  - ✅ 8/8 pods Running com v2.10.0
+  - ✅ OIDC Keycloak integration mantida
+  - ✅ PKCE ativo (mitigates auth code interception)
+- **Logbook:** [2026-02-20-argocd-upgrade-implementation.md](logbook/2026-02-20-argocd-upgrade-implementation.md)
+- **Task:** [TASK-001-argocd-upgrade-2.12.md](tasks/TASK-001-argocd-upgrade-2.12.md)
+
+**Entregáveis (Original - 2026-02-06):**
 - ✅ Completar módulo `modules/argocd/`
   - ✅ Configurar Keycloak OIDC (client ID: argocd, secret em K8s secret)
   - ✅ AppProjects CRDs (platform, applications)
