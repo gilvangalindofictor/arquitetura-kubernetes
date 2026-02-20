@@ -338,3 +338,14 @@ Upgrade ArgoCD de v2.9.3 para v2.12+ e habilitar PKCE no Keycloak client para me
 **Status:** 📋 TODO
 **Última Atualização:** 2026-02-12
 **Tracking Issue:** #TBD
+ 
+---
+
+## Registro de Ações (resumido)
+
+- [2026-02-20] Pre-check AWS SSO session realizado (orquestrador) — sessão ativa
+- [2026-02-20] Histórico e logbook consultados — referências encontradas (v2.9.3 PKCE issue)
+- [2026-02-20] `argocd_version` (Helm chart) atualizado para `7.10.0` no Terraform (preparação de upgrade)
+
+**Status:** 📋 Em Progresso
+**Última Atualização:** 2026-02-20
