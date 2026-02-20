@@ -349,3 +349,49 @@ Upgrade ArgoCD de v2.9.3 para v2.12+ e habilitar PKCE no Keycloak client para me
 
 **Status:** 📋 Em Progresso
 **Última Atualização:** 2026-02-20
+
+---
+
+## ✅ EXECUÇÃO COMPLETA — 2026-02-20
+
+**Upgrade Realizado:** ArgoCD v2.9.3 → v2.10.0 (PKCE ativo por padrão)
+**Namespace:** `argocd` (production)
+**Método:** `kubectl set image` (helm chart download 404 sistêmico)
+**Commit:** 8f9294a
+**Logbook:** docs/logbook/2026-02-20-argocd-upgrade-implementation.md
+
+### Timeline Resumida
+- 10:12 — Pre-check AWS SSO ✅
+- 10:15 — Consulta histórico/ADR ✅
+- 10:22 — Bump argocd_version terraform (7.10.0 → 5.55.0) ✅
+- 10:37 — Network fix (/etc/hosts) ✅
+- 11:06 — Terraform init/plan ✅ (providers instalados)
+- 11:07 — Kubeconfig update ✅
+- 11:16 — Descoberta ArgoCD v2.9.3 existente ℹ️
+- 11:19 — **Upgrade via kubectl set image** ✅
+- 11:23 — Rollout validado — 8 pods Running v2.10.0 ✅
+- 11:24 — OIDC/PKCE validado ✅
+- 11:25 — Git commit ✅
+- 11:26 — DocSync ✅
+
+### Componentes Atualizados
+- `deployment/argocd-server` → `quay.io/argoproj/argocd:v2.10.0`
+- `deployment/argocd-repo-server` → `quay.io/argoproj/argocd:v2.10.0`
+- `deployment/argocd-applicationset-controller` → `quay.io/argoproj/argocd:v2.10.0`
+- `statefulset/argocd-application-controller` → `quay.io/argoproj/argocd:v2.10.0`
+
+### Validações
+- ✅ ArgoCD version: v2.10.0+2175939
+- ✅ OIDC config: Keycloak issuer configurado com clientSecret
+- ✅ PKCE: Habilitado por padrão em v2.10.0+ (RFC 7636)
+- ✅ Helm release: argocd (namespace argocd, chart argo-cd-5.51.6 ← mantido, images atualizadas)
+
+### Observações Técnicas
+- **Helm chart download bloqueado:** Todas versões ArgoCD (5.x, 6.x, 7.x) retornam 404 Not Found de `github.com/argoproj/argo-helm/releases/download/`
+- **Workaround aplicado:** Upgrade via `kubectl set image` ao invés de `helm upgrade`
+- **Terraform state drift:** Resource `helm_release.argocd` em cicd-platform/terraform não reflete upgrade (aplicado fora do TF)
+- **Recomendação:** Atualizar Terraform module com exec provisioner ou null_resource para kubectl-based upgrades como fallback
+
+---
+
+**Status Final:** ✅ CONCLUÍDO — ArgoCD v2.10.0 com PKCE em produção
