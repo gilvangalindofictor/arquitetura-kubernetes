@@ -86,8 +86,8 @@ variable "harbor_version" {
 
 variable "argocd_version" {
   type    = string
-  # Updated to chart series 7.x.x which maps to ArgoCD app v2.12+ (required for PKCE)
-  default = "7.10.0"
+  # Chart 5.55.0 → ArgoCD app v2.10.0 (PKCE support per ADR-055: ArgoCD >= v2.10.0)
+  default = "5.55.0"
 }
 
 variable "backstage_version" {

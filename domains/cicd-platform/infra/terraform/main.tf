@@ -22,12 +22,42 @@ terraform {
 provider "kubernetes" {
   host                   = var.cluster_endpoint
   cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
+  
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args =  [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      "k8s-platform-prod",
+      "--region",
+      "us-east-1",
+      "--profile",
+      "k8s-platform-prod"
+    ]
+  }
 }
 
 provider "helm" {
   kubernetes {
     host                   = var.cluster_endpoint
     cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
+    
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = [
+        "eks",
+        "get-token",
+        "--cluster-name",
+        "k8s-platform-prod",
+        "--region",
+        "us-east-1",
+        "--profile",
+        "k8s-platform-prod"
+      ]
+    }
   }
 }
 
@@ -603,5 +633,6 @@ output "usage_instructions" {
     - Create ArgoCD Applications for domains
     - Register services in Backstage catalog
   EOT
+  sensitive   = true
   description = "Post-deployment instructions"
 }
