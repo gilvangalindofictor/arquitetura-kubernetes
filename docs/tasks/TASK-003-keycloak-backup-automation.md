@@ -664,6 +664,20 @@ Implementar backup automático daily de Keycloak realms (JSON export) com storag
 
 ---
 
-**Status:** 📋 TODO
-**Última Atualização:** 2026-02-12
-**Tracking Issue:** #TBD
+**Status:** ⚠️ PARCIAL (infra 100%, script precisa fix endpoint Keycloak 26)
+**Última Atualização:** 2026-02-20
+**Implementado por:** Claude Code
+**Logbook:** [2026-02-20-task003-keycloak-backup-automation.md](../logbook/2026-02-20-task003-keycloak-backup-automation.md)
+
+## ✅ Completado
+
+- [x] S3 Bucket `k8s-platform-keycloak-backups-891377105802` (versioning, encryption, lifecycle 30d)
+- [x] IAM Role IRSA `k8s-platform-prod-keycloak-backup-staging`
+- [x] ServiceAccount, ConfigMap, CronJob, PrometheusRule
+- [x] Upload S3 validado (IRSA funcional)
+
+## ⏸️ Pendente
+
+- [ ] **Corrigir endpoint Keycloak 26** - `partial-export` retorna 404 (API mudou na v26)
+- [ ] Restore script + automated testing
+- [ ] Validação E2E completa

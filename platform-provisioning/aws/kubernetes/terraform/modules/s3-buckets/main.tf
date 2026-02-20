@@ -3,13 +3,16 @@
 # Buckets:
 #   1. gitlab-artifacts - CI/CD build artifacts
 #   2. harbor-images - Container registry images
+#   3. keycloak-backups - Keycloak realm backups (TASK-003)
+#   4. fct-proposals - ETL unified storage (TASK-004)
 # =============================================================================
 
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source                = "hashicorp/aws"
+      version               = "~> 5.0"
+      configuration_aliases = [aws.sa_east_1]
     }
   }
 }
@@ -227,6 +230,76 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "harbor_images" {
 }
 
 # -----------------------------------------------------------------------------
+# Keycloak Backups Bucket (TASK-003)
+# -----------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "keycloak_backups" {
+  bucket = "k8s-platform-keycloak-backups-${var.aws_account_id}"
+
+  # NOTE: Using provider default_tags only due to Terraform/AWS provider tag handling issue
+  # Tags will be applied via provider default_tags in environments/staging/main.tf
+  # Specific tags (Name, Purpose, Service) applied manually via AWS CLI
+
+  lifecycle {
+    ignore_changes = [tags, tags_all]
+  }
+}
+
+resource "aws_s3_bucket_versioning" "keycloak_backups" {
+  bucket = aws_s3_bucket.keycloak_backups.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "keycloak_backups" {
+  bucket = aws_s3_bucket.keycloak_backups.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "keycloak_backups" {
+  bucket = aws_s3_bucket.keycloak_backups.id
+
+  # Rule: Expire old backups after 30 days (DR compliance)
+  # Note: Backups are kept in STANDARD storage class for full 30 days
+  # (STANDARD_IA transition requires minimum 30 days, which equals our expiration)
+  rule {
+    id     = "retain-30-days"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 30
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "keycloak_backups" {
+  bucket = aws_s3_bucket.keycloak_backups.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# -----------------------------------------------------------------------------
 # IAM Policy for GitLab S3 Access (IRSA)
 # -----------------------------------------------------------------------------
 
@@ -301,6 +374,40 @@ resource "aws_iam_policy" "harbor_s3" {
 }
 
 # -----------------------------------------------------------------------------
+# IAM Policy for Keycloak Backup S3 Access (IRSA)
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "keycloak_backup_s3" {
+  statement {
+    sid    = "AllowKeycloakBackupS3Access"
+    effect = "Allow"
+
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+
+    resources = [
+      aws_s3_bucket.keycloak_backups.arn,
+      "${aws_s3_bucket.keycloak_backups.arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "keycloak_backup_s3" {
+  name_prefix = "${var.cluster_name}-keycloak-backup-s3-"
+  description = "IAM policy for Keycloak backup job to access S3 backups bucket"
+  policy      = data.aws_iam_policy_document.keycloak_backup_s3.json
+
+  tags = merge(var.common_tags, {
+    Service = "Keycloak"
+    Purpose = "IRSA-Backup"
+  })
+}
+
+# -----------------------------------------------------------------------------
 # IAM Roles for Service Accounts (IRSA) - To be used by GitLab/Harbor Helm
 # -----------------------------------------------------------------------------
 
@@ -309,3 +416,177 @@ resource "aws_iam_policy" "harbor_s3" {
 # to those roles.
 
 # Export policy ARNs for use in other modules
+
+# -----------------------------------------------------------------------------
+# FCT Proposals Bucket (ETL Unified Storage) - TASK-004
+# Cross-region deployment: sa-east-1 (LGPD compliance)
+# -----------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+
+  bucket = "fct-proposals"
+
+  tags = merge(var.common_tags, {
+    Name          = "FCT Proposals Unified Storage"
+    Purpose       = "ETL proposal files (Hatch + VemSoft)"
+    DataSource    = "hatch-etl,vemsoft-etl"
+    LGPD          = "PII"
+    DataRetention = "7-years"
+    ObjectTagging = "enabled"
+  })
+}
+
+resource "aws_s3_bucket_public_access_block" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+  bucket   = aws_s3_bucket.fct_proposals[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+  bucket   = aws_s3_bucket.fct_proposals[0].id
+
+  versioning_configuration {
+    status = "Disabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+  bucket   = aws_s3_bucket.fct_proposals[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_intelligent_tiering_configuration" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+  bucket   = aws_s3_bucket.fct_proposals[0].id
+  name     = "proposals-tiering"
+
+  tiering {
+    access_tier = "ARCHIVE_ACCESS"
+    days        = 30
+  }
+
+  tiering {
+    access_tier = "DEEP_ARCHIVE_ACCESS"
+    days        = 90
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "fct_proposals" {
+  count    = var.enable_fct_proposals ? 1 : 0
+  provider = aws.sa_east_1
+  bucket   = aws_s3_bucket.fct_proposals[0].id
+
+  rule {
+    id     = "cleanup-incomplete-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# IAM Policy: hatch-etl-s3-fct-proposals
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "hatch_etl_fct_proposals" {
+  count = var.enable_fct_proposals ? 1 : 0
+
+  statement {
+    sid    = "ListBucket"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+    resources = [
+      aws_s3_bucket.fct_proposals[0].arn
+    ]
+  }
+
+  statement {
+    sid    = "ObjectOperations"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+      "s3:PutObjectTagging",
+      "s3:GetObjectTagging"
+    ]
+    resources = [
+      "${aws_s3_bucket.fct_proposals[0].arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "hatch_etl_fct_proposals" {
+  count       = var.enable_fct_proposals ? 1 : 0
+  name        = "hatch-etl-s3-fct-proposals"
+  description = "IAM policy for Hatch ETL to access S3 fct-proposals bucket"
+  policy      = data.aws_iam_policy_document.hatch_etl_fct_proposals[0].json
+
+  tags = merge(var.common_tags, {
+    Service = "Hatch-ETL"
+    Purpose = "S3-Access"
+  })
+}
+
+# -----------------------------------------------------------------------------
+# IAM Policy: bucketconnector-s3-fct-proposals
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "bucketconnector_fct_proposals" {
+  count = var.enable_fct_proposals ? 1 : 0
+
+  statement {
+    sid    = "FullBucketAccess"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+      "s3:PutObjectTagging",
+      "s3:GetObjectTagging"
+    ]
+    resources = [
+      aws_s3_bucket.fct_proposals[0].arn,
+      "${aws_s3_bucket.fct_proposals[0].arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "bucketconnector_fct_proposals" {
+  count       = var.enable_fct_proposals ? 1 : 0
+  name        = "bucketconnector-s3-fct-proposals"
+  description = "IAM policy for BucketConnector CLI to manage fct-proposals bucket"
+  policy      = data.aws_iam_policy_document.bucketconnector_fct_proposals[0].json
+
+  tags = merge(var.common_tags, {
+    Service = "BucketConnector"
+    Purpose = "S3-Admin"
+  })
+}
