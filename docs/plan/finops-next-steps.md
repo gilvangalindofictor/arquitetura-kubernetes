@@ -1,9 +1,9 @@
 # FinOps Automation - Plano de Próximas Etapas
 
 **Data de Criação**: 2026-01-30
-**Última Atualização**: 2026-01-30
+**Última Atualização**: 2026-02-23
 **Framework**: executor-terraform.md (Multi-Agent Decision Making)
-**Status**: STAGING Deploy Completo | Manual Testing In Progress
+**Status**: FASE 2 ATIVA | EventBridge ENABLED | Automation Running
 
 ---
 
@@ -22,31 +22,40 @@ Completar validação e habilitar automação FinOps para reduzir custos de stag
 - [x] Teste manual Lambda START (100% sucesso)
 - [x] Teste manual Lambda STOP (funcional, shutdown não-graceful)
 - [x] Análise multi-agente para issue de PDBs
+- [x] FASE 1 validação manual (5/5 testes, R$ 13.596,89/ano validado, 2026-02-23)
+- [x] **FASE 2 ATIVA: EventBridge rules ENABLED (2026-02-23)**
+  - `finops-startup-staging`: ENABLED | `cron(30 10 ? * MON-FRI *)` = 07h30 BRT
+  - `finops-shutdown-staging`: ENABLED | `cron(0 23 ? * MON-FRI *)` = 20h00 BRT
+  - `finops-weekend-shutdown-staging`: ENABLED | `cron(0 3 ? * SAT *)` = 00h00 BRT Sat
+  - Circuit breaker: CLOSED (startup_failures=0, shutdown_failures=0)
 
 ### 🔄 Em Progresso
-- [ ] Testes manuais adicionais (3-5 testes esta semana)
-- [ ] Monitoramento de logs CloudWatch
-- [ ] Validação de circuit breaker DynamoDB
+
+- [ ] Monitoramento primeira semana de execuções automáticas (2026-02-24 a 2026-03-03)
+- [ ] Validação economia real vs projetada (1 mês)
 
 ### 📋 Pendente
-- [ ] Otimização de PDBs (próxima sprint)
-- [ ] Habilitação de automação (após 1 semana)
-- [ ] Deploy em produção (Marco 3)
+
+- [ ] Otimizacao de PDBs: shutdown 10-15min -> 2-3min (MEDIUM priority)
+- [ ] SNS notifications / Slack integration (LOW priority)
+- [ ] Deploy em producao (Marco 3, Q2 2026)
 
 ---
 
 ## 📅 Roadmap Detalhado
 
-### FASE 1: Validação Manual (Semana 1 - Em Progresso)
-**Período**: 2026-01-30 a 2026-02-06
+### FASE 1: Validação Manual ✅ COMPLETO
+**Período**: 2026-01-30 a 2026-02-23
 **Responsável**: DevOps Team
 **Prioridade**: HIGH
+**Status**: ✅ APROVADO (5/5 testes, 100% critérios)
 
 #### Objetivos
-- Executar 3-5 testes manuais adicionais de startup/shutdown
-- Validar comportamento em diferentes condições
-- Monitorar logs e métricas CloudWatch
-- Verificar circuit breaker state no DynamoDB
+
+- ✅ Executar 5 testes manuais de startup/shutdown
+- ✅ Validar comportamento em diferentes condições
+- ✅ Monitorar logs e métricas CloudWatch
+- ✅ Verificar circuit breaker state no DynamoDB
 
 #### Tarefas
 
@@ -98,13 +107,23 @@ aws dynamodb get-item \
 - [ ] Validar alarms configurados (não devem disparar)
 
 #### Critérios de Sucesso
+
 - ✅ 5 testes completos sem falhas críticas
 - ✅ Circuit breaker permanece CLOSED
 - ✅ Logs sem erros inesperados
 - ✅ Métricas dentro do esperado (duration <2s, no errors)
 - ✅ Documentação de qualquer anomalia
 
-#### Riscos
+**Resultado Final (2026-02-23):**
+
+- Testes executados: 5/5 (100%)
+- Savings validados: R$ 13.596,89/ano (106% da meta)
+- Lambda duration: 1.5-1.9s (dentro do esperado)
+- Circuit breaker: CLOSED (zero failures)
+- Logbook: `docs/logbook/2026-02-23-finops-fase1-manual-validation.md`
+
+#### Riscos FASE 1
+
 - **BAIXO**: Falha de Lambda por throttling (mitigado: baixa frequência de testes)
 - **MÉDIO**: RDS 7-day stop limitation (mitigado: monitorar last_stop_time)
 
@@ -280,107 +299,70 @@ kubectl delete pod loki-gateway-xxxxx --grace-period=0 --force
 - ✅ Failover funciona normalmente (N-1 replica handling)
 - ✅ Upgrades de cluster mais rápidos (validar com dry-run)
 
-#### Riscos
+#### Riscos FASE 2
+
 - **MÉDIO**: PDB mal configurado pode causar downtime (mitigado: testar em staging primeiro)
 - **BAIXO**: Resistência de stakeholders (mitigado: documentar em ADR com aprovação)
 
 ---
 
-### FASE 3: Habilitar Automação (Semana 4 - Após Validação)
-**Período**: 2026-02-20 a 2026-02-27
+### FASE 3: Habilitar Automação ✅ COMPLETO (2026-02-23)
+
+**Período**: 2026-02-23
 **Responsável**: DevOps Team
 **Prioridade**: HIGH
+**Status**: CONCLUIDO
 
-#### Objetivos
-- Habilitar EventBridge rules para execução automática
-- Monitorar primeiras execuções em produção
-- Validar economia real vs projetada
+#### Resultado
 
-#### Tarefas
+- `enable_automation = true` em `environments/staging/main.tf` (linha 1146)
+- 3 EventBridge rules ENABLED via Terraform apply previo:
+  - `finops-startup-staging`: `cron(30 10 ? * MON-FRI *)` = 07h30 BRT Mon-Fri
+  - `finops-shutdown-staging`: `cron(0 23 ? * MON-FRI *)` = 20h00 BRT Mon-Fri
+  - `finops-weekend-shutdown-staging`: `cron(0 3 ? * SAT *)` = 00h00 BRT Sat
+- Circuit breaker DynamoDB: CLOSED | startup_failures=0 | shutdown_failures=0
+- Logbook: `docs/logbook/2026-02-23-finops-fase2-automation-enabled.md`
 
-**3.1 Update Terraform Config** 📋
-```hcl
-# envs/finops-staging/main.tf
-module "finops_automation" {
-  source = "../../modules/finops-automation"
+#### Tarefas Pendentes (monitoramento pos-ativacao)
 
-  # Mudar de false → true
-  enable_automation = true  # ✅ HABILITAR APÓS 1 SEMANA
+**3.3 Monitoramento Primeira Semana** (2026-02-24 a 2026-03-03)
 
-  # Schedules (já configurados)
-  startup_schedule  = "cron(0 11 ? * MON-FRI *)"  # 08:00 BRT
-  shutdown_schedule = "cron(0 21 ? * MON-FRI *)"  # 18:00 BRT
-}
-```
-
-**3.2 Deploy** 📋
 ```bash
-export AWS_PROFILE=k8s-platform-prod
-cd platform-provisioning/aws/kubernetes/terraform/envs/finops-staging
-
-terraform plan -out=tfplan
-# Validar: 2 resources to change (EventBridge rules state: DISABLED → ENABLED)
-
-terraform apply tfplan
-
-# Validar rules ativas
-aws events list-rules --name-prefix finops-
-```
-
-**3.3 Monitoramento Primeira Semana** 📋
-```bash
-# Verificar execuções diárias
-aws lambda get-function --function-name finops-scheduler-start-staging
-aws lambda get-function --function-name finops-scheduler-stop-staging
-
-# Monitorar logs
+# Monitorar logs de execucao automatica
 aws logs tail /aws/lambda/finops-scheduler-start-staging --follow --since 1h
 aws logs tail /aws/lambda/finops-scheduler-stop-staging --follow --since 1h
 
-# Verificar métricas CloudWatch
+# Verificar metricas CloudWatch
 # - Invocations: 10/semana esperado (5 startups + 5 shutdowns)
-# - Errors: 0 esperado
-# - Duration: ~1.5s avg
-# - Throttles: 0
+# - Errors: 0 esperado | Duration: ~1.5s avg | Throttles: 0
 
-# Validar alarms não disparados
+# Validar alarms nao disparados
 aws cloudwatch describe-alarms --alarm-names \
   finops-staging-startup-failures \
   finops-staging-shutdown-failures \
   finops-staging-startup-duration-high
 ```
 
-**3.4 Validação de Economia** 📋
-```bash
-# Após 1 mês de operação, verificar Cost Explorer
-# Filtros:
-# - Service: Amazon Elastic Compute Cloud
-# - Tag: Environment=staging
-# - Período: Compare mês atual vs mês anterior
+**3.4 Validação de Economia** (apos 1 mes: 2026-03-23)
 
-# Savings esperados:
-# - EC2: ~$140/mês reduction (7 nodes × 10h/dia saved)
-# - EBS: ~$2/mês reduction (volumes attached only when running)
-# - Data Transfer: ~$5/mês reduction
-# Total: ~$147/mês = ~R$ 882/mês (vs R$ 1,065 projetado = 83% accuracy)
+```bash
+# Cost Explorer: Service=EC2, Tag=Environment:staging, periodo atual vs anterior
+# Savings esperados: ~$147/mes = ~R$ 779/mes (PTAX 5.30)
 ```
 
-**3.5 Ajustes Finos** 📋
-- [ ] Ajustar schedules se necessário (ex: 08:30 vs 08:00)
-- [ ] Configurar SNS notifications (opcional)
-- [ ] Habilitar RDS snapshots antes de stop (se necessário)
+#### Criterios de Sucesso
 
-#### Critérios de Sucesso
-- ✅ EventBridge invocando Lambdas automaticamente
-- ✅ 100% success rate nas primeiras 20 execuções (2 semanas)
-- ✅ Economia real ≥80% da projetada
-- ✅ Zero downtime inesperado
-- ✅ Circuit breaker permanece CLOSED
+- [x] EventBridge rules ENABLED (3/3)
+- [x] Circuit breaker CLOSED
+- [ ] 100% success rate nas primeiras 20 execucoes automaticas (validar 2026-03-03)
+- [ ] Economia real >= 80% da projetada (validar 2026-03-23)
+- [ ] Zero downtime inesperado
 
 #### Riscos
-- **MÉDIO**: Primeira execução automática falhar (mitigado: testes manuais prévios)
-- **BAIXO**: RDS 7-day stop issue (mitigado: circuit breaker detect + alert)
-- **BAIXO**: Holiday não detectado (mitigado: Brasil API + manual override)
+
+- **MEDIO**: Primeira execucao automatica falhar (mitigado: 5/5 testes manuais previos OK)
+- **BAIXO**: RDS 7-day stop issue (mitigado: circuit breaker detect + last_stop_time monitorado)
+- **BAIXO**: Holiday nao detectado (mitigado: Brasil API integrado no Lambda)
 
 ---
 
