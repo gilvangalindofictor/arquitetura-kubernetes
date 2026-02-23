@@ -1,0 +1,96 @@
+---
+# VPA for GitLab Sidekiq (P2 - Background Jobs)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: gitlab-sidekiq
+  namespace: gitlab-staging
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gitlab-sidekiq-all-in-1-v2
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: sidekiq
+        minAllowed:
+          cpu: 100m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 2000m
+          memory: 4Gi
+        controlledResources: ["cpu", "memory"]
+---
+# VPA for GitLab Gitaly (P2 - Git Repository Storage)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: gitlab-gitaly
+  namespace: gitlab-staging
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: gitlab-gitaly
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: gitaly
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 2000m
+          memory: 2Gi
+        controlledResources: ["cpu", "memory"]
+---
+# VPA for Loki Write (P2 - Log Ingestion)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: loki-write
+  namespace: monitoring
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: loki-write
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: loki
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 1000m
+          memory: 2Gi
+        controlledResources: ["cpu", "memory"]
+---
+# VPA for Tempo Ingester (P2 - Trace Ingestion)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: tempo-ingester
+  namespace: monitoring
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: tempo-ingester
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: ingester
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 1000m
+          memory: 2Gi
+        controlledResources: ["cpu", "memory"]

@@ -1,0 +1,17 @@
+================================================================================
+                    VPA SAVINGS ANALYSIS REPORT
+================================================================================
+
+Generated: 2026-02-20 18:39:43 -03
+Cluster: arn:aws:eks:us-east-1:891377105802:cluster/k8s-platform-prod
+
+Pricing Assumptions:
+  - CPU Cost:    $0.0416 per vCPU/hour (us-east-1 t3)
+  - Memory Cost: $0.00456 per GB/hour (us-east-1 t3)
+  - Exchange Rate: 1 USD = 6.0 BRL
+
+================================================================================
+
+WORKLOAD                  NAMESPACE                   CPU %     MEMORY %   SAVINGS/YR       BRL/YR
+------------------------- -------------------- ------------ ------------ ------------ ------------
+redis                     data-services               50.0%        20.0% $     10.38 R$     62.28
