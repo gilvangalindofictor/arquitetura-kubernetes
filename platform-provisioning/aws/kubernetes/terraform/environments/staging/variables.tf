@@ -163,3 +163,12 @@ variable "keycloak_postgresql_password" {
   sensitive   = true
   default     = "" # If empty, random password will be generated
 }
+
+# TASK-002: Keycloak provider authentication (mrparkers/keycloak)
+# Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-password -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+variable "keycloak_admin_password" {
+  description = "Keycloak admin password for mrparkers/keycloak provider. Retrieved from K8s secret keycloak-admin-password in namespace keycloak."
+  type        = string
+  sensitive   = true
+  default     = ""
+}

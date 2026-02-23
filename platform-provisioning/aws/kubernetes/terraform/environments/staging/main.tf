@@ -38,6 +38,11 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.2"
     }
+    # TASK-002: Keycloak IaC provider for realm, clients and groups management
+    keycloak = {
+      source  = "mrparkers/keycloak"
+      version = "~> 4.4.0"
+    }
   }
 }
 
@@ -690,6 +695,56 @@ module "harbor_staging" {
 # OIDC provider for ArgoCD, SonarQube, GitLab
 # Pattern: Vault KV v2 + ExternalSecrets Operator (R-029 RESOLVED)
 #------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# KEYCLOAK CLIENTS — IaC for Realm, OIDC Clients, Groups (TASK-002)
+# Provider: mrparkers/keycloak ~> 4.4.0
+# Manages: realm/platform, clients/gitlab+argocd+grafana, group/grafana-admins
+# Pattern: import-only (prevent_destroy=true), WSL-safe port-forward
+# Migration: null_resource.keycloak_grafana_admins_group → native provider
+#
+# PREREQ: kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak
+# IMPORT: run scripts/keycloak/import-clients.sh before first terraform apply
+# ADR: TASK-002 (docs/tasks/TASK-002-terraform-keycloak-provider.md)
+#------------------------------------------------------------------------------
+
+module "keycloak_clients_staging" {
+  source = "../../modules/keycloak-clients"
+
+  depends_on = [module.keycloak_staging]
+
+  # WSL-safe: uses localhost port-forward
+  # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak
+  keycloak_url = "http://localhost:18080"
+
+  # Admin password from K8s secret (managed by modules/keycloak random_password)
+  # Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-password -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+  keycloak_admin_password = var.keycloak_admin_password
+
+  # Realm
+  realm = "platform"
+
+  # Domain (staging.internal)
+  domain_suffix = "staging.internal"
+  environment   = local.environment
+  cluster_name  = local.cluster_name
+
+  # Enable all clients
+  gitlab_enabled  = true
+  argocd_enabled  = true
+  grafana_enabled = true
+
+  # Kubernetes namespaces
+  gitlab_namespace  = "gitlab-staging"
+  argocd_namespace  = "argocd"
+  grafana_namespace = "monitoring"
+
+  # grafana-admins group + oidc-group-membership-mapper
+  # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
+  grafana_admins_group_enabled = true
+
+  common_tags = local.common_tags
+}
 
 module "keycloak_staging" {
   source = "../../modules/keycloak"

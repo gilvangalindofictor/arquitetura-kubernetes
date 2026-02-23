@@ -1,0 +1,43 @@
+# =============================================================================
+# Keycloak Provider Configuration
+# WSL-safe pattern: uses localhost URL via kubectl port-forward
+#
+# USAGE (before terraform init/plan/apply):
+#   kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak &
+#
+# The provider connects to http://localhost:18080/auth
+# keycloak.staging.internal does NOT resolve from WSL2 (CoreDNS cluster-only)
+#
+# Authentication flow:
+#   1. admin-cli client (master realm) with admin password
+#   2. Password retrieved from K8s secret: keycloak-admin-password (namespace: keycloak)
+#
+# CRITICAL — Keycloak 26.5.1 (keycloakx chart) still uses /auth prefix:
+#   Token endpoint: /auth/realms/master/protocol/openid-connect/token
+#   Admin API:      /auth/admin/realms/...
+#   Provider URL:   http://localhost:18080/auth  ← includes /auth
+#
+# See MEMORY.md: "Keycloak 26 Admin REST API Endpoints"
+# =============================================================================
+
+provider "keycloak" {
+  # localhost URL: requires port-forward to be active before any TF operation
+  # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak &
+  url = var.keycloak_url
+
+  # admin-cli client (built-in, master realm, no client_secret needed)
+  client_id = "admin-cli"
+
+  # admin credentials (password auth to master realm)
+  username = "admin"
+  password = var.keycloak_admin_password
+
+  # Realm for admin operations (always master for admin-cli)
+  realm = "master"
+
+  # Disable TLS verification (HTTP, no TLS in cluster-internal traffic)
+  tls_insecure_skip_verify = false
+
+  # Base path includes /auth (keycloakx legacy config still enables it)
+  base_path = ""
+}
