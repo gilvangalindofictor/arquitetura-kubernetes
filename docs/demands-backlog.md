@@ -344,6 +344,163 @@ Integrar GitLab CI/CD com SonarQube e Harbor (pipeline completa).
 
 ---
 
+### GAP-009: Kyverno Policy Engine Deployment & Governance Enforcement
+
+**Prioridade**: 🟡 ALTA
+**Status**: ⏸️ **PENDENTE** (Policies prontas, não deployadas)
+**Duração**: 3h (instalação 30min + audit mode 1h + validação 1h30)
+**Custo**: $5/mês (Kyverno controller pods)
+
+**Descrição**:
+Implementar Kyverno Policy Engine para enforcement automatizado de governança corporativa (naming conventions, labels obrigatórias, namespace patterns) conforme ADR-047, ADR-048 e ADR-049.
+
+**Contexto**:
+- ✅ **5 ClusterPolicies já definidas** em `/docs/governance/validation-rules.yaml`:
+  1. `require-corporate-labels` - Labels obrigatórias (domain, owner, environment)
+  2. `validate-namespace-naming` - Namespace pattern: `{env}-{domain}-{product}`
+  3. `validate-service-naming` - Service naming (lowercase-kebab-case)
+  4. `validate-label-values` - Validação de valores (domain, owner, environment)
+  5. `allow-governance-exceptions` - Exceções temporárias com expiration
+- ❌ **Kyverno não instalado** no cluster (kubectl não verificado)
+- ❌ **Policies não deployadas** (risco R3: podem bloquear workloads existentes)
+
+**Risco R3 (Mitigação)**:
+- **Risco**: Policies em `enforce` mode podem bloquear deployments legítimos que não seguem padrões
+- **Mitigação**: Implementação faseada (audit → validate → enforce)
+
+**Fases de Implementação**:
+
+#### Fase 1: Instalação Kyverno (30min)
+- [ ] Instalar Kyverno via Helm (chart kyverno/kyverno v3.1.x)
+- [ ] Namespace: `kyverno`
+- [ ] HA configuration: 3 replicas (admission controller)
+- [ ] Validação: 3/3 pods Running, webhooks configurados
+
+```bash
+# Instalação
+helm repo add kyverno https://kyverno.github.io/kyverno/
+helm repo update
+helm install kyverno kyverno/kyverno \
+  --namespace kyverno --create-namespace \
+  --set replicaCount=3 \
+  --set admissionController.replicas=3
+```
+
+#### Fase 2: Deploy Policies em Audit Mode (1h)
+- [ ] Modificar `validation-rules.yaml`: Todas policies `validationFailureAction: audit`
+- [ ] Deploy das 5 ClusterPolicies
+- [ ] Observar PolicyReports por 7 dias (identificar violações sem bloquear)
+- [ ] Criar dashboard Grafana: "Kyverno Policy Violations"
+
+```yaml
+# Exemplo modificação (TODAS as policies)
+spec:
+  validationFailureAction: audit  # Apenas alerta, não bloqueia
+```
+
+```bash
+# Deploy
+kubectl apply -f /docs/governance/validation-rules.yaml
+
+# Monitorar violações
+kubectl get policyreports -A
+kubectl get clusterpolicyreports
+```
+
+#### Fase 3: Remediação de Violações (1h - paralelo com Fase 2)
+- [ ] Analisar PolicyReports (recursos sem labels, naming incorreto)
+- [ ] Corrigir workloads existentes:
+  - Adicionar labels obrigatórias (domain, owner, environment)
+  - Renomear recursos fora do padrão (se necessário)
+- [ ] Validar 100% compliance antes de Fase 4
+
+#### Fase 4: Enforce Mode (30min - após 7 dias audit)
+- [ ] Modificar `validation-rules.yaml`: Policies críticas `validationFailureAction: enforce`
+  - `require-corporate-labels`: enforce
+  - `validate-namespace-naming`: enforce
+  - `validate-label-values`: enforce
+  - `validate-service-naming`: **manter audit** (naming pode ter exceções)
+  - `allow-governance-exceptions`: **manter audit** (é validação de exceções)
+- [ ] Aplicar mudança via GitOps (ArgoCD)
+- [ ] Testar: Deploy sem labels → deve ser bloqueado
+- [ ] Documentar no logbook
+
+**Entregáveis**:
+- [ ] Kyverno Helm chart deployed (HA 3 replicas)
+- [ ] 5 ClusterPolicies aplicadas (audit mode inicial)
+- [ ] PolicyReports dashboard em Grafana
+- [ ] 7 dias de monitoramento + remediação de violações
+- [ ] 3 policies em enforce mode (após validation)
+- [ ] ADR-052: Kyverno Policy Engine Strategy
+- [ ] Logbook: `2026-02-XX-kyverno-deployment.md`
+- [ ] Runbook: `/docs/governance/kyverno-operations.md`
+  - Como adicionar nova policy
+  - Como criar governance exception
+  - Como auditar compliance
+  - Troubleshooting (policy block indevido)
+
+**Scripts de Automação**:
+- [ ] `/scripts/governance/kyverno-report.sh` - Gera relatório de compliance
+- [ ] `/scripts/governance/kyverno-exceptions-audit.sh` - Lista exceções expiradas
+- [ ] Pre-commit hook: Valida manifest antes de push (client-side)
+
+**Integração GitOps**:
+- [ ] ArgoCD Application: `kyverno-policies`
+  - Source: `/docs/governance/validation-rules.yaml`
+  - Auto-sync: enabled
+  - Prune: disabled (policies são cluster-wide)
+
+**Métricas de Sucesso**:
+- Kyverno controller 3/3 Running
+- 0 violações críticas (labels obrigatórias)
+- 100% namespaces seguem naming convention
+- Governance exceptions < 5 ativos (todos com expiration)
+- PolicyReports dashboard funcional
+
+**Dependências**:
+- ✅ Kubernetes cluster operacional (EKS)
+- ✅ ArgoCD operacional (GAP-003)
+- ✅ Governance docs (ADR-047/048/049, GOVERNANCE.md)
+- ✅ Políticas definidas (`validation-rules.yaml`)
+
+**Desbloqueado**:
+- Enforcement automatizado de governança
+- Compliance auditável (PolicyReports)
+- Onboarding de novos apps com validação automática
+- Redução de erros de naming/labeling
+
+**Riscos Conhecidos**:
+- 🟡 Policies muito restritivas podem bloquear workloads legítimos temporariamente
+  - **Mitigação**: Começar em audit mode, observar 7 dias
+- 🟡 Exceções podem ser mal utilizadas (bypass permanente)
+  - **Mitigação**: Script de auditoria de exceções expiradas
+- 🟡 Performance overhead (admission webhook)
+  - **Mitigação**: HA 3 replicas, monitorar latência
+
+**Custo Adicional**:
+- Kyverno controller: 3 replicas × 100Mi memory × $0.01/GB-hour = ~$5/mês
+- PolicyReports storage: negligível (<10MB)
+
+**Timeline Recomendado**:
+- **Dia 1**: Instalação Kyverno + deploy policies (audit mode)
+- **Dia 1-7**: Monitoramento + remediação de violações
+- **Dia 8**: Ativar enforce mode (3 policies críticas)
+- **Dia 9+**: Monitoramento contínuo, auditoria mensal
+
+**Prioridade vs Outras Demandas**:
+- **Após**: GAP-005 (CI/CD validation), V-003 (Harbor secrets)
+- **Antes**: GAP-006/007/008 (hardening opcional)
+- **Paralelo**: DT-005 (Slack webhooks - ambos são observabilidade)
+
+**Referências**:
+- [Kyverno Documentation](https://kyverno.io/docs/)
+- [ADR-048: Naming Conventions](/docs/adr/adr-048-naming-conventions-deterministicas.md)
+- [GOVERNANCE.md](/docs/governance/GOVERNANCE.md)
+- [validation-rules.yaml](/docs/governance/validation-rules.yaml)
+- [Kyverno Best Practices](https://kyverno.io/docs/writing-policies/best-practices/)
+
+---
+
 ## 🔧 DÍVIDA TÉCNICA
 
 ### ✅ DT-001: PostgreSQL em Subnet Pública (Temporário) [IMPLEMENTADO]
