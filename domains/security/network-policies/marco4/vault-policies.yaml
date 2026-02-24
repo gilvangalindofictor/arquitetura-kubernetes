@@ -1,0 +1,162 @@
+---
+# Vault Ingress Policy
+# Verified pod labels (2026-02-24):
+#   vault server:          app.kubernetes.io/name=vault, component=server
+#   vault-agent-injector:  app.kubernetes.io/name=vault-agent-injector, component=webhook
+#
+# Allows:
+#   - ESO (External Secrets Operator) → vault:8200 (secret reads)
+#   - ALB → vault:8200/8200 (UI access)
+#   - Vault agent injector webhook calls
+#   - Prometheus → vault:8200 (metrics)
+#   - Vault-to-vault cluster (HA Raft):8201
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-ingress
+  namespace: staging-security-vault
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to Vault from ESO, ALB, and Prometheus (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      component: server
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from External Secrets Operator (staging-security-externalsecrets)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: staging-security-externalsecrets
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: external-secrets
+    ports:
+    - protocol: TCP
+      port: 8200
+  # Allow from ALB Ingress Controller (UI access)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: aws-load-balancer-controller
+    ports:
+    - protocol: TCP
+      port: 8200
+  # Allow Prometheus scraping metrics
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8200
+  # Allow Vault HA Raft cluster peer communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+          component: server
+    ports:
+    - protocol: TCP
+      port: 8200
+    - protocol: TCP
+      port: 8201
+
+---
+# Vault Agent Injector Ingress Policy
+# Allows Kubernetes API server to call the webhook
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-agent-injector-ingress
+  namespace: staging-security-vault
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow Kubernetes API webhook calls to Vault agent injector (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault-agent-injector
+      component: webhook
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from any namespace (webhook calls come from kube-apiserver, no fixed source NS)
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 443
+
+---
+# Vault Egress Policy
+# Allows:
+#   - vault → AWS KMS:443 (auto-unseal)
+#   - vault → AWS services:443 (auth backend)
+#   - vault → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-egress
+  namespace: staging-security-vault
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from Vault to AWS services and DNS (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      component: server
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to AWS services (KMS for auto-unseal, STS for auth)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow Vault Raft cluster peer communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+          component: server
+    ports:
+    - protocol: TCP
+      port: 8200
+    - protocol: TCP
+      port: 8201
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

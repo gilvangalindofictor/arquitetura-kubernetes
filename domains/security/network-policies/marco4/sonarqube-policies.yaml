@@ -1,0 +1,138 @@
+---
+# SonarQube Ingress Policy
+# Verified pod labels (2026-02-24):
+#   sonarqube pod: app=sonarqube, release=sonarqube
+#   GitLab runner: app=gitlab-gitlab-runner (NOT app=gitlab-runner)
+#
+# Allows:
+#   - ALB Ingress Controller → sonarqube:9000
+#   - GitLab runners → sonarqube:9000 (CI/CD quality scans)
+#   - GitLab webservice → sonarqube:9000 (API integration)
+#   - Prometheus → sonarqube:9000 (metrics scraping via sonarqube-exporter)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sonarqube-ingress
+  namespace: sonarqube
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to SonarQube from ALB and GitLab (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: sonarqube
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ALB Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: aws-load-balancer-controller
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow from GitLab runners (actual label: app=gitlab-gitlab-runner)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gitlab-staging
+      podSelector:
+        matchLabels:
+          app: gitlab-gitlab-runner
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow from GitLab webservice (sonarqube integration)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gitlab-staging
+      podSelector:
+        matchLabels:
+          app: webservice
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9000
+
+---
+# SonarQube Egress Policy
+# Allows:
+#   - sonarqube → PostgreSQL RDS:5432
+#   - sonarqube → Keycloak:8080 (SAML auth)
+#   - sonarqube → Internet:443/80 (plugins, marketplace)
+#   - sonarqube → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sonarqube-egress
+  namespace: sonarqube
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from SonarQube to RDS, Keycloak, and Internet (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: sonarqube
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to PostgreSQL RDS (VPC CIDR)
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to Keycloak for SAML (actual label: app.kubernetes.io/name: keycloakx)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloakx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow to Internet for plugins and SonarQube marketplace
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  # Allow DNS (CoreDNS)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

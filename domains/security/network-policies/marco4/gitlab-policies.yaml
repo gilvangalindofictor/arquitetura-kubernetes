@@ -1,0 +1,482 @@
+---
+# GitLab Webservice Ingress Policy
+# Verified pod labels (2026-02-24):
+#   webservice: app=webservice
+#   sidekiq:    app=sidekiq
+#   gitaly:     app=gitaly
+#   runner:     app=gitlab-gitlab-runner
+#   gitlab-shell: app=gitlab-shell
+#
+# Note: gitlab-staging already has gitlab-default-deny-ingress + allow policies.
+#       These policies ADD more specific rules for granular control.
+# Allows:
+#   - ALB → webservice:8181/8080
+#   - Internal GitLab components → webservice
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-webservice-ingress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to GitLab webservice (audit mode, additive to existing policies)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: webservice
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ALB Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: aws-load-balancer-controller
+    ports:
+    - protocol: TCP
+      port: 8181
+    - protocol: TCP
+      port: 8080
+  # Allow from GitLab runner (job polling callback)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gitlab-gitlab-runner
+    ports:
+    - protocol: TCP
+      port: 8181
+  # Allow from Sidekiq
+  - from:
+    - podSelector:
+        matchLabels:
+          app: sidekiq
+    ports:
+    - protocol: TCP
+      port: 8181
+  # Allow from GitLab shell (SSH operations)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gitlab-shell
+    ports:
+    - protocol: TCP
+      port: 8181
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8083
+
+---
+# GitLab Webservice Egress Policy
+# Allows:
+#   - webservice → RDS:5432
+#   - webservice → Redis data-services:6379
+#   - webservice → Keycloak:8080 (OIDC)
+#   - webservice → Gitaly:8075
+#   - webservice → SonarQube:9000
+#   - webservice → Internet:443/80 (webhooks)
+#   - webservice → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-webservice-egress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from GitLab webservice to required services (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: webservice
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to PostgreSQL RDS
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to Redis in data-services (actual label: app.kubernetes.io/name=redis)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: data-services
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow to Keycloak for OIDC (actual label: app.kubernetes.io/name: keycloakx)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloakx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow to Gitaly
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gitaly
+    ports:
+    - protocol: TCP
+      port: 8075
+  # Allow to SonarQube
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: sonarqube
+      podSelector:
+        matchLabels:
+          app: sonarqube
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow to Internet (webhooks, external integrations)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# GitLab Sidekiq Ingress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-sidekiq-ingress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow minimal ingress to GitLab sidekiq (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: sidekiq
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from Webservice for job management
+  - from:
+    - podSelector:
+        matchLabels:
+          app: webservice
+    ports:
+    - protocol: TCP
+      port: 3807
+  # Allow Prometheus scraping (metrics)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 3807
+
+---
+# GitLab Sidekiq Egress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-sidekiq-egress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from GitLab sidekiq to required services (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: sidekiq
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to RDS
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to Redis
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: data-services
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow to Gitaly
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gitaly
+    ports:
+    - protocol: TCP
+      port: 8075
+  # Allow to Internet (notifications, webhooks, email)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 587
+    - protocol: TCP
+      port: 25
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# GitLab Gitaly Ingress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-gitaly-ingress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to GitLab Gitaly from GitLab components (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: gitaly
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: webservice
+    ports:
+    - protocol: TCP
+      port: 8075
+  - from:
+    - podSelector:
+        matchLabels:
+          app: sidekiq
+    ports:
+    - protocol: TCP
+      port: 8075
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gitlab-gitlab-runner
+    ports:
+    - protocol: TCP
+      port: 8075
+
+---
+# GitLab Gitaly Egress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-gitaly-egress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from GitLab Gitaly to external repos (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: gitaly
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to external Git repos for mirroring
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 22
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# GitLab Runner Ingress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-runner-ingress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow minimal ingress to GitLab runners (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: gitlab-gitlab-runner
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9252
+
+---
+# GitLab Runner Egress Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitlab-runner-egress
+  namespace: gitlab-staging
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from GitLab runners to required services (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app: gitlab-gitlab-runner
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to GitLab Webservice (job polling)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: webservice
+    ports:
+    - protocol: TCP
+      port: 8181
+  # Allow to Harbor registry
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: harbor-system
+      podSelector:
+        matchLabels:
+          app: harbor
+          component: registry
+    ports:
+    - protocol: TCP
+      port: 5000
+  # Allow to SonarQube
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: sonarqube
+      podSelector:
+        matchLabels:
+          app: sonarqube
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow to Kubernetes API and Internet (for docker images, dependencies)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

@@ -1,0 +1,342 @@
+---
+# ArgoCD Server Ingress Policy
+# Verified pod labels (2026-02-24):
+#   argocd-server:                  app.kubernetes.io/name=argocd-server
+#   argocd-application-controller:  app.kubernetes.io/name=argocd-application-controller
+#   argocd-repo-server:             app.kubernetes.io/name=argocd-repo-server
+#   argocd-redis:                   app.kubernetes.io/name=argocd-redis
+#   argocd-applicationset-controller: app.kubernetes.io/name=argocd-applicationset-controller
+#
+# Allows:
+#   - ALB Ingress Controller → argocd-server:8080
+#   - ArgoCD Application Controller → argocd-server:8080
+#   - ArgoCD Repo Server → argocd-server:8080
+#   - Prometheus scraping → argocd-server:8083
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to ArgoCD server from ALB and internal components (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ALB Ingress Controller (kube-system)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: aws-load-balancer-controller
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8443
+  # Allow from ArgoCD Application Controller (status checks)
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-application-controller
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow from ArgoCD Repo Server
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow from Prometheus (monitoring namespace) for metrics scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8083
+
+---
+# ArgoCD Server Egress Policy
+# Allows:
+#   - argocd-server → PostgreSQL RDS:5432
+#   - argocd-server → Keycloak:8080 (OIDC auth)
+#   - argocd-server → argocd-repo-server:8081
+#   - argocd-server → Kubernetes API:443
+#   - argocd-server → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-server-egress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from ArgoCD server to required services (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to PostgreSQL RDS (external, VPC CIDR)
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to Keycloak for OIDC (namespace: keycloak)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloakx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow to ArgoCD Repo Server
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+    ports:
+    - protocol: TCP
+      port: 8081
+  # Allow to Kubernetes API server (EKS endpoint - external IP)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS (CoreDNS)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# ArgoCD Repo Server Ingress Policy
+# Allows:
+#   - argocd-server → repo-server:8081
+#   - argocd-application-controller → repo-server:8081
+#   - Prometheus scraping → repo-server:8084
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-repo-server-ingress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to ArgoCD repo server from ArgoCD components (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-server
+    ports:
+    - protocol: TCP
+      port: 8081
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-application-controller
+    ports:
+    - protocol: TCP
+      port: 8081
+  # Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8084
+
+---
+# ArgoCD Repo Server Egress Policy
+# Allows:
+#   - repo-server → Git repos (GitHub/GitLab):443/22
+#   - repo-server → Kubernetes API:443
+#   - repo-server → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-repo-server-egress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from ArgoCD repo server to Git repositories (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to external Git repos (HTTPS and SSH)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 22
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# ArgoCD Application Controller Ingress Policy
+# Minimal ingress - primarily outbound component
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-application-controller-ingress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow minimal ingress to ArgoCD application controller (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ArgoCD Server for status checks
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-server
+    ports:
+    - protocol: TCP
+      port: 8082
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8082
+
+---
+# ArgoCD Application Controller Egress Policy
+# Allows:
+#   - application-controller → Kubernetes API:443
+#   - application-controller → argocd-repo-server:8081
+#   - application-controller → argocd-server:8080
+#   - application-controller → DNS:53
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-application-controller-egress
+  namespace: argocd
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from ArgoCD application controller (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-03"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to Kubernetes API (EKS endpoint - external)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow to ArgoCD Repo Server
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-repo-server
+    ports:
+    - protocol: TCP
+      port: 8081
+  # Allow to ArgoCD Server
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argocd-server
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
