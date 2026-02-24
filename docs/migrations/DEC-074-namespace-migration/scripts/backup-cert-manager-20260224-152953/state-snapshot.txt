@@ -1,0 +1,22 @@
+Migration Date: Tue Feb 24 15:33:19 -03 2026
+Old Namespace: cert-manager
+New Namespace: staging-security-certmanager
+Helm Release: cert-manager
+
+Pod Count:
+3
+
+Pods:
+NAME                                       READY   STATUS    RESTARTS       AGE   IP             NODE                           NOMINATED NODE   READINESS GATES
+cert-manager-795d7b8f85-klgv7              1/1     Running   0              8h    10.0.148.170   ip-10-0-148-39.ec2.internal    <none>           <none>
+cert-manager-cainjector-55868d45b9-cp458   1/1     Running   45 (22m ago)   19h   10.0.145.187   ip-10-0-157-225.ec2.internal   <none>           <none>
+cert-manager-webhook-59764f8957-lndxd      1/1     Running   0              8h    10.0.151.70    ip-10-0-148-39.ec2.internal    <none>           <none>
+
+Services:
+NAME                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)            AGE
+cert-manager              ClusterIP   172.20.198.11    <none>        9402/TCP           27d
+cert-manager-cainjector   ClusterIP   172.20.193.218   <none>        9402/TCP           27d
+cert-manager-webhook      ClusterIP   172.20.235.241   <none>        443/TCP,9402/TCP   27d
+
+Ingress:
+

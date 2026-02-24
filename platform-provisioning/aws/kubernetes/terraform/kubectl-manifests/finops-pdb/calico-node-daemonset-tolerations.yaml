@@ -1,0 +1,48 @@
+# FinOps DaemonSet Optimization — Calico Node
+# ADR-025: Graceful Node Drain for Lambda Shutdown (10-15min → 2-3min)
+#
+# PROBLEMA: Calico DaemonSet sem tolerations curtas bloqueia drain até timeout
+# SOLUÇÃO: Adicionar tolerations com tolerationSeconds=10 para not-ready/unreachable
+# IMPACTO: DaemonSet pods evicted após 10s vs 300s (default), acelerando drain
+#
+# NOTA: Este manifest é um PATCH example. O deployment real do Calico é gerenciado
+# pelo EKS add-on ou Helm. Aplicar via kubectl patch ou módulo Terraform.
+#
+# Comando para aplicar:
+# kubectl patch daemonset calico-node -n kube-system --type='json' \
+#   -p='[{"op":"add","path":"/spec/template/spec/tolerations/-","value":{"key":"node.kubernetes.io/not-ready","operator":"Exists","effect":"NoExecute","tolerationSeconds":10}}]'
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: calico-node
+  namespace: kube-system
+  annotations:
+    description: "Calico Node DaemonSet with fast drain tolerations"
+    finops/optimization: "shutdown-lambda-drain-speed"
+    adr: "ADR-025"
+spec:
+  template:
+    spec:
+      tolerations:
+        # Fast drain tolerations (10s vs 300s default)
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 10
+
+        # Existing Calico tolerations (manter)
+        - operator: "Exists"
+          effect: "NoSchedule"
+
+        - operator: "Exists"
+          effect: "NoExecute"
+
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"

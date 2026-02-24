@@ -177,6 +177,39 @@ variable "harbor_postgresql_database" {
 }
 
 # -----------------------------------------------------------------------------
+# Harbor Admin Password (Vault KV seed) — V-004 remediation
+# -----------------------------------------------------------------------------
+
+variable "harbor_admin_password" {
+  description = "Harbor admin user password (V-004: migrated to Vault KV)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Harbor Redis Password (Vault KV seed) — V-005 remediation
+# -----------------------------------------------------------------------------
+
+variable "harbor_redis_password" {
+  description = "Harbor Redis password (V-005: migrated to Vault KV)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Keycloak Admin Password (Vault KV seed) — V-006 remediation
+# -----------------------------------------------------------------------------
+
+variable "keycloak_admin_password" {
+  description = "Keycloak admin user password (V-006: migrated to Vault KV)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
 # OIDC Auth Method (Keycloak SSO for Vault UI + CLI)
 # -----------------------------------------------------------------------------
 

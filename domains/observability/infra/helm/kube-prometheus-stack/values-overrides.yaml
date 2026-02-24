@@ -1,0 +1,64 @@
+# FinOps PDB Optimization — Prometheus Stack
+# ADR-025: Graceful Node Drain for Lambda Shutdown (10-15min → 2-3min)
+#
+# PROBLEMA: PDBs com maxUnavailable=0 (default) impedem drain rápido
+# SOLUÇÃO: maxUnavailable=1 permite eviction de 1 pod, N-1 mantém HA
+# IMPACTO: Shutdown Lambda pode drenar nodes em <3min vs 10-15min atual
+#
+# Components: Prometheus (replicas=2), Grafana (replicas=1*), Alertmanager (replicas=3)
+# * Grafana single replica: PDB permite 1 downtime breve durante drain
+
+# Prometheus Server Configuration
+prometheus:
+  prometheusSpec:
+    # Replicas: 2 (default) → maxUnavailable=1 permite 1 pod down, 1 mantém scraping
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+
+# Grafana Configuration
+grafana:
+  # Replicas: 1 (default) → maxUnavailable=1 permite downtime breve (~30s)
+  # Trade-off: FinOps shutdown speed > Grafana brief unavailability
+  # Usuários podem tolerar 30s-1min downtime durante drain (off-hours)
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+# Alertmanager Configuration
+alertmanager:
+  alertmanagerSpec:
+    # Replicas: 3 (default) → maxUnavailable=1 permite 1 pod down, 2 mantêm alerting
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+
+# Node Exporter DaemonSet Tolerations
+# DaemonSets precisam tolerar node drain rápido (not-ready, unreachable)
+# Sem tolerations curtas, DaemonSet pods bloqueiam drain até timeout (10min+)
+prometheus-node-exporter:
+  tolerations:
+    # Permite drain rápido quando node marca como NotReady
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 10  # Evict após 10s (vs default 300s)
+
+    # Permite drain rápido quando node marca como Unreachable
+    - key: "node.kubernetes.io/unreachable"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 10  # Evict após 10s (vs default 300s)
+
+    # Mantém tolerations existentes para node lifecycle
+    - key: "node.kubernetes.io/disk-pressure"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "node.kubernetes.io/memory-pressure"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "node.kubernetes.io/pid-pressure"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "node.kubernetes.io/unschedulable"
+      operator: "Exists"
+      effect: "NoSchedule"

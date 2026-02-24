@@ -422,3 +422,106 @@ resource "vault_kv_secret_v2" "argocd_oidc" {
     }
   }
 }
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Harbor Admin Password (V-004 Remediation)
+# Vault path: secret/harbor/admin
+# ESO ExternalSecret: harbor-admin-credentials (modules/harbor/main.tf)
+# Migration: random_password.harbor_admin → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+resource "random_password" "harbor_admin" {
+  count            = var.harbor_admin_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "vault_kv_secret_v2" "harbor_admin" {
+  count      = var.harbor_admin_password != "" || length(random_password.harbor_admin) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "harbor/admin"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.harbor_admin_password != "" ? var.harbor_admin_password : random_password.harbor_admin[0].result
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "harbor"
+      cluster     = var.cluster_name
+      remediation = "V-004"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Harbor Redis Password (V-005 Remediation)
+# Vault path: secret/harbor/redis
+# ESO ExternalSecret: harbor-redis-credentials (modules/harbor/main.tf)
+# Migration: data.kubernetes_secret.redis_password → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+resource "random_password" "harbor_redis" {
+  count            = var.harbor_redis_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "vault_kv_secret_v2" "harbor_redis" {
+  count      = var.harbor_redis_password != "" || length(random_password.harbor_redis) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "harbor/redis"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.harbor_redis_password != "" ? var.harbor_redis_password : random_password.harbor_redis[0].result
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "harbor"
+      cluster     = var.cluster_name
+      remediation = "V-005"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Keycloak Admin Password (V-006 Remediation)
+# Vault path: secret/keycloak/admin
+# ESO ExternalSecret: keycloak-admin-credentials (modules/keycloak/main.tf)
+# Migration: random_password.keycloak_admin → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+resource "random_password" "keycloak_admin" {
+  count            = var.keycloak_admin_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "vault_kv_secret_v2" "keycloak_admin" {
+  count      = var.keycloak_admin_password != "" || length(random_password.keycloak_admin) > 0 ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "keycloak/admin"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    username = "admin"
+    password = var.keycloak_admin_password != "" ? var.keycloak_admin_password : random_password.keycloak_admin[0].result
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by  = "terraform"
+      service     = "keycloak"
+      cluster     = var.cluster_name
+      remediation = "V-006"
+    }
+  }
+}

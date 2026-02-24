@@ -29,18 +29,11 @@ terraform {
 }
 
 # -----------------------------------------------------------------------------
-# Random password for Keycloak admin user
-# Pattern: GitLab (random_password.gitlab_root)
+# V-006 REMEDIATED: Keycloak admin password migrado para Vault + ESO (2026-02-24)
+# Removido: random_password.keycloak_admin
+# Source of truth: vault_kv_secret_v2.keycloak_admin (vault-config/main.tf)
+# ESO: keycloak-admin-credentials ExternalSecret (created below)
 # -----------------------------------------------------------------------------
-
-resource "random_password" "keycloak_admin" {
-  length  = 24
-  special = true
-
-  lifecycle {
-    ignore_changes = [length, special]
-  }
-}
 
 # -----------------------------------------------------------------------------
 # ExternalSecret - PostgreSQL Password (Vault KV v2)
@@ -102,6 +95,55 @@ resource "kubectl_manifest" "keycloak_postgresql_externalsecret" {
 }
 
 # -----------------------------------------------------------------------------
+# ExternalSecret: Keycloak Admin Password (V-006 Remediation)
+# Vault path: secret/data/keycloak/admin
+# Keys: username, password
+# Target: keycloak-admin-credentials (K8s Secret in keycloak namespace)
+# Migration: random_password.keycloak_admin → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "keycloak_admin_externalsecret" {
+  depends_on = [kubernetes_namespace.keycloak]
+
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: keycloak-admin-credentials
+      namespace: ${var.namespace}
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/instance: ${var.cluster_name}-keycloak
+        app.kubernetes.io/managed-by: terraform
+      annotations:
+        description: "Keycloak admin credentials synced from Vault KV v2 (V-006)"
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: keycloak-admin-credentials
+        creationPolicy: Owner
+        template:
+          engineVersion: v2
+          metadata:
+            labels:
+              app.kubernetes.io/name: keycloak
+              app.kubernetes.io/instance: ${var.cluster_name}-keycloak
+      data:
+        - secretKey: username
+          remoteRef:
+            key: secret/data/keycloak/admin
+            property: username
+        - secretKey: password
+          remoteRef:
+            key: secret/data/keycloak/admin
+            property: password
+  YAML
+}
+
+# -----------------------------------------------------------------------------
 # Kubernetes Namespace
 # -----------------------------------------------------------------------------
 
@@ -117,30 +159,6 @@ resource "kubernetes_namespace" "keycloak" {
       "app.kubernetes.io/managed-by" = "terraform"
     })
   }
-}
-
-# -----------------------------------------------------------------------------
-# Keycloak Admin Password Secret (managed by Terraform)
-# Pattern: GitLab (kubernetes_secret with random_password)
-# -----------------------------------------------------------------------------
-
-resource "kubernetes_secret" "keycloak_admin_password" {
-  metadata {
-    name      = "keycloak-admin-password"
-    namespace = kubernetes_namespace.keycloak.metadata[0].name
-
-    labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"       = "keycloak"
-      "app.kubernetes.io/instance"   = "${var.cluster_name}-keycloak"
-      "app.kubernetes.io/managed-by" = "terraform"
-    })
-  }
-
-  data = {
-    password = random_password.keycloak_admin.result
-  }
-
-  type = "Opaque"
 }
 
 # -----------------------------------------------------------------------------
@@ -160,15 +178,15 @@ resource "helm_release" "keycloak" {
     cluster_name      = var.cluster_name
     namespace         = var.namespace
     replicas          = var.replicas
-    admin_password    = random_password.keycloak_admin.result
+    # V-006: admin_password removido - agora via ExternalSecret (2026-02-24)
     enable_monitoring = var.enable_monitoring
     postgresql_host   = var.postgresql_host
     postgresql_port   = var.postgresql_port
   })]
 
   depends_on = [
-    kubernetes_secret.keycloak_admin_password,
-    kubectl_manifest.keycloak_postgresql_externalsecret
+    kubectl_manifest.keycloak_postgresql_externalsecret,
+    kubectl_manifest.keycloak_admin_externalsecret  # V-006
   ]
 
   timeout = 600 # 10 minutes (Keycloak startup can be slow)

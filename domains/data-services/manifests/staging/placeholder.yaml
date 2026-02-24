@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-services-staging-info
+  namespace: data-services-staging
+  labels:
+    app: data-services
+    environment: staging
+data:
+  info: |
+    Data Services - Staging Environment
+
+    Components:
+    - PostgreSQL (RDS connection)
+    - Redis Cluster (2 replicas)
+    - RabbitMQ (1 replica)
+
+    ApplicationSet: platform-services-multi-env
+    Pattern: Git Generator

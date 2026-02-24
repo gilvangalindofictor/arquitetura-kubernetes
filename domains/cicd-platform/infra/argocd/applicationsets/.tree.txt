@@ -1,0 +1,42 @@
+applicationsets/
+├── README.md                              # Complete documentation (447 lines)
+├── SUMMARY.md                             # Quick reference guide
+├── VALIDATION.sh                          # Automated validation script
+├── platform-services-multi-env.yaml       # Git Generator Pattern
+├── data-services-catalog.yaml             # List Generator Pattern
+└── monitoring-multi-cluster.yaml          # Cluster Generator Pattern
+
+Example manifests created (Git Generator demonstration):
+
+domains/observability/manifests/
+├── staging/
+│   ├── kustomization.yaml                 # Staging environment config
+│   └── placeholder.yaml                   # Example resource
+└── production/
+    ├── kustomization.yaml                 # Production environment config
+    └── placeholder.yaml                   # Example resource
+
+domains/data-services/manifests/
+├── staging/
+│   ├── kustomization.yaml
+│   └── placeholder.yaml
+└── production/
+    ├── kustomization.yaml
+    └── placeholder.yaml
+
+ApplicationSets → Applications mapping:
+
+Git Generator (platform-services-multi-env):
+  domains/observability/manifests/staging/    → observability-staging
+  domains/observability/manifests/production/ → observability-production
+  domains/data-services/manifests/staging/    → data-services-staging
+  domains/data-services/manifests/production/ → data-services-production
+
+List Generator (data-services-catalog):
+  Element: postgresql-connection → postgresql-connection (syncWave: 1)
+  Element: redis-cluster         → redis-cluster         (syncWave: 2)
+  Element: rabbitmq-cluster      → rabbitmq-cluster      (syncWave: 3)
+
+Cluster Generator (monitoring-multi-cluster):
+  Cluster (label: monitoring=enabled) → monitoring-stack-{{cluster}}
+  Currently: 0 clusters matched (label not set)

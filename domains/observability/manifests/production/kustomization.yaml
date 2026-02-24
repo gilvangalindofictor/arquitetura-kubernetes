@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Observability stack for production environment
+# Auto-managed by ApplicationSet: platform-services-multi-env
+
+namespace: observability-production
+
+resources:
+- placeholder.yaml
+
+# Production-specific configuration
+configMapGenerator:
+- name: observability-config
+  literals:
+  - environment=production
+  - retention.days=30
+  - log.level=info
+
+commonLabels:
+  environment: production
+  domain: observability
+  managed-by: applicationset

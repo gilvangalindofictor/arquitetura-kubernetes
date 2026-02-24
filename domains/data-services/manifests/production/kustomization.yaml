@@ -1,0 +1,25 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Data Services for production environment
+# Auto-managed by ApplicationSet: platform-services-multi-env
+
+namespace: data-services-production
+
+resources:
+- placeholder.yaml
+
+# Production data services configuration
+configMapGenerator:
+- name: data-services-config
+  literals:
+  - environment=production
+  - postgresql.host=k8s-platform-prod-postgresql.rds.amazonaws.com
+  - redis.replicas=6
+  - rabbitmq.replicas=3
+
+commonLabels:
+  environment: production
+  domain: data-services
+  managed-by: applicationset

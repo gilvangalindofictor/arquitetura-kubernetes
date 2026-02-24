@@ -29,31 +29,24 @@ terraform {
 }
 
 # -----------------------------------------------------------------------------
-# Random password for Harbor admin
+# V-004 REMEDIATED: Harbor admin password migrado para Vault + ESO (2026-02-24)
+# Removido: random_password.harbor_admin + kubernetes_secret.harbor_admin_password
+# Source of truth: vault_kv_secret_v2.harbor_admin (vault-config/main.tf)
+# ESO: harbor-admin-credentials ExternalSecret (created below)
 # -----------------------------------------------------------------------------
 
-resource "random_password" "harbor_admin" {
-  length  = 24
-  special = true
-}
-
 # -----------------------------------------------------------------------------
-# PostgreSQL password via var (sourced from Vault KV secret/harbor/postgresql)
-# Migration: removed data.aws_secretsmanager_secret "staging/postgresql/gitlab-password"
+# V-003 REMEDIATED: PostgreSQL password via Vault KV (2026-02-24)
 # Source of truth: vault_kv_secret_v2.harbor_postgresql (vault-config/main.tf)
-# ESO: harbor-postgresql-credentials ExternalSecret (created below — runtime rotation)
+# ESO: harbor-postgresql-credentials ExternalSecret (created below)
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Read Redis password from Kubernetes secret
+# V-005 REMEDIATED: Redis password migrado para Vault + ESO (2026-02-24)
+# Removido: data.kubernetes_secret.redis_password
+# Source of truth: vault_kv_secret_v2.harbor_redis (vault-config/main.tf)
+# ESO: harbor-redis-credentials ExternalSecret (created below)
 # -----------------------------------------------------------------------------
-
-data "kubernetes_secret" "redis_password" {
-  metadata {
-    name      = "redis-password"
-    namespace = "data-services"
-  }
-}
 
 # -----------------------------------------------------------------------------
 # IAM Role for Harbor IRSA (S3 permissions)
@@ -170,28 +163,6 @@ resource "kubernetes_service_account" "harbor" {
 }
 
 # -----------------------------------------------------------------------------
-# Harbor Admin Password Secret (managed by Terraform)
-# -----------------------------------------------------------------------------
-
-resource "kubernetes_secret" "harbor_admin_password" {
-  metadata {
-    name      = "harbor-admin-password"
-    namespace = kubernetes_namespace.harbor.metadata[0].name
-
-    labels = merge(var.common_tags, {
-      "app.kubernetes.io/name"     = "harbor"
-      "app.kubernetes.io/instance" = "${var.cluster_name}-harbor"
-    })
-  }
-
-  data = {
-    password = random_password.harbor_admin.result
-  }
-
-  type = "Opaque"
-}
-
-# -----------------------------------------------------------------------------
 # Harbor Helm Release
 # -----------------------------------------------------------------------------
 
@@ -203,32 +174,32 @@ resource "helm_release" "harbor" {
   namespace  = kubernetes_namespace.harbor.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name          = var.cluster_name
-    namespace             = var.namespace
-    service_account       = kubernetes_service_account.harbor.metadata[0].name
-    admin_password_secret = random_password.harbor_admin.result
-    postgresql_host       = var.postgresql_host
-    postgresql_port       = var.postgresql_port
-    postgresql_database   = var.postgresql_database
-    postgresql_username   = var.postgresql_username
-    postgresql_password   = var.postgresql_password
-    redis_host            = var.redis_host
-    redis_port            = var.redis_port
-    redis_password_secret = data.kubernetes_secret.redis_password.data["password"]
-    s3_bucket             = var.s3_bucket_name
-    s3_region             = var.aws_region
-    storage_class         = var.storage_class
-    enable_trivy          = var.enable_trivy
-    enable_monitoring     = var.enable_monitoring
-    ingress_enabled       = var.ingress_enabled
-    ingress_host          = var.ingress_host
-    ingress_group_name    = var.ingress_group_name
+    cluster_name        = var.cluster_name
+    namespace           = var.namespace
+    service_account     = kubernetes_service_account.harbor.metadata[0].name
+    # V-003/V-004/V-005: passwords movidos para Vault + ESO (2026-02-24)
+    postgresql_host     = var.postgresql_host
+    postgresql_port     = var.postgresql_port
+    postgresql_database = var.postgresql_database
+    postgresql_username = var.postgresql_username
+    redis_host          = var.redis_host
+    redis_port          = var.redis_port
+    s3_bucket           = var.s3_bucket_name
+    s3_region           = var.aws_region
+    storage_class       = var.storage_class
+    enable_trivy        = var.enable_trivy
+    enable_monitoring   = var.enable_monitoring
+    ingress_enabled     = var.ingress_enabled
+    ingress_host        = var.ingress_host
+    ingress_group_name  = var.ingress_group_name
   })]
 
   depends_on = [
     kubernetes_service_account.harbor,
-    kubernetes_secret.harbor_admin_password,
-    aws_iam_role_policy_attachment.harbor
+    aws_iam_role_policy_attachment.harbor,
+    kubectl_manifest.harbor_postgresql_externalsecret,  # V-003
+    kubectl_manifest.harbor_admin_externalsecret,       # V-004
+    kubectl_manifest.harbor_redis_externalsecret        # V-005
   ]
 
   timeout = 600 # 10 minutes
@@ -374,6 +345,102 @@ resource "kubectl_manifest" "harbor_oidc_externalsecret" {
   depends_on = [kubernetes_namespace.harbor]
 }
 
+# -----------------------------------------------------------------------------
+# ExternalSecret: Harbor Admin Password (V-004 Remediation)
+# Vault path: secret/data/harbor/admin
+# Keys: password
+# Target: harbor-admin-credentials (K8s Secret in harbor-system namespace)
+# Migration: random_password.harbor_admin → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "harbor_admin_externalsecret" {
+  depends_on = [kubernetes_namespace.harbor]
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "harbor-admin-credentials"
+      namespace = kubernetes_namespace.harbor.metadata[0].name
+      labels = {
+        "app.kubernetes.io/name"       = "harbor-admin-credentials"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+      annotations = {
+        description = "Harbor admin credentials synced from Vault KV v2 (V-004)"
+      }
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "harbor-admin-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "HARBOR_ADMIN_PASSWORD"  # Key required by Harbor chart
+          remoteRef = {
+            key      = "secret/data/harbor/admin"
+            property = "password"
+          }
+        }
+      ]
+    }
+  })
+}
+
+# -----------------------------------------------------------------------------
+# ExternalSecret: Harbor Redis Password (V-005 Remediation)
+# Vault path: secret/data/harbor/redis
+# Keys: password
+# Target: harbor-redis-credentials (K8s Secret in harbor-system namespace)
+# Migration: data.kubernetes_secret.redis_password → Vault KV + ESO (2026-02-24)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "harbor_redis_externalsecret" {
+  depends_on = [kubernetes_namespace.harbor]
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "harbor-redis-credentials"
+      namespace = kubernetes_namespace.harbor.metadata[0].name
+      labels = {
+        "app.kubernetes.io/name"       = "harbor-redis-credentials"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+      annotations = {
+        description = "Harbor Redis credentials synced from Vault KV v2 (V-005)"
+      }
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "harbor-redis-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [
+        {
+          secretKey = "REDIS_PASSWORD"  # Key required by Harbor chart
+          remoteRef = {
+            key      = "secret/data/harbor/redis"
+            property = "password"
+          }
+        }
+      ]
+    }
+  })
+}
+
 resource "null_resource" "harbor_oidc_config" {
   count = var.enable_oidc ? 1 : 0
 
@@ -407,9 +474,10 @@ resource "null_resource" "harbor_oidc_config" {
         exit 0
       fi
 
-      ADMIN_PWD=$(kubectl get secret harbor-admin-password \
+      # V-004: harbor-admin-password → harbor-admin-credentials (ESO)
+      ADMIN_PWD=$(kubectl get secret harbor-admin-credentials \
         -n ${kubernetes_namespace.harbor.metadata[0].name} \
-        -o jsonpath='{.data.password}' | base64 -d)
+        -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
 
       kubectl exec -n ${kubernetes_namespace.harbor.metadata[0].name} "$CORE_POD" -- \
         curl -sf -X PUT http://localhost:8080/api/v2.0/configurations \

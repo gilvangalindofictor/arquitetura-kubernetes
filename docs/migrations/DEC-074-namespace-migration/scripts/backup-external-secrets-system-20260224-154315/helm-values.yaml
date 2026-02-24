@@ -1,0 +1,59 @@
+USER-SUPPLIED VALUES:
+certController:
+  create: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+image:
+  pullPolicy: IfNotPresent
+  repository: ghcr.io/external-secrets/external-secrets
+  tag: v0.9.11
+installCRDs: true
+logging:
+  format: json
+  level: info
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+rbac:
+  create: true
+replicaCount: 1
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+securityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+serviceAccount:
+  annotations: {}
+  create: true
+  name: external-secrets
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  labels:
+    release: kube-prometheus-stack
+  namespace: monitoring
+  scrapeTimeout: 10s
+webhook:
+  create: true
+  port: 9443
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi

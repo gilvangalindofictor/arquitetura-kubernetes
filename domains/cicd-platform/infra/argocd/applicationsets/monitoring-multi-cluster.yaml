@@ -1,0 +1,111 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monitoring-multi-cluster
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    pattern: cluster-generator
+spec:
+  # Cluster Generator: Deploy monitoring stack to multiple clusters
+  # Future-ready for multi-cluster setup (staging/prod separation)
+  # Currently: Only staging cluster, but prepared for scale-out
+  generators:
+  - clusters:
+      # Cluster selector: Match clusters by labels
+      selector:
+        matchLabels:
+          monitoring: enabled  # Only deploy to clusters with this label
+
+      # Values to inject into template from cluster metadata
+      values:
+        # These will be available as {{values.*}} in template
+        clusterName: '{{name}}'
+        clusterServer: '{{server}}'
+        environment: '{{metadata.labels.environment}}'
+
+  # Template for generated Applications
+  template:
+    metadata:
+      # Application name includes cluster context
+      name: 'monitoring-stack-{{values.clusterName}}'
+      labels:
+        cluster: '{{values.clusterName}}'
+        environment: '{{values.environment}}'
+        managed-by: applicationset
+        pattern: cluster-generator
+    spec:
+      project: platform
+
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: HEAD
+        # Path to monitoring stack manifests
+        path: domains/observability/infra/helm/kube-prometheus-stack
+
+        # Helm value overrides per cluster
+        helm:
+          valueFiles:
+          - values.yaml
+          # Override file per environment (if exists)
+          - values-{{values.environment}}.yaml
+
+          # Dynamic values injection
+          values: |
+            # Cluster-specific configuration
+            prometheus:
+              prometheusSpec:
+                externalLabels:
+                  cluster: {{values.clusterName}}
+                  environment: {{values.environment}}
+
+            grafana:
+              env:
+                GF_SERVER_ROOT_URL: https://grafana-{{values.clusterName}}.platform.internal
+
+            # Alert routing per cluster
+            alertmanager:
+              config:
+                route:
+                  routes:
+                  - receiver: slack-{{values.environment}}
+                    match:
+                      cluster: {{values.clusterName}}
+
+      destination:
+        # Deploy to the cluster matched by generator
+        server: '{{server}}'
+        namespace: monitoring
+
+      # Automated sync
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+        - CreateNamespace=true
+        - PruneLast=true
+        # Server-side apply for CRDs
+        - ServerSideApply=true
+
+        retry:
+          limit: 3
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+
+      # Ignore operator-managed fields
+      ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jsonPointers:
+        - /spec/replicas
+      - group: monitoring.coreos.com
+        kind: Prometheus
+        jsonPointers:
+        - /spec/replicas
+
+  goTemplate: true  # Enable Go templating for advanced logic

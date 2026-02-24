@@ -1,0 +1,113 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: data-services-catalog
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    pattern: list-generator
+spec:
+  # List Generator: Define service catalog explicitly
+  # Use case: Deploy standard data services with different configurations
+  generators:
+  - list:
+      elements:
+      # PostgreSQL RDS connection configs
+      - name: postgresql-connection
+        service: postgresql
+        namespace: data-services
+        path: domains/data-services/infra/helm/postgresql-connection
+        syncWave: "1"
+        description: "PostgreSQL RDS connection configuration"
+
+      # Redis cluster
+      - name: redis-cluster
+        service: redis
+        namespace: data-services
+        path: domains/data-services/infra/helm/redis
+        syncWave: "2"
+        description: "Redis cluster with OT-Container-Kit operator"
+
+      # RabbitMQ cluster
+      - name: rabbitmq-cluster
+        service: rabbitmq
+        namespace: data-services
+        path: domains/data-services/infra/helm/rabbitmq
+        syncWave: "3"
+        description: "RabbitMQ cluster with Cluster Operator"
+
+      # Future data services can be added here:
+      # - name: mongodb-cluster
+      #   service: mongodb
+      #   namespace: data-services
+      #   path: domains/data-services/infra/helm/mongodb
+      #   syncWave: "4"
+      #   description: "MongoDB cluster"
+      #
+      # - name: elasticsearch-cluster
+      #   service: elasticsearch
+      #   namespace: data-services
+      #   path: domains/data-services/infra/helm/elasticsearch
+      #   syncWave: "5"
+      #   description: "Elasticsearch cluster"
+
+  # Template for generated Applications
+  template:
+    metadata:
+      name: '{{name}}'
+      labels:
+        service: '{{service}}'
+        namespace: '{{namespace}}'
+        managed-by: applicationset
+        pattern: list-generator
+      annotations:
+        argocd.argoproj.io/sync-wave: '{{syncWave}}'
+        description: '{{description}}'
+    spec:
+      project: platform
+
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: HEAD
+        path: '{{path}}'
+
+        # Allow Helm detection
+        directory:
+          recurse: true
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      # Automated sync with ordering via sync waves
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+        - CreateNamespace=true
+        - PruneLast=true
+        # Respect sync wave annotations for ordered deployment
+        - RespectIgnoreDifferences=true
+
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+      # Ignore differences for operator-managed fields
+      ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jsonPointers:
+        - /spec/replicas  # Ignore HPA-managed replicas
+      - group: ""
+        kind: Service
+        jsonPointers:
+        - /spec/clusterIP  # Ignore auto-assigned IPs
+
+  goTemplate: false

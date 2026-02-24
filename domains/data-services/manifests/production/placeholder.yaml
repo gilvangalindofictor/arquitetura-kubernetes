@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-services-production-info
+  namespace: data-services-production
+  labels:
+    app: data-services
+    environment: production
+data:
+  info: |
+    Data Services - Production Environment
+
+    Components:
+    - PostgreSQL RDS (Multi-AZ)
+    - Redis Cluster (6 replicas, HA)
+    - RabbitMQ Cluster (3 replicas, mirrored queues)
+
+    High availability, production-grade configuration.
+    ApplicationSet: platform-services-multi-env
+    Pattern: Git Generator

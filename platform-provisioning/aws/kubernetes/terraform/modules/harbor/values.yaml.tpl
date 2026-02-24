@@ -52,7 +52,11 @@ imageChartStorage:
     encrypt: true
     secure: true
 
-harborAdminPassword: ${admin_password_secret}
+# V-004 REMEDIATED: Admin password moved to Vault + ESO (2026-02-24)
+# ExternalSecret: harbor-admin-credentials (harbor/main.tf)
+# Vault path: secret/harbor/admin
+existingSecretAdminPassword: harbor-admin-credentials
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
 
 database:
   type: external
@@ -60,7 +64,10 @@ database:
     host: ${postgresql_host}
     port: ${postgresql_port}
     username: ${postgresql_username}
-    password: ${postgresql_password}
+    # V-003 REMEDIATED: PostgreSQL password moved to Vault + ESO (2026-02-24)
+    # ExternalSecret: harbor-postgresql-credentials (harbor/main.tf)
+    # Vault path: secret/harbor/postgresql
+    existingSecret: harbor-postgresql-credentials
     coreDatabase: ${postgresql_database}
     notaryServerDatabase: notaryserver
     notarySignerDatabase: notarysigner
@@ -70,7 +77,11 @@ redis:
   type: external
   external:
     addr: ${redis_host}:${redis_port}
-    password: ${redis_password_secret}
+    # V-005 REMEDIATED: Redis password moved to Vault + ESO (2026-02-24)
+    # ExternalSecret: harbor-redis-credentials (harbor/main.tf)
+    # Vault path: secret/harbor/redis
+    # Key must be: REDIS_PASSWORD
+    existingSecret: harbor-redis-credentials
 
 core:
   serviceAccountName: ${service_account}

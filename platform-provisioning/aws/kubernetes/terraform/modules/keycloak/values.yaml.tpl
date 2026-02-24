@@ -37,11 +37,20 @@ extraInitContainers: |
         memory: 32Mi
 
 # Keycloak admin credentials (Quarkus format)
+# V-006 REMEDIATED: Admin password moved to Vault + ESO (2026-02-24)
+# ExternalSecret: keycloak-admin-credentials (keycloak/main.tf)
+# Vault path: secret/keycloak/admin
 extraEnv: |
   - name: KEYCLOAK_ADMIN
-    value: admin
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-credentials
+        key: username
   - name: KEYCLOAK_ADMIN_PASSWORD
-    value: "${admin_password}"
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-credentials
+        key: password
   - name: KC_DB
     value: postgres
   - name: KC_DB_URL_HOST

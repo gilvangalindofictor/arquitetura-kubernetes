@@ -1,0 +1,73 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-services-multi-env
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    pattern: git-generator
+spec:
+  # Git Generator: Auto-discover applications from Git directory structure
+  # Pattern: domains/*/manifests/{{env}}/ → Creates Application per environment
+  generators:
+  - git:
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      revision: HEAD
+      directories:
+      # Match pattern: domains/*/manifests/staging or domains/*/manifests/production
+      # This will auto-discover any domain with manifests/staging or manifests/production
+      - path: domains/*/manifests/staging
+      - path: domains/*/manifests/production
+
+  # Template for generated Applications
+  template:
+    metadata:
+      # Application name format: {{domain}}-{{env}}
+      # Example: observability-staging, data-services-production
+      name: '{{path[1]}}-{{path.basename}}'
+      labels:
+        environment: '{{path.basename}}'
+        domain: '{{path[1]}}'
+        managed-by: applicationset
+        pattern: git-generator
+    spec:
+      # Use platform project for infrastructure services
+      project: platform
+
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: HEAD
+        path: '{{path}}'
+
+        # Allow Helm/Kustomize detection
+        directory:
+          recurse: true
+
+      destination:
+        server: https://kubernetes.default.svc
+        # Namespace format: {{domain}}-{{env}}
+        # Example: observability-staging, data-services-production
+        namespace: '{{path[1]}}-{{path.basename}}'
+
+      # Automated GitOps sync policy
+      syncPolicy:
+        automated:
+          prune: true      # Delete resources removed from Git
+          selfHeal: true   # Auto-revert manual changes
+
+        syncOptions:
+        - CreateNamespace=true  # Auto-create namespace if missing
+        - PruneLast=true        # Delete resources after new ones are ready
+
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  # Template override for customization (future use)
+  # Can override per-environment settings here
+  goTemplate: false
+  goTemplateOptions: []

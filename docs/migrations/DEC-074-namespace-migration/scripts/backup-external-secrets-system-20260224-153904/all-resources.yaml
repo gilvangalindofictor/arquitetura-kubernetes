@@ -1,0 +1,1553 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/restartedAt: "2026-02-13T16:37:31-03:00"
+    creationTimestamp: "2026-02-24T10:48:53Z"
+    generateName: external-secrets-7b6b98585b-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 7b6b98585b
+    name: external-secrets-7b6b98585b-449nb
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: external-secrets-7b6b98585b
+      uid: b7f12054-f455-40b4-8168-a64236be978d
+    resourceVersion: "11166534"
+    uid: 8fae3639-bee8-492d-b686-d1b5854dc6b5
+  spec:
+    automountServiceAccountToken: true
+    containers:
+    - args:
+      - --concurrent=1
+      - --metrics-addr=:8080
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imagePullPolicy: IfNotPresent
+      name: external-secrets
+      ports:
+      - containerPort: 8080
+        name: metrics
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-lz2ht
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-10-0-141-123.ec2.internal
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+    serviceAccount: external-secrets
+    serviceAccountName: external-secrets
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-lz2ht
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:58Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:53Z"
+      observedGeneration: 1
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:58Z"
+      observedGeneration: 1
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:58Z"
+      observedGeneration: 1
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:53Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 100m
+        memory: 128Mi
+      containerID: containerd://9735dc16998a199c8bb0509804c3ca69e0d2d5b3277df82033e93dfb1dab2504
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imageID: ghcr.io/external-secrets/external-secrets@sha256:5660a29f1bfbf3666ebd99f692cea46fb12fa209db4fa460a97fd8c00f991671
+      lastState: {}
+      name: external-secrets
+      ready: true
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2026-02-24T10:48:58Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          - 1000
+          uid: 1000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-lz2ht
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 10.0.141.123
+    hostIPs:
+    - ip: 10.0.141.123
+    observedGeneration: 1
+    phase: Running
+    podIP: 10.0.130.213
+    podIPs:
+    - ip: 10.0.130.213
+    qosClass: Burstable
+    startTime: "2026-02-24T10:48:53Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2026-02-24T10:48:53Z"
+    generateName: external-secrets-cert-controller-5f86b6b7cf-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-cert-controller
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 5f86b6b7cf
+    name: external-secrets-cert-controller-5f86b6b7cf-8mq6b
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: external-secrets-cert-controller-5f86b6b7cf
+      uid: ad76fa9b-7d4c-40e6-96d6-078d69cf7dd1
+    resourceVersion: "11167179"
+    uid: 7e308401-54c0-46f1-a14e-fd07f4046ef0
+  spec:
+    automountServiceAccountToken: true
+    containers:
+    - args:
+      - certcontroller
+      - --crd-requeue-interval=5m
+      - --service-name=external-secrets-webhook
+      - --service-namespace=external-secrets-system
+      - --secret-name=external-secrets-webhook
+      - --secret-namespace=external-secrets-system
+      - --metrics-addr=:8080
+      - --healthz-addr=:8081
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imagePullPolicy: IfNotPresent
+      name: cert-controller
+      ports:
+      - containerPort: 8080
+        name: metrics
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /readyz
+          port: 8081
+          scheme: HTTP
+        initialDelaySeconds: 20
+        periodSeconds: 5
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-q4l6j
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-10-0-148-39.ec2.internal
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: external-secrets-cert-controller
+    serviceAccountName: external-secrets-cert-controller
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-q4l6j
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:49:06Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:53Z"
+      observedGeneration: 1
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:49:29Z"
+      observedGeneration: 1
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:49:29Z"
+      observedGeneration: 1
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:48:53Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 50m
+        memory: 64Mi
+      containerID: containerd://d44241434a0f77cfd4af2fb03a7db868da96e8fa0a8a73f7e23c5bf73442e4f4
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imageID: ghcr.io/external-secrets/external-secrets@sha256:5660a29f1bfbf3666ebd99f692cea46fb12fa209db4fa460a97fd8c00f991671
+      lastState: {}
+      name: cert-controller
+      ready: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2026-02-24T10:49:06Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 1000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-q4l6j
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 10.0.148.39
+    hostIPs:
+    - ip: 10.0.148.39
+    observedGeneration: 1
+    phase: Running
+    podIP: 10.0.150.182
+    podIPs:
+    - ip: 10.0.150.182
+    qosClass: Burstable
+    startTime: "2026-02-24T10:48:53Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2026-02-23T23:00:43Z"
+    generateName: external-secrets-webhook-764746fb6b-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-webhook
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 764746fb6b
+    name: external-secrets-webhook-764746fb6b-52ngr
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: external-secrets-webhook-764746fb6b
+      uid: 994abcd5-f315-451f-85e2-64cdbfe39f70
+    resourceVersion: "11157375"
+    uid: ff3a6978-3102-4090-8ba1-22ed9cc2f620
+  spec:
+    automountServiceAccountToken: true
+    containers:
+    - args:
+      - webhook
+      - --port=9443
+      - --dns-name=external-secrets-webhook.external-secrets-system.svc
+      - --cert-dir=/tmp/certs
+      - --check-interval=5m
+      - --metrics-addr=:8080
+      - --healthz-addr=:8081
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imagePullPolicy: IfNotPresent
+      name: webhook
+      ports:
+      - containerPort: 8080
+        name: metrics
+        protocol: TCP
+      - containerPort: 9443
+        name: webhook
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /readyz
+          port: 8081
+          scheme: HTTP
+        initialDelaySeconds: 20
+        periodSeconds: 5
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /tmp/certs
+        name: certs
+        readOnly: true
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2g4jf
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-10-0-132-7.ec2.internal
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: external-secrets-webhook
+    serviceAccountName: external-secrets-webhook
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: certs
+      secret:
+        defaultMode: 420
+        secretName: external-secrets-webhook
+    - name: kube-api-access-2g4jf
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:32:05Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:31:20Z"
+      observedGeneration: 1
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:32:27Z"
+      observedGeneration: 1
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:32:27Z"
+      observedGeneration: 1
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2026-02-24T10:31:20Z"
+      observedGeneration: 1
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 50m
+        memory: 64Mi
+      containerID: containerd://56dc9dfb30f6ed6c71a4a45ea34bd92a4360fdfa2d3ed9e95263854dc2c57b2c
+      image: ghcr.io/external-secrets/external-secrets:v0.9.11
+      imageID: ghcr.io/external-secrets/external-secrets@sha256:5660a29f1bfbf3666ebd99f692cea46fb12fa209db4fa460a97fd8c00f991671
+      lastState: {}
+      name: webhook
+      ready: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2026-02-24T10:32:05Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 1000
+      volumeMounts:
+      - mountPath: /tmp/certs
+        name: certs
+        readOnly: true
+        recursiveReadOnly: Disabled
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2g4jf
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 10.0.132.7
+    hostIPs:
+    - ip: 10.0.132.7
+    observedGeneration: 1
+    phase: Running
+    podIP: 10.0.142.70
+    podIPs:
+    - ip: 10.0.142.70
+    qosClass: Burstable
+    startTime: "2026-02-24T10:31:20Z"
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/metrics: cert-controller
+      app.kubernetes.io/name: external-secrets-cert-controller
+    name: external-secrets-cert-controller-metrics
+    namespace: external-secrets-system
+    resourceVersion: "3410772"
+    uid: 1dff7891-d3ae-4bf2-86b4-ca4865ddf66e
+  spec:
+    clusterIP: 172.20.13.90
+    clusterIPs:
+    - 172.20.13.90
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/name: external-secrets-cert-controller
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+    name: external-secrets-metrics
+    namespace: external-secrets-system
+    resourceVersion: "3410773"
+    uid: 7b67a98e-f26f-4db2-b82e-f6f3b4c490b8
+  spec:
+    clusterIP: 172.20.60.169
+    clusterIPs:
+    - 172.20.60.169
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/name: external-secrets
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-webhook
+      app.kubernetes.io/version: v0.9.11
+      external-secrets.io/component: webhook
+      helm.sh/chart: external-secrets-0.9.11
+    name: external-secrets-webhook
+    namespace: external-secrets-system
+    resourceVersion: "3410765"
+    uid: f70cbdcc-1b74-47ad-a33a-79e4ce260a4d
+  spec:
+    clusterIP: 172.20.102.106
+    clusterIPs:
+    - 172.20.102.106
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: webhook
+      port: 443
+      protocol: TCP
+      targetPort: 9443
+    selector:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/name: external-secrets-webhook
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/metrics: webhook
+      app.kubernetes.io/name: external-secrets-webhook
+    name: external-secrets-webhook-metrics
+    namespace: external-secrets-system
+    resourceVersion: "3410771"
+    uid: e3a5ba48-9e94-4a28-911b-6527a5c376bb
+  spec:
+    clusterIP: 172.20.192.66
+    clusterIPs:
+    - 172.20.192.66
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/name: external-secrets-webhook
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+    name: external-secrets
+    namespace: external-secrets-system
+    resourceVersion: "11166538"
+    uid: dec492f3-438e-4580-8fac-a9e86c15ace0
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-02-13T16:37:31-03:00"
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --concurrent=1
+          - --metrics-addr=:8080
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: external-secrets
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        serviceAccount: external-secrets
+        serviceAccountName: external-secrets
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-02-04T18:25:45Z"
+      lastUpdateTime: "2026-02-13T19:37:35Z"
+      message: ReplicaSet "external-secrets-7b6b98585b" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-02-24T10:48:58Z"
+      lastUpdateTime: "2026-02-24T10:48:58Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-cert-controller
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+    name: external-secrets-cert-controller
+    namespace: external-secrets-system
+    resourceVersion: "11167183"
+    uid: c0f016d7-2fa3-454f-953e-21475664bd0b
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets-cert-controller
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets-cert-controller
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - certcontroller
+          - --crd-requeue-interval=5m
+          - --service-name=external-secrets-webhook
+          - --service-namespace=external-secrets-system
+          - --secret-name=external-secrets-webhook
+          - --secret-namespace=external-secrets-system
+          - --metrics-addr=:8080
+          - --healthz-addr=:8081
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: cert-controller
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: external-secrets-cert-controller
+        serviceAccountName: external-secrets-cert-controller
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-02-04T18:25:45Z"
+      lastUpdateTime: "2026-02-04T18:27:22Z"
+      message: ReplicaSet "external-secrets-cert-controller-5f86b6b7cf" has successfully
+        progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-02-24T10:49:29Z"
+      lastUpdateTime: "2026-02-24T10:49:29Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-webhook
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+    name: external-secrets-webhook
+    namespace: external-secrets-system
+    resourceVersion: "11157381"
+    uid: 25cd5c62-d0c0-4726-8976-07f046fac464
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets-webhook
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets-webhook
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - webhook
+          - --port=9443
+          - --dns-name=external-secrets-webhook.external-secrets-system.svc
+          - --cert-dir=/tmp/certs
+          - --check-interval=5m
+          - --metrics-addr=:8080
+          - --healthz-addr=:8081
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: webhook
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          - containerPort: 9443
+            name: webhook
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp/certs
+            name: certs
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: external-secrets-webhook
+        serviceAccountName: external-secrets-webhook
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: certs
+          secret:
+            defaultMode: 420
+            secretName: external-secrets-webhook
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-02-04T18:25:45Z"
+      lastUpdateTime: "2026-02-04T18:27:21Z"
+      message: ReplicaSet "external-secrets-webhook-764746fb6b" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-02-24T10:32:27Z"
+      lastUpdateTime: "2026-02-24T10:32:27Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "3"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-13T19:37:32Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 7b6b98585b
+    name: external-secrets-7b6b98585b
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: external-secrets
+      uid: dec492f3-438e-4580-8fac-a9e86c15ace0
+    resourceVersion: "11166537"
+    uid: b7f12054-f455-40b4-8168-a64236be978d
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets
+        pod-template-hash: 7b6b98585b
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-02-13T16:37:31-03:00"
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+          pod-template-hash: 7b6b98585b
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --concurrent=1
+          - --metrics-addr=:8080
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: external-secrets
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        serviceAccount: external-secrets
+        serviceAccountName: external-secrets
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    fullyLabeledReplicas: 1
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "2"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-06T20:23:27Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 7df778c488
+    name: external-secrets-7df778c488
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: external-secrets
+      uid: dec492f3-438e-4580-8fac-a9e86c15ace0
+    resourceVersion: "7461402"
+    uid: 5d03cc95-935d-41d5-808c-7f555a3e4f37
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets
+        pod-template-hash: 7df778c488
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-02-06T17:23:27-03:00"
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+          pod-template-hash: 7df778c488
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --concurrent=1
+          - --metrics-addr=:8080
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: external-secrets
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        serviceAccount: external-secrets
+        serviceAccountName: external-secrets
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 2
+    replicas: 0
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 7ff6bdf589
+    name: external-secrets-7ff6bdf589
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: external-secrets
+      uid: dec492f3-438e-4580-8fac-a9e86c15ace0
+    resourceVersion: "4423844"
+    uid: b6854087-19dd-4196-b910-b30124c39525
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets
+        pod-template-hash: 7ff6bdf589
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+          pod-template-hash: 7ff6bdf589
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --concurrent=1
+          - --metrics-addr=:8080
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: external-secrets
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        serviceAccount: external-secrets
+        serviceAccountName: external-secrets
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 2
+    replicas: 0
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-cert-controller
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 5f86b6b7cf
+    name: external-secrets-cert-controller-5f86b6b7cf
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: external-secrets-cert-controller
+      uid: c0f016d7-2fa3-454f-953e-21475664bd0b
+    resourceVersion: "11167182"
+    uid: ad76fa9b-7d4c-40e6-96d6-078d69cf7dd1
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets-cert-controller
+        pod-template-hash: 5f86b6b7cf
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets-cert-controller
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+          pod-template-hash: 5f86b6b7cf
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - certcontroller
+          - --crd-requeue-interval=5m
+          - --service-name=external-secrets-webhook
+          - --service-namespace=external-secrets-system
+          - --secret-name=external-secrets-webhook
+          - --secret-namespace=external-secrets-system
+          - --metrics-addr=:8080
+          - --healthz-addr=:8081
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: cert-controller
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: external-secrets-cert-controller
+        serviceAccountName: external-secrets-cert-controller
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    fullyLabeledReplicas: 1
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: external-secrets
+      meta.helm.sh/release-namespace: external-secrets-system
+    creationTimestamp: "2026-02-04T18:25:45Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: external-secrets
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: external-secrets-webhook
+      app.kubernetes.io/version: v0.9.11
+      helm.sh/chart: external-secrets-0.9.11
+      pod-template-hash: 764746fb6b
+    name: external-secrets-webhook-764746fb6b
+    namespace: external-secrets-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: external-secrets-webhook
+      uid: 25cd5c62-d0c0-4726-8976-07f046fac464
+    resourceVersion: "11157376"
+    uid: 994abcd5-f315-451f-85e2-64cdbfe39f70
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: external-secrets
+        app.kubernetes.io/name: external-secrets-webhook
+        pod-template-hash: 764746fb6b
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: external-secrets
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: external-secrets-webhook
+          app.kubernetes.io/version: v0.9.11
+          helm.sh/chart: external-secrets-0.9.11
+          pod-template-hash: 764746fb6b
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - webhook
+          - --port=9443
+          - --dns-name=external-secrets-webhook.external-secrets-system.svc
+          - --cert-dir=/tmp/certs
+          - --check-interval=5m
+          - --metrics-addr=:8080
+          - --healthz-addr=:8081
+          image: ghcr.io/external-secrets/external-secrets:v0.9.11
+          imagePullPolicy: IfNotPresent
+          name: webhook
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          - containerPort: 9443
+            name: webhook
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp/certs
+            name: certs
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: external-secrets-webhook
+        serviceAccountName: external-secrets-webhook
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: certs
+          secret:
+            defaultMode: 420
+            secretName: external-secrets-webhook
+  status:
+    availableReplicas: 1
+    fullyLabeledReplicas: 1
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+kind: List
+metadata:
+  resourceVersion: ""

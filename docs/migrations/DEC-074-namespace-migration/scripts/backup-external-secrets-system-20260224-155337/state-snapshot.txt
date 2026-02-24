@@ -1,0 +1,23 @@
+Migration Date: Tue Feb 24 15:56:27 -03 2026
+Old Namespace: external-secrets-system
+New Namespace: staging-security-externalsecrets
+Helm Release: external-secrets
+
+Pod Count:
+3
+
+Pods:
+NAME                                                READY   STATUS    RESTARTS   AGE   IP             NODE                           NOMINATED NODE   READINESS GATES
+external-secrets-7b6b98585b-449nb                   1/1     Running   0          8h    10.0.130.213   ip-10-0-141-123.ec2.internal   <none>           <none>
+external-secrets-cert-controller-5f86b6b7cf-8mq6b   1/1     Running   0          8h    10.0.150.182   ip-10-0-148-39.ec2.internal    <none>           <none>
+external-secrets-webhook-764746fb6b-52ngr           1/1     Running   0          19h   10.0.142.70    ip-10-0-132-7.ec2.internal     <none>           <none>
+
+Services:
+NAME                                       TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+external-secrets-cert-controller-metrics   ClusterIP   172.20.13.90     <none>        8080/TCP   20d
+external-secrets-metrics                   ClusterIP   172.20.60.169    <none>        8080/TCP   20d
+external-secrets-webhook                   ClusterIP   172.20.102.106   <none>        443/TCP    20d
+external-secrets-webhook-metrics           ClusterIP   172.20.192.66    <none>        8080/TCP   20d
+
+Ingress:
+

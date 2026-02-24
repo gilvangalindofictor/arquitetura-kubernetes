@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"annotations":{"controller-gen.kubebuilder.io/version":"v0.14.0"},"name":"cninodes.vpcresources.k8s.aws"},"spec":{"group":"vpcresources.k8s.aws","names":{"kind":"CNINode","listKind":"CNINodeList","plural":"cninodes","shortNames":["cnd"],"singular":"cninode"},"scope":"Cluster","versions":[{"additionalPrinterColumns":[{"description":"The features delegated to VPC resource controller","jsonPath":".spec.features","name":"Features","type":"string"}],"name":"v1alpha1","schema":{"openAPIV3Schema":{"properties":{"apiVersion":{"description":"APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources","type":"string"},"kind":{"description":"Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds","type":"string"},"metadata":{"type":"object"},"spec":{"description":"Important: Run \"make\" to regenerate code after modifying this file\nCNINodeSpec defines the desired state of CNINode","properties":{"features":{"items":{"description":"Feature is a type of feature being supported by VPC resource controller and other AWS Services","properties":{"name":{"description":"FeatureName is a type of feature name supported by AWS VPC CNI. It can be Security Group for Pods, custom networking, or others","type":"string"},"value":{"type":"string"}},"type":"object"},"type":"array"},"tags":{"additionalProperties":{"type":"string"},"description":"Additional tag key/value added to all network interfaces provisioned by the vpc-resource-controller and VPC-CNI","type":"object"}},"type":"object"},"status":{"description":"CNINodeStatus defines the managed VPC resources.","type":"object"}},"type":"object"}},"served":true,"storage":true,"subresources":{}}]}}
+  creationTimestamp: "2026-01-28T17:36:42Z"
+  generation: 1
+  name: cninodes.vpcresources.k8s.aws
+  resourceVersion: "5676697"
+  uid: 3ab7e88a-c966-4b9d-a952-61bd73956192
+spec:
+  conversion:
+    strategy: None
+  group: vpcresources.k8s.aws
+  names:
+    kind: CNINode
+    listKind: CNINodeList
+    plural: cninodes
+    shortNames:
+    - cnd
+    singular: cninode
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - description: The features delegated to VPC resource controller
+      jsonPath: .spec.features
+      name: Features
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              Important: Run "make" to regenerate code after modifying this file
+              CNINodeSpec defines the desired state of CNINode
+            properties:
+              features:
+                items:
+                  description: Feature is a type of feature being supported by VPC
+                    resource controller and other AWS Services
+                  properties:
+                    name:
+                      description: FeatureName is a type of feature name supported
+                        by AWS VPC CNI. It can be Security Group for Pods, custom
+                        networking, or others
+                      type: string
+                    value:
+                      type: string
+                  type: object
+                type: array
+              tags:
+                additionalProperties:
+                  type: string
+                description: Additional tag key/value added to all network interfaces
+                  provisioned by the vpc-resource-controller and VPC-CNI
+                type: object
+            type: object
+          status:
+            description: CNINodeStatus defines the managed VPC resources.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: CNINode
+    listKind: CNINodeList
+    plural: cninodes
+    shortNames:
+    - cnd
+    singular: cninode
+  conditions:
+  - lastTransitionTime: "2026-01-28T17:36:42Z"
+    message: no conflicts found
+    reason: NoConflicts
+    status: "True"
+    type: NamesAccepted
+  - lastTransitionTime: "2026-01-28T17:36:42Z"
+    message: the initial names have been accepted
+    reason: InitialNamesAccepted
+    status: "True"
+    type: Established
+  storedVersions:
+  - v1alpha1

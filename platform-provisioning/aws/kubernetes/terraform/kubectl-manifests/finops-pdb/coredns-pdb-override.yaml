@@ -1,0 +1,30 @@
+# FinOps PDB Optimization — CoreDNS
+# ADR-025: Graceful Node Drain for Lambda Shutdown (10-15min → 2-3min)
+#
+# PROBLEMA: CoreDNS default PDB (se existir) pode ter maxUnavailable=0
+# SOLUÇÃO: Criar PDB com maxUnavailable=1 para permitir drain rápido
+# IMPACTO: Shutdown Lambda pode drenar nodes em <3min vs 10-15min
+#
+# CoreDNS deployment: 2 replicas (default EKS)
+# HA garantido: maxUnavailable=1 permite 1 pod down, 1 mantém DNS resolution
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coredns
+  namespace: kube-system
+  labels:
+    k8s-app: kube-dns
+    app.kubernetes.io/managed-by: terraform
+    app.kubernetes.io/component: pdb
+    app.kubernetes.io/part-of: finops-optimization
+  annotations:
+    description: "Allow 1 CoreDNS pod to be evicted during node drain"
+    finops/optimization: "shutdown-lambda-drain-speed"
+    adr: "ADR-025"
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns

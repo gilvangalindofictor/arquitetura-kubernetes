@@ -1,0 +1,550 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{"prometheus.io/path":"/metrics","prometheus.io/port":"http","prometheus.io/scrape":"true"},"labels":{"app":"redisoperator"},"name":"redisoperator","namespace":"redis-operator"},"spec":{"ports":[{"name":"metrics","port":9710,"protocol":"TCP","targetPort":"metrics"}],"selector":{"app":"redisoperator"},"type":"ClusterIP"}}
+      prometheus.io/path: /metrics
+      prometheus.io/port: http
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2026-02-02T14:31:11Z"
+    labels:
+      app: redisoperator
+    name: redisoperator
+    namespace: redis-operator
+    resourceVersion: "2067024"
+    uid: 20bde973-eca6-43b1-a0a8-0cf6487b3065
+  spec:
+    clusterIP: 172.20.9.26
+    clusterIPs:
+    - 172.20.9.26
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: metrics
+      port: 9710
+      protocol: TCP
+      targetPort: metrics
+    selector:
+      app: redisoperator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T21:18:49Z"
+    labels:
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: redis-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: redis-operator
+      app.kubernetes.io/part-of: redis-operator
+      app.kubernetes.io/version: 0.18.0
+      helm.sh/chart: redis-operator-0.18.1
+    name: webhook-service
+    namespace: redis-operator
+    resourceVersion: "7506873"
+    uid: 35894f35-fdd1-4534-8457-d7e191fadc04
+  spec:
+    clusterIP: 172.20.172.39
+    clusterIPs:
+    - 172.20.172.39
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+    selector:
+      name: redis-operator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "6"
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T14:46:32Z"
+    generation: 7
+    labels:
+      app.kubernetes.io/component: operator
+      app.kubernetes.io/instance: redis-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: redis-operator
+      app.kubernetes.io/part-of: redis-operator
+      app.kubernetes.io/version: 0.18.0
+      helm.sh/chart: redis-operator-0.18.1
+    name: redis-operator
+    namespace: redis-operator
+    resourceVersion: "11404296"
+    uid: ef72261e-403d-43af-8d5f-f8e299f2935f
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: redis-operator
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          cert-manager.io/inject-ca-from: redis-operator/serving-cert
+        labels:
+          name: redis-operator
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --leader-elect
+          command:
+          - /manager
+          env:
+          - name: ENABLE_WEBHOOKS
+            value: "false"
+          image: ghcr.io/ot-container-kit/redis-operator/redis-operator:v0.18.0
+          imagePullPolicy: Always
+          name: redis-operator
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: redis-operator
+        serviceAccountName: redis-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-13T20:23:38Z"
+      lastUpdateTime: "2026-02-13T21:18:51Z"
+      message: ReplicaSet "redis-operator-6c8969c6db" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-02-24T10:31:19Z"
+      lastUpdateTime: "2026-02-24T10:31:19Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 7
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T14:46:32Z"
+    generation: 2
+    labels:
+      name: redis-operator
+      pod-template-hash: 55b8dcc667
+    name: redis-operator-55b8dcc667
+    namespace: redis-operator
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: redis-operator
+      uid: ef72261e-403d-43af-8d5f-f8e299f2935f
+    resourceVersion: "7333494"
+    uid: e0695ecf-cd37-418c-83fa-ad2c4178889c
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        name: redis-operator
+        pod-template-hash: 55b8dcc667
+    template:
+      metadata:
+        annotations:
+          cert-manager.io/inject-ca-from: redis-operator/serving-cert
+        labels:
+          name: redis-operator
+          pod-template-hash: 55b8dcc667
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --leader-elect
+          - --metrics-bind-address=:8080
+          - --kube-client-timeout=60s
+          command:
+          - /operator
+          - manager
+          env:
+          - name: INIT_CONTAINER_IMAGE
+            value: quay.io/opstree/redis-operator:v0.23.0
+          - name: ENABLE_WEBHOOKS
+            value: "false"
+          - name: SERVICE_DNS_DOMAIN
+            value: cluster.local
+          - name: FEATURE_GATES
+            value: GenerateConfigInInitContainer=false
+          image: quay.io/opstree/redis-operator:v0.23.0
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: redis-operator
+          ports:
+          - containerPort: 8081
+            name: probe
+            protocol: TCP
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 500m
+              memory: 500Mi
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: redis-operator
+        serviceAccountName: redis-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 2
+    replicas: 0
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "5"
+      deployment.kubernetes.io/revision-history: "3"
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T18:50:28Z"
+    generation: 2
+    labels:
+      name: redis-operator
+      pod-template-hash: 698b4dbcdd
+    name: redis-operator-698b4dbcdd
+    namespace: redis-operator
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: redis-operator
+      uid: ef72261e-403d-43af-8d5f-f8e299f2935f
+    resourceVersion: "7506922"
+    uid: 7ab53619-0533-4299-b422-0f95f4e672ba
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        name: redis-operator
+        pod-template-hash: 698b4dbcdd
+    template:
+      metadata:
+        annotations:
+          cert-manager.io/inject-ca-from: redis-operator/serving-cert
+          kubectl.kubernetes.io/restartedAt: "2026-02-13T15:50:28-03:00"
+        labels:
+          name: redis-operator
+          pod-template-hash: 698b4dbcdd
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --leader-elect
+          - --metrics-bind-address=:8080
+          - --kube-client-timeout=60s
+          command:
+          - /operator
+          - manager
+          env:
+          - name: INIT_CONTAINER_IMAGE
+            value: quay.io/opstree/redis-operator:v0.23.0
+          - name: ENABLE_WEBHOOKS
+            value: "false"
+          - name: SERVICE_DNS_DOMAIN
+            value: cluster.local
+          - name: FEATURE_GATES
+            value: GenerateConfigInInitContainer=false
+          image: quay.io/opstree/redis-operator:v0.23.0
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: redis-operator
+          ports:
+          - containerPort: 8081
+            name: probe
+            protocol: TCP
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: redis-operator
+        serviceAccountName: redis-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 2
+    replicas: 0
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "0"
+      deployment.kubernetes.io/max-replicas: "0"
+      deployment.kubernetes.io/revision: "6"
+      deployment.kubernetes.io/revision-history: "4"
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T20:11:47Z"
+    generation: 4
+    labels:
+      name: redis-operator
+      pod-template-hash: 6c8969c6db
+    name: redis-operator-6c8969c6db
+    namespace: redis-operator
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: redis-operator
+      uid: ef72261e-403d-43af-8d5f-f8e299f2935f
+    resourceVersion: "11404294"
+    uid: 2a1b6b90-4a3d-438c-a27e-672a56ce75b9
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        name: redis-operator
+        pod-template-hash: 6c8969c6db
+    template:
+      metadata:
+        annotations:
+          cert-manager.io/inject-ca-from: redis-operator/serving-cert
+        labels:
+          name: redis-operator
+          pod-template-hash: 6c8969c6db
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --leader-elect
+          command:
+          - /manager
+          env:
+          - name: ENABLE_WEBHOOKS
+            value: "false"
+          image: ghcr.io/ot-container-kit/redis-operator/redis-operator:v0.18.0
+          imagePullPolicy: Always
+          name: redis-operator
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: redis-operator
+        serviceAccountName: redis-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 4
+    replicas: 0
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "1"
+      deployment.kubernetes.io/max-replicas: "2"
+      deployment.kubernetes.io/revision: "2"
+      meta.helm.sh/release-name: redis-operator
+      meta.helm.sh/release-namespace: redis-operator
+    creationTimestamp: "2026-02-13T14:47:23Z"
+    generation: 2
+    labels:
+      name: redis-operator
+      pod-template-hash: dc8bbcb7c
+    name: redis-operator-dc8bbcb7c
+    namespace: redis-operator
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: redis-operator
+      uid: ef72261e-403d-43af-8d5f-f8e299f2935f
+    resourceVersion: "7440080"
+    uid: e823b559-e451-4f03-a84b-2836fc09bb65
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        name: redis-operator
+        pod-template-hash: dc8bbcb7c
+    template:
+      metadata:
+        annotations:
+          cert-manager.io/inject-ca-from: redis-operator/serving-cert
+        labels:
+          name: redis-operator
+          pod-template-hash: dc8bbcb7c
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - --leader-elect
+          - --metrics-bind-address=:8080
+          - --kube-client-timeout=60s
+          command:
+          - /operator
+          - manager
+          env:
+          - name: INIT_CONTAINER_IMAGE
+            value: quay.io/opstree/redis-operator:v0.23.0
+          - name: ENABLE_WEBHOOKS
+            value: "false"
+          - name: SERVICE_DNS_DOMAIN
+            value: cluster.local
+          - name: FEATURE_GATES
+            value: GenerateConfigInInitContainer=false
+          image: quay.io/opstree/redis-operator:v0.23.0
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: redis-operator
+          ports:
+          - containerPort: 8081
+            name: probe
+            protocol: TCP
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: redis-operator
+        serviceAccountName: redis-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    observedGeneration: 2
+    replicas: 0
+kind: List
+metadata:
+  resourceVersion: ""

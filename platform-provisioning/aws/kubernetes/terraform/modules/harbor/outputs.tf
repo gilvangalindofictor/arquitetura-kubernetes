@@ -18,8 +18,8 @@ output "service_account_role_arn" {
 }
 
 output "admin_password_secret" {
-  description = "Harbor admin password secret name"
-  value       = kubernetes_secret.harbor_admin_password.metadata[0].name
+  description = "Harbor admin password secret name (V-004: migrado para ESO)"
+  value       = "harbor-admin-credentials"  # ExternalSecret synced from Vault
   sensitive   = true
 }
 

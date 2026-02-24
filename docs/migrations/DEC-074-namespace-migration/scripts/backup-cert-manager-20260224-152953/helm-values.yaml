@@ -1,0 +1,50 @@
+USER-SUPPLIED VALUES:
+cainjector:
+  nodeSelector:
+    node-type: system
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+global:
+  leaderElection:
+    namespace: cert-manager
+installCRDs: true
+nodeSelector:
+  node-type: system
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 32Mi
+tolerations:
+- effect: NoSchedule
+  key: node-type
+  operator: Equal
+  value: system
+webhook:
+  nodeSelector:
+    node-type: system
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+  securePort: 10250
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system

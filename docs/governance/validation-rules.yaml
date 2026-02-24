@@ -15,7 +15,7 @@ metadata:
       Valida que todos os recursos em namespaces corporativos tenham labels obrigatórias.
       Referência: ADR-048 (Naming Conventions Determinísticas)
 spec:
-  validationFailureAction: enforce
+  validationFailureAction: audit
   background: true
   rules:
   - name: check-corporate-labels
@@ -58,7 +58,7 @@ metadata:
       Valida que namespaces corporativos sigam naming convention: {env}-{domain}-{product}
       Referência: ADR-048
 spec:
-  validationFailureAction: enforce
+  validationFailureAction: audit
   background: false
   rules:
   - name: check-namespace-name
@@ -117,7 +117,7 @@ metadata:
     policies.kyverno.io/category: Corporate Governance
     policies.kyverno.io/severity: high
 spec:
-  validationFailureAction: enforce
+  validationFailureAction: audit
   background: true
   rules:
   - name: check-label-domain

@@ -1,0 +1,25 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Data Services for staging environment
+# Auto-managed by ApplicationSet: platform-services-multi-env
+
+namespace: data-services-staging
+
+resources:
+- placeholder.yaml
+
+# Staging data services configuration
+configMapGenerator:
+- name: data-services-config
+  literals:
+  - environment=staging
+  - postgresql.host=k8s-platform-staging-postgresql.rds.amazonaws.com
+  - redis.replicas=2
+  - rabbitmq.replicas=1
+
+commonLabels:
+  environment: staging
+  domain: data-services
+  managed-by: applicationset
