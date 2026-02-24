@@ -1,0 +1,32 @@
+# GAP-008: SonarQube Native Prometheus Endpoint ServiceMonitor
+# SonarQube 10.3+ exposes /api/monitoring/metrics natively (Prometheus format)
+# Authentication: Bearer token via SONAR_WEB_SYSTEMPASSCODE
+# No external exporter required.
+#
+# Endpoint: http://sonarqube-sonarqube.sonarqube.svc.cluster.local:9000/api/monitoring/metrics
+# Auth: Bearer define_it (stored in sonarqube-sonarqube-monitoring-passcode secret)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sonarqube-native-metrics
+  namespace: sonarqube
+  labels:
+    app: sonarqube
+    component: monitoring
+    app.kubernetes.io/name: sonarqube
+    app.kubernetes.io/component: monitoring
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: sonarqube
+      release: sonarqube
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /api/monitoring/metrics
+    scheme: http
+    scrapeTimeout: 10s
+    bearerTokenSecret:
+      name: sonarqube-sonarqube-monitoring-passcode
+      key: SONAR_WEB_SYSTEMPASSCODE

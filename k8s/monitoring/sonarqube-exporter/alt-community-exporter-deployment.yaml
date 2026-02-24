@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube-prometheus-exporter
+  namespace: sonarqube
+  labels:
+    app: sonarqube-exporter
+    component: monitoring
+    app.kubernetes.io/name: sonarqube-exporter
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: platform-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonarqube-exporter
+  template:
+    metadata:
+      labels:
+        app: sonarqube-exporter
+        component: monitoring
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+      - name: exporter
+        image: dmeiners88/sonarqube-prometheus-exporter:latest
+        env:
+        - name: SONARQUBE_URL
+          valueFrom:
+            secretKeyRef:
+              name: sonarqube-exporter-credentials
+              key: sonarqube-url
+        - name: SONARQUBE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: sonarqube-exporter-credentials
+              key: token
+        - name: EXPORTER_PORT
+          value: "9000"
+        ports:
+        - containerPort: 9000
+          name: metrics
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL

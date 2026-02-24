@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sonarqube-exporter
+  namespace: sonarqube
+  labels:
+    app: sonarqube-exporter
+    component: monitoring
+    app.kubernetes.io/name: sonarqube-exporter
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: sonarqube-exporter
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scrapeTimeout: 10s
