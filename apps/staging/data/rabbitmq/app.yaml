@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: rabbitmq | Environment: staging | Namespace: data-services
+appVersion: "2.19.0"
+helmChart: rabbitmq-cluster-operator
+helmRepo: https://charts.bitnami.com/bitnami
+namespace: data-services

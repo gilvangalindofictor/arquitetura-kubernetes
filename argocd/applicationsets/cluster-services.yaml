@@ -1,0 +1,79 @@
+# GAP-006 — GitOps Automation via ArgoCD ApplicationSets
+# ADR: DEC-077-applicationsets-gitops-automation.md
+# Pattern: Git Directory Generator — auto-discovers apps/staging/*/*
+#
+# Directory convention: apps/<environment>/<domain>/<service>/
+# Each directory with an app.yaml triggers an ArgoCD Application.
+#
+# Zero-touch onboarding: git push → Application auto-created in ~3min.
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-services
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: applicationset
+    app.kubernetes.io/part-of: gitops-automation
+    gap: "006"
+  annotations:
+    gap.platform/issue: "GAP-006"
+    gap.platform/description: "GitOps automation - auto-discovers staging services"
+    gap.platform/adr: "DEC-077"
+spec:
+  # Prevent cascading deletes when ApplicationSet is removed
+  preservedFields:
+    annotations:
+      - "kubectl.kubernetes.io/last-applied-configuration"
+
+  generators:
+  - git:
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      revision: main
+      # Match: apps/staging/<domain>/<service>/app.yaml
+      files:
+      - path: "apps/staging/*/*/app.yaml"
+
+  template:
+    metadata:
+      # Name from path segments: apps/staging/<domain>/<service>
+      name: 'staging-{{path[2]}}-{{path[3]}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/managed-by: applicationset
+        environment: staging
+        domain: '{{path[2]}}'
+        service: '{{path[3]}}'
+      annotations:
+        gap.platform/source: "applicationset/cluster-services"
+        gap.platform/git-path: '{{path}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: main
+        # Point at the directory containing app manifests
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        # Namespace from app.yaml (fallback: path-based naming)
+        # ArgoCD uses the destination.namespace field; set per-app in path
+        namespace: 'staging-{{path[2]}}-{{path[3]}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true
+        - RespectIgnoreDifferences=true
+      # Prevent ApplicationSet from managing sensitive namespaces
+      info:
+      - name: "Git Path"
+        value: '{{path}}'
+      - name: "Environment"
+        value: "staging"
+      - name: "Domain"
+        value: '{{path[2]}}'
+      - name: "Service"
+        value: '{{path[3]}}'

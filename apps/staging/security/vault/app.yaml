@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: vault | Environment: staging | Namespace: staging-security-vault
+appVersion: "0.28.1"
+helmChart: vault
+helmRepo: https://helm.releases.hashicorp.com
+namespace: staging-security-vault

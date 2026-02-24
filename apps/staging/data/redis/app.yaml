@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: redis | Environment: staging | Namespace: data-services
+appVersion: "0.23.0"
+helmChart: redis-operator
+helmRepo: https://ot-container-kit.github.io/helm-charts
+namespace: data-services

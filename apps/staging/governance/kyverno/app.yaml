@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: kyverno | Environment: staging | Namespace: staging-governance-kyverno
+appVersion: "3.2.7"
+helmChart: kyverno
+helmRepo: https://kyverno.github.io/kyverno
+namespace: staging-governance-kyverno

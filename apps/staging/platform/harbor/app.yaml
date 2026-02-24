@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: harbor | Environment: staging | Namespace: harbor-system
+appVersion: "1.14.2"
+helmChart: harbor
+helmRepo: https://helm.goharbor.io
+namespace: harbor-system

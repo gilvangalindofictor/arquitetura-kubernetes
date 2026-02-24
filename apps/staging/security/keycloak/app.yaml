@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: keycloak | Environment: staging | Namespace: keycloak
+appVersion: "26.5.1"
+helmChart: keycloakx
+helmRepo: https://codecentric.github.io/helm-charts
+namespace: keycloak

@@ -1,0 +1,103 @@
+# GAP-006 — GitOps Multi-Environment Template via Matrix Generator
+# ADR: DEC-077-applicationsets-gitops-automation.md
+# Pattern: Matrix(List environments × List services) — declarative multi-env deploy
+#
+# Usage: Add new service to the services list below.
+#        Each (environment × service) pair generates one ArgoCD Application.
+#
+# Naming: <environment>-<service>  e.g. staging-grafana, production-vault
+# Path:   apps/<environment>/<domain>/<service>
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-env-services
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: applicationset
+    app.kubernetes.io/part-of: gitops-automation
+    gap: "006"
+    generator: matrix
+  annotations:
+    gap.platform/issue: "GAP-006"
+    gap.platform/description: "Multi-environment declarative service matrix"
+    gap.platform/adr: "DEC-077"
+spec:
+  generators:
+  - matrix:
+      generators:
+      # Dimension 1: Environments
+      - list:
+          elements:
+          - environment: staging
+            server: https://kubernetes.default.svc
+            revision: main
+          # production commented until cluster is provisioned
+          # - environment: production
+          #   server: https://kubernetes.default.svc
+          #   revision: main
+
+      # Dimension 2: Platform services
+      - list:
+          elements:
+          - service: grafana
+            domain: monitoring
+            namespace: monitoring
+          - service: vault
+            domain: security
+            namespace: staging-security-vault
+          - service: keycloak
+            domain: security
+            namespace: keycloak
+          - service: harbor
+            domain: platform
+            namespace: harbor-system
+          - service: kyverno
+            domain: governance
+            namespace: staging-governance-kyverno
+          - service: rabbitmq
+            domain: data
+            namespace: data-services
+          - service: redis
+            domain: data
+            namespace: data-services
+
+  template:
+    metadata:
+      name: '{{environment}}-{{service}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/managed-by: applicationset
+        environment: '{{environment}}'
+        domain: '{{domain}}'
+        service: '{{service}}'
+      annotations:
+        gap.platform/source: "applicationset/multi-env-services"
+        gap.platform/environment: '{{environment}}'
+        gap.platform/service: '{{service}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: '{{revision}}'
+        path: 'apps/{{environment}}/{{domain}}/{{service}}'
+      destination:
+        server: '{{server}}'
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true
+        - RespectIgnoreDifferences=true
+      info:
+      - name: "Environment"
+        value: '{{environment}}'
+      - name: "Service"
+        value: '{{service}}'
+      - name: "Domain"
+        value: '{{domain}}'
+      - name: "Namespace"
+        value: '{{namespace}}'

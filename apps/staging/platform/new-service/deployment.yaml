@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-service
+  labels:
+    app: new-service
+    app.kubernetes.io/managed-by: argocd
+    environment: staging
+    gap: "006"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: new-service
+  template:
+    metadata:
+      labels:
+        app: new-service
+        environment: staging
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi

@@ -1,0 +1,6 @@
+# Test service for ApplicationSet auto-discovery validation (GAP-006)
+# This directory triggers cluster-services ApplicationSet automatically
+# Delete this directory to remove the Application from ArgoCD
+appVersion: "1.0.0"
+service: new-service
+namespace: staging-platform-new-service
