@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-env-services
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: applicationset
+    app.kubernetes.io/part-of: gitops-automation
+    gap: "006"
+    generator: matrix
+  annotations:
+    gap.platform/adr: DEC-077
+    gap.platform/description: Multi-environment declarative service matrix
+    gap.platform/issue: GAP-006
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - environment: staging
+                  revision: main
+                  server: https://kubernetes.default.svc
+          - list:
+              elements:
+                - domain: monitoring
+                  namespace: monitoring
+                  service: grafana
+                - domain: security
+                  namespace: staging-security-vault
+                  service: vault
+                - domain: platform
+                  namespace: staging-platform-keycloak
+                  service: keycloak
+                - domain: platform
+                  namespace: staging-platform-harbor
+                  service: harbor
+                - domain: governance
+                  namespace: staging-governance-kyverno
+                  service: kyverno
+                - domain: data
+                  namespace: staging-data-infrastructure
+                  service: rabbitmq
+                - domain: data
+                  namespace: staging-data-infrastructure
+                  service: redis
+  template:
+    metadata:
+      name: '{{environment}}-{{service}}'
+      namespace: staging-platform-argocd
+      labels:
+        app.kubernetes.io/managed-by: applicationset
+        environment: '{{environment}}'
+        domain: '{{domain}}'
+        service: '{{service}}'
+      annotations:
+        gap.platform/environment: '{{environment}}'
+        gap.platform/service: '{{service}}'
+        gap.platform/source: applicationset/multi-env-services
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: '{{revision}}'
+        path: apps/{{environment}}/{{domain}}/{{service}}
+      destination:
+        server: '{{server}}'
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+      info:
+        - name: Environment
+          value: '{{environment}}'
+        - name: Service
+          value: '{{service}}'
+        - name: Domain
+          value: '{{domain}}'
+        - name: Namespace
+          value: '{{namespace}}'

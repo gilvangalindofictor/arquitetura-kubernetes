@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-http
+  namespace: staging-platform-keycloak
+  annotations:
+    alb.ingress.kubernetes.io/group.name: platform-staging
+    alb.ingress.kubernetes.io/healthcheck-path: /auth/health/ready
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - host: keycloak.staging.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-keycloakx-http
+                port:
+                  number: 80

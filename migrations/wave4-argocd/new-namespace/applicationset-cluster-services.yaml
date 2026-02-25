@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-services
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: applicationset
+    app.kubernetes.io/part-of: gitops-automation
+    gap: "006"
+  annotations:
+    gap.platform/adr: DEC-077
+    gap.platform/description: GitOps automation - auto-discovers staging services
+    gap.platform/issue: GAP-006
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        revision: main
+        files:
+          - path: apps/staging/*/*/app.yaml
+  preservedFields:
+    annotations:
+      - kubectl.kubernetes.io/last-applied-configuration
+  template:
+    metadata:
+      name: staging-{{path[2]}}-{{path[3]}}
+      namespace: staging-platform-argocd
+      labels:
+        app.kubernetes.io/managed-by: applicationset
+        environment: staging
+        domain: '{{path[2]}}'
+        service: '{{path[3]}}'
+      annotations:
+        gap.platform/source: applicationset/cluster-services
+        gap.platform/git-path: '{{path}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: main
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: staging-{{path[2]}}-{{path[3]}}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+      info:
+        - name: Git Path
+          value: '{{path}}'
+        - name: Environment
+          value: staging
+        - name: Domain
+          value: '{{path[2]}}'
+        - name: Service
+          value: '{{path[3]}}'

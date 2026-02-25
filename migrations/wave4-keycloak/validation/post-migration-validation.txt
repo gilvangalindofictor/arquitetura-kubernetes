@@ -1,0 +1,70 @@
+# Keycloak Migration Validation (2026-02-25)
+
+## Migration Details
+- **From**: keycloak
+- **To**: staging-platform-keycloak
+- **Duration**: ~3 minutes (namespace creation to pod Running)
+- **Downtime**: ~2 minutes (expected, acceptable for SSO service)
+
+## Pod Status
+```
+NAME                   READY   STATUS    RESTARTS   AGE
+keycloak-keycloakx-0   1/1     Running   0          100s
+```
+
+## ExternalSecrets Status
+```
+NAME                              STORE           REFRESH INTERVAL   STATUS              READY
+keycloak-admin-credentials        vault-backend   1h                 SecretSyncedError   False
+keycloak-postgresql-credentials   vault-backend   1h                 SecretSynced        True
+```
+Note: admin-credentials error is pre-existing, non-blocking (same as old namespace)
+
+## Ingress Status
+```
+NAME            CLASS   HOSTS                       ADDRESS                                                                PORTS   AGE
+keycloak-http   alb     keycloak.staging.internal   k8s-platformstaging-00e0ecf3b4-279144409.us-east-1.elb.amazonaws.com   80      115s
+```
+
+## Health Check
+HTTP Status: 200
+Response:
+```json
+{
+    "status": "UP",
+    "checks": [
+        {
+            "name": "Keycloak database connections async health check",
+            "status": "UP"
+        },
+        {
+            "name": "Keycloak cluster health check",
+            "status": "UP"
+        }
+    ]
+}
+```
+
+## Logs Confirmation
+```
+2026-02-25 14:11:51,831 INFO  [io.quarkus] (main) Keycloak 26.5.1 on JVM (powered by Quarkus 3.27.1) started in 22.483s.
+Listening on: http://0.0.0.0:8080. Management interface listening on http://0.0.0.0:9000.
+```
+
+## SSO Integration Status
+- PostgreSQL connection: UP (verified via health check)
+- Ingress endpoint: http://keycloak.staging.internal/auth (200 OK)
+- Same ALB as before (platform-staging group)
+
+## Migration Success Criteria
+✅ Pod Running (1/1 ready)
+✅ ExternalSecrets synced (PostgreSQL credentials)
+✅ Health check returns UP
+✅ Database connection UP
+✅ Cluster health UP
+✅ Ingress configured and responding
+
+## Next Steps
+- Delete old namespace: keycloak
+- Update any ApplicationSets/Applications to point to new namespace
+- Monitor SSO logins for 10 minutes

@@ -1,0 +1,140 @@
+applicationSet:
+  enabled: true
+  replicas: 2
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+configs:
+  params:
+    server.insecure: "true"
+  secret:
+    postgresPassword: ${argocd-postgresql-credentials:password}
+
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  replicas: 1
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+dex:
+  enabled: false
+
+global:
+  domain: argocd.staging.internal
+
+notifications:
+  enabled: false
+
+redis:
+  enabled: true
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  replicas: 2
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+server:
+  config:
+    oidc.config: |
+      name: Keycloak
+      issuer: http://keycloak.staging.internal/auth/realms/platform
+      clientID: argocd
+      clientSecret: ${argocd-oidc-credentials:client-secret}
+      requestedScopes: ["openid", "profile", "email", "groups"]
+    url: http://argocd.staging.internal
+  env:
+  - name: ARGOCD_SERVER_POSTGRESQL_HOST
+    valueFrom:
+      secretKeyRef:
+        key: host
+        name: argocd-postgresql-credentials
+  - name: ARGOCD_SERVER_POSTGRESQL_DATABASE
+    valueFrom:
+      secretKeyRef:
+        key: database
+        name: argocd-postgresql-credentials
+  - name: ARGOCD_SERVER_POSTGRESQL_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: argocd-postgresql-credentials
+  - name: ARGOCD_SERVER_POSTGRESQL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: argocd-postgresql-credentials
+  envFrom:
+  - secretRef:
+      name: argocd-postgresql-credentials
+  ingress:
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/group.name: platform-staging
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    enabled: true
+    hosts:
+    - argocd.staging.internal
+    ingressClassName: alb
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  rbacConfig:
+    policy.csv: |
+      # Admin group from Keycloak
+      g, argocd-admins, role:admin
+
+      # No secret enumeration (security)
+      p, role:readonly, repositories, get, */*, deny
+      p, role:readonly, certificates, get, *, deny
+      p, role:readonly, accounts, get, *, deny
+    policy.default: role:readonly
+  replicas: 2
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
