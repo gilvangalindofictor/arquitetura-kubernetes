@@ -429,11 +429,15 @@ go mod tidy && make test-all
 **Vulnerabilities (DT-002 Audit — 2026-02-20) — 2/8 REMEDIADAS**:
 - ✅ **V-001 CRITICAL RESOLVIDO**: Grafana admin password hardcoded eliminado + random_password auto-generation (32 chars)
 - ✅ **V-002 HIGH RESOLVIDO**: ArgoCD ExternalSecrets criados (PostgreSQL 32 chars + OIDC 48 chars) + ESO policy atualizada
-- 🟡 **V-003 HIGH**: Harbor PostgreSQL password plaintext em Helm values
-- 4 vulnerabilidades MEDIUM + 2 LOW (ver demands-backlog.md DT-002)
+- ✅ **V-003 HIGH RESOLVIDO**: Harbor PostgreSQL password via ESO (2026-02-25)
+- ✅ **V-004/V-005/V-006 MEDIUM RESOLVIDOS**: Harbor admin/Redis + Keycloak admin via ESO (2026-02-25)
+- ✅ **V-007 LOW RESOLVIDO**: 56 secrets removidos de 25 arquivos documentação (2026-02-25)
+- ✅ **V-008 LOW RESOLVIDO**: Velero IRSA - OIDC thumbprint + ARN format fix (2026-02-25)
+- ✅ **8/8 vulnerabilidades remediadas (100%)** - ESO coverage: 10/10 (100%)
 
 **Pendências Críticas**:
-- [ ] Completar migração de secrets para Vault (Harbor V-003/V-004/V-005, Keycloak V-006)
+
+- [x] Completar migração de secrets para Vault (Harbor V-003/V-004/V-005, Keycloak V-006) ✅ COMPLETO
 - [ ] Implementar security audit completo (checklist OWASP Top 10)
 
 ---
