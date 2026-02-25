@@ -1049,16 +1049,27 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ### ✅ Sprint Atual — Remediação Secrets + Validações (2026-02-25)
 
-**Concluídos (2026-02-25)**:
+**Concluídos (2026-02-25 manhã)**:
 1. ✅ **V-004/005/006**: ExternalSecrets sync errors resolvidos (Harbor + Keycloak)
 2. ✅ **V-007**: Limpar secrets de documentação (56 secrets, 25 arquivos)
 3. ✅ **V-008**: Implementar IRSA Velero — COMPLETO (OIDC thumbprint desatualizado + ARN format, backup test OK)
 4. ✅ **DT-003**: Executar suite Terratest (`go mod tidy && make test-all`)
 
-**Concluídos**:
+**Concluídos (2026-02-25 noite - 5 agentes paralelos)**:
+5. ✅ **ADR-079 Fix**: Renumeração ADR-078/079/080 (3 duplicatas resolvidas, 9 arquivos atualizados)
+6. ✅ **OIDC Monitoring**: Script validação thumbprint + runbook (previne IRSA failures)
+7. ✅ **V-009**: Velero backup schedules (daily 7d + weekly 30d retention, S3 Intelligent-Tiering)
+8. ✅ **V-011**: Grafana dashboard Velero (15 painéis + 7 PrometheusRule alerts)
+9. ✅ **V-012**: Velero DR runbook (1,507 linhas, 5 cenários, RTO/RPO procedures)
+
+**Concluídos anteriormente**:
 - ✅ **DT-005**: Alertas PrometheusRule deployados (Slack webhooks manuais)
 - ✅ **GAP-005**: Templates GitLab CI/CD completos (validação E2E manual pendente)
 - ✅ **GAP-006/007/008**: ApplicationSets, Network Policies, Monitoring
+
+**Pendente**:
+
+- 🟡 **V-010**: Restore testing (criar namespace teste → backup → delete → restore validation)
 
 ---
 
@@ -1096,4 +1107,4 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ---
 
-_Última atualização: 2026-02-25 | Fonte: V-008 Velero IRSA complete + Sprint 2026-02-25 security remediation (8/8 vulnerabilities)_
+*Última atualização: 2026-02-25 22:30 | Fonte: Velero DR Stack complete (V-009/011/012) + OIDC monitoring + ADR fix (5 agentes paralelos)*
