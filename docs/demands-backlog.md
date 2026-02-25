@@ -700,7 +700,7 @@ kubectl get clusterpolicyreports
 | **V-005** | 🟢 MEDIUM   | Harbor Redis password → Vault KV + ESO             | `modules/harbor/`                  | ✅ **DEPLOYED**       |
 | **V-006** | 🟢 MEDIUM   | Keycloak admin password → Vault KV + ESO           | `modules/keycloak/`                | ✅ **DEPLOYED**       |
 | V-007     | LOW         | Secrets expostos em documentação                    | documentacao                       | ✅ **COMPLETO**       |
-| **V-008** | 🟢 LOW      | Velero S3 credentials → IRSA (zero static creds)    | `modules/velero-dr/`               | ✅ **IMPLEMENTATION READY** |
+| **V-008** | 🟢 LOW      | Velero S3 credentials → IRSA (zero static creds)    | `modules/velero-dr/`               | 🔴 **BLOQUEADO** (STS error) |
 
 **Deployment V-001/V-002 (2026-02-20) ✅ COMPLETO**:
 - [x] terraform apply staging: 7 added, 1 changed, 0 destroyed
@@ -728,7 +728,7 @@ kubectl get clusterpolicyreports
 - [x] **P1**: ✅ Resolver Harbor admin password sync error (V-004) — COMPLETO (2026-02-25)
 - [x] **P1**: ✅ Resolver Harbor Redis password sync error (V-005) — COMPLETO (2026-02-25)
 - [x] **P2**: ✅ Resolver Keycloak admin password sync error (V-006) — COMPLETO (2026-02-25)
-- [x] **P3**: ✅ Migrar Velero credentials para IRSA (V-008) — IMPLEMENTATION READY (2026-02-25)
+- [x] **P3**: 🔴 Migrar Velero credentials para IRSA (V-008) — BLOQUEADO (STS "Request ARN is invalid", 3 soluções falharam, 2026-02-25)
 
 ---
 
@@ -1052,7 +1052,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 **Concluídos (2026-02-25)**:
 1. ✅ **V-004/005/006**: ExternalSecrets sync errors resolvidos (Harbor + Keycloak)
 2. ✅ **V-007**: Limpar secrets de documentação (56 secrets, 25 arquivos)
-3. ✅ **V-008**: Implementar IRSA Velero — IMPLEMENTATION READY (script + ADR-079 + logbook)
+3. 🔴 **V-008**: Implementar IRSA Velero — BLOQUEADO (STS error "Request ARN is invalid", docs/troubleshooting/velero-irsa-blocker-2026-02-25.md)
 4. ✅ **DT-003**: Executar suite Terratest (`go mod tidy && make test-all`)
 
 **Concluídos**:
