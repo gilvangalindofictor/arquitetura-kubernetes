@@ -1,0 +1,139 @@
+---
+# Velero Backup Schedules
+# Documentation: docs/runbooks/velero-backup-schedules.md
+# Apply: kubectl apply -f kubectl-manifests/velero/backup-schedules.yaml
+# Monitor: kubectl get schedules -n velero
+
+---
+# Daily backup schedule - 7-day retention
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-cluster-backup
+  namespace: velero
+  labels:
+    velero.io/schedule-type: daily
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup-schedule
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    description: "Daily cluster backup at 2 AM UTC with 7-day retention"
+spec:
+  schedule: "0 2 * * *"  # Every day at 2 AM UTC
+  template:
+    # Include all namespaces except system namespaces
+    includedNamespaces:
+    - "*"
+    excludedNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+
+    # Include cluster-scoped resources
+    includeClusterResources: true
+
+    # Backup all storage volumes
+    defaultVolumesToFsBackup: true
+
+    # Snapshot volumes using CSI if available
+    snapshotVolumes: true
+
+    # TTL: 7 days (168 hours)
+    ttl: 168h0m0s
+
+    # Storage location
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+    - default
+
+    # Labels for the backup
+    labels:
+      velero.io/schedule-name: daily-cluster-backup
+      backup-type: daily
+      retention: 7d
+
+    # Hooks for application-consistent backups
+    hooks:
+      resources: []
+
+    # Ordered resources to ensure proper backup sequence
+    orderedResources:
+      # Backup in order: Custom Resources → ConfigMaps/Secrets → Workloads → Services
+      - "customresourcedefinitions"
+      - "namespaces"
+      - "persistentvolumes"
+      - "persistentvolumeclaims"
+      - "secrets"
+      - "configmaps"
+      - "serviceaccounts"
+      - "limitranges"
+      - "pods"
+
+---
+# Weekly backup schedule - 30-day retention
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-cluster-backup
+  namespace: velero
+  labels:
+    velero.io/schedule-type: weekly
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup-schedule
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    description: "Weekly cluster backup every Sunday at 3 AM UTC with 30-day retention"
+spec:
+  schedule: "0 3 * * 0"  # Every Sunday at 3 AM UTC
+  template:
+    # Include all namespaces except system namespaces
+    includedNamespaces:
+    - "*"
+    excludedNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+
+    # Include cluster-scoped resources
+    includeClusterResources: true
+
+    # Backup all storage volumes
+    defaultVolumesToFsBackup: true
+
+    # Snapshot volumes using CSI if available
+    snapshotVolumes: true
+
+    # TTL: 30 days (720 hours)
+    ttl: 720h0m0s
+
+    # Storage location
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+    - default
+
+    # Labels for the backup
+    labels:
+      velero.io/schedule-name: weekly-cluster-backup
+      backup-type: weekly
+      retention: 30d
+
+    # Hooks for application-consistent backups
+    hooks:
+      resources: []
+
+    # Ordered resources to ensure proper backup sequence
+    orderedResources:
+      # Backup in order: Custom Resources → ConfigMaps/Secrets → Workloads → Services
+      - "customresourcedefinitions"
+      - "namespaces"
+      - "persistentvolumes"
+      - "persistentvolumeclaims"
+      - "secrets"
+      - "configmaps"
+      - "serviceaccounts"
+      - "limitranges"
+      - "pods"
