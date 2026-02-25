@@ -1,7 +1,8 @@
 # 📊 Status da Migração - Diário de Bordo → Logbook
 
-**Data da Migração:** 2026-02-03
-**Status Geral:** ✅ Migração Completa (Estrutural)
+**Data da Migracao:** 2026-02-03
+**Ultima Revisao:** 2026-02-25
+**Status Geral:** ✅ Migracao Completa + Crescimento Organico
 
 ---
 
@@ -71,9 +72,16 @@ A migração do formato "diário de bordo" (documentos monolíticos) para "logbo
 
 | Status | Quantidade |
 |--------|------------|
-| **Logbooks Criados** | **12** (9 novos + 3 pré-existentes) |
-| **Sumários Prontos** | 8 (sessões do diario-marco0) |
-| **Total Documentado** | **20 entradas** |
+| **Logbooks Migrados (Jan 2026)** | **9** (da migracao original) |
+| **Logbooks Pre-Existentes (Fev 03)** | **3** |
+| **Logbooks Novos (Fev 04-25)** | **134** |
+| **Total Documentado** | **146 entradas** |
+
+> **Atualizacao 2026-02-25:** Apos a migracao estrutural inicial (12 logbooks),
+> o projeto gerou organicamente mais 134 logbooks cobrindo: Marco 3-4, FinOps,
+> SSO/OIDC (Keycloak, Grafana, Vault, ArgoCD, Harbor), Migracoes DEC-074 (6 waves),
+> GAP implementations (001-009), e Terraform conformance.
+> Consulte [INDEX.md](INDEX.md) para o indice completo.
 
 ---
 
