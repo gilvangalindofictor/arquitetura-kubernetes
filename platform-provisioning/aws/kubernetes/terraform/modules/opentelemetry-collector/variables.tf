@@ -11,7 +11,13 @@ variable "chart_version" {
 }
 
 variable "namespace" {
-  description = "Kubernetes namespace"
+  description = "Kubernetes namespace for OTel Collector deployment"
+  type        = string
+  default     = "monitoring"
+}
+
+variable "observability_namespace" {
+  description = "Kubernetes namespace where Tempo/Prometheus/Loki are deployed"
   type        = string
   default     = "monitoring"
 }
@@ -90,6 +96,12 @@ variable "hpa_target_cpu_percent" {
 
 variable "enable_pdb" {
   description = "Enable PDB (Performance Specialist requirement)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_network_policies" {
+  description = "Enable Network Policies (Security Specialist requirement)"
   type        = bool
   default     = true
 }

@@ -1293,9 +1293,10 @@ resource "kubectl_manifest" "servicemonitor_postgresql_staging" {
 module "opentelemetry_collector_staging" {
   source = "../../modules/opentelemetry-collector"
 
-  release_name  = "opentelemetry-collector"
-  chart_version = "0.108.0"
-  namespace     = "monitoring"
+  release_name            = "opentelemetry-collector"
+  chart_version           = "0.108.0"
+  namespace               = "staging-observability-monitoring"
+  observability_namespace = "staging-observability-monitoring"
 
   # HA configuration (Performance Specialist requirement)
   replicas = 2
@@ -1323,6 +1324,9 @@ module "opentelemetry_collector_staging" {
 
   # PDB (Performance Specialist requirement — HA durante rolling updates)
   enable_pdb = true
+
+  # Network Policies (Security Specialist requirement — GAP-007 Fix)
+  enable_network_policies = true
 
   # ServiceMonitor (Observability integration)
   enable_servicemonitor   = true

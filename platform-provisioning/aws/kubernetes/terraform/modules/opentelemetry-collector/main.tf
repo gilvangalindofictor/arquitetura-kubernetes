@@ -6,7 +6,7 @@
 data "kubernetes_service" "tempo_distributor" {
   metadata {
     name      = "tempo-distributor"
-    namespace = "monitoring"
+    namespace = var.observability_namespace
   }
 }
 
@@ -14,7 +14,7 @@ data "kubernetes_service" "tempo_distributor" {
 data "kubernetes_service" "prometheus" {
   metadata {
     name      = "kube-prometheus-stack-prometheus"
-    namespace = "monitoring"
+    namespace = var.observability_namespace
   }
 }
 
@@ -22,7 +22,7 @@ data "kubernetes_service" "prometheus" {
 data "kubernetes_service" "loki_gateway" {
   metadata {
     name      = "loki-gateway"
-    namespace = "monitoring"
+    namespace = var.observability_namespace
   }
 }
 
@@ -72,6 +72,18 @@ resource "kubernetes_manifest" "otel_pdb" {
     name      = var.release_name
     namespace = var.namespace
   }))
+
+  depends_on = [helm_release.otel_collector]
+}
+
+# Network Policies: Ingress (apps → collector) + Egress (collector → backends)
+resource "kubernetes_manifest" "otel_network_policies" {
+  for_each = var.enable_network_policies ? toset(yamldecode(templatefile("${path.module}/network-policies.yaml", {
+    namespace               = var.namespace
+    observability_namespace = var.observability_namespace
+  }))) : []
+
+  manifest = each.value
 
   depends_on = [helm_release.otel_collector]
 }
