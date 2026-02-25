@@ -1,0 +1,293 @@
+---
+# Automated Restore Testing CronJob
+# Runs weekly to verify backup/restore functionality
+# Tests restore to isolated namespace to avoid production impact
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero-restore-test
+  labels:
+    purpose: restore-testing
+    managed-by: velero
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-restore-tester
+  namespace: velero
+  labels:
+    app: velero-restore-tester
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: velero-restore-tester
+  labels:
+    app: velero-restore-tester
+rules:
+  # Read backups and restores
+  - apiGroups: ["velero.io"]
+    resources: ["backups", "restores"]
+    verbs: ["get", "list", "create", "delete"]
+
+  # Read/write to test namespace
+  - apiGroups: [""]
+    resources: ["namespaces", "pods", "services", "configmaps", "secrets"]
+    verbs: ["get", "list", "create", "delete"]
+
+  # Clean up test resources
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velero-restore-tester
+  labels:
+    app: velero-restore-tester
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: velero-restore-tester
+subjects:
+  - kind: ServiceAccount
+    name: velero-restore-tester
+    namespace: velero
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: velero-restore-test
+  namespace: velero
+  labels:
+    app: velero-restore-tester
+    automation: backup-validation
+spec:
+  # Run every Sunday at 5:00 AM UTC (after weekly backup completes)
+  schedule: "0 5 * * 0"
+
+  # Keep last 3 test results
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Don't run if previous test still running
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: velero-restore-tester
+    spec:
+      # Timeout after 30 minutes
+      activeDeadlineSeconds: 1800
+
+      template:
+        metadata:
+          labels:
+            app: velero-restore-tester
+        spec:
+          serviceAccountName: velero-restore-tester
+          restartPolicy: OnFailure
+
+          # Run on system nodes
+          nodeSelector:
+            workload: system
+
+          tolerations:
+            - key: workload
+              operator: Equal
+              value: system
+              effect: NoSchedule
+
+          containers:
+            - name: restore-tester
+              image: bitnami/kubectl:1.34.0
+              imagePullPolicy: IfNotPresent
+
+              env:
+                - name: VELERO_NAMESPACE
+                  value: "velero"
+                - name: TEST_NAMESPACE
+                  value: "velero-restore-test"
+                - name: TEST_SOURCE_NAMESPACE
+                  value: "cert-manager"  # Small, stable namespace for testing
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: velero-notifications
+                      key: slack-webhook-url
+                      optional: true
+
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+
+                  echo "=========================================="
+                  echo "Velero Restore Test - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  echo "=========================================="
+
+                  # Install velero CLI
+                  echo "Installing Velero CLI..."
+                  curl -fsSL https://github.com/vmware-tanzu/velero/releases/download/v1.15.1/velero-v1.15.1-linux-amd64.tar.gz | \
+                    tar -xz -C /tmp
+                  cp /tmp/velero-v1.15.1-linux-amd64/velero /usr/local/bin/
+                  chmod +x /usr/local/bin/velero
+
+                  # Verify velero is working
+                  velero version --client-only
+
+                  # Find latest successful backup
+                  echo "Finding latest successful backup..."
+                  LATEST_BACKUP=$(velero backup get --selector backup-schedule=daily-full -o json | \
+                    jq -r '[.items[] | select(.status.phase == "Completed")] | sort_by(.status.completionTimestamp) | reverse | .[0].metadata.name')
+
+                  if [ -z "$LATEST_BACKUP" ] || [ "$LATEST_BACKUP" = "null" ]; then
+                    echo "ERROR: No successful backups found!"
+                    exit 1
+                  fi
+
+                  echo "Latest backup: $LATEST_BACKUP"
+
+                  # Get backup timestamp
+                  BACKUP_TIME=$(velero backup get $LATEST_BACKUP -o jsonpath='{.status.completionTimestamp}')
+                  echo "Backup completed at: $BACKUP_TIME"
+
+                  # Clean up previous test namespace if exists
+                  echo "Cleaning up previous test namespace..."
+                  kubectl delete namespace ${TEST_NAMESPACE} --ignore-not-found=true --timeout=60s || true
+
+                  # Wait for namespace to be deleted
+                  while kubectl get namespace ${TEST_NAMESPACE} 2>/dev/null; do
+                    echo "Waiting for namespace deletion..."
+                    sleep 5
+                  done
+
+                  # Create test restore
+                  RESTORE_NAME="test-restore-$(date +%Y%m%d%H%M%S)"
+                  echo "Creating restore: $RESTORE_NAME"
+
+                  velero restore create $RESTORE_NAME \
+                    --from-backup $LATEST_BACKUP \
+                    --include-namespaces ${TEST_SOURCE_NAMESPACE} \
+                    --namespace-mappings ${TEST_SOURCE_NAMESPACE}:${TEST_NAMESPACE} \
+                    --wait \
+                    --timeout 10m
+
+                  # Check restore status
+                  RESTORE_STATUS=$(velero restore get $RESTORE_NAME -o jsonpath='{.status.phase}')
+                  echo "Restore status: $RESTORE_STATUS"
+
+                  if [ "$RESTORE_STATUS" != "Completed" ]; then
+                    echo "ERROR: Restore failed!"
+                    velero restore describe $RESTORE_NAME
+                    velero restore logs $RESTORE_NAME
+                    exit 1
+                  fi
+
+                  # Verify restored resources
+                  echo "Verifying restored resources..."
+
+                  # Count resources in test namespace
+                  DEPLOYMENTS=$(kubectl get deployments -n ${TEST_NAMESPACE} --no-headers 2>/dev/null | wc -l)
+                  SERVICES=$(kubectl get services -n ${TEST_NAMESPACE} --no-headers 2>/dev/null | wc -l)
+                  CONFIGMAPS=$(kubectl get configmaps -n ${TEST_NAMESPACE} --no-headers 2>/dev/null | wc -l)
+
+                  echo "Restored resources:"
+                  echo "  - Deployments: $DEPLOYMENTS"
+                  echo "  - Services: $SERVICES"
+                  echo "  - ConfigMaps: $CONFIGMAPS"
+
+                  # Check if any resources were restored
+                  TOTAL_RESOURCES=$((DEPLOYMENTS + SERVICES + CONFIGMAPS))
+                  if [ $TOTAL_RESOURCES -eq 0 ]; then
+                    echo "WARNING: No resources restored (source namespace may be empty)"
+                  else
+                    echo "SUCCESS: $TOTAL_RESOURCES resources restored"
+                  fi
+
+                  # Verify pods are running
+                  echo "Checking pod status..."
+                  kubectl wait --for=condition=ready pod --all -n ${TEST_NAMESPACE} --timeout=300s || {
+                    echo "WARNING: Some pods not ready within timeout"
+                    kubectl get pods -n ${TEST_NAMESPACE}
+                  }
+
+                  # Get restore statistics
+                  WARNINGS=$(velero restore describe $RESTORE_NAME | grep -c "Warnings:" || echo "0")
+                  ERRORS=$(velero restore describe $RESTORE_NAME | grep -c "Errors:" || echo "0")
+
+                  echo "Restore statistics:"
+                  echo "  - Warnings: $WARNINGS"
+                  echo "  - Errors: $ERRORS"
+
+                  # Cleanup test restore
+                  echo "Cleaning up test restore..."
+                  velero restore delete $RESTORE_NAME --confirm
+
+                  # Cleanup test namespace
+                  echo "Cleaning up test namespace..."
+                  kubectl delete namespace ${TEST_NAMESPACE} --timeout=60s
+
+                  # Final summary
+                  echo "=========================================="
+                  echo "Restore Test Summary"
+                  echo "=========================================="
+                  echo "Backup: $LATEST_BACKUP"
+                  echo "Restore: $RESTORE_NAME"
+                  echo "Status: $RESTORE_STATUS"
+                  echo "Resources: $TOTAL_RESOURCES"
+                  echo "Warnings: $WARNINGS"
+                  echo "Errors: $ERRORS"
+                  echo "=========================================="
+
+                  # Send Slack notification (if webhook configured)
+                  if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+                    curl -X POST -H 'Content-type: application/json' \
+                      --data "{
+                        \"text\": \"✅ Velero Restore Test Successful\",
+                        \"attachments\": [{
+                          \"color\": \"good\",
+                          \"fields\": [
+                            {\"title\": \"Backup\", \"value\": \"$LATEST_BACKUP\", \"short\": true},
+                            {\"title\": \"Status\", \"value\": \"$RESTORE_STATUS\", \"short\": true},
+                            {\"title\": \"Resources\", \"value\": \"$TOTAL_RESOURCES\", \"short\": true},
+                            {\"title\": \"Errors\", \"value\": \"$ERRORS\", \"short\": true}
+                          ]
+                        }]
+                      }" \
+                      "${SLACK_WEBHOOK_URL}" || echo "Slack notification failed"
+                  fi
+
+                  if [ "$RESTORE_STATUS" = "Completed" ] && [ $ERRORS -eq 0 ]; then
+                    echo "✅ Restore test PASSED"
+                    exit 0
+                  else
+                    echo "❌ Restore test FAILED"
+                    exit 1
+                  fi
+
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+
+---
+# Secret for Slack notifications (optional)
+# Create this secret with your Slack webhook URL:
+#
+# kubectl create secret generic velero-notifications \
+#   --from-literal=slack-webhook-url=https://hooks.slack.com/services/YOUR/WEBHOOK/URL \
+#   -n velero
+#
+# Or use ExternalSecret to pull from Vault

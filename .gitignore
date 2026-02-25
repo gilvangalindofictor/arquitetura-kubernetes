@@ -241,3 +241,7 @@ localstack/data/
 access/
 **.tfplan
 *.tar.gz
+
+# Migration backup directories (per STRICT-RULES.md)
+migrations/**/backup/
+backup/

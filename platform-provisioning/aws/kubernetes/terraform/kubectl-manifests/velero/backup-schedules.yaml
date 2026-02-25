@@ -1,0 +1,214 @@
+---
+# Daily Full Backup Schedule
+# Runs at 2:00 AM UTC daily
+# Retention: 7 days (168 hours)
+# Includes: All namespaces, all resources
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full-backup
+  namespace: velero
+  labels:
+    backup-type: full
+    frequency: daily
+spec:
+  # Cron schedule: 2:00 AM UTC every day
+  schedule: "0 2 * * *"
+
+  template:
+    # Include all namespaces
+    includedNamespaces:
+      - '*'
+
+    # Exclude system namespaces that can be recreated
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+
+    # Include all resources
+    includedResources:
+      - '*'
+
+    # Snapshot volumes
+    snapshotVolumes: true
+
+    # Default volume snapshot locations
+    defaultVolumesToFsBackup: false
+
+    # TTL: 7 days
+    ttl: 168h0m0s
+
+    # Storage location
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+      - default
+
+    # Labels for backup organization
+    labels:
+      backup-schedule: daily-full
+      retention-days: "7"
+
+    # Hooks for pre/post backup actions
+    hooks:
+      resources:
+        - name: postgresql-backup-hook
+          includedNamespaces:
+            - '*'
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+          pre:
+            - exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - echo "PostgreSQL backup via RDS automated snapshots"
+                onError: Continue
+                timeout: 30s
+
+---
+# Weekly PVC Backup Schedule
+# Runs at 3:00 AM UTC every Sunday
+# Retention: 30 days (720 hours)
+# Includes: Only PVCs and PVs for long-term storage
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-pvc-backup
+  namespace: velero
+  labels:
+    backup-type: pvc-only
+    frequency: weekly
+spec:
+  # Cron schedule: 3:00 AM UTC every Sunday
+  schedule: "0 3 * * 0"
+
+  template:
+    # Include all namespaces
+    includedNamespaces:
+      - '*'
+
+    # Only PVCs and PVs
+    includedResources:
+      - persistentvolumeclaims
+      - persistentvolumes
+
+    # Always snapshot volumes for this schedule
+    snapshotVolumes: true
+    defaultVolumesToFsBackup: true
+
+    # TTL: 30 days
+    ttl: 720h0m0s
+
+    # Storage location with weekly prefix
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+      - default
+
+    # Labels for backup organization
+    labels:
+      backup-schedule: weekly-pvc
+      retention-days: "30"
+
+    # Order resources for proper restore
+    orderedResources:
+      persistentvolumes: persistentvolume1,persistentvolume2
+      persistentvolumeclaims: pvc1,pvc2
+
+---
+# Hourly Critical Namespaces Backup
+# Runs every hour at minute 0
+# Retention: 24 hours
+# Includes: Only critical production namespaces
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: hourly-critical-backup
+  namespace: velero
+  labels:
+    backup-type: critical
+    frequency: hourly
+spec:
+  # Cron schedule: Every hour at minute 0
+  schedule: "0 * * * *"
+
+  template:
+    # Only critical namespaces
+    includedNamespaces:
+      - staging-security-vault
+      - keycloak
+      - argocd
+      - gitlab-staging
+
+    # Include all resources
+    includedResources:
+      - '*'
+
+    # Snapshot volumes
+    snapshotVolumes: true
+
+    # TTL: 24 hours
+    ttl: 24h0m0s
+
+    # Storage location
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+      - default
+
+    # Labels for backup organization
+    labels:
+      backup-schedule: hourly-critical
+      retention-hours: "24"
+
+---
+# Monthly Archive Backup
+# Runs at 4:00 AM UTC on the 1st of each month
+# Retention: 365 days (1 year)
+# Includes: Full cluster state for compliance
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: monthly-archive-backup
+  namespace: velero
+  labels:
+    backup-type: archive
+    frequency: monthly
+spec:
+  # Cron schedule: 4:00 AM UTC on the 1st of each month
+  schedule: "0 4 1 * *"
+
+  template:
+    # Include all namespaces (including system namespaces for compliance)
+    includedNamespaces:
+      - '*'
+
+    # Include all resources
+    includedResources:
+      - '*'
+
+    # Snapshot all volumes
+    snapshotVolumes: true
+    defaultVolumesToFsBackup: true
+
+    # TTL: 365 days (1 year)
+    ttl: 8760h0m0s
+
+    # Storage location
+    storageLocation: default
+
+    # Volume snapshot location
+    volumeSnapshotLocations:
+      - default
+
+    # Labels for backup organization
+    labels:
+      backup-schedule: monthly-archive
+      retention-days: "365"
+      compliance: "true"
