@@ -745,15 +745,21 @@ module "keycloak_clients_staging" {
   environment   = local.environment
   cluster_name  = local.cluster_name
 
-  # Enable all clients
-  gitlab_enabled  = true
-  argocd_enabled  = true
-  grafana_enabled = true
+  # Enable all clients (TASK-002: full 6-client IaC coverage)
+  gitlab_enabled     = true
+  argocd_enabled     = true
+  grafana_enabled    = true
+  harbor_enabled     = true
+  vault_enabled      = true
+  sonarqube_enabled  = true
 
   # Kubernetes namespaces
-  gitlab_namespace  = "gitlab-staging"
-  argocd_namespace  = "argocd"
-  grafana_namespace = "monitoring"
+  gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
+  argocd_namespace     = "argocd"
+  grafana_namespace    = "monitoring"
+  harbor_namespace     = "harbor-system"
+  vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
+  sonarqube_namespace  = "sonarqube"
 
   # grafana-admins group + oidc-group-membership-mapper
   # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)

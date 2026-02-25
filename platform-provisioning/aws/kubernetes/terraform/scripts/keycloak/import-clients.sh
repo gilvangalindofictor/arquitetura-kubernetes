@@ -2,22 +2,29 @@
 # =============================================================================
 # Keycloak Clients Import Script (TASK-002)
 # Purpose: Discover existing Keycloak client UUIDs and generate terraform import commands
-# Usage:   ./scripts/keycloak/import-clients.sh
-# Prereqs: kubectl configured, aws-cli authenticated, terraform init done
+# Usage:   ./scripts/keycloak/import-clients.sh [--execute]
+#
+# Clients covered (6 total):
+#   OIDC: gitlab, argocd, grafana, harbor, vault
+#   SAML: sonarqube
+#   Groups: grafana-admins
+#   Mappers: grafana groups mapper, sonarqube email/name mappers
 #
 # IMPORTANT — MEMORY.md patterns:
 #   - keycloak.staging.internal does NOT resolve from WSL2 → use port-forward
 #   - curl fails with Keycloak special-char passwords → use Python urllib
 #   - /auth prefix required for Keycloak 26.5.1 (keycloakx chart legacy config)
+#   - Keycloak SAML clients are in the same /clients API endpoint as OIDC clients
 #
 # Steps:
 #   1. Port-forward to Keycloak
 #   2. Authenticate as admin
-#   3. List clients in realm "platform"
-#   4. Extract UUIDs for gitlab, argocd, grafana
+#   3. List ALL clients in realm "platform" (OIDC + SAML)
+#   4. Extract UUIDs for: gitlab, argocd, grafana, harbor, vault, sonarqube
 #   5. List groups → extract grafana-admins UUID
-#   6. Print terraform import commands
-#   7. Execute imports in environments/staging/ (with -target to keycloak-clients module)
+#   6. List protocol mappers for grafana (groups) and sonarqube (email, name)
+#   7. Print terraform import commands
+#   8. Optionally execute imports (--execute flag or EXECUTE_IMPORTS=true)
 #
 # After successful import, run:
 #   terraform plan → verify 0 changes (zero drift)
@@ -31,12 +38,18 @@ REALM="platform"
 PORT=18080
 PF_PID=""
 
+# Parse args
+EXECUTE_IMPORTS="${EXECUTE_IMPORTS:-false}"
+if [[ "${1:-}" == "--execute" ]]; then
+    EXECUTE_IMPORTS="true"
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
@@ -60,7 +73,6 @@ kubectl port-forward svc/keycloak-keycloakx-http "${PORT}:80" -n keycloak \
 PF_PID=$!
 sleep 3
 
-# Verify port-forward is alive
 if ! kill -0 "${PF_PID}" 2>/dev/null; then
     log_error "Port-forward failed to start. Check: kubectl get svc -n keycloak"
     exit 1
@@ -73,9 +85,21 @@ BASE_URL="http://localhost:${PORT}/auth"
 # 2. Get admin password from K8s secret (MEMORY.md pattern)
 # -------------------------------------------------------------------------------
 log_info "Reading Keycloak admin password from K8s secret..."
-ADMIN_PASSWORD=$(kubectl get secret keycloak-admin-password -n keycloak \
-    -o jsonpath='{.data.password}' | base64 -d)
-log_ok "Admin password retrieved"
+
+ADMIN_PASSWORD=""
+for SECRET_NAME in "keycloak-admin-credentials" "keycloak-admin-password"; do
+    ADMIN_PASSWORD=$(kubectl get secret "${SECRET_NAME}" -n keycloak \
+        -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || true)
+    if [[ -n "${ADMIN_PASSWORD}" ]]; then
+        log_ok "Admin password from secret '${SECRET_NAME}'"
+        break
+    fi
+done
+
+if [[ -z "${ADMIN_PASSWORD}" ]]; then
+    log_error "Could not retrieve admin password from keycloak-admin-credentials or keycloak-admin-password"
+    exit 1
+fi
 
 # -------------------------------------------------------------------------------
 # 3. Authenticate and get access token (Python urllib — curl fails with special chars)
@@ -110,15 +134,15 @@ log_ok "Admin token obtained"
 ADMIN_API="http://localhost:${PORT}/auth/admin/realms/${REALM}"
 
 # -------------------------------------------------------------------------------
-# 4. List clients in realm "platform" → extract UUIDs
+# 4. List ALL clients in realm "platform" (OIDC + SAML share same endpoint)
 # -------------------------------------------------------------------------------
-log_info "Fetching clients from realm '${REALM}'..."
+log_info "Fetching all clients from realm '${REALM}'..."
 
 CLIENTS_JSON=$(python3 - <<PYEOF
 import json, urllib.request
 
 req = urllib.request.Request(
-    "${ADMIN_API}/clients?max=100",
+    "${ADMIN_API}/clients?max=200",
     headers={
         "Authorization": "Bearer ${TOKEN}",
         "Accept": "application/json"
@@ -130,22 +154,40 @@ with urllib.request.urlopen(req) as resp:
 PYEOF
 )
 
-# Extract UUIDs for each client
-GITLAB_UUID=$(echo "${CLIENTS_JSON}" | python3 -c "import json,sys; data=json.load(sys.stdin); c=[x for x in data if x.get('clientId')=='gitlab']; print(c[0]['id'] if c else 'NOT_FOUND')")
-ARGOCD_UUID=$(echo "${CLIENTS_JSON}" | python3 -c "import json,sys; data=json.load(sys.stdin); c=[x for x in data if x.get('clientId')=='argocd']; print(c[0]['id'] if c else 'NOT_FOUND')")
-GRAFANA_UUID=$(echo "${CLIENTS_JSON}" | python3 -c "import json,sys; data=json.load(sys.stdin); c=[x for x in data if x.get('clientId')=='grafana']; print(c[0]['id'] if c else 'NOT_FOUND')")
+# Helper function to extract UUID by clientId
+extract_uuid() {
+    local client_id="$1"
+    echo "${CLIENTS_JSON}" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+c=[x for x in data if x.get('clientId')=='${client_id}']
+print(c[0]['id'] if c else 'NOT_FOUND')
+"
+}
 
-log_ok "gitlab  UUID: ${GITLAB_UUID}"
-log_ok "argocd  UUID: ${ARGOCD_UUID}"
-log_ok "grafana UUID: ${GRAFANA_UUID}"
+# Extract UUIDs for all 6 clients
+GITLAB_UUID=$(extract_uuid "gitlab")
+ARGOCD_UUID=$(extract_uuid "argocd")
+GRAFANA_UUID=$(extract_uuid "grafana")
+HARBOR_UUID=$(extract_uuid "harbor")
+VAULT_UUID=$(extract_uuid "vault")
+SONARQUBE_UUID=$(extract_uuid "sonarqube")
 
-# Validate all found
-for CLIENT in gitlab argocd grafana; do
+log_ok "gitlab     UUID: ${GITLAB_UUID}"
+log_ok "argocd     UUID: ${ARGOCD_UUID}"
+log_ok "grafana    UUID: ${GRAFANA_UUID}"
+log_ok "harbor     UUID: ${HARBOR_UUID}"
+log_ok "vault      UUID: ${VAULT_UUID}"
+log_ok "sonarqube  UUID: ${SONARQUBE_UUID}"
+
+# Validate all required clients found
+MISSING=()
+for CLIENT in gitlab argocd grafana harbor vault sonarqube; do
     VAR="${CLIENT^^}_UUID"
     UUID="${!VAR}"
     if [[ "${UUID}" == "NOT_FOUND" ]]; then
-        log_error "Client '${CLIENT}' not found in realm '${REALM}'. Check Keycloak admin console."
-        exit 1
+        MISSING+=("${CLIENT}")
+        log_warn "Client '${CLIENT}' not found in realm '${REALM}' — will be created by TF on first apply"
     fi
 done
 
@@ -178,22 +220,24 @@ print(g[0]['id'] if g else 'NOT_FOUND')
 ")
 
 if [[ "${GRAFANA_ADMINS_GROUP_UUID}" == "NOT_FOUND" ]]; then
-    log_warn "Group 'grafana-admins' not found. It will be created by TF on first apply."
+    log_warn "Group 'grafana-admins' not found. Will be created by TF on first apply."
     GRAFANA_ADMINS_GROUP_UUID=""
 else
     log_ok "grafana-admins group UUID: ${GRAFANA_ADMINS_GROUP_UUID}"
 fi
 
 # -------------------------------------------------------------------------------
-# 6. Get grafana client protocol mapper UUID for 'groups' mapper
+# 6. Get protocol mapper UUIDs
 # -------------------------------------------------------------------------------
-log_info "Fetching protocol mappers for grafana client..."
 
-MAPPERS_JSON=$(python3 - <<PYEOF
-import json, urllib.request
+get_mapper_uuid() {
+    local client_uuid="$1"
+    local mapper_name="$2"
+    python3 - <<PYEOF
+import json, urllib.request, sys
 
 req = urllib.request.Request(
-    "${ADMIN_API}/clients/${GRAFANA_UUID}/protocol-mappers/models",
+    "${ADMIN_API}/clients/${client_uuid}/protocol-mappers/models",
     headers={
         "Authorization": "Bearer ${TOKEN}",
         "Accept": "application/json"
@@ -201,22 +245,45 @@ req = urllib.request.Request(
 )
 with urllib.request.urlopen(req) as resp:
     mappers = json.loads(resp.read())
-    print(json.dumps(mappers))
+    m=[x for x in mappers if x.get('name')=='${mapper_name}']
+    print(m[0]['id'] if m else 'NOT_FOUND')
 PYEOF
-)
+}
 
-GROUPS_MAPPER_UUID=$(echo "${MAPPERS_JSON}" | python3 -c "
-import json,sys
-data=json.load(sys.stdin)
-m=[x for x in data if x.get('name')=='groups']
-print(m[0]['id'] if m else 'NOT_FOUND')
-")
+# Grafana: groups mapper
+GROUPS_MAPPER_UUID="NOT_FOUND"
+if [[ "${GRAFANA_UUID}" != "NOT_FOUND" ]]; then
+    log_info "Fetching protocol mappers for grafana client..."
+    GROUPS_MAPPER_UUID=$(get_mapper_uuid "${GRAFANA_UUID}" "groups")
+    if [[ "${GROUPS_MAPPER_UUID}" == "NOT_FOUND" ]]; then
+        log_warn "Protocol mapper 'groups' not found on grafana client. Will be created by TF."
+        GROUPS_MAPPER_UUID=""
+    else
+        log_ok "grafana groups mapper UUID: ${GROUPS_MAPPER_UUID}"
+    fi
+fi
 
-if [[ "${GROUPS_MAPPER_UUID}" == "NOT_FOUND" ]]; then
-    log_warn "Protocol mapper 'groups' not found on grafana client. Will be created by TF."
-    GROUPS_MAPPER_UUID=""
-else
-    log_ok "grafana groups mapper UUID: ${GROUPS_MAPPER_UUID}"
+# SonarQube: email and name mappers (SAML attribute mappers)
+SONARQUBE_EMAIL_MAPPER_UUID="NOT_FOUND"
+SONARQUBE_NAME_MAPPER_UUID="NOT_FOUND"
+if [[ "${SONARQUBE_UUID}" != "NOT_FOUND" ]]; then
+    log_info "Fetching protocol mappers for sonarqube client (SAML)..."
+    SONARQUBE_EMAIL_MAPPER_UUID=$(get_mapper_uuid "${SONARQUBE_UUID}" "email")
+    SONARQUBE_NAME_MAPPER_UUID=$(get_mapper_uuid "${SONARQUBE_UUID}" "name")
+
+    if [[ "${SONARQUBE_EMAIL_MAPPER_UUID}" == "NOT_FOUND" ]]; then
+        log_warn "SAML mapper 'email' not found on sonarqube client. Will be created by TF."
+        SONARQUBE_EMAIL_MAPPER_UUID=""
+    else
+        log_ok "sonarqube email mapper UUID: ${SONARQUBE_EMAIL_MAPPER_UUID}"
+    fi
+
+    if [[ "${SONARQUBE_NAME_MAPPER_UUID}" == "NOT_FOUND" ]]; then
+        log_warn "SAML mapper 'name' not found on sonarqube client. Will be created by TF."
+        SONARQUBE_NAME_MAPPER_UUID=""
+    else
+        log_ok "sonarqube name mapper UUID: ${SONARQUBE_NAME_MAPPER_UUID}"
+    fi
 fi
 
 # -------------------------------------------------------------------------------
@@ -226,9 +293,10 @@ echo ""
 echo "=================================================================="
 echo " TERRAFORM IMPORT COMMANDS"
 echo " Working dir: ${TF_STAGING_DIR}"
+echo " Module path: module.keycloak_clients_staging"
 echo "=================================================================="
 echo ""
-echo "# Step 1: Init terraform with new keycloak provider"
+echo "# Step 1: Init terraform (downloads mrparkers/keycloak provider)"
 echo "# Run from: ${TF_STAGING_DIR}"
 echo "terraform init -upgrade"
 echo ""
@@ -236,32 +304,47 @@ echo "# Step 2: Import realm"
 echo "terraform import 'module.keycloak_clients_staging.keycloak_realm.platform' '${REALM}'"
 echo ""
 echo "# Step 3: Import OIDC clients"
-echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.gitlab[0]' '${REALM}/${GITLAB_UUID}'"
-echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.argocd[0]' '${REALM}/${ARGOCD_UUID}'"
-echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.grafana[0]' '${REALM}/${GRAFANA_UUID}'"
+[[ "${GITLAB_UUID}" != "NOT_FOUND" ]]   && echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.gitlab[0]' '${REALM}/${GITLAB_UUID}'"
+[[ "${ARGOCD_UUID}" != "NOT_FOUND" ]]   && echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.argocd[0]' '${REALM}/${ARGOCD_UUID}'"
+[[ "${GRAFANA_UUID}" != "NOT_FOUND" ]]  && echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.grafana[0]' '${REALM}/${GRAFANA_UUID}'"
+[[ "${HARBOR_UUID}" != "NOT_FOUND" ]]   && echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.harbor[0]' '${REALM}/${HARBOR_UUID}'"
+[[ "${VAULT_UUID}" != "NOT_FOUND" ]]    && echo "terraform import 'module.keycloak_clients_staging.keycloak_openid_client.vault[0]' '${REALM}/${VAULT_UUID}'"
+echo ""
+echo "# Step 4: Import SAML client (SonarQube)"
+[[ "${SONARQUBE_UUID}" != "NOT_FOUND" ]] && echo "terraform import 'module.keycloak_clients_staging.keycloak_saml_client.sonarqube[0]' '${REALM}/${SONARQUBE_UUID}'"
 echo ""
 
 if [[ -n "${GRAFANA_ADMINS_GROUP_UUID}" ]]; then
-    echo "# Step 4: Import grafana-admins group (already exists)"
+    echo "# Step 5: Import grafana-admins group"
     echo "terraform import 'module.keycloak_clients_staging.keycloak_group.grafana_admins[0]' '${REALM}/${GRAFANA_ADMINS_GROUP_UUID}'"
     echo ""
 fi
 
-if [[ -n "${GROUPS_MAPPER_UUID}" ]]; then
-    echo "# Step 5: Import groups protocol mapper (already exists on grafana client)"
+if [[ -n "${GROUPS_MAPPER_UUID:-}" ]]; then
+    echo "# Step 6: Import grafana groups protocol mapper"
     echo "terraform import 'module.keycloak_clients_staging.keycloak_generic_protocol_mapper.grafana_groups[0]' '${REALM}/clients/${GRAFANA_UUID}/${GROUPS_MAPPER_UUID}'"
     echo ""
 fi
 
-echo "# Step 6: Validate zero drift"
-echo "terraform plan"
+if [[ -n "${SONARQUBE_EMAIL_MAPPER_UUID:-}" ]]; then
+    echo "# Step 7: Import sonarqube SAML email mapper"
+    echo "terraform import 'module.keycloak_clients_staging.keycloak_saml_user_attribute_protocol_mapper.sonarqube_email[0]' '${REALM}/clients/${SONARQUBE_UUID}/${SONARQUBE_EMAIL_MAPPER_UUID}'"
+fi
+
+if [[ -n "${SONARQUBE_NAME_MAPPER_UUID:-}" ]]; then
+    echo "terraform import 'module.keycloak_clients_staging.keycloak_saml_user_property_protocol_mapper.sonarqube_name[0]' '${REALM}/clients/${SONARQUBE_UUID}/${SONARQUBE_NAME_MAPPER_UUID}'"
+    echo ""
+fi
+
+echo "# Step 8: Validate zero drift"
+echo "terraform plan -target=module.keycloak_clients_staging"
 echo ""
 echo "=================================================================="
 
 # -------------------------------------------------------------------------------
-# 8. Optional: Execute imports automatically (set EXECUTE_IMPORTS=true)
+# 8. Optional: Execute imports automatically (--execute flag or EXECUTE_IMPORTS=true)
 # -------------------------------------------------------------------------------
-if [[ "${EXECUTE_IMPORTS:-false}" == "true" ]]; then
+if [[ "${EXECUTE_IMPORTS}" == "true" ]]; then
     log_info "EXECUTE_IMPORTS=true — running imports automatically..."
     cd "${TF_STAGING_DIR}"
 
@@ -275,36 +358,37 @@ if [[ "${EXECUTE_IMPORTS:-false}" == "true" ]]; then
 
     terraform init -upgrade -reconfigure
 
-    terraform import \
-        "module.keycloak_clients_staging.keycloak_realm.platform" \
-        "${REALM}"
+    # Import realm
+    terraform import "module.keycloak_clients_staging.keycloak_realm.platform" "${REALM}"
 
-    terraform import \
-        "module.keycloak_clients_staging.keycloak_openid_client.gitlab[0]" \
-        "${REALM}/${GITLAB_UUID}"
+    # Import OIDC clients (skip NOT_FOUND)
+    [[ "${GITLAB_UUID}" != "NOT_FOUND" ]]   && terraform import "module.keycloak_clients_staging.keycloak_openid_client.gitlab[0]" "${REALM}/${GITLAB_UUID}"
+    [[ "${ARGOCD_UUID}" != "NOT_FOUND" ]]   && terraform import "module.keycloak_clients_staging.keycloak_openid_client.argocd[0]" "${REALM}/${ARGOCD_UUID}"
+    [[ "${GRAFANA_UUID}" != "NOT_FOUND" ]]  && terraform import "module.keycloak_clients_staging.keycloak_openid_client.grafana[0]" "${REALM}/${GRAFANA_UUID}"
+    [[ "${HARBOR_UUID}" != "NOT_FOUND" ]]   && terraform import "module.keycloak_clients_staging.keycloak_openid_client.harbor[0]" "${REALM}/${HARBOR_UUID}"
+    [[ "${VAULT_UUID}" != "NOT_FOUND" ]]    && terraform import "module.keycloak_clients_staging.keycloak_openid_client.vault[0]" "${REALM}/${VAULT_UUID}"
 
-    terraform import \
-        "module.keycloak_clients_staging.keycloak_openid_client.argocd[0]" \
-        "${REALM}/${ARGOCD_UUID}"
+    # Import SAML client
+    [[ "${SONARQUBE_UUID}" != "NOT_FOUND" ]] && terraform import "module.keycloak_clients_staging.keycloak_saml_client.sonarqube[0]" "${REALM}/${SONARQUBE_UUID}"
 
-    terraform import \
-        "module.keycloak_clients_staging.keycloak_openid_client.grafana[0]" \
-        "${REALM}/${GRAFANA_UUID}"
-
+    # Import group
     if [[ -n "${GRAFANA_ADMINS_GROUP_UUID}" ]]; then
-        terraform import \
-            "module.keycloak_clients_staging.keycloak_group.grafana_admins[0]" \
-            "${REALM}/${GRAFANA_ADMINS_GROUP_UUID}"
+        terraform import "module.keycloak_clients_staging.keycloak_group.grafana_admins[0]" "${REALM}/${GRAFANA_ADMINS_GROUP_UUID}"
     fi
 
-    if [[ -n "${GROUPS_MAPPER_UUID}" ]]; then
-        terraform import \
-            "module.keycloak_clients_staging.keycloak_generic_protocol_mapper.grafana_groups[0]" \
-            "${REALM}/clients/${GRAFANA_UUID}/${GROUPS_MAPPER_UUID}"
+    # Import mappers
+    if [[ -n "${GROUPS_MAPPER_UUID:-}" ]]; then
+        terraform import "module.keycloak_clients_staging.keycloak_generic_protocol_mapper.grafana_groups[0]" "${REALM}/clients/${GRAFANA_UUID}/${GROUPS_MAPPER_UUID}"
+    fi
+    if [[ -n "${SONARQUBE_EMAIL_MAPPER_UUID:-}" ]]; then
+        terraform import "module.keycloak_clients_staging.keycloak_saml_user_attribute_protocol_mapper.sonarqube_email[0]" "${REALM}/clients/${SONARQUBE_UUID}/${SONARQUBE_EMAIL_MAPPER_UUID}"
+    fi
+    if [[ -n "${SONARQUBE_NAME_MAPPER_UUID:-}" ]]; then
+        terraform import "module.keycloak_clients_staging.keycloak_saml_user_property_protocol_mapper.sonarqube_name[0]" "${REALM}/clients/${SONARQUBE_UUID}/${SONARQUBE_NAME_MAPPER_UUID}"
     fi
 
     log_ok "All imports complete. Running plan to validate zero drift..."
-    terraform plan -refresh=false
+    terraform plan -target=module.keycloak_clients_staging -refresh=false
 fi
 
 log_ok "Script complete."

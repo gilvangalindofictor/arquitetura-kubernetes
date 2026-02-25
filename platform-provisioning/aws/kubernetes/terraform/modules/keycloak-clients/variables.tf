@@ -110,6 +110,57 @@ variable "grafana_admins_group_enabled" {
 }
 
 # -----------------------------------------------------------------------------
+# Client: Harbor
+# -----------------------------------------------------------------------------
+
+variable "harbor_enabled" {
+  description = "Enable Harbor OIDC client management"
+  type        = bool
+  default     = true
+}
+
+variable "harbor_namespace" {
+  description = "Kubernetes namespace for Harbor"
+  type        = string
+  default     = "harbor-system"
+}
+
+# -----------------------------------------------------------------------------
+# Client: Vault
+# -----------------------------------------------------------------------------
+
+variable "vault_enabled" {
+  description = "Enable Vault OIDC client management"
+  type        = bool
+  default     = true
+}
+
+variable "vault_namespace" {
+  description = "Kubernetes namespace for Vault"
+  type        = string
+  default     = "staging-security-vault"
+}
+
+# -----------------------------------------------------------------------------
+# Client: SonarQube (SAML 2.0 — NOT OIDC)
+# SonarQube uses SAML SP-initiated SSO, not OpenID Connect.
+# Client type: SAML (keycloak_saml_client), not keycloak_openid_client.
+# PKCE: N/A (SAML protocol)
+# -----------------------------------------------------------------------------
+
+variable "sonarqube_enabled" {
+  description = "Enable SonarQube SAML client management. Uses SAML 2.0 (not OIDC)."
+  type        = bool
+  default     = true
+}
+
+variable "sonarqube_namespace" {
+  description = "Kubernetes namespace for SonarQube"
+  type        = string
+  default     = "sonarqube"
+}
+
+# -----------------------------------------------------------------------------
 # Common Tags
 # -----------------------------------------------------------------------------
 

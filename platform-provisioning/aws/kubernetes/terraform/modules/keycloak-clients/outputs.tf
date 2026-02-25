@@ -81,3 +81,45 @@ output "grafana_groups_mapper_id" {
   description = "oidc-group-membership-mapper ID for groups claim on grafana client"
   value       = var.grafana_enabled && var.grafana_admins_group_enabled ? keycloak_generic_protocol_mapper.grafana_groups[0].id : null
 }
+
+# -----------------------------------------------------------------------------
+# Harbor Client
+# -----------------------------------------------------------------------------
+
+output "harbor_client_id" {
+  description = "Harbor OIDC client UUID in Keycloak (NOT the clientId string 'harbor')"
+  value       = var.harbor_enabled ? keycloak_openid_client.harbor[0].id : null
+}
+
+output "harbor_client_client_id" {
+  description = "Harbor OIDC clientId string (always 'harbor')"
+  value       = var.harbor_enabled ? keycloak_openid_client.harbor[0].client_id : null
+}
+
+# -----------------------------------------------------------------------------
+# Vault Client
+# -----------------------------------------------------------------------------
+
+output "vault_client_id" {
+  description = "Vault OIDC client UUID in Keycloak"
+  value       = var.vault_enabled ? keycloak_openid_client.vault[0].id : null
+}
+
+output "vault_client_client_id" {
+  description = "Vault OIDC clientId string (always 'vault')"
+  value       = var.vault_enabled ? keycloak_openid_client.vault[0].client_id : null
+}
+
+# -----------------------------------------------------------------------------
+# SonarQube Client (SAML)
+# -----------------------------------------------------------------------------
+
+output "sonarqube_client_id" {
+  description = "SonarQube SAML client UUID in Keycloak"
+  value       = var.sonarqube_enabled ? keycloak_saml_client.sonarqube[0].id : null
+}
+
+output "sonarqube_client_client_id" {
+  description = "SonarQube SAML clientId string (always 'sonarqube')"
+  value       = var.sonarqube_enabled ? keycloak_saml_client.sonarqube[0].client_id : null
+}

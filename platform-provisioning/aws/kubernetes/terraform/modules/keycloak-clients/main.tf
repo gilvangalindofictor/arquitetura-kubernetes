@@ -50,12 +50,35 @@ locals {
 }
 
 # NOTE: All resources are defined in their respective sub-files:
-#   realms/platform.tf  → keycloak_realm.platform
-#   clients/gitlab.tf   → keycloak_openid_client.gitlab[0]
-#   clients/argocd.tf   → keycloak_openid_client.argocd[0]
-#   clients/grafana.tf  → keycloak_openid_client.grafana[0]
-#                         keycloak_generic_protocol_mapper.grafana_groups[0]
-#                         keycloak_group.grafana_admins[0]
+#   realms/platform.tf      → keycloak_realm.platform
+#   clients/gitlab.tf       → keycloak_openid_client.gitlab[0]
+#   clients/argocd.tf       → keycloak_openid_client.argocd[0]
+#   clients/grafana.tf      → keycloak_openid_client.grafana[0]
+#                             keycloak_generic_protocol_mapper.grafana_groups[0]
+#                             keycloak_group.grafana_admins[0]
+#   clients/harbor.tf       → keycloak_openid_client.harbor[0]      (PKCE: S256)
+#   clients/vault.tf        → keycloak_openid_client.vault[0]       (PKCE: S256)
+#   clients/sonarqube.tf    → keycloak_saml_client.sonarqube[0]     (SAML 2.0, NOT OIDC)
+#                             keycloak_saml_user_attribute_protocol_mapper.sonarqube_email[0]
+#                             keycloak_saml_user_property_protocol_mapper.sonarqube_name[0]
 #
 # Terraform treats all .tf files in a directory as a single module,
 # so no explicit includes are needed.
+#
+# CLIENT SUMMARY (6 clients, 1 realm):
+#   OIDC (PKCE S256):  gitlab, grafana, harbor, vault
+#   OIDC (no PKCE):    argocd  (TODO: enable after TASK-001 ArgoCD upgrade)
+#   SAML 2.0:          sonarqube
+#
+# IMPORT ORDER (scripts/keycloak/import-clients.sh):
+#   1. keycloak_realm.platform
+#   2. keycloak_openid_client.gitlab[0]
+#   3. keycloak_openid_client.argocd[0]
+#   4. keycloak_openid_client.grafana[0]
+#   5. keycloak_openid_client.harbor[0]
+#   6. keycloak_openid_client.vault[0]
+#   7. keycloak_saml_client.sonarqube[0]
+#   8. keycloak_group.grafana_admins[0]
+#   9. keycloak_generic_protocol_mapper.grafana_groups[0]
+#  10. keycloak_saml_user_attribute_protocol_mapper.sonarqube_email[0]
+#  11. keycloak_saml_user_property_protocol_mapper.sonarqube_name[0]
