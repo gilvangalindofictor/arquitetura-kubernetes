@@ -173,3 +173,19 @@ variable "keycloak_admin_password" {
   sensitive   = true
   default     = ""
 }
+
+# V-004 Remediation: Harbor admin password → Vault KV (2026-02-25)
+variable "harbor_admin_password" {
+  description = "Harbor admin password (V-004: seeds Vault KV secret/harbor/admin, ESO: harbor-admin-credentials)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# V-005 Remediation: Harbor Redis password → Vault KV (2026-02-25)
+variable "harbor_redis_password" {
+  description = "Harbor Redis password (V-005: seeds Vault KV secret/harbor/redis, ESO: harbor-redis-credentials)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
