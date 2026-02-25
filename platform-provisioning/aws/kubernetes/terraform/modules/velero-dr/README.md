@@ -208,7 +208,7 @@ After applying this module:
 
 ## Related Documentation
 
-- [ADR-079: Velero Backup/DR Implementation](../../../../../docs/adr/adr-079-velero-backup-dr-implementation.md)
+- [ADR-078: Velero Backup/DR Implementation](../../../../../docs/adr/adr-078-velero-backup-dr-implementation.md)
 - [Disaster Recovery Runbook](../../../../../docs/runbooks/disaster-recovery.md)
 - [Logbook: GAP-003 Implementation](../../../../../docs/logbook/2026-02-25-gap-003-velero-backup-dr-implementation.md)
 

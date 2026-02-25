@@ -1,4 +1,4 @@
-# ADR-079: Velero Backup/DR Implementation - GAP-003
+# ADR-078: Velero Backup/DR Implementation - GAP-003
 
 **Date**: 2026-02-25
 **Status**: ✅ ACCEPTED
@@ -50,7 +50,7 @@ On 2026-02-11, [ADR-052](./adr-052-velero-implementation-strategy.md) deferred V
 
 ## Problem Statement
 
-### Current Backup Coverage (Pre-ADR-079)
+### Current Backup Coverage (Pre-ADR-078)
 
 | Component  | Backup Type        | Status              | Risk                               |
 | ---------- | ------------------ | ------------------- | ---------------------------------- |
@@ -468,9 +468,9 @@ aws ce get-cost-and-usage \
 
 ---
 
-## Comparison: ADR-052 vs ADR-079
+## Comparison: ADR-052 vs ADR-078
 
-| Aspect                 | ADR-052 (Deferred)                  | ADR-079 (Implemented)                |
+| Aspect                 | ADR-052 (Deferred)                  | ADR-078 (Implemented)                |
 | ---------------------- | ----------------------------------- | ------------------------------------ |
 | **Decision**           | Defer to Production                 | Implement in STAGING now             |
 | **Rationale**          | MVP data disposable                 | Data criticality increased           |

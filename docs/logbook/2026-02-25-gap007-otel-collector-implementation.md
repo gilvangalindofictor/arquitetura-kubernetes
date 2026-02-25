@@ -151,7 +151,7 @@ OpenTelemetry Collector (Gateway, 2 replicas)
 ## Documentação Criada
 
 - [x] ✅ [OPENTELEMETRY-DEVELOPER-GUIDE.md](../OPENTELEMETRY-DEVELOPER-GUIDE.md) - Guia instrumentação para devs
-- [x] ✅ [ADR-079](../adr/adr-079-opentelemetry-collector-implementation.md) - Decisões técnicas
+- [x] ✅ [ADR-080](../adr/adr-080-opentelemetry-collector-implementation.md) - Decisões técnicas
 - [x] ✅ Logbook completo (este arquivo)
 - [x] ✅ Módulo Terraform corrigido (4 correções aplicadas)
 - [x] ✅ Network Policies criadas (2 policies)

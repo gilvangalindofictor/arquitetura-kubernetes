@@ -28,7 +28,7 @@
 
 **Arquivos** (9):
 - 4 Terraform: main.tf, variables.tf, values.yaml.tpl, network-policies.yaml
-- 4 Docs: Executive Summary, Developer Guide, ADR-079, Logbook
+- 4 Docs: Executive Summary, Developer Guide, ADR-080, Logbook
 
 **Impacto**:
 - Traces ingesting (HTTP 200)

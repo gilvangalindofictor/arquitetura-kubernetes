@@ -1,4 +1,4 @@
-# ADR-079: OpenTelemetry Collector Implementation (GAP-007)
+# ADR-080: OpenTelemetry Collector Implementation (GAP-007)
 
 **Data**: 2026-02-25
 **Status**: ✅ Implementado

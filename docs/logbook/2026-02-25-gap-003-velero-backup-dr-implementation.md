@@ -4,7 +4,7 @@
 **Type**: Feature Implementation
 **Status**: ✅ READY FOR DEPLOYMENT
 **Duration**: ~2 hours (preparation phase)
-**Related**: ADR-079, ADR-052 (superseded)
+**Related**: ADR-078, ADR-052 (superseded)
 
 ---
 
@@ -18,7 +18,7 @@ Implemented complete Velero backup/disaster recovery solution for Kubernetes pla
 - ✅ 4 backup schedules (daily, weekly, hourly, monthly)
 - ✅ Disaster recovery runbook (RTO: 1h, RPO: 24h)
 - ✅ Automated restore testing CronJob
-- ✅ ADR-079 documenting architecture and strategy shift
+- ✅ ADR-078 documenting architecture and strategy shift
 
 ---
 
@@ -33,7 +33,7 @@ Implemented complete Velero backup/disaster recovery solution for Kubernetes pla
 - Limited implementation bandwidth
 - Cost optimization for MVP
 
-### Strategy Shift (ADR-079 - Feb 25, 2026)
+### Strategy Shift (ADR-078 - Feb 25, 2026)
 
 **New Decision**: Implement Velero in STAGING immediately
 **Rationale**:
@@ -234,7 +234,7 @@ metrics:
 
 ---
 
-## Architecture Decisions (ADR-079)
+## Architecture Decisions (ADR-078)
 
 ### Key Decisions
 
@@ -668,7 +668,7 @@ velero backup create <name> --exclude-resources persistentvolumeclaims
 
 ## References
 
-- **ADR-079**: [Velero Backup/DR Implementation](../adr/adr-079-velero-backup-dr-implementation.md)
+- **ADR-078**: [Velero Backup/DR Implementation](../adr/adr-078-velero-backup-dr-implementation.md)
 - **ADR-052**: [Velero Implementation Deferral](../adr/adr-052-velero-implementation-strategy.md) (SUPERSEDED)
 - **DR Runbook**: [Disaster Recovery Procedures](../runbooks/disaster-recovery.md)
 - **Velero Docs**: https://velero.io/docs/v1.15/
@@ -687,7 +687,7 @@ feat(backup): implement Velero DR solution (GAP-003)
 - Backup schedules: daily (7d), weekly (30d), hourly critical, monthly archive
 - DR runbook: RTO 1h, RPO 24h (critical: 1h)
 - Automated restore testing: weekly CronJob
-- ADR-079: Strategy shift from deferred (ADR-052) to immediate implementation
+- ADR-078: Strategy shift from deferred (ADR-052) to immediate implementation
 
 Cost: $30-60/month
 Value: Prevents 6-8h reconstruction effort
@@ -699,7 +699,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 **Files Modified/Created**:
 - `platform-provisioning/aws/kubernetes/terraform/modules/velero-backup/` (new module)
 - `platform-provisioning/aws/kubernetes/terraform/kubectl-manifests/velero/` (new manifests)
-- `docs/adr/adr-079-velero-backup-dr-implementation.md` (new ADR)
+- `docs/adr/adr-078-velero-backup-dr-implementation.md` (new ADR)
 - `docs/runbooks/disaster-recovery.md` (new runbook)
 - `docs/logbook/2026-02-25-gap-003-velero-backup-dr-implementation.md` (this file)
 

@@ -127,7 +127,7 @@ Features:
 
 ### 6. Architecture Decision Record ✅
 
-**File**: `/docs/adr/adr-079-velero-backup-dr-implementation.md`
+**File**: `/docs/adr/adr-078-velero-backup-dr-implementation.md`
 
 Sections:
 - [x] Context (ADR-052 strategy shift)
@@ -139,7 +139,7 @@ Sections:
 - [x] Metrics & monitoring (Prometheus, alerts)
 - [x] Cost analysis ($30-60/month)
 - [x] Risk assessment
-- [x] Comparison (ADR-052 vs ADR-079)
+- [x] Comparison (ADR-052 vs ADR-078)
 
 **Key Decision**: Supersedes ADR-052 (deferred) - implement immediately due to increased data criticality.
 
@@ -151,7 +151,7 @@ Sections:
 
 Sections:
 - [x] Summary (deliverables, context)
-- [x] Strategy shift rationale (ADR-052 → ADR-079)
+- [x] Strategy shift rationale (ADR-052 → ADR-078)
 - [x] Implementation details (5 phases)
 - [x] Architecture decisions
 - [x] Metrics & monitoring
@@ -210,7 +210,7 @@ platform-provisioning/aws/kubernetes/terraform/
 
 docs/
 ├── adr/
-│   └── adr-079-velero-backup-dr-implementation.md  # Architecture decision
+│   └── adr-078-velero-backup-dr-implementation.md  # Architecture decision
 │
 ├── logbook/
 │   └── 2026-02-25-gap-003-velero-backup-dr-implementation.md  # Implementation log
@@ -494,7 +494,7 @@ velero_backup_last_successful_timestamp{schedule="daily-full-backup"}
 
 ### Internal Documentation
 
-- **ADR-079**: [Velero Backup/DR Implementation](adr/adr-079-velero-backup-dr-implementation.md)
+- **ADR-078**: [Velero Backup/DR Implementation](adr/adr-078-velero-backup-dr-implementation.md)
 - **ADR-052**: [Velero Implementation Deferral](adr/adr-052-velero-implementation-strategy.md) (SUPERSEDED)
 - **DR Runbook**: [Disaster Recovery Procedures](runbooks/disaster-recovery.md)
 - **Logbook**: [GAP-003 Implementation](logbook/2026-02-25-gap-003-velero-backup-dr-implementation.md)
@@ -528,7 +528,7 @@ Complete backup/disaster recovery implementation:
 - Automated restore testing: weekly CronJob
 - Deployment automation: deploy-velero.sh script
 
-ADR-079: Strategy shift from deferred (ADR-052) to immediate implementation
+ADR-078: Strategy shift from deferred (ADR-052) to immediate implementation
 - Data criticality increased (GitLab repos, Vault secrets, Keycloak SSO)
 - Recovery time grew from 2h to 6-8h (environment maturity)
 - Production validation value (proven procedures before critical deployment)
@@ -540,7 +540,7 @@ ROI: Positive after 1 incident avoided (expected 2-3/year)
 Files created:
 - platform-provisioning/aws/kubernetes/terraform/modules/velero-backup/
 - platform-provisioning/aws/kubernetes/terraform/kubectl-manifests/velero/
-- docs/adr/adr-079-velero-backup-dr-implementation.md
+- docs/adr/adr-078-velero-backup-dr-implementation.md
 - docs/runbooks/disaster-recovery.md
 - docs/logbook/2026-02-25-gap-003-velero-backup-dr-implementation.md
 - scripts/deploy-velero.sh
