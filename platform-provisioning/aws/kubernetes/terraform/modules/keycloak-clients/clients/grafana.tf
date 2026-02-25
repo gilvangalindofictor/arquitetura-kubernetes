@@ -29,9 +29,9 @@
 resource "keycloak_openid_client" "grafana" {
   count = var.grafana_enabled ? 1 : 0
 
-  realm_id  = keycloak_realm.platform.id
-  client_id = "grafana"
-  name      = "Grafana OIDC"
+  realm_id    = keycloak_realm.platform.id
+  client_id   = "grafana"
+  name        = "Grafana OIDC"
   description = "Grafana observability OIDC authentication via Keycloak platform realm"
 
   enabled = true

@@ -19,7 +19,7 @@ output "service_account_role_arn" {
 
 output "admin_password_secret" {
   description = "Harbor admin password secret name (V-004: migrado para ESO)"
-  value       = "harbor-admin-credentials"  # ExternalSecret synced from Vault
+  value       = "harbor-admin-credentials" # ExternalSecret synced from Vault
   sensitive   = true
 }
 

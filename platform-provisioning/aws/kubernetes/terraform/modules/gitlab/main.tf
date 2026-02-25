@@ -237,8 +237,8 @@ resource "helm_release" "gitlab" {
       enable_monitoring = var.enable_monitoring
 
       # Authentication (OIDC)
-      enable_oidc        = var.enable_oidc
-      
+      enable_oidc = var.enable_oidc
+
       # ALB Ingress Group (consolidation)
       ingress_group_name = var.ingress_group_name
     })

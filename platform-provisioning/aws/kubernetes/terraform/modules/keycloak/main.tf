@@ -175,9 +175,9 @@ resource "helm_release" "keycloak" {
   namespace  = kubernetes_namespace.keycloak.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name      = var.cluster_name
-    namespace         = var.namespace
-    replicas          = var.replicas
+    cluster_name = var.cluster_name
+    namespace    = var.namespace
+    replicas     = var.replicas
     # V-006: admin_password removido - agora via ExternalSecret (2026-02-24)
     enable_monitoring = var.enable_monitoring
     postgresql_host   = var.postgresql_host
@@ -186,7 +186,7 @@ resource "helm_release" "keycloak" {
 
   depends_on = [
     kubectl_manifest.keycloak_postgresql_externalsecret,
-    kubectl_manifest.keycloak_admin_externalsecret  # V-006
+    kubectl_manifest.keycloak_admin_externalsecret # V-006
   ]
 
   timeout = 600 # 10 minutes (Keycloak startup can be slow)

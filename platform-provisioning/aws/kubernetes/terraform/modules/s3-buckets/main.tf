@@ -504,7 +504,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "fct_proposals" {
     }
 
     noncurrent_version_expiration {
-      noncurrent_days = 2555  # 7 years (LGPD retention)
+      noncurrent_days = 2555 # 7 years (LGPD retention)
     }
   }
 }

@@ -2,17 +2,6 @@
 # Provides S3-based backup storage and IAM permissions for Velero
 # Implements disaster recovery with RTO: 1h, RPO: 24h
 
-terraform {
-  required_version = ">= 1.5"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
 # S3 Bucket for Velero Backups
 resource "aws_s3_bucket" "velero_backups" {
   bucket = var.bucket_name
@@ -89,6 +78,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "velero_backups" {
   rule {
     id     = "transition-to-glacier"
     status = "Enabled"
+
+    filter {}
 
     transition {
       days          = 14
