@@ -6843,7 +6843,7 @@ kubectl patch daemonset aws-node -n kube-system --type='json' \
 
 Varredura completa da plataforma identificou gaps críticos onde secrets não estavam sendo gerenciados via External Secrets Operator (ESO) + Vault KV v2, padrão arquitetural definido.
 
-O gap mais grave era um **client_secret HARDCODED no git** (`staging/main.tf`): `grafana_keycloak_client_secret = "I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB"`.
+O gap mais grave era um **client_secret HARDCODED no git** (`staging/main.tf`): `grafana_keycloak_client_secret = "<ROTATED-2026-02-19>"`.
 
 ### DEC-065 Gaps Identificados
 
@@ -6863,7 +6863,7 @@ Implementar Vault KV v2 + ExternalSecret para todos os gaps. A infraestrutura ES
 - `vault_kv_secret_v2.grafana_oidc` → `secret/grafana/oidc` (client_id + client_secret)
 - `kube-prometheus-stack`: `dynamic set` removido → `extraEnvFrom.secretRef` + `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`
 - `staging/main.tf`: linha hardcoded removida do repositório
-- Secret **rotacionado** no Keycloak (secret antigo `I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB` invalidado; Vault KV v3)
+- Secret **rotacionado** no Keycloak (secret antigo invalidado; Vault KV v3)
 
 **P0-B — SonarQube PostgreSQL:**
 - `vault_kv_secret_v2.sonarqube_postgresql` → `secret/sonarqube/postgresql`

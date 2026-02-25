@@ -81,7 +81,7 @@ kubectl port-forward -n vault-system svc/vault 8200:8200 &
 # Seed secret/grafana/oidc
 vault kv put secret/grafana/oidc \
   client_id=grafana \
-  client_secret=I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB
+  client_secret=<ROTATED-2026-02-19>
 ```
 
 ### Vault Policy eso-reader — Atualizada
@@ -101,7 +101,7 @@ Client `grafana` no realm `platform` já existia. Adicionada redirect URI:
 http://grafana.staging.internal/login/generic_oauth
 ```
 
-Via API com python3 urllib (curl falha com chars especiais na senha admin `Qq!Tp?Q=xmCmj5zGbzIW>kno`):
+Via API com python3 urllib (curl falha com chars especiais na senha admin):
 ```python
 import urllib.request, urllib.parse, json
 

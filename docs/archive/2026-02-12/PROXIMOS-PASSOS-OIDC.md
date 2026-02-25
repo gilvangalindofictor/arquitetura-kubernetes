@@ -3,7 +3,7 @@
 ## Status Atual ✅
 
 - CoreDNS split-horizon: ATIVO
-- Keycloak client `gitlab`: CRIADO (secret: yOpIEh5nxYItofNBec2_5IncBYgBIhW4k0AEGPSYAr0=)
+- Keycloak client `gitlab`: CRIADO (secret: <STORED_IN_VAULT>)
 - K8s Secret `gitlab-oidc-keycloak`: CRIADO
 - Terraform modules: ATUALIZADOS (enable_oidc=true)
 - Prometheus Operator: FIXADO
@@ -140,7 +140,7 @@ helm rollback gitlab 1 -n gitlab-staging
 
 **Keycloak Client**:
 - Client ID: `gitlab`
-- Client Secret: `yOpIEh5nxYItofNBec2_5IncBYgBIhW4k0AEGPSYAr0=`
+- Client Secret: `<STORED_IN_VAULT>`
 - Issuer: `http://keycloak.staging.internal/auth/realms/platform`
 
 **Secret K8s**: `gitlab-oidc-keycloak` (namespace: `gitlab-staging`)

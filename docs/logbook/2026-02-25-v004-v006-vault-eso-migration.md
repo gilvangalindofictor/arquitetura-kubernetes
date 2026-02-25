@@ -80,13 +80,13 @@ kubectl create secret generic harbor-redis-credentials \
 
 kubectl create secret generic keycloak-admin-credentials \
   --from-literal=username='admin' \
-  --from-literal=password='Qq!Tp?Q=xmCmj5zGbzIW>kno' -n keycloak
+  --from-literal=password='<FROM_K8S_SECRET>' -n keycloak
 ```
 
 **Current passwords preserved** (retrieved from existing K8s secrets):
 - Harbor admin: `HarborStgfd3343614a84a9b3Adm26` (from secret `harbor-admin-password`)
 - Harbor Redis: `)l3WKdhvMpgP$dj_gmLPEoYGhKYg:Ths` (from secret `redis-password` in data-services)
-- Keycloak admin: `Qq!Tp?Q=xmCmj5zGbzIW>kno` (from secret `keycloak-admin-password`)
+- Keycloak admin: `<FROM_K8S_SECRET>` (from secret `keycloak-admin-password`)
 
 ### 3. Validation
 
@@ -109,7 +109,7 @@ kubectl get secret harbor-redis-credentials -n harbor-system -o jsonpath='{.data
 # )l3WKdhvMpgP$dj_gmLPEoYGhKYg:Ths ✅
 
 kubectl get secret keycloak-admin-credentials -n keycloak -o jsonpath='{.data.password}' | base64 -d
-# Qq!Tp?Q=xmCmj5zGbzIW>kno ✅
+# <FROM_K8S_SECRET> ✅
 ```
 
 ## Technical Discoveries
@@ -143,7 +143,7 @@ export TF_VAR_vault_root_token="hvs.XXXXXXXX"
 # Pass existing passwords to preserve logins
 export TF_VAR_harbor_admin_password='HarborStgfd3343614a84a9b3Adm26'
 export TF_VAR_harbor_redis_password=')l3WKdhvMpgP$dj_gmLPEoYGhKYg:Ths'
-export TF_VAR_keycloak_admin_password='Qq!Tp?Q=xmCmj5zGbzIW>kno'
+export TF_VAR_keycloak_admin_password='<FROM_K8S_SECRET>'
 
 # Port-forward Vault (required by vault-config module)
 kubectl port-forward -n staging-security-vault svc/vault 8200:8200 &

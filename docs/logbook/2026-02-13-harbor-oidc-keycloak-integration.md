@@ -24,7 +24,7 @@ Harbor v2.10.0 foi redeployado com autenticacao local (`db_auth`). O objetivo er
 [20:50] Planejamento  | Exploracao padrao OIDC ArgoCD/GitLab/Grafana/SonarQube
 [20:55] Decisao       | Vault + ExternalSecrets para gerenciar OIDC client secret
 [21:00] Keycloak      | Criacao client "harbor" no realm "platform" via REST API
-[21:02] Keycloak      | Client secret obtido: TiIzU5eVpu2JCKYrmdykWjsIS1RfLxCu
+[21:02] Keycloak      | Client secret obtido: <STORED_IN_VAULT>
 [21:05] BLOQUEIO      | Vault root token invalido (reinit anterior), impossivel seedar secret
 [21:06] Decisao       | Config direta via Harbor API + TF code para persistencia
 [21:08] BLOQUEIO      | Harbor admin password desconhecida (PostgreSQL de deploy anterior)
@@ -115,7 +115,7 @@ http://keycloak-keycloakx-http.keycloak.svc.cluster.local/auth/realms/platform/.
   "oidc_name": "Keycloak",
   "oidc_endpoint": "http://keycloak.staging.internal/auth/realms/platform",
   "oidc_client_id": "harbor",
-  "oidc_client_secret": "TiIzU5eVpu2JCKYrmdykWjsIS1RfLxCu",
+  "oidc_client_secret": "<STORED_IN_VAULT>",
   "oidc_scope": "openid,profile,email",
   "oidc_verify_cert": false,
   "oidc_auto_onboard": true,
@@ -205,7 +205,7 @@ curl -X PUT http://localhost:8080/api/v2.0/configurations \
 ## Pendencias
 
 1. **Terraform apply** - Adiado pois Vault root token invalido (ExternalSecret nao vai syncar sem Vault operacional)
-2. **Vault secret seed** - Quando Vault for reinicializado: `vault kv put secret/harbor/oidc client_id=harbor client_secret=TiIzU5eVpu2JCKYrmdykWjsIS1RfLxCu`
+2. **Vault secret seed** - Quando Vault for reinicializado: `vault kv put secret/harbor/oidc client_id=harbor client_secret=<FROM_KEYCLOAK>`
 3. ~~**Validacao browser** - Login end-to-end via browser~~ **CONCLUIDO** (testuser login OK)
 4. **Keycloak groups mapper** - Adicionar protocol mapper no client `harbor` para claim `groups`
 5. **Harbor core replicas** - Habilitar sticky sessions no ALB antes de escalar para 2+ replicas

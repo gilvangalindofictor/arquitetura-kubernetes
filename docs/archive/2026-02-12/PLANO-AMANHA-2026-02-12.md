@@ -14,7 +14,7 @@
 
 ### Status Atual
 - ✅ CoreDNS split-horizon DNS ativo
-- ✅ Keycloak client criado (secret: `yOpIEh5nxYItofNBec2_5IncBYgBIhW4k0AEGPSYAr0=`)
+- ✅ Keycloak client criado (secret: `<STORED_IN_VAULT>`)
 - ✅ K8s Secret criado
 - ✅ Terraform modules atualizados
 - ⚠️ Helm em pending-upgrade (bloqueio)

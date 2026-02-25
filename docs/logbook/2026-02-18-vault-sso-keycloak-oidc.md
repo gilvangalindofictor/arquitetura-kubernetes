@@ -39,7 +39,7 @@
 
 - realm: `platform`
 - uuid: `f676f69f-89e2-478b-ab56-33a5077f0b49`
-- client_secret: `juTaCJ3c7SVU1YxXwqG3HvhaMl9asSDO`
+- client_secret: `<STORED_IN_VAULT>`
 - redirectURIs:
   - `http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback` (UI)
   - `http://localhost:8250/oidc/callback` (CLI)
