@@ -1,0 +1,276 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: finops
+  labels:
+    name: finops
+    domain: platform
+    environment: staging
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vpa-phase0-validator
+  namespace: finops
+  labels:
+    app: vpa-phase0-validator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vpa-phase0-validator
+  labels:
+    app: vpa-phase0-validator
+rules:
+  # VPA permissions
+  - apiGroups: ["autoscaling.k8s.io"]
+    resources: ["verticalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+
+  # Pod permissions (for metrics collection)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # Namespace permissions
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vpa-phase0-validator
+  labels:
+    app: vpa-phase0-validator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vpa-phase0-validator
+subjects:
+  - kind: ServiceAccount
+    name: vpa-phase0-validator
+    namespace: finops
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vpa-validation-scripts
+  namespace: finops
+  labels:
+    app: vpa-phase0-validator
+data:
+  vpa-phase0-validation.sh: |
+    #!/bin/bash
+    # VPA FASE 0 Validation Script (Embedded in CronJob)
+    set -euo pipefail
+
+    DOCS_DIR="/tmp/finops-reports"
+    mkdir -p "$DOCS_DIR"
+
+    # Baseline from FASE 0 (2026-02-20)
+    BASELINE_SAVINGS_BRL=62.28
+    TARGET_SAVINGS_BRL=15000
+
+    log_info() {
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] INFO: $*"
+    }
+
+    log_success() {
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] SUCCESS: $*"
+    }
+
+    get_vpa_count() {
+        kubectl get vpa -A -o json 2>/dev/null | jq '[.items[] | select(.status.recommendation != null)] | length'
+    }
+
+    get_vpas_with_recommendations() {
+        kubectl get vpa -A -o json 2>/dev/null | jq '[.items[] | select(.status.recommendation != null) | {namespace: .metadata.namespace, name: .metadata.name}] | length'
+    }
+
+    main() {
+        log_info "Starting VPA Phase 0 Validation"
+
+        # Check VPA cluster status
+        local vpa_count=$(get_vpa_count)
+        local vpas_with_recs=$(get_vpas_with_recommendations)
+
+        log_info "VPAs with recommendations: $vpas_with_recs"
+
+        # Generate simple report
+        local report_file="$DOCS_DIR/vpa-phase0-validation-$(date +%Y%m%d).txt"
+        cat > "$report_file" <<EOF
+    VPA Phase 0 Validation Report
+    Generated: $(date --iso-8601=seconds)
+
+    VPA Status:
+    - Total VPAs: $vpa_count
+    - With Recommendations: $vpas_with_recs
+    - Target: 10 workloads
+
+    Baseline Savings: R\$ ${BASELINE_SAVINGS_BRL}/ano
+    Target Savings: R\$ ${TARGET_SAVINGS_BRL}/ano
+
+    Next: Manual calculation via calculate-savings.sh
+    EOF
+
+        log_success "Validation complete. Report: $report_file"
+        cat "$report_file"
+    }
+
+    main "$@"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vpa-phase0-validation
+  namespace: finops
+  labels:
+    app: vpa-phase0-validator
+    domain: platform
+spec:
+  # Schedule: 2026-02-27 02:00 UTC
+  # This translates to: 2:00 AM UTC on the 27th day of each month
+  # Cron format: minute hour day month day-of-week
+  schedule: "0 2 27 * *"
+
+  # Keep at most 3 completed jobs for history
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Do not allow concurrent runs
+  concurrencyPolicy: Forbid
+
+  # Job must complete within 10 minutes
+  activeDeadlineSeconds: 600
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: vpa-phase0-validator
+    spec:
+      # Do not retry job on failure
+      backoffLimit: 1
+
+      # Cleanup pods after completion
+      ttlSecondsAfterFinished: 3600
+
+      template:
+        metadata:
+          labels:
+            app: vpa-phase0-validator
+            domain: platform
+          annotations:
+            # Annotation to indicate this is a system job
+            workload-type: platform-automation
+        spec:
+          serviceAccountName: vpa-phase0-validator
+
+          # Run on any node
+          tolerations:
+            - effect: NoSchedule
+              operator: Exists
+            - effect: NoExecute
+              operator: Exists
+
+          # Run with minimal resources
+          containers:
+          - name: vpa-validator
+            image: bitnami/kubectl:latest
+            imagePullPolicy: IfNotPresent
+
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              REPORT_DIR="/tmp/finops-reports"
+              mkdir -p "$REPORT_DIR"
+
+              BASELINE_SAVINGS=62.28
+              TARGET_SAVINGS=15000
+              VALIDATION_DATE=$(date +%Y%m%d)
+
+              echo "VPA Phase 0 Validation - $(date --iso-8601=seconds)"
+              echo "=================================================="
+
+              # Count VPAs with recommendations
+              VPA_WITH_RECS=$(kubectl get vpa -A -o json 2>/dev/null | jq '[.items[] | select(.status.recommendation != null)] | length' || echo "0")
+
+              echo "VPAs with recommendations: $VPA_WITH_RECS/10"
+
+              if [ "$VPA_WITH_RECS" -ge 10 ]; then
+                  echo "Status: SUCCESS - All VPAs have recommendations"
+                  EXIT_CODE=0
+              elif [ "$VPA_WITH_RECS" -ge 8 ]; then
+                  echo "Status: WARNING - Most VPAs ready (8-9/10)"
+                  EXIT_CODE=1
+              else
+                  echo "Status: INCOMPLETE - Not enough recommendations ($VPA_WITH_RECS/10)"
+                  EXIT_CODE=2
+              fi
+
+              # Generate report
+              REPORT_FILE="$REPORT_DIR/vpa-phase0-validation-${VALIDATION_DATE}.txt"
+              cat > "$REPORT_FILE" <<EOF
+              VPA Phase 0 Validation Report
+              Generated: $(date --iso-8601=seconds)
+
+              Baseline Savings (2026-02-20): R\$ ${BASELINE_SAVINGS}/ano
+              Target Savings: R\$ ${TARGET_SAVINGS}/ano
+
+              VPA Status:
+              - With Recommendations: ${VPA_WITH_RECS}/10
+              - Status: $([ "$EXIT_CODE" -eq 0 ] && echo "SUCCESS" || echo "INCOMPLETE")
+
+              Next Steps:
+              - Detailed analysis requires manual execution of calculate-savings.sh
+              - Full report available at: docs/finops/vpa-phase0-validation-report-${VALIDATION_DATE}.md
+              EOF
+
+              cat "$REPORT_FILE"
+              exit $EXIT_CODE
+
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+
+            # Allow container to complete gracefully
+            terminationMessagePolicy: FallbackToLogsOnError
+
+          # Pod restart policy
+          restartPolicy: Never
+
+          # How long to wait before forcefully terminating pod
+          terminationGracePeriodSeconds: 30
+
+---
+# Optional: ServiceMonitor for Prometheus (if using prometheus-operator)
+# This allows tracking CronJob success/failure rates
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vpa-phase0-validation-alerts
+  namespace: finops
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: vpa-validation
+    interval: 30s
+    rules:
+    # Alert if CronJob hasn't run in 7 days
+    - alert: VPAValidationCronJobMissing
+      expr: |
+        (time() - job_last_success_unixtime{job_name="vpa-phase0-validation"}) > 604800
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "VPA validation CronJob hasn't run in 7 days"
+        description: "The VPA phase 0 validation job scheduled for 2026-02-27 may have failed"

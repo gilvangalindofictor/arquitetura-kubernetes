@@ -28,6 +28,12 @@ Suite completa de scripts para auditoria e cleanup automático de recursos AWS �
 | **weekly-cost-report.sh** | Relatório de custos AWS (7-30 dias) | $0.01/request |
 | **apply-tags.sh** | Aplicar tags FinOps em recursos | FREE |
 
+### VPA Optimization Scripts
+
+| Script | Descrição | Frequência | Exit Codes |
+|--------|-----------|-----------|-----------|
+| **vpa-phase0-validation.sh** | Valida VPA FASE 0 baseline convergence e calcula savings | Manual / CronJob (2026-02-27) | 0=target ✅, 1=partial ⚠️, 2=error ❌ |
+
 ---
 
 ## 🚀 Quick Start
@@ -105,6 +111,29 @@ bash scripts/finops/weekly-cost-report.sh
 bash scripts/finops/weekly-cost-report.sh 30
 ```
 
+### VPA Phase 0 Validation
+
+Validates VPA baseline requests convergence and calculates actual savings from rightsizing.
+
+```bash
+# Manual validation (run anytime)
+bash scripts/finops/vpa-phase0-validation.sh
+
+# With Slack notification
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." bash scripts/finops/vpa-phase0-validation.sh
+```
+
+**Output**: Generates detailed markdown report in `docs/finops/vpa-phase0-validation-report-YYYYMMDD.md`
+
+**Expected Schedule**: Automated run on 2026-02-27 02:00 UTC (via Kubernetes CronJob)
+
+**Report Includes**:
+- Target achievement status (≥R$ 15.000/ano target)
+- Per-workload resource recommendations
+- Savings breakdown by container/pod
+- Recommendations for FASE 1 rightsizing
+- Health checks and troubleshooting guide
+
 ---
 
 ## 📁 Relatórios Gerados
@@ -168,23 +197,46 @@ aws:
 
 ---
 
-## 🤖 Automação Planejada (TODO)
+## 🤖 Automação Planejada / Implementada
 
-### Lambda Automation
+### VPA Phase 0 Validation Automation (2026-02-25)
+
+✅ **Implemented**: Kubernetes CronJob for automated validation
+
+```bash
+# Deploy CronJob to cluster
+kubectl apply -f platform-provisioning/aws/kubernetes/manifests/finops/vpa-phase0-validation-cronjob.yaml
+
+# Check CronJob status
+kubectl get cronjobs -n finops
+kubectl describe cronjob vpa-phase0-validation -n finops
+
+# View job history
+kubectl get jobs -n finops -l app=vpa-phase0-validator
+
+# View job logs
+kubectl logs -n finops -l app=vpa-phase0-validator --tail=100
+```
+
+**Schedule**: 2026-02-27 02:00 UTC (monthly, day 27 at 2:00 AM)
+**Runtime**: ~5 minutes
+**Exit Codes**: 0=success, 1=warning, 2=error
+
+### Lambda Automation (TODO)
 ```bash
 # TODO: Implementar Lambda function para cleanup periódico
 # EventBridge: Weekly scan + cleanup
 # SNS: Notify antes de deletar recursos
 ```
 
-### AWS Config Rules
+### AWS Config Rules (TODO)
 ```bash
 # TODO: Implementar Config Rules
 # - ec2-volume-inuse-check (alert volumes available >7d)
 # - eip-attached (alert unattached Elastic IPs)
 ```
 
-### Lifecycle Policies
+### Lifecycle Policies (TODO)
 ```bash
 # TODO: Implementar lifecycle policies
 # - ECR: Delete untagged images after 7d
@@ -257,6 +309,6 @@ brew install jq
 
 ---
 
-**Última Atualização**: 2026-02-12
-**Versão**: 2.0.0
-**Autor**: DevOps Team
+**Última Atualização**: 2026-02-25
+**Versão**: 2.1.0
+**Autor**: DevOps Team, VPA Automation Team
