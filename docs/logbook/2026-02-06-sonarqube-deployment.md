@@ -135,7 +135,7 @@ kubectl get secret sonarqube-oidc -n keycloak \
   -o jsonpath='{.data.client-secret}' | base64 -d
 ```
 
-**Client Secret:** `GOLnIbPe0Y1vlaTSq58rn4bTew5lorrs`
+**Client Secret:** `<FROM_VAULT>`
 
 ```bash
 # Criar namespace
@@ -143,7 +143,7 @@ kubectl create namespace sonarqube
 
 # Criar secret OIDC
 kubectl create secret generic sonarqube-oidc -n sonarqube \
-  --from-literal=client-secret=GOLnIbPe0Y1vlaTSq58rn4bTew5lorrs
+  --from-literal=client-secret=<FROM_VAULT>
 ```
 
 #### 2.2 PostgreSQL Credentials Secret
@@ -151,7 +151,7 @@ kubectl create secret generic sonarqube-oidc -n sonarqube \
 ```bash
 kubectl create secret generic sonarqube-postgresql -n sonarqube \
   --from-literal=postgresql-username=sonarqube_user \
-  --from-literal=postgresql-password='jpx6DjDdcc9gQ39RGBtNj+x6h6BNZHKn+QKOf6M7HE8=' \
+  --from-literal=postgresql-password='<FROM_VAULT>' \
   --from-literal=postgresql-host=postgresql-external.default.svc.cluster.local \
   --from-literal=postgresql-port=5432 \
   --from-literal=postgresql-database=sonarqube

@@ -23,8 +23,8 @@ Usuário → SonarQube (SAML SP) → Keycloak (SAML IdP + GitLab Social Provider
 
 **Vault KV:** `secret/sonarqube/gitlab`
 ```
-application_id     = b7bb4042666e99848f17c88a809a186eccb7aaa1e56def407fb03ff68dda9220
-application_secret = gloas-a33d9b696ab3458985f3fd88b5f00d0867db4b8a0e4be79798ca80ad980457a5
+application_id     = <STORED_IN_VAULT>
+application_secret = <STORED_IN_VAULT>
 ```
 
 **ESO ExternalSecret `sonarqube-sp-saml`** expandido — `secret.properties` agora contém 4 keys:

@@ -68,7 +68,7 @@ Deployment completo do ArgoCD como plataforma GitOps para gerenciamento de aplic
 ┌───────────────────────────────────────────────────────┐
 │      Keycloak OIDC (realm: platform)                  │
 │  - Client ID: argocd                                  │
-│  - Client Secret: epwDzf6KgL6xb9q8dqrQtcAoVQKgZ8ZF     │
+│  - Client Secret: <STORED_IN_VAULT>     │
 │  - Groups: argocd-admins, developers                  │
 └───────────────────────────────────────────────────────┘
 ```
@@ -128,7 +128,7 @@ kubectl exec -n default postgresql-client -- \
 ```bash
 kubectl get secret argocd-oidc -n keycloak \
   -o jsonpath='{.data.client-secret}' | base64 -d
-# Output: epwDzf6KgL6xb9q8dqrQtcAoVQKgZ8ZF
+# Output: <STORED_IN_VAULT>
 ```
 
 #### 2.2 Criar Kubernetes Secrets
@@ -142,14 +142,14 @@ kubectl create secret generic argocd-postgresql-credentials \
   --from-literal=port=5432 \
   --from-literal=database=argocd \
   --from-literal=username=argocd_user \
-  --from-literal=password=S7AExBn7gk0lqg1sHzYuHooxEbjyjInb \
+  --from-literal=password=<FROM_VAULT> \
   --namespace=argocd
 ```
 
 **OIDC Credentials**:
 ```bash
 kubectl create secret generic argocd-oidc-credentials \
-  --from-literal=client-secret=epwDzf6KgL6xb9q8dqrQtcAoVQKgZ8ZF \
+  --from-literal=client-secret=<FROM_VAULT> \
   --namespace=argocd
 ```
 
@@ -549,7 +549,7 @@ kubectl get cm argocd-cm -n argocd -o yaml | grep -A 10 "oidc.config"
 ### OIDC
 - **Issuer**: http://keycloak-http.keycloak.svc.cluster.local/auth/realms/platform
 - **Client ID**: argocd
-- **Client Secret**: epwDzf6KgL6xb9q8dqrQtcAoVQKgZ8ZF
+- **Client Secret**: <STORED_IN_VAULT>
 - **Secret**: argocd-oidc-credentials (K8s)
 - **Keycloak Secret Key**: oidc.keycloak.clientSecret (argocd-secret)
 

@@ -157,7 +157,7 @@ http://localhost:8080/auth/
 # Admin console
 http://localhost:8080/auth/admin/
 User: admin
-Pass: Qq!Tp?Q=xmCmj5zGbzIW>kno
+Pass: <FROM_K8S_SECRET>
 ```
 
 **ArgoCD OIDC config (temporário)**:

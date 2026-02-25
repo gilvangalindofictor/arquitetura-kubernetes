@@ -30,7 +30,7 @@ GAP-005 concluído: runner id=115 agora tem credenciais Harbor + SonarQube injet
 - Provider `hashicorp/null` adicionado ao required_providers
 
 ### Vault
-- `secret/harbor/robot-account`: name=`robot$gitlab-ci`, secret=`CoDgiJ4...`
+- `secret/harbor/robot-account`: name=`robot$gitlab-ci`, secret=`<STORED_IN_VAULT>`
 - `secret/gitlab/ci-variables`: 5 keys (harbor_registry_url, harbor_robot_user, harbor_robot_password, sonar_host_url, sonar_token)
 - Policy `eso-reader`: `+secret/data/gitlab/*`, `+secret/metadata/gitlab/*`
 
@@ -78,14 +78,14 @@ GAP-005 concluído: runner id=115 agora tem credenciais Harbor + SonarQube injet
 Vault:
   secret/harbor/robot-account
     name: robot$gitlab-ci
-    secret: CoDgiJ41zFRsyOcRsp4GKZ6R5xtdfAc6
+    secret: <STORED_IN_VAULT>
 
   secret/gitlab/ci-variables
     harbor_registry_url: harbor.staging.internal
     harbor_robot_user: robot$gitlab-ci
-    harbor_robot_password: CoDgiJ41zFRsyOcRsp4GKZ6R5xtdfAc6
+    harbor_robot_password: <STORED_IN_VAULT>
     sonar_host_url: http://sonarqube.staging.internal
-    sonar_token: sqa_6efac477a6e652bcb1be88483b74155778d4e022
+    sonar_token: <STORED_IN_VAULT>
 ```
 
 ## Padrões Documentados

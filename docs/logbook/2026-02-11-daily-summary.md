@@ -53,7 +53,7 @@ Completed 80% of GitLab OIDC integration with Keycloak SSO, implementing split-h
 
 **Client Details**:
 - Client ID: `gitlab`
-- Client Secret: `yOpIEh5nxYItofNBec2_5IncBYgBIhW4k0AEGPSYAr0=`
+- Client Secret: `<STORED_IN_VAULT>`
 - Protocol: OpenID Connect
 - Redirect URI: `http://gitlab.staging.internal/users/auth/openid_connect/callback`
 

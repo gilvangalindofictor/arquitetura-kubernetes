@@ -62,7 +62,7 @@ Deploy Keycloak as SSO/OIDC provider to enable:
 
 - Database: `keycloak`
 - User: `keycloak_user`
-- Password: `4GYpouL9OgSqXzElSRzNznlRvkpeERPh`
+- Password: `<FROM_VAULT>`
 - Host: `postgresql-external.default.svc.cluster.local:5432`
 
 **Script**: `/terraform/scripts/keycloak/check-keycloak-db.sh`
@@ -155,8 +155,8 @@ Deploy Keycloak as SSO/OIDC provider to enable:
 **Symptoms**:
 
 - Database authentication failed for keycloak_user
-- Password in secret: `E=o2YHU*lqG3C:3WGLN}XKpuCjAo29#c`
-- Expected password: `4GYpouL9OgSqXzElSRzNznlRvkpeERPh`
+- Password in secret: `<INCORRECT_VALUE>`
+- Expected password: `<FROM_DATABASE>`
 
 **Root Cause**: Vault secret had incorrect password value
 
@@ -208,10 +208,10 @@ Deploy Keycloak as SSO/OIDC provider to enable:
 4. Created realm: `platform`
 5. Created groups: `platform-admins`, `argocd-admins`, `developers`
 6. Created OIDC clients with generated secrets:
-   - **argocd**: `epwDzf6KgL6xb9q8dqrQtcAoVQKgZ8ZF`
-   - **sonarqube**: `GOLnIbPe0Y1vlaTSq58rn4bTew5lorrs`
-   - **gitlab**: `VhbMxA2yijOhuCKyDW7W41PgO6SxPd9W`
-   - **grafana**: `I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB`
+   - **argocd**: `<STORED_IN_VAULT>`
+   - **sonarqube**: `<STORED_IN_VAULT>`
+   - **gitlab**: `<STORED_IN_VAULT>`
+   - **grafana**: `<ROTATED-2026-02-19>`
 
 **Vault Storage Attempt**: ❌ Failed
 

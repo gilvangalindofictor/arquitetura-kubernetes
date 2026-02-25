@@ -62,9 +62,9 @@ Sprint 3 focou em resolver issues pendentes de infraestrutura e validar integra�
 - Keycloak: 2 pods Running
 - Realm `platform` criado via UI
 - Clients configurados:
-  - **argocd**: clientID=argocd, secret=EevIzpYR6ai3tssDMsxwDH5bRBjj0YIp
-  - **sonarqube**: clientID=sonarqube, secret=Oif7qf7u1jVMyIfYboVPyybbVK5tRBJn
-- Admin: admin / Qq!Tp?Q=xmCmj5zGbzIW>kno
+  - **argocd**: clientID=argocd, secret=<STORED_IN_VAULT>
+  - **sonarqube**: clientID=sonarqube, secret=<STORED_IN_VAULT>
+- Admin: admin / <FROM_K8S_SECRET>
 
 **Configuração ArgoCD**:
 ```yaml
@@ -81,7 +81,7 @@ oidc.config: |
 ```
 
 **Secrets Atualizados**:
-- argocd-secret: `oidc.keycloak.clientSecret` = EevIzpYR6ai3tssDMsxwDH5bRBjj0YIp
+- argocd-secret: `oidc.keycloak.clientSecret` = <STORED_IN_VAULT>
 - sonarqube-oidc: clientSecret atualizado
 
 ### 3. Limitações Identificadas
@@ -238,9 +238,9 @@ tolerations = length(var.tolerations) > 0 ? [
 ### Secrets Críticos (Backup Necessário)
 - GitLab root: tf%g!*}r7WS{X_*==24g[x5!CagEkHbZ
 - Redis: 6%Ir%u2MI2orOy78<B%K+)2VB>XokQx*... (32 chars)
-- Keycloak admin: Qq!Tp?Q=xmCmj5zGbzIW>kno
-- ArgoCD OIDC: EevIzpYR6ai3tssDMsxwDH5bRBjj0YIp
-- SonarQube OIDC: Oif7qf7u1jVMyIfYboVPyybbVK5tRBJn
+- Keycloak admin: <FROM_K8S_SECRET>
+- ArgoCD OIDC: <STORED_IN_VAULT>
+- SonarQube OIDC: <STORED_IN_VAULT>
 
 ### ADRs Relacionados
 - ADR-023: Migration from Bitnami Charts to Operators (Redis)

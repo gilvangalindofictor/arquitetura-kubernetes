@@ -119,7 +119,7 @@ Credenciais sensíveis (Grafana password, API keys, database credentials) commit
 
 **Mitigações Implementadas:**
 - ✅ **Vault KV v2 + ESO:** 7 ExternalSecrets sincronizados — zero secrets hardcoded no git (DEC-065, 2026-02-19)
-- ✅ **Grafana OIDC rotacionado:** Secret `I4wY1xGwxMnTbWjRxVQZ7zk0gIJBUvjB` invalidado; novo via Vault KV v3
+- ✅ **Grafana OIDC rotacionado:** Secret antigo invalidado; novo via Vault KV v3
 - ✅ **Pre-commit hook:** Validação automática (block commits com secrets)
 - ✅ **.gitignore:** terraform.tfvars, *.tfvars, *.env (ignored)
 - ✅ **Governance validation:** Hook custom validando padrões de secrets
@@ -2163,11 +2163,11 @@ ERROR: failed to ping redis: WRONGPASS invalid username-password pair or user is
 ```bash
 # 1. Patch secret
 kubectl patch secret harbor-redis -n harbor-system \
-  --type='json' -p='[{"op": "replace", "path": "/data/password", "value": "'$(echo -n '6%Ir%u2MI2orOy78<B%K+)2VB>XokQx*' | base64)'"}]'
+  --type='json' -p='[{"op": "replace", "path": "/data/password", "value": "'$(echo -n '<REDIS_PASSWORD>' | base64)'"}]'
 
-# 2. Patch ConfigMaps (URL-encoded password: 6%25Ir%25u2MI2orOy78%3CB%25K%2B%292VB%3EXokQx%2A)
+# 2. Patch ConfigMaps (URL-encoded password)
 kubectl patch configmap harbor-core -n harbor-system \
-  --type='json' -p='[{"op": "replace", "path": "/data/_REDIS_URL_CORE", "value": "redis://:6%25Ir%25u2MI2orOy78%3CB%25K%2B%292VB%3EXokQx%2A@rfrm-redis..."}]'
+  --type='json' -p='[{"op": "replace", "path": "/data/_REDIS_URL_CORE", "value": "redis://:<URL_ENCODED_PASSWORD>@rfrm-redis..."}]'
 
 # 3. Restart
 kubectl rollout restart deployment -n harbor-system harbor-core harbor-jobservice

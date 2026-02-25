@@ -110,6 +110,8 @@ logs/
 credentials.json
 credentials.yaml
 **/credentials/
+*-credentials.yaml
+*-credentials.yml
 *.pem
 *.key
 *.crt
@@ -119,6 +121,10 @@ credentials.yaml
 .env
 .env.*
 !.env.example
+# Secrets documentation (should use placeholders, not actual values)
+**/secrets.md
+**/SECRETS-*.md
+!docs/security/SECRETS-CLEANUP-*.md
 
 # ------------------------------------------------------------------------------
 # Cloud Providers

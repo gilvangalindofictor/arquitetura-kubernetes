@@ -38,6 +38,6 @@ AWS_PROFILE=k8s-platform-prod terraform apply -target=module.gitlab_staging
 
 ## Credenciais
 
-- Client Secret: `yOpIEh5nxYItofNBec2_5IncBYgBIhW4k0AEGPSYAr0=`
+- Client Secret: `<STORED_IN_VAULT>`
 - Secret K8s: `gitlab-oidc-keycloak` (gitlab-staging namespace)
 
