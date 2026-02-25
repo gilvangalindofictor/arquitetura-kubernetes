@@ -455,7 +455,7 @@ product: ^[a-z0-9-]+$
 - **PostgreSQL RDS** 16.4 - AWS-managed (db.t3.medium Single-AZ staging)
 - **OT-Container-Kit Redis Operator** 0.23.0 - Redis 8.4.1 (migrated from SpotaHome 2026-02-13, ADR-053-REVISION)
 - **RabbitMQ Cluster Operator** 2.19.0 - RabbitMQ 3.13-management (Official operator)
-- **Velero** - NOT IMPLEMENTED (deliberate MVP gap)
+- **Velero** 1.15.0 - Backup/DR com IRSA (zero credenciais estáticas, 2026-02-25)
 
 > **📋 Controle de Versões**: Atualizado 2026-02-13 (Redis migration). Consulte [VERSION-CONTROL.md](domains/data-services/docs/VERSION-CONTROL.md).
 
@@ -541,8 +541,8 @@ Kubernetes/
 
 ### Gaps Conhecidos (Sprint+1 Roadmap)
 1. **RBAC Granular**: ServiceAccounts com least-privilege (4 domínios)
-2. **Network Policies**: Implementar para 6 domínios (L3/L4 firewall)
-3. **Velero Credentials**: Migrar de Kubernetes Secrets para Vault
+2. ✅ **Network Policies**: Implementado em audit mode (22 policies, 5 namespaces, 2026-02-24)
+3. ✅ **Velero IRSA**: Completo - OIDC thumbprint + ARN format fix (2026-02-25)
 4. **HPA/VPA**: Após 2 semanas de métricas (observar padrões)
 5. **GitLab OIDC**: Integração com Keycloak (ArgoCD já implementado)
 
