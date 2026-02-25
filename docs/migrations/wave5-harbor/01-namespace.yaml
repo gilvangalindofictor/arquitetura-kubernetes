@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-platform-harbor
+  labels:
+    env: staging
+    domain: platform
+    product: harbor
+    migrated-from: harbor-system
+    migration-wave: "5"
+    migration-date: "2026-02-25"

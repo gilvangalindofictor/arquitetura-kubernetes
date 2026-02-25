@@ -1,0 +1,87 @@
+apiVersion: v1
+items:
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/group.name: platform-staging
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v2.0/health
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      ingress.kubernetes.io/proxy-body-size: "0"
+      ingress.kubernetes.io/ssl-redirect: "true"
+      meta.helm.sh/release-name: harbor
+      meta.helm.sh/release-namespace: harbor-system
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    creationTimestamp: "2026-02-13T20:27:45Z"
+    finalizers:
+    - group.ingress.k8s.aws/platform-staging
+    generation: 1
+    labels:
+      app: harbor
+      app.kubernetes.io/managed-by: Helm
+      chart: harbor
+      heritage: Helm
+      release: harbor
+    name: harbor-ingress
+    namespace: harbor-system
+    resourceVersion: "7483892"
+    uid: cf7ab010-044b-41a3-b1c4-8512a090f615
+  spec:
+    ingressClassName: alb
+    rules:
+    - host: harbor.staging.internal
+      http:
+        paths:
+        - backend:
+            service:
+              name: harbor-core
+              port:
+                number: 80
+          path: /api/
+          pathType: Prefix
+        - backend:
+            service:
+              name: harbor-core
+              port:
+                number: 80
+          path: /service/
+          pathType: Prefix
+        - backend:
+            service:
+              name: harbor-core
+              port:
+                number: 80
+          path: /v2/
+          pathType: Prefix
+        - backend:
+            service:
+              name: harbor-core
+              port:
+                number: 80
+          path: /chartrepo/
+          pathType: Prefix
+        - backend:
+            service:
+              name: harbor-core
+              port:
+                number: 80
+          path: /c/
+          pathType: Prefix
+        - backend:
+            service:
+              name: harbor-portal
+              port:
+                number: 80
+          path: /
+          pathType: Prefix
+  status:
+    loadBalancer:
+      ingress:
+      - hostname: k8s-platformstaging-00e0ecf3b4-279144409.us-east-1.elb.amazonaws.com
+kind: List
+metadata:
+  resourceVersion: ""

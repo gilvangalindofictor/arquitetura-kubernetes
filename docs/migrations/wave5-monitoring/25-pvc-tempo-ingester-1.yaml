@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-tempo-ingester-1
+  namespace: staging-observability-monitoring
+  labels:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/component: ingester
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 10Gi
+  dataSource:
+    name: tempo-ingester-1-snapshot-wave5
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io

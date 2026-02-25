@@ -1,0 +1,187 @@
+# Base values from harbor-values-updated.yaml with Kyverno-compliant labels
+commonLabels:
+  domain: platform
+  owner: platform-team
+  environment: staging
+  app.kubernetes.io/name: harbor
+  app.kubernetes.io/part-of: container-registry
+
+core:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  serviceAccountName: harbor
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+database:
+  external:
+    coreDatabase: harbor
+    host: postgresql-external.default.svc.cluster.local
+    notaryServerDatabase: notaryserver
+    notarySignerDatabase: notarysigner
+    password: GitLabStaging2026!SecurePass#Dev
+    port: 5432
+    sslmode: require
+    username: harbor_user
+  type: external
+
+expose:
+  ingress:
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/group.name: platform-staging
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v2.0/health
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    className: alb
+    hosts:
+      core: harbor.staging.internal
+  tls:
+    enabled: false
+  type: ingress
+
+externalURL: http://harbor.staging.internal
+harborAdminPassword: hG]01K>Gbg-*AER>:1]9SW>6
+
+imageChartStorage:
+  s3:
+    bucket: k8s-platform-harbor-images-891377105802
+    encrypt: true
+    region: us-east-1
+    regionendpoint: https://s3.us-east-1.amazonaws.com
+    secure: true
+  type: s3
+
+jobservice:
+  replicas: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  serviceAccountName: harbor
+  strategy:
+    type: Recreate
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    chartmuseum:
+      size: 5Gi
+      storageClass: gp3
+    jobservice:
+      size: 1Gi
+      storageClass: gp3
+      existingClaim: harbor-jobservice
+    registry:
+      size: 5Gi
+      storageClass: gp3
+      existingClaim: harbor-registry
+
+portal:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+redis:
+  external:
+    addr: redis.staging-data-infrastructure.svc.cluster.local:6379
+    password: )l3WKdhvMpgP$dj_gmLPEoYGhKYg:Ths
+  type: external
+
+registry:
+  controller:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  registry:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  serviceAccountName: harbor
+  strategy:
+    type: Recreate
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+
+trivy:
+  enabled: false
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: gp3
+  resources:
+    limits:
+      cpu: 1
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical

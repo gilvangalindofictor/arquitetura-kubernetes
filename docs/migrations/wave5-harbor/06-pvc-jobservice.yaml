@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: harbor-jobservice
+  namespace: staging-platform-harbor
+  labels:
+    app: harbor
+    component: jobservice
+    migration-wave: "5"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 1Gi
+  dataSource:
+    name: harbor-jobservice-snapshot-wave5
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io

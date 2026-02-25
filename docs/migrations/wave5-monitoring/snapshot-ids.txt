@@ -1,0 +1,11 @@
+# Monitoring EBS Snapshot IDs (created 2026-02-25 14:17 UTC)
+
+prometheus-db: snap-0c2ac1b56c6196c8d (20GB)
+loki-backend-0: snap-0d753e1d4bab7d443 (10GB)
+loki-backend-1: snap-0bebbc4997d7cdc5e (10GB)
+loki-write-0: snap-04683effe49578c26 (10GB)
+loki-write-1: snap-0bf55521b350e3b8c (10GB)
+tempo-ingester-0: snap-0d6aed6943e055547 (10GB)
+tempo-ingester-1: snap-07181f6fae320741f (10GB)
+grafana: snap-05539a2a7c7f5a827 (5GB)
+alertmanager: snap-0490065954a1afb94 (2GB)

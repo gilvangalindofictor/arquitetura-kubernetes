@@ -1,0 +1,12 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: grafana-snapshot-wave5
+  namespace: staging-observability-monitoring
+  labels:
+    migration-wave: "5"
+    source-pvc: kube-prometheus-stack-grafana
+spec:
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  source:
+    volumeSnapshotContentName: grafana-snapcontent-wave5

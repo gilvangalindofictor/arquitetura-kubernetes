@@ -1,0 +1,16 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotContent
+metadata:
+  name: loki-write-0-snapcontent-wave5
+  labels:
+    migration-wave: "5"
+    source-namespace: monitoring
+    target-namespace: staging-observability-monitoring
+spec:
+  deletionPolicy: Retain
+  driver: ebs.csi.aws.com
+  source:
+    snapshotHandle: snap-04683effe49578c26
+  volumeSnapshotRef:
+    name: loki-write-0-snapshot-wave5
+    namespace: staging-observability-monitoring

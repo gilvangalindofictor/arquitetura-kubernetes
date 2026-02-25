@@ -1,0 +1,16 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotContent
+metadata:
+  name: harbor-jobservice-snapcontent-wave5
+  labels:
+    migration-wave: "5"
+    source-namespace: harbor-system
+    target-namespace: staging-platform-harbor
+spec:
+  deletionPolicy: Retain
+  driver: ebs.csi.aws.com
+  source:
+    snapshotHandle: snap-0b3f413c3eb867a23
+  volumeSnapshotRef:
+    name: harbor-jobservice-snapshot-wave5
+    namespace: staging-platform-harbor

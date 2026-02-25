@@ -1,0 +1,12 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: tempo-ingester-0-snapshot-wave5
+  namespace: staging-observability-monitoring
+  labels:
+    migration-wave: "5"
+    source-pvc: data-tempo-ingester-0
+spec:
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  source:
+    volumeSnapshotContentName: tempo-ingester-0-snapcontent-wave5

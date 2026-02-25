@@ -1,0 +1,137 @@
+compactor:
+  livenessProbe:
+    failureThreshold: 5
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+  nodeSelector:
+    node-type: workloads
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+distributor:
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+  nodeSelector:
+    node-type: workloads
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+fullnameOverride: tempo
+gateway:
+  enabled: true
+  nodeSelector:
+    node-type: workloads
+  replicas: 2
+ingester:
+  config:
+    replication_factor: 2
+  lifecycler:
+    ring:
+      replication_factor: 2
+  livenessProbe:
+    failureThreshold: 5
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+  nodeSelector:
+    node-type: workloads
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+  replicas: 2
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+metaMonitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+querier:
+  livenessProbe:
+    failureThreshold: 5
+    initialDelaySeconds: 45
+    periodSeconds: 20
+    timeoutSeconds: 5
+  nodeSelector:
+    node-type: workloads
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+  replicas: 2
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+queryFrontend:
+  nodeSelector:
+    node-type: workloads
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+serviceAccount:
+  create: false
+  name: tempo
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: ""
+      bucket: k8s-platform-tempo-891377105802
+      endpoint: s3.us-east-1.amazonaws.com
+      region: us-east-1
+      secret_key: ""
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true

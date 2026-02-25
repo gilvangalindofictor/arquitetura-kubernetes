@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: harbor-registry
+  namespace: staging-platform-harbor
+  labels:
+    app: harbor
+    component: registry
+    migration-wave: "5"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 5Gi
+  dataSource:
+    name: harbor-registry-snapshot-wave5
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io

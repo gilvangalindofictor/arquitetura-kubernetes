@@ -1,0 +1,12 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: loki-backend-1-snapshot-wave5
+  namespace: staging-observability-monitoring
+  labels:
+    migration-wave: "5"
+    source-pvc: data-loki-backend-1
+spec:
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  source:
+    volumeSnapshotContentName: loki-backend-1-snapcontent-wave5

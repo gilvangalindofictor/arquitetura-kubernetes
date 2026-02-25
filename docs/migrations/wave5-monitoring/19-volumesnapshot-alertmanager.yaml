@@ -1,0 +1,12 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: alertmanager-snapshot-wave5
+  namespace: staging-observability-monitoring
+  labels:
+    migration-wave: "5"
+    source-pvc-short: alertmanager-db
+spec:
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  source:
+    volumeSnapshotContentName: alertmanager-snapcontent-wave5

@@ -1,0 +1,143 @@
+alertmanager:
+  alertmanagerSpec:
+    nodeSelector:
+      node-type: system
+    resources:
+      limits:
+        cpu: 50m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+          storageClassName: gp2
+    tolerations:
+    - effect: NoSchedule
+      key: node-type
+      operator: Equal
+      value: system
+    - effect: NoSchedule
+      key: workload
+      operator: Equal
+      value: critical
+  enabled: true
+grafana:
+  adminPassword: admin
+  assertNoLeakedSecrets: false
+  defaultDashboardsEnabled: true
+  enabled: true
+  envFromSecret: grafana-oidc-credentials
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        key: client_secret
+        name: grafana-oidc-credentials
+  grafana.ini:
+    auth.generic_oauth:
+      allow_sign_up: true
+      api_url: http://keycloak.staging.internal/auth/realms/platform/protocol/openid-connect/userinfo
+      auth_url: http://keycloak.staging.internal/auth/realms/platform/protocol/openid-connect/auth
+      client_id: grafana
+      client_secret: ${client_secret}
+      enabled: true
+      name: Keycloak
+      role_attribute_path: contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'
+      scopes: openid email profile
+      token_url: http://keycloak.staging.internal/auth/realms/platform/protocol/openid-connect/token
+    server:
+      root_url: http://grafana.staging.internal
+  ingress:
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/group.name: observability-staging
+      alb.ingress.kubernetes.io/healthcheck-path: /api/health
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    enabled: true
+    hosts:
+    - grafana.staging.internal
+    ingressClassName: alb
+  nodeSelector:
+    node-type: system
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: gp2
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+  - effect: NoSchedule
+    key: workload
+    operator: Equal
+    value: critical
+kube-state-metrics:
+  nodeSelector:
+    node-type: system
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true
+prometheus:
+  enabled: true
+  prometheusSpec:
+    nodeSelector:
+      node-type: system
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      limits:
+        cpu: 500m
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    retention: 15d
+    serviceMonitorSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+          storageClassName: gp2
+    tolerations:
+    - effect: NoSchedule
+      key: node-type
+      operator: Equal
+      value: system
+    - effect: NoSchedule
+      key: workload
+      operator: Equal
+      value: critical
+prometheusOperator:
+  enabled: true
+  nodeSelector:
+    node-type: system
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system

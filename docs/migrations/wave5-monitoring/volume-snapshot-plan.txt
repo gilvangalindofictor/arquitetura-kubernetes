@@ -1,0 +1,46 @@
+# Monitoring PVC Snapshot Plan (67GB total)
+
+PVC: alertmanager-kube-prometheus-stack-alertmanager-db-alertmanager-kube-prometheus-stack-alertmanager-0
+Volume: vol-0b39c71606c5e397f
+Size: 2Gi
+Purpose: Alertmanager persistent database
+
+PVC: data-loki-backend-0
+Volume: vol-0c3371e8ffa0d7390
+Size: 10Gi
+Purpose: Loki backend storage (chunk cache, index)
+
+PVC: data-loki-backend-1
+Volume: vol-069dcce131355ff5f
+Size: 10Gi
+Purpose: Loki backend storage replica
+
+PVC: data-loki-write-0
+Volume: vol-057296e9f2d1d1032
+Size: 10Gi
+Purpose: Loki write path (ingester)
+
+PVC: data-loki-write-1
+Volume: vol-00c6bacea12e38c5f
+Size: 10Gi
+Purpose: Loki write path replica
+
+PVC: data-tempo-ingester-0
+Volume: vol-06766df18b4342695
+Size: 10Gi
+Purpose: Tempo traces storage
+
+PVC: data-tempo-ingester-1
+Volume: vol-0f3648fe46f041c27
+Size: 10Gi
+Purpose: Tempo traces storage replica
+
+PVC: kube-prometheus-stack-grafana
+Volume: vol-07939f2802dfda648
+Size: 5Gi
+Purpose: Grafana dashboards, plugins, sessions
+
+PVC: prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
+Volume: vol-075c7f28aa4b988c7
+Size: 20Gi
+Purpose: Prometheus TSDB (critical - retention data)

@@ -1,0 +1,12 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: harbor-jobservice-snapshot-wave5
+  namespace: staging-platform-harbor
+  labels:
+    migration-wave: "5"
+    source-pvc: harbor-jobservice
+spec:
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  source:
+    volumeSnapshotContentName: harbor-jobservice-snapcontent-wave5
