@@ -1,0 +1,120 @@
+backend:
+  nodeSelector:
+    node-type: system
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp3
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+deploymentMode: SimpleScalable
+gateway:
+  enabled: true
+  nodeSelector:
+    node-type: system
+  replicas: 2
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+loki:
+  auth_enabled: false
+  commonConfig:
+    path_prefix: /var/loki
+    replication_factor: 2
+  compactor:
+    compaction_interval: 10m
+    retention_delete_delay: 2h
+    retention_enabled: true
+    shared_store: s3
+    working_directory: /var/loki/compactor
+  limits_config:
+    max_query_length: 744h
+    retention_period: 720h
+  schemaConfig:
+    configs:
+    - from: "2024-01-01"
+      index:
+        period: 24h
+        prefix: loki_index_
+      object_store: s3
+      schema: v13
+      store: tsdb
+  storage:
+    bucketNames:
+      admin: k8s-platform-loki-891377105802
+      chunks: k8s-platform-loki-891377105802
+      ruler: k8s-platform-loki-891377105802
+    s3:
+      region: us-east-1
+    type: s3
+minio:
+  enabled: false
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  serviceMonitor:
+    enabled: true
+    namespace: staging-observability-monitoring
+read:
+  nodeSelector:
+    node-type: system
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
+serviceAccount:
+  create: false
+  name: loki
+test:
+  enabled: false
+write:
+  nodeSelector:
+    node-type: system
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp3
+  replicas: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-type
+    operator: Equal
+    value: system
