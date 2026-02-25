@@ -1,0 +1,9 @@
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: sonarqube-pvc-snapshot
+  namespace: staging-platform-sonarqube
+spec:
+  source:
+    volumeSnapshotContentName: snapcontent-ccb11c51-9614-4279-ab93-87f16f307d8b

@@ -1,0 +1,87 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-sonarqube-config
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+data:
+  sonar.properties: "sonar.auth.gitlab.allowUsersToSignUp=false\nsonar.auth.gitlab.enabled=true\nsonar.auth.gitlab.groupsSyncEnabled=true\nsonar.auth.gitlab.url=http://gitlab.staging.internal\nsonar.auth.saml.applicationId=sonarqube\nsonar.auth.saml.certificate.secured=MIICnzCCAYcCBgGcNLCnZTANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhwbGF0Zm9ybTAeFw0yNjAyMDYyMDQwMThaFw0zNjAyMDYyMDQxNThaMBMxETAPBgNVBAMMCHBsYXRmb3JtMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmRnrzQQYRhDLYpp0aSz6xPOnAUSDZLFolGT7FOl4ez4z17ssMm7W5Xw5K3Bb4fI4e2gAudpczCh67VI1G97tLQcaPSf5uzsRrq4Y3iAD9VzKp8fT1hJRQSrIxm/QJxHJN9a/+LFP0l2txSbPrJyIZimR+THtH9CGX+BuYZN0M9bUwxHpvcxb/kRO1niwqNbR+gSDHkdIv1UMcd7BDCJBZuiM9spWvBoWKbv3aqP7y9oIx3wMBg7tLQ4fbDR0PNqiQnvLedR40sN7DJrzv3bab+GPm3rSArMA8PBISHawOcZ6b94TfKl+rSLJoXjppD1hBdjuk6S5j0y9tnxgu5+XAQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBO18QIRIi8UQZC+98WgV98q5iZchM4n+MlU25Rpxdo+xUhtbBMKSVotyWEZo6FXT3pf1rY2A83CcsGb+EKNyynC0rMir9ggu0yR13zho8T+nYoewdACSwey3oH2fwbMI9aT1oc9Z/GQyLmCrBWIcG3qNwRoyqzBOSZzfx9/YX9b8D1CIzQhgjIjMgFAM5HmmT5j8wnmBJfUnAjMtihOXJSAGDgKO8LBRaFz6w62IKFo596aJottqgYnC/SKlv44qGicnBkClejlZnrlX+ENbvmKvGMCQojmECR4q7WtOZc9KjOPxS5GfUoIT5vhhbCrQouydrSBp6He1IRnFC/cypL\nsonar.auth.saml.enabled=true\nsonar.auth.saml.group.name=groups\nsonar.auth.saml.groupsSync=true\nsonar.auth.saml.loginUrl=http://keycloak.staging.internal/auth/realms/platform/protocol/saml\nsonar.auth.saml.providerId=http://keycloak.staging.internal/auth/realms/platform\nsonar.auth.saml.signature.enabled=true\nsonar.auth.saml.sp.certificate.secured=MIIDXzCCAkegAwIBAgIUbbZIogu+BKzOTxoMG1jIbAqe0tUwDQYJKoZIhvcNAQELBQAwPzEVMBMGA1UEAwwMc29uYXJxdWJlLXNwMRkwFwYDVQQKDBBwbGF0Zm9ybS1zdGFnaW5nMQswCQYDVQQGEwJCUjAeFw0yNjAyMTgyMjA5NDBaFw0zNjAyMTYyMjA5NDBaMD8xFTATBgNVBAMMDHNvbmFycXViZS1zcDEZMBcGA1UECgwQcGxhdGZvcm0tc3RhZ2luZzELMAkGA1UEBhMCQlIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDF3AMuBGobOHWiiPwCdSD4KCX0En9thFa8hi1b0OCmz2C6vy1VeOWlQwWX5yJ1u1RvOl8f6ewbd86r2Jk+GlQbr7SYDQzi0Tj9LlC0FTU0Sine5BqpRz0/EScXK7wCENHF7Y7yWrraM6QitNeFn2IPu83Gxdq04qyfgghmFqAzr5r3+HLvciF5myH6UhfHdFazE1FE7U5kpGoabm66bPEGS3V7xgMsxnTNBwsRP0pCsQpmJ+42oGko+B0aVTX9lhX4zP/Z8RBGmWKLtX2Z5QBzBeFL34DIKYiqcs6o07PTES7AEpAKBaskjFjVJz0mVGMRmIrJ3kInIy0VIMbF88kxAgMBAAGjUzBRMB0GA1UdDgQWBBRH5KIS2G1P/eScorFc1qGA0BtKyDAfBgNVHSMEGDAWgBRH5KIS2G1P/eScorFc1qGA0BtKyDAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBk+M9AynJIEd23XLMO3jug0+XNWenwt9iFGc6FBEyzA9M0jckQSiB538QZE02oAwfrE1Vejb+041idvrL+nZeQd7iS8rCR00ji6LSNQRUj1S4axxioBfj6OniieGpjzS/61YYrtfaXS1FIPOP2WMqSRglEK4ZeJsYCoX8MwRIi976dKHjJMKDAFzDT+1FptmSAIBLBW+py1sGmiKx+JYaOeGl5cD0m+HGmYdupZLmZ7Z14OCp2Fnt1MMY9U3uPdmx/03698w3cQFSRXJVA6uySYmWyRrOkcAkz/PkKiTsas/JQBeUJ31CyQaeCFTBvQ4QwMjjuEq3wMnD8ugTnRpsH\nsonar.auth.saml.user.email=email\nsonar.auth.saml.user.login=login\nsonar.auth.saml.user.name=name\nsonar.core.serverBaseURL=http://sonarqube.staging.internal\n"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-sonarqube-init-fs
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+data:
+  init_fs.sh: |-
+    chown -R 1000:0 /opt/sonarqube/data
+    chown -R 1000:0 /opt/sonarqube/temp
+    chown -R 1000:0 /opt/sonarqube/logs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-sonarqube-init-sysctl
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+data:
+  init_sysctl.sh: |-
+    if [[ "$(sysctl -n vm.max_map_count)" -lt 524288 ]]; then
+      sysctl -w vm.max_map_count=524288
+    fi
+    if [[ "$(sysctl -n fs.file-max)" -lt 131072 ]]; then
+      sysctl -w fs.file-max=131072
+    fi
+    if [[ "$(ulimit -n)" != "unlimited" ]]; then
+      if [[ "$(ulimit -n)" -lt 131072 ]]; then
+        echo "ulimit -n 131072"
+        ulimit -n 131072
+      fi
+    fi
+    if [[ "$(ulimit -u)" != "unlimited" ]]; then
+      if [[ "$(ulimit -u)" -lt 8192 ]]; then
+        echo "ulimit -u 8192"
+        ulimit -u 8192
+      fi
+    fi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-sonarqube-install-plugins
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+data:
+  install_plugins.sh: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-sonarqube-jdbc-config
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+data:
+  SONAR_JDBC_URL: jdbc:postgresql://k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com:5432/sonarqube
+  SONAR_JDBC_USERNAME: sonarqube_user

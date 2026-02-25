@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sonarqube-sonarqube-monitoring-passcode
+  namespace: staging-platform-sonarqube
+  labels:
+    app: sonarqube
+    chart: sonarqube-10.7.0_3598
+    heritage: Helm
+    release: sonarqube
+type: Opaque
+data:
+  SONAR_WEB_SYSTEMPASSCODE: ZGVmaW5lX2l0

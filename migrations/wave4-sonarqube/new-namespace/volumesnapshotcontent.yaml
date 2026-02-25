@@ -1,0 +1,26 @@
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotContent
+metadata:
+  name: snapcontent-sonarqube-new
+spec:
+  deletionPolicy: Retain
+  driver: ebs.csi.aws.com
+  source:
+    snapshotHandle: snap-05252a352281fc314
+  volumeSnapshotClassName: ebs-csi-snapshot-class
+  volumeSnapshotRef:
+    apiVersion: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshot
+    name: sonarqube-pvc-snapshot
+    namespace: staging-platform-sonarqube
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: sonarqube-pvc-snapshot
+  namespace: staging-platform-sonarqube
+spec:
+  source:
+    volumeSnapshotContentName: snapcontent-sonarqube-new
+  volumeSnapshotClassName: ebs-csi-snapshot-class
