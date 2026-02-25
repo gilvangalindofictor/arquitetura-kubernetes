@@ -1096,4 +1096,4 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ---
 
-_Última atualização: 2026-02-20 | Fonte: Execucao paralela DT-001/005 via agentes especializados_
+_Última atualização: 2026-02-25 | Fonte: V-008 Velero IRSA complete + Sprint 2026-02-25 security remediation (8/8 vulnerabilities)_
