@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-platform-gitlab
+  labels:
+    name: staging-platform-gitlab
+    environment: staging
+    tier: platform

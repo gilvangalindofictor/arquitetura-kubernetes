@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: repo-data-gitlab-gitaly-0
+  namespace: staging-platform-gitlab
+  labels:
+    app: gitaly
+    domain: platform
+    owner: platform-team
+    environment: staging
+    app.kubernetes.io/name: gitaly
+    app.kubernetes.io/part-of: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 50Gi
