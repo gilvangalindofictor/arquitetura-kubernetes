@@ -61,6 +61,8 @@ DASHBOARDS=(
     "argocd-sync-status.json"
     "sonarqube-quality-metrics.json"
     "keycloak-sso-usage.json"
+    "harbor-registry-overview.json"
+    "trace-log-correlation-demo.json"
 )
 
 for dashboard in "${DASHBOARDS[@]}"; do
