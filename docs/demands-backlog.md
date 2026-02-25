@@ -698,7 +698,7 @@ kubectl get clusterpolicyreports
 | --------- | ----------- | --------------------------------------------------- | ---------------------------------- | -------------------- |
 | **V-001** | 🔴 CRITICAL | `grafana_admin_password = "admin"` hardcoded        | `environments/staging/main.tf:884` | ✅ **DEPLOYED**       |
 | **V-002** | 🟡 HIGH     | ArgoCD sem ExternalSecrets (PostgreSQL + OIDC)      | `modules/argocd/`                  | ✅ **DEPLOYED**       |
-| **V-003** | 🟡 HIGH     | Harbor PostgreSQL password plaintext em Helm values | `modules/harbor/`                  | ⏸️ Pendente P1        |
+| **V-003** | 🟡 HIGH     | Harbor PostgreSQL password plaintext em Helm values | `modules/harbor/`                  | ✅ **VALIDADO**       |
 | V-004     | MEDIUM      | Harbor admin password renderizado como valor        | `modules/harbor/`                  | ⏸️ Pendente P2        |
 | V-005     | MEDIUM      | Harbor Redis password em plaintext                  | `modules/harbor/`                  | ⏸️ Pendente P2        |
 | V-006     | MEDIUM      | Keycloak admin password em plaintext                | `modules/keycloak/`                | ⏸️ Pendente P2        |
