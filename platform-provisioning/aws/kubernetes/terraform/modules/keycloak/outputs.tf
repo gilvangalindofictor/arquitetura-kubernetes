@@ -19,7 +19,7 @@ output "keycloak_admin_url" {
 
 output "admin_password_secret" {
   description = "Keycloak admin password Kubernetes secret name (V-006: migrado para ESO)"
-  value       = "keycloak-admin-credentials"  # ExternalSecret synced from Vault
+  value       = "keycloak-admin-credentials" # ExternalSecret synced from Vault
   sensitive   = true
 }
 

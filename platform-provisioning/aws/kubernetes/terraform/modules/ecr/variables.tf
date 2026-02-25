@@ -1,12 +1,12 @@
 variable "repositories" {
   description = "Map of ECR repositories to create with their configurations"
   type = map(object({
-    image_tag_mutability      = string
-    scan_on_push              = bool
-    encryption_type           = string
-    kms_key_arn               = optional(string)
-    allow_cross_account_pull  = optional(bool, false)
-    trusted_account_ids       = optional(list(string), [])
+    image_tag_mutability     = string
+    scan_on_push             = bool
+    encryption_type          = string
+    kms_key_arn              = optional(string)
+    allow_cross_account_pull = optional(bool, false)
+    trusted_account_ids      = optional(list(string), [])
   }))
   default = {}
 }

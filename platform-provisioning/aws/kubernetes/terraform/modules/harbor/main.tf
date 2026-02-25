@@ -174,9 +174,9 @@ resource "helm_release" "harbor" {
   namespace  = kubernetes_namespace.harbor.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name        = var.cluster_name
-    namespace           = var.namespace
-    service_account     = kubernetes_service_account.harbor.metadata[0].name
+    cluster_name    = var.cluster_name
+    namespace       = var.namespace
+    service_account = kubernetes_service_account.harbor.metadata[0].name
     # V-003/V-004/V-005: passwords movidos para Vault + ESO (2026-02-24)
     postgresql_host     = var.postgresql_host
     postgresql_port     = var.postgresql_port
@@ -197,9 +197,9 @@ resource "helm_release" "harbor" {
   depends_on = [
     kubernetes_service_account.harbor,
     aws_iam_role_policy_attachment.harbor,
-    kubectl_manifest.harbor_postgresql_externalsecret,  # V-003
-    kubectl_manifest.harbor_admin_externalsecret,       # V-004
-    kubectl_manifest.harbor_redis_externalsecret        # V-005
+    kubectl_manifest.harbor_postgresql_externalsecret, # V-003
+    kubectl_manifest.harbor_admin_externalsecret,      # V-004
+    kubectl_manifest.harbor_redis_externalsecret       # V-005
   ]
 
   timeout = 600 # 10 minutes
@@ -382,7 +382,7 @@ resource "kubectl_manifest" "harbor_admin_externalsecret" {
       }
       data = [
         {
-          secretKey = "HARBOR_ADMIN_PASSWORD"  # Key required by Harbor chart
+          secretKey = "HARBOR_ADMIN_PASSWORD" # Key required by Harbor chart
           remoteRef = {
             key      = "secret/data/harbor/admin"
             property = "password"
@@ -430,7 +430,7 @@ resource "kubectl_manifest" "harbor_redis_externalsecret" {
       }
       data = [
         {
-          secretKey = "REDIS_PASSWORD"  # Key required by Harbor chart
+          secretKey = "REDIS_PASSWORD" # Key required by Harbor chart
           remoteRef = {
             key      = "secret/data/harbor/redis"
             property = "password"

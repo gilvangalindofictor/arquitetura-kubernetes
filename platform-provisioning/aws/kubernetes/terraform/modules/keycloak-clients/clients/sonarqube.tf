@@ -37,9 +37,9 @@
 resource "keycloak_saml_client" "sonarqube" {
   count = var.sonarqube_enabled ? 1 : 0
 
-  realm_id  = keycloak_realm.platform.id
-  client_id = "sonarqube"
-  name      = "SonarQube SAML"
+  realm_id    = keycloak_realm.platform.id
+  client_id   = "sonarqube"
+  name        = "SonarQube SAML"
   description = "SonarQube code quality SAML 2.0 authentication via Keycloak platform realm"
 
   enabled = true
@@ -60,9 +60,9 @@ resource "keycloak_saml_client" "sonarqube" {
   logout_service_post_binding_url = "http://sonarqube.${var.domain_suffix}/oauth2/callback/saml"
 
   # SAML signing — sign assertions (required by SonarQube SAML SP)
-  sign_documents            = true
-  sign_assertions           = true
-  encrypt_assertions        = false
+  sign_documents     = true
+  sign_assertions    = true
+  encrypt_assertions = false
 
   # Client signature validation — SonarQube signs AuthnRequests with SP key
   # SP certificate loaded from: Vault KV secret/sonarqube/saml → sp_certificate
@@ -99,7 +99,7 @@ resource "keycloak_saml_user_attribute_protocol_mapper" "sonarqube_email" {
   client_id = keycloak_saml_client.sonarqube[0].id
   name      = "email"
 
-  user_attribute   = "email"
+  user_attribute      = "email"
   saml_attribute_name = "email"
 
   # BASIC attribute name format (SonarQube expects plain attribute name)
@@ -122,8 +122,8 @@ resource "keycloak_saml_user_property_protocol_mapper" "sonarqube_name" {
   client_id = keycloak_saml_client.sonarqube[0].id
   name      = "name"
 
-  user_property        = "username"
-  saml_attribute_name  = "name"
+  user_property       = "username"
+  saml_attribute_name = "name"
 
   # BASIC attribute name format
   saml_attribute_name_format = "Basic"

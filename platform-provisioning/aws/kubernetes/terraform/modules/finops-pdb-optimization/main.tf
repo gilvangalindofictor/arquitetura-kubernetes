@@ -37,8 +37,8 @@ resource "kubernetes_pod_disruption_budget_v1" "workload_pdb" {
     namespace = each.value.namespace
 
     labels = {
-      app                    = each.key
-      "managed-by"           = "terraform"
+      app                   = each.key
+      "managed-by"          = "terraform"
       "finops.k8s.io/pdb"   = "optimized"
       "finops.k8s.io/phase" = "drain-optimization"
     }

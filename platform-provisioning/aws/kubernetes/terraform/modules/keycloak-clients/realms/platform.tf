@@ -16,14 +16,14 @@ resource "keycloak_realm" "platform" {
   display_name = "Platform Services"
 
   # Login page settings
-  registration_allowed          = false
+  registration_allowed           = false
   registration_email_as_username = false
-  remember_me                   = false
-  verify_email                  = false
-  login_with_email_allowed      = true
-  duplicate_emails_allowed      = false
-  reset_password_allowed        = false
-  edit_username_allowed         = false
+  remember_me                    = false
+  verify_email                   = false
+  login_with_email_allowed       = true
+  duplicate_emails_allowed       = false
+  reset_password_allowed         = false
+  edit_username_allowed          = false
 
   # Session settings (defaults for platform realm)
   sso_session_idle_timeout = "30m"

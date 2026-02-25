@@ -2111,3 +2111,21 @@ resource "null_resource" "fct_proposals_validation" {
     EOT
   }
 }
+
+#------------------------------------------------------------------------------
+# Velero DR - V-008 IRSA Migration (2026-02-25)
+# Disaster Recovery with S3-based backup storage
+# RTO: 1h, RPO: 24h (daily backups)
+#------------------------------------------------------------------------------
+
+module "velero_dr_staging" {
+  source = "../../modules/velero-dr"
+
+  cluster_name      = local.cluster_name
+  environment       = local.environment
+  bucket_name       = "${local.cluster_name}-velero-backups"
+  velero_namespace  = "velero"
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+  oidc_provider_url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  aws_region        = "us-east-1"
+}

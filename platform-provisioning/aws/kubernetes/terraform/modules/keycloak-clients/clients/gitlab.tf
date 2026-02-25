@@ -16,9 +16,9 @@
 resource "keycloak_openid_client" "gitlab" {
   count = var.gitlab_enabled ? 1 : 0
 
-  realm_id  = keycloak_realm.platform.id
-  client_id = "gitlab"
-  name      = "GitLab OIDC"
+  realm_id    = keycloak_realm.platform.id
+  client_id   = "gitlab"
+  name        = "GitLab OIDC"
   description = "GitLab CE OIDC authentication via Keycloak platform realm"
 
   enabled = true

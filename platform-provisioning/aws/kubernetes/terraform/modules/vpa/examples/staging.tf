@@ -11,8 +11,8 @@ module "vpa_staging" {
 
   # Components (recommendation mode only)
   recommender_enabled          = true
-  updater_enabled              = false  # CRITICAL: Never enable in staging without approval
-  admission_controller_enabled = false  # CRITICAL: Never enable in staging without approval
+  updater_enabled              = false # CRITICAL: Never enable in staging without approval
+  admission_controller_enabled = false # CRITICAL: Never enable in staging without approval
 
   # Prometheus integration
   prometheus_address = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"

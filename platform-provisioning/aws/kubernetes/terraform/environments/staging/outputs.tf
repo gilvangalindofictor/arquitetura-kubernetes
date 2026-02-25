@@ -178,3 +178,17 @@ output "tags" {
   description = "Common tags applied to resources"
   value       = local.common_tags
 }
+
+#------------------------------------------------------------------------------
+# Velero DR Outputs (V-008)
+#------------------------------------------------------------------------------
+
+output "velero_bucket_name" {
+  description = "Velero backup S3 bucket name"
+  value       = module.velero_dr_staging.bucket_name
+}
+
+output "velero_role_arn" {
+  description = "IAM role ARN for Velero service account (IRSA)"
+  value       = module.velero_dr_staging.velero_role_arn
+}

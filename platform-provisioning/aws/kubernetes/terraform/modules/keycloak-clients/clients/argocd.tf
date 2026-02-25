@@ -20,9 +20,9 @@
 resource "keycloak_openid_client" "argocd" {
   count = var.argocd_enabled ? 1 : 0
 
-  realm_id  = keycloak_realm.platform.id
-  client_id = "argocd"
-  name      = "ArgoCD OIDC"
+  realm_id    = keycloak_realm.platform.id
+  client_id   = "argocd"
+  name        = "ArgoCD OIDC"
   description = "ArgoCD GitOps OIDC authentication via Keycloak platform realm"
 
   enabled = true
@@ -52,8 +52,8 @@ resource "keycloak_openid_client" "argocd" {
   pkce_code_challenge_method = ""
 
   # Backchannel logout — ArgoCD supports it
-  backchannel_logout_session_required         = true
-  backchannel_logout_revoke_offline_sessions  = false
+  backchannel_logout_session_required        = true
+  backchannel_logout_revoke_offline_sessions = false
 
   # Root URL for Keycloak admin console
   root_url = "http://argocd.${var.domain_suffix}"
