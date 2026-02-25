@@ -376,7 +376,7 @@ kubectl get namespace meu-namespace --show-labels
 - [OpenTelemetry Docs](https://opentelemetry.io/docs/)
 - [Grafana Tempo Docs](https://grafana.com/docs/tempo/latest/)
 - [TraceQL Query Language](https://grafana.com/docs/tempo/latest/traceql/)
-- [ADR-079: OpenTelemetry Collector Architecture](docs/adr/adr-079-opentelemetry-collector-implementation.md)
+- [ADR-080: OpenTelemetry Collector Architecture](docs/adr/adr-080-opentelemetry-collector-implementation.md)
 
 ---
 

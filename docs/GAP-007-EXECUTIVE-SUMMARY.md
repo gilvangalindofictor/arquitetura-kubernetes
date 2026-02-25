@@ -97,7 +97,7 @@
 | Documento | Descrição | Status |
 |-----------|-----------|--------|
 | **OPENTELEMETRY-DEVELOPER-GUIDE.md** | Guia instrumentação (Python/Go/Java/.NET/Node.js) | ✅ |
-| **ADR-079** | Decisões técnicas + alternativas consideradas | ✅ |
+| **ADR-080** | Decisões técnicas + alternativas consideradas | ✅ |
 | **Logbook** | Timeline cronológica + lições aprendidas | ✅ |
 | **Network Policies** | 2 policies (ingress/egress) | ✅ |
 
@@ -179,7 +179,7 @@ env:
 
 **Dúvidas sobre instrumentação:** Consultar [OPENTELEMETRY-DEVELOPER-GUIDE.md](OPENTELEMETRY-DEVELOPER-GUIDE.md)
 **Issues técnicas:** #platform-team ou abrir issue no repositório
-**Decisões arquiteturais:** Ver [ADR-079](adr/adr-079-opentelemetry-collector-implementation.md)
+**Decisões arquiteturais:** Ver [ADR-080](adr/adr-080-opentelemetry-collector-implementation.md)
 
 ---
 
