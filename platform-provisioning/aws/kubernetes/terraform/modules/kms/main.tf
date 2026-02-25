@@ -4,6 +4,7 @@ variable "alias" { type = string }
 resource "aws_kms_key" "platform" {
   description             = "KMS key para k8s-platform"
   deletion_window_in_days = 30
+  enable_key_rotation     = true
 }
 
 resource "aws_kms_alias" "platform_alias" {
