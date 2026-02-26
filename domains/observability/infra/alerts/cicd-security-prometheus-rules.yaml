@@ -1,0 +1,420 @@
+# =============================================================================
+# CICD-001: CI/CD Security Scan Alerts
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Metrics sources:
+#   - Prometheus PushGateway: gitlab_ci_pipeline_security_scan_*
+#     (pushed by GitLab CI security-scan jobs via PUSHGATEWAY_URL)
+#   - SonarQube exporter: sonarqube_quality_gate_status,
+#     sonarqube_new_vulnerabilities, sonarqube_new_bugs
+#     (GAP-008: native /api/monitoring/metrics endpoint)
+#
+# Alerts:
+#   - SonarQubeQualityGateFailed (critical)
+#   - TrivyHighVulnerabilitiesFound (warning)
+#   - TrivyCriticalVulnerabilitiesFound (critical)
+#   - PipelineSecurityScanFailed (warning/critical)
+#   - SecurityScanJobMissing (warning)
+#   - OWASPDependencyCheckFailed (warning)
+#   - TruffleHogSecretDetected (critical)
+#   - SecurityScanDurationAnomaly (warning)
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cicd001-security-scan-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: cicd-security-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-001
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # SonarQube Quality Gate Alerts
+    # Metrics source: SonarQube native /api/monitoring/metrics (GAP-008)
+    # Note: SonarQube exposes quality_gate status per project.
+    # Metric: sonarqube_quality_gate_status (1=OK, 0=ERROR/WARN)
+    # =========================================================================
+    - name: cicd.sonarqube
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # SonarQubeQualityGateFailed
+        # A project's quality gate is in ERROR state — pipeline should block
+        # -----------------------------------------------------------------
+        - alert: SonarQubeQualityGateFailed
+          expr: |
+            sonarqube_quality_gate_status{status!="OK"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: sonarqube
+            component: quality-gate
+            demand: CICD-001
+          annotations:
+            summary: "CRITICAL: SonarQube Quality Gate FAILED for project {{ $labels.project }}"
+            description: |
+              SonarQube Quality Gate is in ERROR state for project {{ $labels.project }}.
+              Status: {{ $labels.status }}
+
+              This means the project has new security vulnerabilities, bugs, or coverage
+              regression that violates the "Platform Security Gate" policy.
+
+              CICD-001 POLICY: Merge requests MUST NOT be merged with a failing Quality Gate.
+
+              Immediate Actions:
+              1. View project in SonarQube: http://sonarqube.staging.internal/dashboard?id={{ $labels.project }}
+              2. Review failing conditions: Security → Vulnerabilities, Bugs, Coverage
+              3. Fix code issues or mark as "Won't Fix" / "False Positive" with justification
+              4. Re-trigger pipeline after fix: git push (or re-run pipeline in GitLab)
+
+              False Positive Handling:
+              - Mark in SonarQube UI as "Won't Fix" with comment explaining why
+              - See runbook: docs/runbooks/security-scan-failures-troubleshooting.md#sonarqube-false-positives
+
+              Dashboard: https://grafana.internal/d/cicd001-security-scans
+            runbook_url: "docs/runbooks/security-scan-failures-troubleshooting.md"
+
+        # -----------------------------------------------------------------
+        # SonarQubeNewVulnerabilitiesHigh
+        # More than 0 new HIGH vulnerabilities in recent analysis
+        # -----------------------------------------------------------------
+        - alert: SonarQubeNewVulnerabilitiesHigh
+          expr: |
+            sonarqube_new_vulnerabilities > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: vulnerabilities
+            demand: CICD-001
+          annotations:
+            summary: "SonarQube: New vulnerabilities detected in {{ $labels.project }}"
+            description: |
+              SonarQube detected {{ $value }} new vulnerability/vulnerabilities in project {{ $labels.project }}.
+
+              Actions:
+              1. Review: SonarQube → {{ $labels.project }} → Security → Vulnerabilities
+              2. Assign and fix before merging
+              3. For accepted risk: mark as "Won't Fix" with business justification
+
+        # -----------------------------------------------------------------
+        # SonarQubeDown
+        # SonarQube not responding to monitoring
+        # -----------------------------------------------------------------
+        - alert: SonarQubeDown
+          expr: |
+            up{job=~".*sonarqube.*"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: availability
+            demand: CICD-001
+          annotations:
+            summary: "SonarQube is DOWN — security scans will fail"
+            description: |
+              SonarQube instance is not responding. All CI pipelines using SAST
+              (sonarqube-sast job) will FAIL with connection error.
+
+              Actions:
+              1. Check pod: kubectl get pods -n sonarqube
+              2. Check logs: kubectl logs -n sonarqube -l app=sonarqube --tail=100
+              3. Check PVC: kubectl get pvc -n sonarqube
+              4. Check PostgreSQL: kubectl get pods -n data-services
+
+              Impact: CI pipelines will fail until SonarQube is restored.
+
+    # =========================================================================
+    # Pipeline Security Scan Alerts
+    # Metrics source: Prometheus PushGateway
+    # Job: gitlab_ci_security_scan
+    # Metrics:
+    #   gitlab_ci_pipeline_security_scan_duration_seconds{scanner,project,branch,status}
+    #   gitlab_ci_pipeline_security_scan_status{scanner,project,branch}
+    # =========================================================================
+    - name: cicd.pipeline-security
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # PipelineSecurityScanFailed
+        # Any security scanner reported a failure
+        # -----------------------------------------------------------------
+        - alert: PipelineSecurityScanFailed
+          expr: |
+            gitlab_ci_pipeline_security_scan_status{status!="pass"} == 0
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: security-scan
+            demand: CICD-001
+          annotations:
+            summary: "Security scan FAILED: scanner={{ $labels.scanner }} project={{ $labels.project }} branch={{ $labels.branch }}"
+            description: |
+              A security scanner failed in the CI pipeline.
+
+              Scanner: {{ $labels.scanner }}
+              Project: {{ $labels.project }}
+              Branch:  {{ $labels.branch }}
+
+              This means a merge request is blocked from merging due to security findings.
+              CICD-001 POLICY: allow_failure: false — pipeline cannot proceed.
+
+              Actions by scanner:
+              - sonarqube: See SonarQube dashboard for quality gate details
+              - trivy: Check trivy-report.txt artifact in pipeline job
+              - owasp-dependency-check: Check dependency-check-report/ artifacts
+              - trufflehog: Check trufflehog-report.json for secret details
+
+              See: docs/runbooks/security-scan-failures-troubleshooting.md
+
+        # -----------------------------------------------------------------
+        # TrivyCriticalVulnerabilitiesFound
+        # Trivy found CRITICAL severity vulnerabilities in a container image
+        # -----------------------------------------------------------------
+        - alert: TrivyCriticalVulnerabilitiesFound
+          expr: |
+            gitlab_ci_pipeline_security_scan_status{scanner="trivy"} == 0
+          for: 0m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: harbor
+            component: container-scan
+            demand: CICD-001
+          annotations:
+            summary: "CRITICAL: Trivy found HIGH/CRITICAL vulnerabilities in {{ $labels.project }}"
+            description: |
+              Trivy container scanner found HIGH or CRITICAL vulnerabilities in
+              project {{ $labels.project }} (branch: {{ $labels.branch }}).
+
+              The image was NOT pushed to Harbor or a deploy was blocked.
+              CICD-001 POLICY: Container images with HIGH/CRITICAL CVEs are BLOCKED.
+
+              Immediate Actions:
+              1. Download trivy-report.txt from CI pipeline artifacts
+              2. Identify the CVEs and affected packages
+              3. Update base image: use a newer tag with patches
+              4. If base image patch unavailable, check if CVE is exploitable in your context
+              5. For false positives: add CVE to .trivyignore with justification comment
+
+              False Positive Process:
+              1. Verify the CVE: https://nvd.nist.gov/vuln/detail/<CVE-ID>
+              2. Confirm whether the vulnerable code path is reachable
+              3. Add to .trivyignore: CVE-XXXX-XXXXX  # reason
+              4. Get peer review and security team approval
+
+              See: docs/runbooks/security-scan-failures-troubleshooting.md#trivy-false-positives
+
+        # -----------------------------------------------------------------
+        # TruffleHogSecretDetected
+        # TruffleHog found a verified secret in git history — CRITICAL
+        # -----------------------------------------------------------------
+        - alert: TruffleHogSecretDetected
+          expr: |
+            gitlab_ci_pipeline_security_scan_status{scanner="trufflehog"} == 0
+          for: 0m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: gitlab-ci
+            component: secret-detection
+            demand: CICD-001
+          annotations:
+            summary: "CRITICAL: TruffleHog detected a SECRET in {{ $labels.project }} — IMMEDIATE ACTION REQUIRED"
+            description: |
+              TruffleHog verified a secret (API key, password, token) exposed in
+              git history for project {{ $labels.project }}.
+
+              SEVERITY: CRITICAL — A real secret is exposed in source code history.
+
+              IMMEDIATE ACTIONS (within 15 minutes):
+              1. Download trufflehog-report.json from CI pipeline artifacts
+              2. Identify the secret type and which service it belongs to
+              3. ROTATE THE SECRET IMMEDIATELY in the affected service
+              4. Update Vault: vault kv put secret/<path> <key>=<new_value>
+              5. Remove secret from git history using BFG Repo Cleaner or git-filter-repo
+              6. Force-push the cleaned history (coordinate with team)
+              7. Notify security team
+
+              Git History Cleanup:
+                # Install BFG Repo Cleaner: https://rtyley.github.io/bfg-repo-cleaner/
+                bfg --delete-files <file-with-secret>
+                git reflog expire --expire=now --all && git gc --prune=now --aggressive
+                git push --force-with-lease
+
+              Prevention:
+              - Use Vault for all secrets (ESO pattern already in use)
+              - Add pre-commit hooks for secret detection
+              - Never commit .env files
+
+              See: docs/runbooks/security-scan-failures-troubleshooting.md#secret-detected
+
+        # -----------------------------------------------------------------
+        # OWASPDependencyCheckFailed
+        # OWASP found HIGH/CRITICAL CVE in project dependencies
+        # -----------------------------------------------------------------
+        - alert: OWASPDependencyCheckFailed
+          expr: |
+            gitlab_ci_pipeline_security_scan_status{scanner="owasp-dependency-check"} == 0
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: dependency-scan
+            demand: CICD-001
+          annotations:
+            summary: "OWASP Dependency-Check: CVE found in {{ $labels.project }} dependencies"
+            description: |
+              OWASP Dependency-Check found a HIGH/CRITICAL CVE (CVSS >= 7.0)
+              in project {{ $labels.project }} dependencies.
+
+              Actions:
+              1. Download dependency-check-report/ from CI pipeline artifacts
+              2. Open dependency-check-report.html in browser
+              3. Review vulnerable dependencies and CVE details
+              4. Update the dependency to a patched version
+              5. If no patch available: add to dependency-check-suppression.xml with expiration
+
+              Suppression (with mandatory review date):
+              <!-- dependency-check-suppression.xml -->
+              <suppress until="2026-05-01">
+                <notes>CVE-XXXX-XXXXX: Reviewed by <name> on <date>. Not exploitable because...</notes>
+                <packageUrl regex="true">^pkg:maven/org\.example/library@.*$</packageUrl>
+                <cve>CVE-XXXX-XXXXX</cve>
+              </suppress>
+
+              See: docs/runbooks/security-scan-failures-troubleshooting.md#owasp-false-positives
+
+        # -----------------------------------------------------------------
+        # SecurityScanDurationAnomaly
+        # A security scan is taking abnormally long (> 10 minutes)
+        # This may indicate scanner issues or NVD DB download needed
+        # -----------------------------------------------------------------
+        - alert: SecurityScanDurationAnomaly
+          expr: |
+            gitlab_ci_pipeline_security_scan_duration_seconds > 600
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: security-scan
+            demand: CICD-001
+          annotations:
+            summary: "Security scan taking > 10 minutes: scanner={{ $labels.scanner }} project={{ $labels.project }}"
+            description: |
+              Security scanner {{ $labels.scanner }} is taking {{ $value | printf "%.0f" }} seconds
+              for project {{ $labels.project }}.
+
+              Common causes:
+              - owasp-dependency-check: First run downloads NVD database (~15min)
+                Solution: GitLab cache for .owasp-cache/data/ directory
+              - trivy: DB not cached or large image
+                Solution: GitLab cache for .trivy-cache/ directory
+              - sonarqube: Large codebase without incremental analysis
+                Solution: Enable SonarQube PR decoration for smaller diffs
+
+              Actions:
+              1. Check CI pipeline job output for slow step
+              2. Verify GitLab cache is working (cache keys in .gitlab-ci.yml)
+              3. For OWASP: confirm .owasp-cache/data/ is being restored from cache
+
+        # -----------------------------------------------------------------
+        # SecurityScanJobMissing
+        # A pipeline ran to completion without any security scan reported
+        # Detects projects that have NOT yet adopted security-scan stage
+        # -----------------------------------------------------------------
+        - alert: SecurityScanJobMissing
+          expr: |
+            (
+              # Projects that pushed metrics recently (active projects)
+              count by (project) (
+                time() - gitlab_ci_pipeline_security_scan_duration_seconds_timestamp_seconds < 86400
+              ) == 0
+            )
+            unless
+            (
+              # But have NO security scan metrics at all
+              count by (project) (
+                gitlab_ci_pipeline_security_scan_status
+              ) > 0
+            )
+          for: 24h
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: security-scan
+            demand: CICD-001
+          annotations:
+            summary: "Project {{ $labels.project }} has no security scan in the last 24 hours"
+            description: |
+              Project {{ $labels.project }} has not reported any security scan metrics
+              in the last 24 hours.
+
+              This may indicate:
+              - The project has not yet adopted the security-scan stage (CICD-001)
+              - The security scan template is not included in .gitlab-ci.yml
+              - The PushGateway URL is not configured in the runner
+
+              Actions:
+              1. Check project .gitlab-ci.yml for security-scan stage
+              2. Add security template include:
+                 include:
+                   - project: 'platform/templates'
+                     file: '/gitlab-ci/templates/security.gitlab-ci-security-template.yml'
+              3. Add security-scan to stages list
+              4. See developer guide: docs/CICD-001-DEVELOPER-GUIDE.md
+
+    # =========================================================================
+    # Harbor Vulnerability Scanning Alerts
+    # Metrics source: Harbor built-in metrics (if Harbor exporter is configured)
+    # =========================================================================
+    - name: cicd.harbor-security
+      interval: 120s
+      rules:
+        # -----------------------------------------------------------------
+        # HarborVulnerableImageInUse
+        # An image currently running in K8s has known vulnerabilities
+        # Requires: Harbor metrics exporter or custom query
+        # -----------------------------------------------------------------
+        - alert: HarborScannerDown
+          expr: |
+            up{job=~".*harbor.*"} == 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: harbor
+            component: availability
+            demand: CICD-001
+          annotations:
+            summary: "Harbor registry is DOWN — image pushes and scans will fail"
+            description: |
+              Harbor registry is not responding to Prometheus scrapes.
+              CI pipelines that build and push Docker images will fail at the
+              trivy-container-scan or build stage.
+
+              Actions:
+              1. Check pods: kubectl get pods -n harbor-system
+              2. Check portal: kubectl logs -n harbor-system -l component=portal
+              3. Check core: kubectl logs -n harbor-system -l component=core
+              4. Check database: kubectl get pods -n harbor-system -l component=database
+
+              Runbook: docs/runbooks/troubleshoot-ebs-csi-pvc-failures.md

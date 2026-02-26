@@ -1097,6 +1097,301 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ---
 
+## 🔧 CI/CD PIPELINE ENHANCEMENT
+
+> **Contexto**: Análise de maturidade enterprise (3.8/5.0 staging) identificou 5 gaps críticos em CI/CD pipeline que bloqueiam staging production-readiness. Demandas derivadas de avaliação 360º por 8 especialistas.
+> **Objetivo**: Zerar gaps de staging via security-first + progressive delivery (SAST/DAST enforcement, secret rotation automation, immutable tags, quality gates, canary deployments)
+> **ROI**: ~R$ 70K/ano risk mitigation + compliance + efficiency
+
+### 🔴 CICD-001: SAST/DAST Security Scanning Enforcement [PENDENTE]
+
+**Prioridade**: 🔴 CRÍTICA (Security Blocker)
+**Status**: 📋 **PENDENTE**
+**Esforço**: M (24h) | **Duração**: 3 dias
+**Impacto**: Security Specialist 5/5, Orchestrator 5/5
+
+**Descrição**:
+Implementar e **enforcer** SAST (Static Application Security Testing) e DAST (Dynamic Application Security Testing) no GitLab CI/CD pipeline, bloqueando merges de código vulnerável.
+
+**Problema Atual**:
+- ✅ SonarQube deployed, Harbor Trivy scanner configured
+- ❌ **Pipeline não bloqueia** vulnerabilities (`allow_failure: true`)
+- ❌ No OWASP Dependency-Check (CVE scanning de libs)
+- ❌ No secrets scanning (GitGuardian/TruffleHog ausente)
+
+**Solução Técnica**:
+- GitLab CI template: `.gitlab-ci-security-template.yml` (security-scan stage)
+- Scanners: SonarQube (SAST), Trivy (container), OWASP Dependency-Check (CVE), TruffleHog (secrets)
+- `allow_failure: false` (CRÍTICO: bloqueia merge se falhar)
+- Prometheus metrics + Grafana dashboard (scan performance, vulnerability trends)
+
+**Entregáveis**:
+- [ ] GitLab CI template: `.gitlab-ci-security-template.yml`
+- [ ] SonarQube quality gate config (API automation script)
+- [ ] Harbor Trivy blocking policy (severity threshold)
+- [ ] OWASP Dependency-Check integration (.gitlab-ci.yml stage)
+- [ ] TruffleHog secrets scanning (.gitlab-ci.yml stage)
+- [ ] Prometheus metrics (pushgateway integration)
+- [ ] Grafana dashboard (Security Scan Performance)
+- [ ] PrometheusRule alerts (quality gate fail, HIGH vulnerabilities)
+- [ ] ADR-081: SAST/DAST Pipeline Enforcement Strategy
+- [ ] Runbook: security-scan-failures-troubleshooting.md
+- [ ] Logbook: 2026-XX-XX-cicd-001-sast-dast-enforcement.md
+
+**Dependências**:
+- ✅ SonarQube operational (GAP-004)
+- ✅ Harbor Trivy scanner configured
+- ✅ GitLab CI/CD operational (GAP-002/005)
+- ✅ Prometheus + Grafana (DT-005 alerts)
+
+**Riscos & Mitigações**:
+- Pipeline latency +50%: Acceptable trade-off; cache scanner databases
+- False positives: Suppression files (.trivyignore, sonar exclusions)
+- Developers bypass: Branch protection rules (require pipeline success)
+
+**ROI**:
+- **Cost**: Zero (open-source tools, existing infra)
+- **Benefit**: Risk reduction (avoid vulnerabilities ~R$ 50K incident cost)
+- **Compliance**: ISO 27001, SOC 2, LGPG alignment (+30% maturity)
+
+---
+
+### 🟡 CICD-004: Immutable Image Tags Enforcement [PENDENTE]
+
+**Prioridade**: 🟡 ALTA
+**Status**: 📋 **PENDENTE** (PARALLEL com CICD-001)
+**Esforço**: S (16h) | **Duração**: 2 dias
+**Impacto**: Security Specialist 4.5/5, Orchestrator 4/5
+
+**Descrição**:
+Enforcer immutable image tags no Harbor registry, prevenindo tag overwrite (latest, dev, staging) e garantindo rastreabilidade.
+
+**Problema Atual**:
+- ✅ Harbor 2.x deployed com Trivy scanner
+- ⚠️ Tags são mutáveis (latest, dev, staging podem ser sobrescritos)
+- ❌ No immutability policy (permite docker push --force)
+- ❌ No tag retention policy (images antigas acumulam storage)
+
+**Solução Técnica**:
+- Harbor API immutability rule (all tags immutable, except dev/staging)
+- Tagging strategy: Git SHA (immutable), semver (immutable), env tags (mutable dev/staging only)
+- GitLab CI integration: `IMAGE_TAG_IMMUTABLE=$CI_REGISTRY_IMAGE:sha-$CI_COMMIT_SHA`
+- Tag retention policy: 90-day cleanup dev/staging, permanent prod
+
+**Entregáveis**:
+- [ ] Harbor immutability rules API script: `scripts/harbor/configure-immutability.sh`
+- [ ] GitLab CI template update: immutable tagging strategy
+- [ ] Developer guide: image-tagging-best-practices.md
+- [ ] Tag retention policy: 90-day cleanup automation
+- [ ] Prometheus metrics (harbor_tag_count{mutable="false"})
+- [ ] ADR-084: Immutable Image Tags Enforcement Policy
+- [ ] Logbook: 2026-XX-XX-cicd-004-immutable-tags.md
+
+**Dependências**:
+- ✅ Harbor operational
+- ✅ GitLab CI/CD operational
+
+**Riscos & Mitigações**:
+- Storage growth: Tag retention policy (auto-delete >90 days)
+- Developer confusion: Training + clear documentation
+- Emergency override: Admin can disable immutability (break glass)
+
+**ROI**:
+- **Cost**: Zero
+- **Benefit**: Supply chain security, auditability, rollback confidence
+- **Compliance**: SLSA Level 2 (source control + build integrity)
+
+---
+
+### 🟡 CICD-002: SonarQube Quality Gate Enforcement [PENDENTE]
+
+**Prioridade**: 🟡 ALTA (AFTER CICD-001)
+**Status**: 📋 **PENDENTE**
+**Esforço**: S (16h) | **Duração**: 2 dias
+**Impacto**: Security Specialist 4.5/5, Observability 5/5
+
+**Descrição**:
+Enforcer SonarQube quality gates no GitLab CI/CD, bloqueando merges de código com baixa cobertura ou bugs críticos.
+
+**Problema Atual**:
+- ✅ SonarQube 10.3.0 deployed com native Prometheus endpoint
+- ⚠️ Quality gate exists MAS `allow_failure: true` (não bloqueia)
+- ❌ No coverage enforcement (target: ≥80%)
+- ❌ No bug/vulnerability threshold (current: allow ANY bugs)
+
+**Solução Técnica**:
+- SonarQube quality gate "Production": Coverage ≥80%, Bugs=0, Vulnerabilities=0, Code Smells ≤10
+- GitLab CI integration: `sonar-scanner -Dsonar.qualitygate.wait=true`
+- API automation script: `scripts/sonarqube/configure-quality-gate.sh`
+- Prometheus alert: `SonarQubeQualityGateFailed`
+
+**Entregáveis**:
+- [ ] SonarQube quality gate "Production" configuration
+- [ ] API automation script: `scripts/sonarqube/configure-quality-gate.sh`
+- [ ] GitLab CI template update: quality gate enforcement
+- [ ] Prometheus alert: `SonarQubeQualityGateFailed`
+- [ ] Grafana dashboard: Code Quality Trends
+- [ ] Developer guide: quality-gate-compliance.md
+- [ ] ADR-082: SonarQube Quality Gate Enforcement Policy
+- [ ] Logbook: 2026-XX-XX-cicd-002-quality-gate-enforcement.md
+
+**Dependências**:
+- ✅ SonarQube operational (GAP-004)
+- ✅ GitLab CI/CD operational
+- ⚠️ **Recommended**: CICD-001 completed (security scanning first)
+
+**Riscos & Mitigações**:
+- Developer pushback: Gradual rollout + coaching sessions
+- Legacy code fails: Exclusion rules (gradual migration plan)
+- False positives: Tune thresholds after 1 week observation
+
+**ROI**:
+- **Cost**: Zero
+- **Benefit**: Code quality improvement, tech debt reduction
+- **Compliance**: OWASP ASVS Level 2
+
+---
+
+### 🟡 CICD-003: Automated Secret Rotation [PENDENTE]
+
+**Prioridade**: 🟡 ALTA (INDEPENDENT - can parallel)
+**Status**: 📋 **PENDENTE**
+**Esforço**: L (40h) | **Duração**: 5 dias
+**Impacto**: Security Specialist 5/5 CRÍTICO, Orchestrator 3.5/5
+
+**Descrição**:
+Automatizar rotação trimestral de secrets (PostgreSQL, Redis, Keycloak admin, OIDC clients) via CronJob Kubernetes + Vault API.
+
+**Problema Atual**:
+- ✅ Vault + ESO 100% coverage (10/10 secrets synced)
+- ✅ Secret rotation policy documented
+- ❌ **Rotation is MANUAL** (quarterly manual process)
+- ❌ No automated rotation CronJob
+- ❌ No rotation monitoring/alerts
+
+**Solução Técnica**:
+- **Terraform module**: `kubernetes_cron_job_v1` resource (namespace: vault-system)
+- CronJob schedule: `"0 2 1 */3 *"` (quarterly, 2 AM day 1)
+- Rotation script: PostgreSQL, Keycloak admin, OIDC clients (6 clients)
+- Vault policy: `secret-rotator` (write permissions to secret/*/postgresql, secret/*/admin, secret/*/oidc)
+- RBAC: ServiceAccount + Role + RoleBinding
+- Monitoring: Prometheus metrics (kube_cronjob_status_succeeded/failed, vault_secret_age_days)
+
+**Entregáveis**:
+- [ ] **Terraform**: `domains/security/terraform/cronjob-secret-rotation.tf` (kubernetes_cron_job_v1)
+- [ ] Rotation script: `scripts/vault/rotate-secrets.sh` (standalone for emergency)
+- [ ] Vault policy: `vault/policies/secret-rotator.hcl`
+- [ ] RBAC manifests: ServiceAccount + Role + RoleBinding
+- [ ] Dry-run mode: `--dry-run` flag (logs only, no changes)
+- [ ] Prometheus metrics exporter (vault_secret_age_days)
+- [ ] PrometheusRule alerts (rotation failed, age exceeded)
+- [ ] Grafana dashboard: Secret Rotation Status
+- [ ] ADR-083: Automated Secret Rotation Strategy
+- [ ] Runbook: secret-rotation-troubleshooting.md
+- [ ] Runbook: secret-rotation-emergency-manual.md
+- [ ] Logbook: 2026-XX-XX-cicd-003-secret-rotation.md
+
+**Dependências**:
+- ✅ Vault operational (IRSA, KMS auto-unseal)
+- ✅ ESO 10/10 synced
+- ✅ Keycloak SSO (6 clients)
+- ✅ PostgreSQL RDS (4 databases)
+
+**Riscos & Mitigações**:
+- PostgreSQL connection loss: 2-second window, acceptable
+- ESO sync delay: Wait 30s post-rotation, verify SecretSynced status
+- Keycloak SSO login fails: Maintain old+new 24h grace period
+- CronJob failure: Dry-run testing + manual fallback script
+
+**ROI**:
+- **Cost**: Zero (CronJob minimal resources)
+- **Benefit**: PCI-DSS 8.2.4 compliance (90-day password change)
+- **Compliance**: ISO 27001 A.9.3.1 (secret management policy)
+
+---
+
+### 🟢 CICD-005: Argo Rollouts Progressive Delivery [PENDENTE]
+
+**Prioridade**: 🟢 MÉDIA (Nice-to-Have, AFTER apps instrumented)
+**Status**: 📋 **PENDENTE**
+**Esforço**: XL (64h) | **Duração**: 8 dias
+**Impacto**: Orchestrator 5/5 TRANSFORMACIONAL, Observability 5/5
+
+**Descrição**:
+Implementar Argo Rollouts para deployments progressivos (canary, blue-green), reduzindo risco de deploys com bad releases.
+
+**Problema Atual**:
+- ✅ ArgoCD ApplicationSets deployed (GAP-006)
+- ⚠️ Deployments use basic RollingUpdate (all-or-nothing)
+- ❌ No canary analysis (no automated rollback)
+- ❌ No blue-green deployment capability
+- ❌ No traffic splitting (100% traffic to new version immediately)
+
+**Solução Técnica**:
+- **Terraform module**: `modules/argo-rollouts/` (helm_release)
+- Helm chart: `argoproj/argo-rollouts` v2.35.0 (namespace: argocd)
+- Canary strategy: 20% → 40% → 60% → 80% → 100% (5min pauses)
+- AnalysisTemplate library: success-rate (≥95%), latency-p95 (<500ms), error-rate-4xx, error-rate-5xx
+- Prometheus integration: Automated rollback if metrics fail
+- Blue-green strategy: activeService + previewService, manual promotion
+
+**Entregáveis**:
+- [ ] **Terraform module**: `modules/argo-rollouts/` (helm_release + values.yaml.tpl)
+- [ ] AnalysisTemplate library: `domains/apps/manifests/analysis-templates/` (4 templates)
+- [ ] Rollout manifest examples: `domains/apps/manifests/rollouts/` (canary, blue-green)
+- [ ] GitLab CI integration: Trigger Rollout promotion via API
+- [ ] Prometheus metrics dashboards (Deployment Progress, Rollout Health)
+- [ ] PrometheusRule alerts (RolloutStuck, AnalysisFailed, FrequentRollbacks)
+- [ ] Developer guide: progressive-deployment-strategies.md
+- [ ] ADR-085: Argo Rollouts Progressive Delivery Strategy
+- [ ] Runbook: argo-rollouts-troubleshooting.md
+- [ ] Logbook: 2026-XX-XX-cicd-005-argo-rollouts.md
+
+**Dependências**:
+- ✅ ArgoCD operational (GAP-003/006)
+- ✅ Prometheus + Grafana (metrics for AnalysisTemplate)
+- ⚠️ **BLOCKER**: Applications must expose Prometheus metrics (http_requests_total, http_request_duration_seconds)
+
+**Riscos & Mitigações**:
+- Apps without metrics: Cannot use AnalysisTemplate (manual canary promotion)
+- Prometheus query errors: Fallback to time-based pauses
+- Learning curve: Argo Rollouts complex (training sessions required)
+
+**ROI**:
+- **Cost**: Zero (open-source, minimal compute overhead)
+- **Benefit**: Reduce incident MTTR (30min→5min via automated rollback) = ~R$ 10K/year
+- **Compliance**: Gradual rollout (PCI-DSS change management)
+
+---
+
+### 📊 CI/CD Enhancement Roadmap Summary
+
+**Total Effort**: 160h (20 dias) | **Duration**: 4-6 semanas (sequential) | 2-3 semanas (parallel)
+
+**Implementation Sequence (Optimal Path)**:
+
+```
+Phase 1 (Week 1-2): Security Foundation (Parallel)
+├─ CICD-001: SAST/DAST (3 dias) ← START HERE
+├─ CICD-004: Immutable Tags (2 dias) ← PARALLEL with CICD-001
+└─ CICD-002: Quality Gate (2 dias) ← AFTER CICD-001
+
+Phase 2 (Week 3-4): Automation (Parallel)
+└─ CICD-003: Secret Rotation (5 dias) ← INDEPENDENT (can start Day 1)
+
+Phase 3 (Week 5-6): Progressive Delivery
+└─ CICD-005: Argo Rollouts (8 dias) ← AFTER apps instrumented
+```
+
+**Savings/ROI**:
+- Security Compliance: ISO 27001, SOC 2, LGPD alignment (+30% maturity)
+- Incident Reduction: SAST/DAST blocks vulnerabilities (~R$ 50K/incident avoided)
+- Deployment Confidence: Argo Rollouts reduces blast radius (20% users vs 100%)
+- Automation Savings: Secret rotation eliminates manual process (4h/quarter → 0h)
+- **Total Value**: ~R$ 70K/year risk mitigation + compliance + efficiency
+
+---
+
 ## 📚 REFERÊNCIAS
 
 - [current_state.md](docs/context/current_state.md) — Estado atual detalhado
@@ -1107,4 +1402,4 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 ---
 
-*Última atualização: 2026-02-25 22:30 | Fonte: Velero DR Stack complete (V-009/011/012) + OIDC monitoring + ADR fix (5 agentes paralelos)*
+*Última atualização: 2026-02-25 | Fonte: CI/CD Pipeline Enhancement (5 demandas CICD-001 a CICD-005) - Enterprise Maturity Assessment 360º*

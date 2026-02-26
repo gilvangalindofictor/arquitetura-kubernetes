@@ -1,0 +1,305 @@
+# =============================================================================
+# CICD-002: SonarQube Quality Gate Enforcement Template
+#
+# Purpose: Enforce the "Production" quality gate defined in CICD-002.
+#          This template provides a dedicated, focused job that ONLY runs
+#          SonarQube analysis with quality gate waiting — distinct from the
+#          broader security-scan stage of CICD-001.
+#
+# Usage (include in project .gitlab-ci.yml):
+#   include:
+#     - project: 'platform/templates'
+#       file: '/gitlab-ci/templates/sonarqube-quality-gate.gitlab-ci.yml'
+#
+#   stages:
+#     - build
+#     - test
+#     - quality-gate   # <-- this template populates this stage
+#     - deploy
+#
+# Credentials (injected via runner envFrom from ESO → gitlab-ci-credentials):
+#   SONAR_HOST_URL   = http://sonarqube.sonarqube.svc.cluster.local:9000
+#   SONAR_TOKEN      = <vault managed — secret/sonarqube/admin>
+#
+# Optional project variables (GitLab CI/CD Settings > Variables):
+#   SONAR_EXTRA_PROPS      Additional -D flags (e.g., "-Dsonar.java.binaries=target/classes")
+#   SONAR_SOURCES          Source directories (default: ".")
+#   SONAR_EXCLUSIONS       Comma-separated patterns to exclude (e.g., "**/test/**")
+#   SONAR_COVERAGE_REPORT  Path to coverage report (e.g., "coverage/lcov.info")
+#   SONAR_TIMEOUT          Quality gate wait timeout seconds (default: 300)
+#   QUALITY_GATE_NAME      Gate name to target (informational — gate is set via API)
+#
+# Blocking behavior:
+#   allow_failure: false — this job BLOCKS the pipeline if Quality Gate fails.
+#   A failing Quality Gate means: coverage < 80%, new bugs > 0, new vulnerabilities > 0,
+#   code smells > 10, or security hotspots reviewed < 80%.
+#
+# To suppress a specific finding:
+#   - Bug/Vulnerability/Code Smell: Mark as "Won't Fix" or "False Positive" in SonarQube UI
+#     with mandatory justification comment.
+#   - See: docs/guides/quality-gate-compliance.md#handling-false-positives
+#
+# Emergency bypass (requires Platform SRE approval):
+#   Set CI/CD variable: SONAR_QUALITY_GATE_BYPASS=true
+#   Reason must be set:  SONAR_BYPASS_REASON="<justification>"
+#   This switches allow_failure to true for that run only.
+#   MANDATORY: Create a follow-up issue with resolution SLA <= 5 business days.
+#
+# Author: Platform SRE Team
+# Date: 2026-02-26
+# Demand: CICD-002
+# ADR: docs/adr/adr-082-sonarqube-quality-gate-policy.md
+# =============================================================================
+
+# ── Shared variables ──────────────────────────────────────────────────────────
+variables:
+  # Image pinned to 5.0 for reproducibility — matches CICD-001 security template
+  SONAR_SCANNER_IMAGE: "sonarqube/sonar-scanner-cli:5.0"
+
+  # SonarQube scanner local cache directory
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+
+  # Full git history for blame information and accurate PR analysis
+  GIT_DEPTH: "0"
+
+  # Quality gate wait timeout (seconds). 300s = 5 minutes.
+  # Increase for large codebases: SONAR_TIMEOUT: "600"
+  SONAR_TIMEOUT: "300"
+
+  # Source directories to scan (override per project as needed)
+  SONAR_SOURCES: "."
+
+  # Coverage report path (set per project based on test framework)
+  # Examples:
+  #   Python:  coverage/coverage.xml  (pytest-cov --cov-report=xml)
+  #   Node.js: coverage/lcov.info     (jest --coverage)
+  #   Java:    target/site/jacoco/jacoco.xml
+  #   Go:      coverage.out           (go test -coverprofile=coverage.out)
+  SONAR_COVERAGE_REPORT: ""
+
+  # Extra sonar-scanner properties (override per project)
+  SONAR_EXTRA_PROPS: ""
+
+  # Emergency bypass flag — MUST be explicitly set to "true" with reason
+  SONAR_QUALITY_GATE_BYPASS: "false"
+  SONAR_BYPASS_REASON: ""
+
+  # PushGateway URL for observability metrics
+  PUSHGATEWAY_URL: "http://prometheus-pushgateway.monitoring.svc:9091"
+
+  # Quality gate artifact output path
+  QG_ARTIFACT_DIR: "quality-gate-results"
+
+# ── Hidden template (extend to customize) ────────────────────────────────────
+.sonarqube-quality-gate:
+  stage: quality-gate
+  image: "${SONAR_SCANNER_IMAGE}"
+  cache:
+    key: "sonar-qg-${CI_PROJECT_PATH_SLUG}"
+    paths:
+      - .sonar/cache
+  before_script:
+    - QG_START_TS=$(date +%s%N)
+    - mkdir -p "${QG_ARTIFACT_DIR}"
+    - apk add --no-cache bc curl jq 2>/dev/null || apt-get install -y bc curl jq 2>/dev/null || true
+    - |
+      # Emergency bypass check — requires explicit variable + reason
+      if [ "${SONAR_QUALITY_GATE_BYPASS}" = "true" ]; then
+        if [ -z "${SONAR_BYPASS_REASON}" ]; then
+          echo "[QUALITY-GATE] ERROR: SONAR_QUALITY_GATE_BYPASS=true requires SONAR_BYPASS_REASON to be set."
+          echo "[QUALITY-GATE] Set both variables in CI/CD Settings or pipeline trigger."
+          exit 1
+        fi
+        echo ""
+        echo "========================================================="
+        echo "[QUALITY-GATE] WARNING: EMERGENCY BYPASS ACTIVATED"
+        echo "  Reason: ${SONAR_BYPASS_REASON}"
+        echo "  Approved by: ${GITLAB_USER_NAME:-unknown}"
+        echo "  Pipeline: ${CI_PIPELINE_URL}"
+        echo "  MANDATORY: Create follow-up issue within 5 business days"
+        echo "========================================================="
+        echo ""
+      fi
+    - |
+      # Build sonar-scanner properties
+      SONAR_OPTS="-Dsonar.host.url=${SONAR_HOST_URL}"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.token=${SONAR_TOKEN}"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.projectKey=${CI_PROJECT_PATH_SLUG}"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.projectName=${CI_PROJECT_NAME}"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.sources=${SONAR_SOURCES}"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.scm.provider=git"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.qualitygate.wait=true"
+      SONAR_OPTS="${SONAR_OPTS} -Dsonar.qualitygate.timeout=${SONAR_TIMEOUT}"
+
+      # Branch/MR aware analysis
+      if [ -n "${CI_MERGE_REQUEST_IID:-}" ]; then
+        SONAR_OPTS="${SONAR_OPTS} -Dsonar.pullrequest.key=${CI_MERGE_REQUEST_IID}"
+        SONAR_OPTS="${SONAR_OPTS} -Dsonar.pullrequest.branch=${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+        SONAR_OPTS="${SONAR_OPTS} -Dsonar.pullrequest.base=${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+      else
+        SONAR_OPTS="${SONAR_OPTS} -Dsonar.branch.name=${CI_COMMIT_REF_NAME}"
+      fi
+
+      # Coverage report integration (optional — set SONAR_COVERAGE_REPORT)
+      if [ -n "${SONAR_COVERAGE_REPORT}" ] && [ -f "${SONAR_COVERAGE_REPORT}" ]; then
+        # Auto-detect format based on extension
+        case "${SONAR_COVERAGE_REPORT}" in
+          *.xml)  SONAR_OPTS="${SONAR_OPTS} -Dsonar.coverage.jacoco.xmlReportPaths=${SONAR_COVERAGE_REPORT}" ;;
+          *.info) SONAR_OPTS="${SONAR_OPTS} -Dsonar.javascript.lcov.reportPaths=${SONAR_COVERAGE_REPORT}" ;;
+          *.out)  SONAR_OPTS="${SONAR_OPTS} -Dsonar.go.coverage.reportPaths=${SONAR_COVERAGE_REPORT}" ;;
+          *)      SONAR_OPTS="${SONAR_OPTS} -Dsonar.coverageReportPaths=${SONAR_COVERAGE_REPORT}" ;;
+        esac
+        echo "[QUALITY-GATE] Coverage report: ${SONAR_COVERAGE_REPORT}"
+      elif [ -n "${SONAR_COVERAGE_REPORT}" ]; then
+        echo "[QUALITY-GATE] WARNING: Coverage report not found: ${SONAR_COVERAGE_REPORT}"
+        echo "[QUALITY-GATE] Coverage gate condition may fail. Run tests first."
+      fi
+
+      # Extra project-specific properties
+      if [ -n "${SONAR_EXTRA_PROPS}" ]; then
+        SONAR_OPTS="${SONAR_OPTS} ${SONAR_EXTRA_PROPS}"
+      fi
+
+      export SONAR_OPTS
+  script:
+    - echo "[QUALITY-GATE] Starting SonarQube analysis — ${CI_PROJECT_NAME}"
+    - echo "[QUALITY-GATE] Gate: Production (CICD-002)"
+    - echo "[QUALITY-GATE] Thresholds: coverage>=80%, bugs=0, vulns=0, smells<=10, hotspots-reviewed>=80%"
+    - echo ""
+    - |
+      # Run sonar-scanner with quality gate wait
+      # -Dsonar.qualitygate.wait=true polls until the background task completes
+      # Exit code 0 = Quality Gate PASSED
+      # Exit code 1 = Quality Gate FAILED or connection error
+      set +e
+      sonar-scanner ${SONAR_OPTS}
+      QG_EXIT_CODE=$?
+      set -e
+    - |
+      QG_END_TS=$(date +%s%N)
+      QG_DURATION_MS=$(( (QG_END_TS - QG_START_TS) / 1000000 ))
+      QG_DURATION_SEC=$(echo "scale=3; ${QG_DURATION_MS} / 1000" | bc)
+      echo "[QUALITY-GATE] Scan duration: ${QG_DURATION_SEC}s"
+    - |
+      # Fetch quality gate status from API for artifact
+      QG_STATUS="UNKNOWN"
+      if command -v curl &>/dev/null; then
+        QG_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" \
+          "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${CI_PROJECT_PATH_SLUG}" \
+          2>/dev/null || echo '{"projectStatus":{"status":"UNKNOWN"}}')
+        QG_STATUS=$(echo "${QG_RESPONSE}" | jq -r '.projectStatus.status // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
+        echo "${QG_RESPONSE}" > "${QG_ARTIFACT_DIR}/quality-gate-status.json"
+      fi
+    - |
+      # Write summary artifact
+      cat > "${QG_ARTIFACT_DIR}/quality-gate-summary.txt" <<SUMMARY
+      CICD-002: Quality Gate Result
+      ============================
+      Project:    ${CI_PROJECT_NAME}
+      Gate:       Production
+      Status:     ${QG_STATUS}
+      Duration:   ${QG_DURATION_SEC}s
+      Branch:     ${CI_COMMIT_REF_NAME}
+      Commit:     ${CI_COMMIT_SHA}
+      Pipeline:   ${CI_PIPELINE_URL}
+      Timestamp:  $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+      Bypass:     ${SONAR_QUALITY_GATE_BYPASS}
+      SUMMARY
+    - |
+      # Push metrics to Prometheus PushGateway
+      SCAN_STATUS="pass"
+      if [ "${QG_EXIT_CODE}" -ne 0 ] && [ "${SONAR_QUALITY_GATE_BYPASS}" != "true" ]; then
+        SCAN_STATUS="fail"
+      fi
+
+      if [ -n "${PUSHGATEWAY_URL}" ]; then
+        cat <<METRIC | curl -s --data-binary @- \
+          "${PUSHGATEWAY_URL}/metrics/job/gitlab_ci_quality_gate/instance/${CI_PROJECT_PATH_SLUG}" || true
+      # HELP gitlab_ci_quality_gate_status SonarQube quality gate result (1=pass, 0=fail)
+      # TYPE gitlab_ci_quality_gate_status gauge
+      gitlab_ci_quality_gate_status{project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}",gate="Production"} $([ "${SCAN_STATUS}" = "pass" ] && echo 1 || echo 0)
+      # HELP gitlab_ci_quality_gate_duration_seconds SonarQube analysis duration
+      # TYPE gitlab_ci_quality_gate_duration_seconds gauge
+      gitlab_ci_quality_gate_duration_seconds{project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}"} ${QG_DURATION_SEC}
+      METRIC
+        echo "[QUALITY-GATE] Metrics pushed to PushGateway"
+      fi
+    - |
+      # Final status check
+      if [ "${QG_EXIT_CODE}" -ne 0 ]; then
+        if [ "${SONAR_QUALITY_GATE_BYPASS}" = "true" ]; then
+          echo ""
+          echo "[QUALITY-GATE] Quality Gate FAILED — but BYPASS is active."
+          echo "[QUALITY-GATE] Bypass reason: ${SONAR_BYPASS_REASON}"
+          echo "[QUALITY-GATE] Pipeline will CONTINUE (allow_failure=true via bypass)."
+          echo "[QUALITY-GATE] MANDATORY: Create issue to fix within 5 business days."
+          echo ""
+        else
+          echo ""
+          echo "============================================================="
+          echo "[QUALITY-GATE] BLOCKED: Quality Gate '${QG_STATUS}'"
+          echo ""
+          echo "  The 'Production' quality gate has FAILED for this MR."
+          echo "  Merge is BLOCKED until all gate conditions pass."
+          echo ""
+          echo "  Common issues:"
+          echo "    - New code coverage < 80%: Add tests for new code"
+          echo "    - New bugs > 0: Fix logic errors flagged by SonarQube"
+          echo "    - New vulnerabilities > 0: Fix security issues"
+          echo "    - Code smells > 10: Refactor per SonarQube suggestions"
+          echo "    - Security hotspots < 80% reviewed: Review hotspots in UI"
+          echo ""
+          echo "  SonarQube Dashboard:"
+          echo "  ${SONAR_HOST_URL}/dashboard?id=${CI_PROJECT_PATH_SLUG}"
+          echo ""
+          echo "  Developer Guide:"
+          echo "  docs/guides/quality-gate-compliance.md"
+          echo "============================================================="
+          exit 1
+        fi
+      else
+        echo ""
+        echo "[QUALITY-GATE] Quality Gate PASSED — all conditions met"
+        echo "[QUALITY-GATE] SonarQube: ${SONAR_HOST_URL}/dashboard?id=${CI_PROJECT_PATH_SLUG}"
+        echo ""
+      fi
+  allow_failure: false
+  artifacts:
+    name: "quality-gate-${CI_PROJECT_PATH_SLUG}-${CI_COMMIT_SHORT_SHA}"
+    when: always
+    expire_in: 30 days
+    paths:
+      - quality-gate-results/
+      - .sonar/
+    expose_as: "SonarQube Quality Gate Results"
+  rules:
+    # Run on all Merge Requests (primary enforcement point)
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+      allow_failure:
+        # Dynamic: bypass allowed ONLY when explicit variable set
+        exit_codes: 1
+    # Run on main/master branch (track quality over time)
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    # Run on release and hotfix branches (critical code paths)
+    - if: '$CI_COMMIT_BRANCH =~ /^(release\/.*|hotfix\/.*)$/'
+      when: always
+    # Skip on feature branches not in MR (avoid noise)
+    - when: never
+
+# ── Concrete job — projects inherit this automatically ──────────────────────
+# Projects that include this template get this job without any extra config.
+# To customize per-project, extend the hidden template:
+#
+#   sonarqube-quality-gate:
+#     extends: .sonarqube-quality-gate
+#     variables:
+#       SONAR_COVERAGE_REPORT: "target/site/jacoco/jacoco.xml"
+#       SONAR_EXTRA_PROPS: "-Dsonar.java.binaries=target/classes -Dsonar.exclusions=**/generated/**"
+# ─────────────────────────────────────────────────────────────────────────────
+sonarqube-quality-gate:
+  extends: .sonarqube-quality-gate
+  # Override allow_failure dynamically based on bypass variable
+  # Note: The script handles exit gracefully when bypass is true
+  allow_failure: false

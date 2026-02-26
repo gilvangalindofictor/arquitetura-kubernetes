@@ -1,0 +1,189 @@
+# =============================================================================
+# Rollout Example: Canary Strategy
+# Demand: CICD-005
+# ADR: ADR-085
+#
+# When to use Canary (ADR-085 decision):
+#   - High-risk changes (DB schema migrations, API breaking changes)
+#   - AI/ML model updates (gradual traffic shift validates model quality)
+#   - Any change where incremental validation is preferred over all-or-nothing
+#   - Services that expose http_requests_total + http_request_duration_seconds
+#
+# Traffic flow:
+#   Step 1: 20% canary → 5min pause → analysis runs (success-rate + latency-p95)
+#   Step 2: 40% canary → 5min pause → analysis continues
+#   Step 3: 60% canary → 5min pause → analysis continues
+#   Step 4: 80% canary → 5min pause → analysis continues
+#   Step 5: 100% → promotion complete
+#
+# Prerequisites:
+#   1. AnalysisTemplates deployed to this namespace:
+#      kubectl apply -f domains/apps/manifests/analysis-templates/ -n <NAMESPACE>
+#   2. Application exposes: http_requests_total{status,service} + http_request_duration_seconds_bucket{le,service}
+#   3. Two services exist: <app>-stable and <app>-canary (created automatically)
+#
+# Deploy command (after customizing):
+#   kubectl apply -f canary-example.yaml -n <APP_NAMESPACE>
+#   kubectl argo rollouts get rollout my-app -n <APP_NAMESPACE> --watch
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  # CUSTOMIZE: Replace with your application name
+  name: my-app
+  namespace: default  # CUSTOMIZE: Replace with your application namespace
+  labels:
+    app: my-app
+    app.kubernetes.io/name: my-app
+    app.kubernetes.io/component: rollout
+    app.kubernetes.io/part-of: progressive-delivery
+    strategy: canary
+    demand: CICD-005
+  annotations:
+    description: "Canary rollout example — copy and customize for your application"
+spec:
+  # CUSTOMIZE: Set your desired replica count
+  replicas: 3
+
+  selector:
+    matchLabels:
+      app: my-app
+
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        # CUSTOMIZE: Replace with your container image and configuration
+        - name: my-app
+          image: harbor.staging.example.com/apps/my-app:sha-abc123
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # REQUIRED: Prometheus metrics endpoint
+          # Must expose: http_requests_total{status,service} + http_request_duration_seconds_bucket
+          # Common ports: 8080 (app), 9090 (metrics), 8090 (separate metrics)
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+
+  # ============================================================================
+  # Canary Strategy
+  # ============================================================================
+  strategy:
+    canary:
+      # Stable service: receives stable (non-canary) traffic
+      # Canary service: receives canary traffic slice
+      # Both services are created automatically by Argo Rollouts
+      stableService: my-app-stable
+      canaryService: my-app-canary
+
+      # Traffic management: works with NGINX/ALB/Istio ingress
+      # Remove trafficRouting block if not using ingress-based traffic splitting
+      # (weight-based splitting via pod counts is the fallback)
+      # trafficRouting:
+      #   nginx:
+      #     stableIngress: my-app-stable-ingress
+      #   # OR for AWS ALB:
+      #   # alb:
+      #   #   ingress: my-app-ingress
+      #   #   servicePort: 80
+
+      # -------------------------------------------------------------------------
+      # Canary Steps: Progressive traffic shifting with analysis gates
+      # Each step is gated by analysis. Failure auto-rolls back.
+      # -------------------------------------------------------------------------
+      steps:
+        # Step 1: 20% traffic to canary
+        - setWeight: 20
+        # Start analysis at step 1 (analysis runs throughout)
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: latency-p95
+            args:
+              # The canary service receives 20% of traffic — analyze it
+              - name: service-name
+                value: my-app-canary
+              # Override Prometheus URL if non-standard
+              # - name: prometheus-url
+              #   value: http://prometheus.monitoring.svc:9090
+        # Pause 5 minutes (analysis continues in background)
+        - pause:
+            duration: 5m
+
+        # Step 2: 40% traffic to canary
+        - setWeight: 40
+        - pause:
+            duration: 5m
+
+        # Step 3: 60% traffic to canary
+        - setWeight: 60
+        - pause:
+            duration: 5m
+
+        # Step 4: 80% traffic to canary
+        - setWeight: 80
+        - pause:
+            duration: 5m
+
+        # Step 5: 100% — final promotion
+        # (Automatic if analysis passes; rollback if analysis fails)
+
+      # Auto-rollback on analysis failure: YES (failureLimit: 2 in AnalysisTemplate)
+      # Manual rollback: kubectl argo rollouts abort my-app -n <namespace>
+      # Manual promotion: kubectl argo rollouts promote my-app -n <namespace>
+
+---
+# =============================================================================
+# Stable Service — receives 100% traffic when no rollout is in progress
+# During rollout: receives (100 - canary_weight)% of traffic
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-stable
+  namespace: default  # CUSTOMIZE
+  labels:
+    app: my-app
+    role: stable
+spec:
+  selector:
+    app: my-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
+# =============================================================================
+# Canary Service — receives canary_weight% of traffic during rollout
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-canary
+  namespace: default  # CUSTOMIZE
+  labels:
+    app: my-app
+    role: canary
+spec:
+  selector:
+    app: my-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

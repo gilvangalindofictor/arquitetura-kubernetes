@@ -1,0 +1,82 @@
+# =============================================================================
+# AnalysisTemplate: 5xx Error Rate
+# Demand: CICD-005
+# Strategy: Critical template — server-side failures indicate broken deployments
+#
+# Requirement: Applications MUST expose the following Prometheus metric:
+#   http_requests_total{status=~"5..", service="<name>"}  (counter)
+#
+# Logic: 5xx error rate < 1% of total requests
+# This is a CRITICAL indicator — even a single percentage point of 5xx errors
+# in production represents broken requests reaching end users.
+# Threshold is intentionally lower than 4xx (1% vs 5%).
+#
+# If threshold exceeded for 'failureLimit' consecutive measurements → auto-rollback
+#
+# Usage (Rollout spec):
+#   analysis:
+#     templates:
+#       - templateName: error-rate-5xx
+#     args:
+#       - name: service-name
+#         value: my-app-canary
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-5xx
+  labels:
+    app.kubernetes.io/name: error-rate-5xx
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: progressive-delivery
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-005
+  annotations:
+    description: "5xx server error rate analysis — requires http_requests_total{status} metric"
+    metric-source: "Prometheus"
+    threshold: "<1%"
+    severity: "critical — triggers immediate rollback"
+spec:
+  # ---- Arguments (injected per Rollout) ------------------------------------
+  args:
+    - name: service-name
+      # Value injected by Rollout spec: args[].value = "<canary-service-name>"
+    - name: prometheus-url
+      value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    - name: error-rate-threshold
+      # Default: 0.01 (1%). This is a strict threshold for server errors.
+      # Override per Rollout only with strong justification.
+      value: "0.01"
+
+  # ---- Metric definition ---------------------------------------------------
+  metrics:
+    - name: error-rate-5xx
+      interval: 1m
+      count: 5
+      # Stricter: only 1 failure allowed for 5xx (vs 2 for 4xx)
+      # Server errors are critical — fail fast
+      failureLimit: 1
+
+      provider:
+        prometheus:
+          address: "{{args.prometheus-url}}"
+          query: |
+            sum(
+              rate(
+                http_requests_total{
+                  status=~"5..",
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            ) /
+            sum(
+              rate(
+                http_requests_total{
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            )
+
+      # Success: 5xx rate < 1% (or NaN — no traffic yet, treated as healthy)
+      successCondition: result[0] < {{args.error-rate-threshold}} || isNaN(result[0])
+      failureCondition: result[0] >= {{args.error-rate-threshold}} && !isNaN(result[0])

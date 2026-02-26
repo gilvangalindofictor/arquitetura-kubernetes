@@ -1,0 +1,334 @@
+# =============================================================================
+# CICD-001: Security Scan Template — K8s Platform
+# SAST/DAST Enforcement Pipeline Stage
+#
+# Usage: Include this template in your project .gitlab-ci.yml:
+#   include:
+#     - project: 'platform/templates'
+#       file: '/gitlab-ci/templates/security.gitlab-ci-security-template.yml'
+#
+# Credentials injected via runner envFrom (ESO → gitlab-ci-credentials Secret):
+#   SONAR_HOST_URL   = http://sonarqube.staging.internal
+#   SONAR_TOKEN      = <vault managed>
+#   HARBOR_REGISTRY  = harbor.staging.internal
+#   HARBOR_USER      = robot$gitlab-ci
+#   HARBOR_PASSWORD  = <vault managed>
+#
+# Optional variables (configure in GitLab project CI/CD Settings > Variables):
+#   TRIVY_SEVERITY         = Comma-separated: CRITICAL,HIGH (default)
+#   TRIVY_EXIT_CODE        = 1 to fail on found vulns (default: 1)
+#   DEPENDENCY_CHECK_OPTS  = Extra OWASP DC flags (e.g., --suppression file)
+#   TRUFFLEHOG_SCAN_DEPTH  = Git history scan depth (default: 50)
+#   PUSHGATEWAY_URL        = http://prometheus-pushgateway.monitoring.svc:9091
+#
+# Stage order assumption (add to your stages list):
+#   stages:
+#     - build
+#     - test
+#     - security-scan   <-- this template populates this stage
+#     - deploy
+#
+# IMPORTANT: allow_failure: false is intentional.
+# ALL four scanners MUST pass for the pipeline to proceed.
+# To suppress a finding, use the scanner-specific suppression mechanism
+# documented in docs/runbooks/security-scan-failures-troubleshooting.md
+# =============================================================================
+
+# ── Variables shared across all security jobs ─────────────────────────────────
+variables:
+  # Image versions — pinned for reproducibility and supply chain security
+  SONAR_SCANNER_IMAGE: "sonarqube/sonar-scanner-cli:5.0"
+  TRIVY_IMAGE: "aquasec/trivy:0.50.0"
+  DEPENDENCY_CHECK_IMAGE: "owasp/dependency-check:latest"
+  TRUFFLEHOG_IMAGE: "trufflesecurity/trufflehog:latest"
+
+  # Scanner defaults — override per project as needed
+  TRIVY_SEVERITY: "HIGH,CRITICAL"
+  TRIVY_EXIT_CODE: "1"
+  TRIVY_NO_PROGRESS: "true"
+  TRIVY_CACHE_DIR: "${CI_PROJECT_DIR}/.trivy-cache"
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  TRUFFLEHOG_SCAN_DEPTH: "50"
+  PUSHGATEWAY_URL: "http://prometheus-pushgateway.monitoring.svc:9091"
+
+  # PushGateway metric label
+  PIPELINE_JOB_LABEL: "${CI_PROJECT_PATH_SLUG}-${CI_COMMIT_REF_SLUG}"
+
+# ── Anchor: Push metric to PushGateway ───────────────────────────────────────
+# Reused by all four scanner jobs via YAML anchors
+.push_metric: &push_metric |
+  SCAN_END_TS=$(date +%s%N)
+  SCAN_DURATION_MS=$(( (SCAN_END_TS - SCAN_START_TS) / 1000000 ))
+  SCAN_DURATION_SEC=$(echo "scale=3; ${SCAN_DURATION_MS} / 1000" | bc)
+  SCAN_STATUS=${SCAN_STATUS:-"unknown"}
+  if [ -n "${PUSHGATEWAY_URL}" ]; then
+    cat <<METRIC | curl -s --data-binary @- \
+      "${PUSHGATEWAY_URL}/metrics/job/gitlab_ci_security_scan/instance/${PIPELINE_JOB_LABEL}/scanner/${SCANNER_NAME}" || true
+  # HELP gitlab_ci_pipeline_security_scan_duration_seconds Duration of security scan in seconds
+  # TYPE gitlab_ci_pipeline_security_scan_duration_seconds gauge
+  gitlab_ci_pipeline_security_scan_duration_seconds{scanner="${SCANNER_NAME}",project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}",status="${SCAN_STATUS}"} ${SCAN_DURATION_SEC}
+  # HELP gitlab_ci_pipeline_security_scan_status Last security scan status (1=pass, 0=fail)
+  # TYPE gitlab_ci_pipeline_security_scan_status gauge
+  gitlab_ci_pipeline_security_scan_status{scanner="${SCANNER_NAME}",project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}"} $([ "${SCAN_STATUS}" = "pass" ] && echo 1 || echo 0)
+  METRIC
+  fi
+
+# =============================================================================
+# 1. SAST — SonarQube Quality Gate
+# Scanner: sonarqube/sonar-scanner-cli:5.0
+# Blocks on: Quality Gate FAILED (any condition: bugs, coverage, code smells,
+#            security hotspots, vulnerabilities)
+# Suppression: Mark issue as "Won't Fix" or "False Positive" in SonarQube UI
+# =============================================================================
+.sonarqube-sast:
+  stage: security-scan
+  image: "${SONAR_SCANNER_IMAGE}"
+  variables:
+    GIT_DEPTH: "0"
+  cache:
+    key: "sonar-${CI_PROJECT_PATH_SLUG}"
+    paths:
+      - .sonar/cache
+  before_script:
+    - SCAN_START_TS=$(date +%s%N)
+    - SCANNER_NAME="sonarqube"
+    - apk add --no-cache bc curl 2>/dev/null || apt-get install -y bc curl 2>/dev/null || true
+  script:
+    - echo "[SAST] Starting SonarQube analysis — project ${CI_PROJECT_NAME}"
+    - |
+      sonar-scanner \
+        -Dsonar.host.url="${SONAR_HOST_URL}" \
+        -Dsonar.token="${SONAR_TOKEN}" \
+        -Dsonar.projectKey="${CI_PROJECT_PATH_SLUG}" \
+        -Dsonar.projectName="${CI_PROJECT_NAME}" \
+        -Dsonar.sources=. \
+        -Dsonar.scm.provider=git \
+        -Dsonar.qualitygate.wait=true \
+        -Dsonar.qualitygate.timeout=300
+    - echo "[SAST] SonarQube analysis complete — Quality Gate PASSED"
+    - SCAN_STATUS="pass"
+  after_script:
+    - SCANNER_NAME="sonarqube"
+    - *push_metric
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - .sonar/
+    reports:
+      # If sonar-scanner produces a report XML, expose it
+      # junit: sonar-report.xml  # Uncomment if project generates test reports
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master|release\/.*|hotfix\/.*)$/'
+      when: always
+    - when: never
+
+# =============================================================================
+# 2. Container Scan — Trivy
+# Scanner: aquasec/trivy:0.50.0
+# Blocks on: vulnerabilities of severity HIGH or CRITICAL found in image
+# Suppression: Add .trivyignore file to project root
+#   Example .trivyignore:
+#     CVE-2023-12345  # false positive — patched in base image, vendor not yet published
+# =============================================================================
+.trivy-container-scan:
+  stage: security-scan
+  image: "${TRIVY_IMAGE}"
+  cache:
+    key: "trivy-db-${CI_COMMIT_WEEK}"
+    paths:
+      - .trivy-cache/
+  before_script:
+    - SCAN_START_TS=$(date +%s%N)
+    - SCANNER_NAME="trivy"
+    - apk add --no-cache bc curl 2>/dev/null || true
+    # Login to Harbor to pull the image for scanning
+    - echo "${HARBOR_PASSWORD}" | trivy image --input /dev/stdin 2>/dev/null || true
+  script:
+    - echo "[TRIVY] Starting container vulnerability scan — ${DOCKER_IMAGE}"
+    - |
+      trivy image \
+        --severity "${TRIVY_SEVERITY}" \
+        --exit-code "${TRIVY_EXIT_CODE}" \
+        --no-progress="${TRIVY_NO_PROGRESS}" \
+        --cache-dir "${TRIVY_CACHE_DIR}" \
+        --format table \
+        --output trivy-report.txt \
+        --username "${HARBOR_USER}" \
+        --password "${HARBOR_PASSWORD}" \
+        "${DOCKER_IMAGE}"
+    - |
+      # Also produce SARIF format for GitLab Security tab
+      trivy image \
+        --severity "${TRIVY_SEVERITY}" \
+        --exit-code 0 \
+        --no-progress="${TRIVY_NO_PROGRESS}" \
+        --cache-dir "${TRIVY_CACHE_DIR}" \
+        --format sarif \
+        --output trivy-report.sarif \
+        --username "${HARBOR_USER}" \
+        --password "${HARBOR_PASSWORD}" \
+        "${DOCKER_IMAGE}"
+    - echo "[TRIVY] Container scan complete — no ${TRIVY_SEVERITY} vulnerabilities found"
+    - SCAN_STATUS="pass"
+  after_script:
+    - SCANNER_NAME="trivy"
+    - *push_metric
+    - |
+      if [ -f trivy-report.txt ]; then
+        VULN_COUNT=$(grep -c "^CVE-" trivy-report.txt 2>/dev/null || echo 0)
+        echo "[TRIVY] Total vulnerabilities found: ${VULN_COUNT}"
+      fi
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - trivy-report.txt
+      - trivy-report.sarif
+    reports:
+      # container_scanning: trivy-report.sarif  # Requires GitLab Ultimate
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+      # Requires DOCKER_IMAGE variable to be set (from build stage)
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master|release\/.*|hotfix\/.*)$/'
+      when: always
+    - when: never
+
+# =============================================================================
+# 3. Dependency CVE Scan — OWASP Dependency-Check
+# Scanner: owasp/dependency-check:latest
+# Blocks on: CVSS score >= 7.0 (HIGH/CRITICAL CVEs in project dependencies)
+# Suppression: Create dependency-check-suppression.xml in project root
+#   See: https://jeremylong.github.io/DependencyCheck/general/suppression.html
+# Note: First run is slow (~15min) due to NVD database download.
+#       Subsequent runs use cache (seconds).
+# =============================================================================
+.owasp-dependency-check:
+  stage: security-scan
+  image: "${DEPENDENCY_CHECK_IMAGE}"
+  cache:
+    key: "owasp-nvd-db-${CI_COMMIT_MONTH}"
+    paths:
+      - .owasp-cache/data/
+  before_script:
+    - SCAN_START_TS=$(date +%s%N)
+    - SCANNER_NAME="owasp-dependency-check"
+    - apk add --no-cache bc curl 2>/dev/null || apt-get install -y bc curl 2>/dev/null || true
+    - mkdir -p .owasp-cache/data dependency-check-report
+  script:
+    - echo "[OWASP DC] Starting dependency CVE scan — ${CI_PROJECT_NAME}"
+    - |
+      /usr/share/dependency-check/bin/dependency-check.sh \
+        --scan . \
+        --format ALL \
+        --out dependency-check-report \
+        --data .owasp-cache/data \
+        --failOnCVSS 7 \
+        --enableRetired \
+        ${DEPENDENCY_CHECK_OPTS:-""} \
+        $([ -f dependency-check-suppression.xml ] && echo "--suppression dependency-check-suppression.xml" || echo "")
+    - echo "[OWASP DC] Dependency scan complete — no HIGH/CRITICAL CVEs found"
+    - SCAN_STATUS="pass"
+  after_script:
+    - SCANNER_NAME="owasp-dependency-check"
+    - *push_metric
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - dependency-check-report/
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master|release\/.*|hotfix\/.*)$/'
+      when: always
+    - when: never
+
+# =============================================================================
+# 4. Secret Detection — TruffleHog
+# Scanner: trufflesecurity/trufflehog:latest
+# Blocks on: ANY verified or high-confidence secret found in git history
+# Suppression: Add .trufflehogignore file OR inline comments:
+#   # trufflehog:ignore
+# Scan depth: Last ${TRUFFLEHOG_SCAN_DEPTH} commits (default: 50)
+# =============================================================================
+.trufflehog-secret-scan:
+  stage: security-scan
+  image: "${TRUFFLEHOG_IMAGE}"
+  before_script:
+    - SCAN_START_TS=$(date +%s%N)
+    - SCANNER_NAME="trufflehog"
+    - apk add --no-cache bc curl git 2>/dev/null || apt-get install -y bc curl git 2>/dev/null || true
+  script:
+    - echo "[TRUFFLEHOG] Starting secret detection — last ${TRUFFLEHOG_SCAN_DEPTH} commits"
+    - |
+      trufflehog git \
+        file://. \
+        --since-commit HEAD~${TRUFFLEHOG_SCAN_DEPTH} \
+        --only-verified \
+        --fail \
+        --json \
+        2>&1 | tee trufflehog-report.json
+    - |
+      SECRET_COUNT=$(grep -c '"DetectorName"' trufflehog-report.json 2>/dev/null || echo 0)
+      if [ "${SECRET_COUNT}" -gt 0 ]; then
+        echo "[TRUFFLEHOG] BLOCKED: ${SECRET_COUNT} verified secret(s) detected"
+        exit 1
+      fi
+    - echo "[TRUFFLEHOG] Secret scan complete — no verified secrets found"
+    - SCAN_STATUS="pass"
+  after_script:
+    - SCANNER_NAME="trufflehog"
+    - *push_metric
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - trufflehog-report.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master|release\/.*|hotfix\/.*)$/'
+      when: always
+    - when: never
+
+# =============================================================================
+# Concrete job definitions — inherit from hidden templates above
+# Projects that include this file get these jobs automatically.
+# To override a job's behavior, extend it in your .gitlab-ci.yml:
+#
+#   sonarqube-sast:
+#     extends: .sonarqube-sast
+#     variables:
+#       SONAR_EXTRA_PROPS: "-Dsonar.java.binaries=target/classes"
+# =============================================================================
+
+sonarqube-sast:
+  extends: .sonarqube-sast
+
+trivy-container-scan:
+  extends: .trivy-container-scan
+  needs:
+    - job: build
+      optional: true
+
+owasp-dependency-check:
+  extends: .owasp-dependency-check
+
+trufflehog-secret-scan:
+  extends: .trufflehog-secret-scan

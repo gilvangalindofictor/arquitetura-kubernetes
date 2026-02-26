@@ -1,0 +1,175 @@
+# =============================================================================
+# Rollout Example: Blue-Green Strategy
+# Demand: CICD-005
+# ADR: ADR-085
+#
+# When to use Blue-Green (ADR-085 decision):
+#   - Low-risk changes where instant switchback is preferred over gradual traffic
+#   - Feature flags deployments (enable/disable without traffic impact)
+#   - A/B testing infrastructure (flip between versions on demand)
+#   - Scenarios where parallel environments are needed for pre-production validation
+#   - When 'zero canary traffic to production' is required until manual approval
+#
+# Traffic flow:
+#   1. New version (green) deployed to previewService — receives 0% production traffic
+#   2. QA/validation on preview URL (internal only)
+#   3. Manual approval: kubectl argo rollouts promote my-app
+#   4. activeService switches from blue → green (instant, <1s)
+#   5. Old version (blue) kept alive for 5min (scaleDownDelaySeconds) for rollback
+#   6. Blue scaled down after grace period
+#
+# Rollback (within 5min of promotion):
+#   kubectl argo rollouts undo my-app -n <namespace>
+#   → Instantly switches activeService back to blue
+#
+# Prerequisites:
+#   1. Two services exist: <app>-active and <app>-preview (created automatically)
+#   2. autoPromotionEnabled: false → requires manual approval step
+#
+# Deploy command (after customizing):
+#   kubectl apply -f blue-green-example.yaml -n <APP_NAMESPACE>
+#   kubectl argo rollouts get rollout my-app-blue-green -n <APP_NAMESPACE> --watch
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  # CUSTOMIZE: Replace with your application name
+  name: my-app-blue-green
+  namespace: default  # CUSTOMIZE: Replace with your application namespace
+  labels:
+    app: my-app-blue-green
+    app.kubernetes.io/name: my-app-blue-green
+    app.kubernetes.io/component: rollout
+    app.kubernetes.io/part-of: progressive-delivery
+    strategy: blue-green
+    demand: CICD-005
+  annotations:
+    description: "Blue-Green rollout example — copy and customize for your application"
+spec:
+  # CUSTOMIZE: Set your desired replica count
+  # Note: Both blue and green run simultaneously during rollout (2x resource cost)
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: my-app-blue-green
+
+  template:
+    metadata:
+      labels:
+        app: my-app-blue-green
+    spec:
+      containers:
+        # CUSTOMIZE: Replace with your container image and configuration
+        - name: my-app
+          image: harbor.staging.example.com/apps/my-app:sha-abc123
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  # ============================================================================
+  # Blue-Green Strategy
+  # ============================================================================
+  strategy:
+    blueGreen:
+      # Active service: the current production version (blue)
+      # Preview service: the new version (green) — pre-production validation
+      activeService: my-app-active
+      previewService: my-app-preview
+
+      # -------------------------------------------------------------------------
+      # Manual Promotion — human gate before traffic switch
+      # Change to: autoPromotionEnabled: true for fully automated
+      # -------------------------------------------------------------------------
+      autoPromotionEnabled: false
+
+      # -------------------------------------------------------------------------
+      # Grace period before scaling down old (blue) version after promotion
+      # 300 seconds = 5 minutes — window for immediate rollback
+      # During this window: both blue and green run (2x replicas)
+      # -------------------------------------------------------------------------
+      scaleDownDelaySeconds: 300
+
+      # -------------------------------------------------------------------------
+      # Pre-promotion analysis — runs against preview service before promotion
+      # The green version must pass analysis before operator can approve
+      # -------------------------------------------------------------------------
+      prePromotionAnalysis:
+        templates:
+          - templateName: success-rate
+          - templateName: latency-p95
+        args:
+          # Analyze the preview (green) service
+          - name: service-name
+            value: my-app-preview
+
+      # -------------------------------------------------------------------------
+      # Post-promotion analysis — runs after traffic switch (green is active)
+      # If post-promotion fails → rollback to blue automatically
+      # -------------------------------------------------------------------------
+      postPromotionAnalysis:
+        templates:
+          - templateName: success-rate
+          - templateName: error-rate-5xx
+        args:
+          # Analyze active (green) service post-switch
+          - name: service-name
+            value: my-app-active
+
+---
+# =============================================================================
+# Active Service — receives 100% production traffic
+# Points to blue (current) or green (new) depending on promotion state
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-active
+  namespace: default  # CUSTOMIZE
+  labels:
+    app: my-app-blue-green
+    role: active
+  annotations:
+    description: "Active (production) service — managed by Argo Rollouts"
+spec:
+  selector:
+    app: my-app-blue-green
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
+# =============================================================================
+# Preview Service — receives 0% production traffic
+# Points to green (new version) — used for pre-promotion validation
+# Access via port-forward or internal ingress for testing:
+#   kubectl port-forward svc/my-app-preview 8080:80 -n <namespace>
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-preview
+  namespace: default  # CUSTOMIZE
+  labels:
+    app: my-app-blue-green
+    role: preview
+  annotations:
+    description: "Preview (pre-production) service — 0% traffic, for validation only"
+spec:
+  selector:
+    app: my-app-blue-green
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

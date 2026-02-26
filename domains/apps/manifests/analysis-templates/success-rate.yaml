@@ -1,0 +1,74 @@
+# =============================================================================
+# AnalysisTemplate: HTTP Success Rate
+# Demand: CICD-005
+# Strategy: Used in both Canary and Blue-Green rollouts
+#
+# Requirement: Applications MUST expose the following Prometheus metric:
+#   http_requests_total{status="<code>", service="<name>"}  (counter)
+#
+# Logic: success rate = (2xx requests) / (total requests) >= 95%
+# If not met for 'failureLimit' consecutive measurements → auto-rollback
+#
+# Usage (Rollout spec):
+#   analysis:
+#     templates:
+#       - templateName: success-rate
+#     args:
+#       - name: service-name
+#         value: my-app-canary
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  labels:
+    app.kubernetes.io/name: success-rate
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: progressive-delivery
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-005
+  annotations:
+    description: "HTTP success rate analysis — requires http_requests_total{status} metric"
+    metric-source: "Prometheus"
+    threshold: ">=95%"
+spec:
+  # ---- Arguments (injected per Rollout) ------------------------------------
+  args:
+    - name: service-name
+      # Value injected by Rollout spec: args[].value = "<canary-service-name>"
+    - name: prometheus-url
+      value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+  # ---- Metric definition ---------------------------------------------------
+  metrics:
+    - name: success-rate
+      # Measure every 1 minute, collect 5 data points before deciding
+      interval: 1m
+      count: 5
+      # Rollback if 2 consecutive measurements fail the success condition
+      failureLimit: 2
+
+      provider:
+        prometheus:
+          address: "{{args.prometheus-url}}"
+          query: |
+            sum(
+              rate(
+                http_requests_total{
+                  status=~"2..",
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            ) /
+            sum(
+              rate(
+                http_requests_total{
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            )
+
+      # Success: success rate >= 95%
+      # If query returns NaN (no traffic yet), treat as success (time-based safety net)
+      successCondition: result[0] >= 0.95 || isNaN(result[0])
+      failureCondition: result[0] < 0.95 && !isNaN(result[0])

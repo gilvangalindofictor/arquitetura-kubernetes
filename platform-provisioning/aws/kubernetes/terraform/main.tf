@@ -71,3 +71,24 @@ module "iam" {
 
   depends_on = [module.eks, module.s3]
 }
+
+# Argo Rollouts — Progressive Delivery (CICD-005 / ADR-085)
+# Co-located in argocd namespace (namespace managed by argocd module)
+# Canary + Blue-Green strategies with Prometheus-driven automated rollback
+# Deploy AFTER argocd module (namespace must exist)
+module "argo_rollouts" {
+  source = "./modules/argo-rollouts"
+
+  cluster_name      = var.cluster_name
+  namespace         = "argocd"
+  chart_version     = "2.35.0"
+  controller_replicas = 2    # HA
+  metrics_enabled   = true
+  dashboard_enabled = true
+  prometheus_url    = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+  dashboard_port    = 3100
+  metrics_port      = 8090
+
+  # Uncomment when argocd module is added to this file:
+  # depends_on = [module.argocd]
+}
