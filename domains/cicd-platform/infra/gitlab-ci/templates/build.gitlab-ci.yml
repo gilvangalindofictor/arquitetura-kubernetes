@@ -1,5 +1,10 @@
 # Build template — Docker build + push to Harbor
 # Requires: HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD (from runner envFrom)
+#
+# DEPRECATED NOTE (CICD-004): This template uses the legacy tagging strategy
+# (short SHA + latest). New projects should use build-immutable.gitlab-ci.yml
+# which implements the full immutable tag strategy (sha-*, v*, env-mutable).
+# See: docs/adr/adr-084-immutable-image-tags-enforcement.md
 
 .build:
   stage: build

@@ -1,0 +1,232 @@
+# =============================================================================
+# GitLab CI Template: Argo Rollouts Progressive Delivery
+# Demand: CICD-005
+# ADR: ADR-085
+#
+# Include in your application's .gitlab-ci.yml:
+#   include:
+#     - project: 'platform/gitlab-ci-templates'
+#       ref: main
+#       file: 'templates/argo-rollouts.gitlab-ci.yml'
+#
+# Required CI/CD Variables (set in GitLab project/group settings):
+#   KUBECONFIG                — Base64-encoded kubeconfig (or use in-cluster runner)
+#   K8S_NAMESPACE             — Application namespace (e.g., staging-apps)
+#   ROLLOUT_NAME              — Argo Rollouts resource name (e.g., my-app)
+#   CONTAINER_NAME            — Container name within the Rollout (e.g., my-app)
+#   DOCKER_IMAGE              — Full image path WITHOUT tag (e.g., harbor.example.com/apps/my-app)
+#
+# Optional CI/CD Variables:
+#   ROLLOUT_TIMEOUT           — Max wait time in seconds (default: 300)
+#   ROLLOUT_STRATEGY          — "canary" or "blue-green" (informational only)
+#   ANALYSIS_TEMPLATES_PATH   — Path to AnalysisTemplates (default: domains/apps/manifests/analysis-templates)
+#
+# Typical pipeline stages (add to your .gitlab-ci.yml stages:):
+#   stages:
+#     - build       # build.gitlab-ci.yml
+#     - scan        # scan.gitlab-ci.yml
+#     - deploy      # argo-rollouts.gitlab-ci.yml
+#     - verify      # argo-rollouts.gitlab-ci.yml
+#     - promote     # argo-rollouts.gitlab-ci.yml (manual gate)
+# =============================================================================
+
+# ============================================================================
+# Stage: deploy-analysis-templates
+# Ensures AnalysisTemplate CRDs are deployed to the application namespace
+# Run once per namespace setup (idempotent: kubectl apply is safe to re-run)
+# ============================================================================
+.deploy-analysis-templates:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  variables:
+    ANALYSIS_TEMPLATES_PATH: domains/apps/manifests/analysis-templates
+  script:
+    - echo "Deploying AnalysisTemplate library to namespace ${K8S_NAMESPACE}..."
+    - kubectl apply -f "${ANALYSIS_TEMPLATES_PATH}/" -n "${K8S_NAMESPACE}"
+    - echo "AnalysisTemplates deployed:"
+    - kubectl get analysistemplate -n "${K8S_NAMESPACE}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+
+# ============================================================================
+# Job: rollout-deploy
+# Triggers a new Rollout by updating the container image tag
+# Uses immutable tag format: sha-${CI_COMMIT_SHA} (per CICD-004/ADR-084)
+# ============================================================================
+rollout-deploy:
+  stage: deploy
+  # Official Argo Rollouts kubectl plugin image
+  image: argoproj/kubectl-argo-rollouts:latest
+  variables:
+    # Default timeout: 5 minutes
+    ROLLOUT_TIMEOUT: "300"
+  before_script:
+    # Setup kubeconfig (runners with in-cluster SA may skip this)
+    - |
+      if [ -n "${KUBECONFIG_B64}" ]; then
+        mkdir -p ~/.kube
+        echo "${KUBECONFIG_B64}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+      fi
+    # Validate required variables
+    - |
+      : "${ROLLOUT_NAME:?Variable ROLLOUT_NAME is required}"
+      : "${CONTAINER_NAME:?Variable CONTAINER_NAME is required}"
+      : "${DOCKER_IMAGE:?Variable DOCKER_IMAGE is required}"
+      : "${K8S_NAMESPACE:?Variable K8S_NAMESPACE is required}"
+    # Log deployment context
+    - |
+      echo "=== Argo Rollouts Progressive Delivery ==="
+      echo "Rollout:    ${ROLLOUT_NAME}"
+      echo "Namespace:  ${K8S_NAMESPACE}"
+      echo "Container:  ${CONTAINER_NAME}"
+      echo "Image:      ${DOCKER_IMAGE}:sha-${CI_COMMIT_SHA}"
+      echo "Strategy:   ${ROLLOUT_STRATEGY:-canary}"
+      echo "Pipeline:   ${CI_PIPELINE_URL}"
+      echo "=========================================="
+  script:
+    # 1. Update container image — triggers new Rollout revision
+    #    Image tag format: sha-${CI_COMMIT_SHA} (immutable, per ADR-084)
+    - |
+      kubectl argo rollouts set image "${ROLLOUT_NAME}" \
+        "${CONTAINER_NAME}=${DOCKER_IMAGE}:sha-${CI_COMMIT_SHA}" \
+        -n "${K8S_NAMESPACE}"
+    # 2. Watch rollout progress (non-blocking — status checked in verify stage)
+    - |
+      echo "Rollout triggered. Watching initial progress (30s)..."
+      kubectl argo rollouts status "${ROLLOUT_NAME}" \
+        -n "${K8S_NAMESPACE}" \
+        --timeout 30s || true
+    # 3. Display rollout state
+    - |
+      echo "=== Rollout State ==="
+      kubectl argo rollouts get rollout "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+  after_script:
+    - |
+      echo "Dashboard: kubectl port-forward svc/argo-rollouts-dashboard 3100:3100 -n argocd"
+      echo "CLI status: kubectl argo rollouts get rollout ${ROLLOUT_NAME} -n ${K8S_NAMESPACE} --watch"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+    url: https://${K8S_NAMESPACE}.staging.example.com  # CUSTOMIZE
+
+# ============================================================================
+# Job: rollout-verify
+# Waits for rollout to complete successfully or fail
+# Blocks pipeline until analysis passes all steps
+# ============================================================================
+rollout-verify:
+  stage: verify
+  image: argoproj/kubectl-argo-rollouts:latest
+  needs:
+    - rollout-deploy
+  variables:
+    ROLLOUT_TIMEOUT: "300"
+  before_script:
+    - |
+      if [ -n "${KUBECONFIG_B64}" ]; then
+        mkdir -p ~/.kube
+        echo "${KUBECONFIG_B64}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+      fi
+  script:
+    # Watch rollout until complete, paused (needs promotion), or failed
+    - |
+      echo "=== Watching Rollout: ${ROLLOUT_NAME} ==="
+      kubectl argo rollouts status "${ROLLOUT_NAME}" \
+        -n "${K8S_NAMESPACE}" \
+        --watch \
+        --timeout "${ROLLOUT_TIMEOUT}s"
+      STATUS=$?
+
+      if [ $STATUS -eq 0 ]; then
+        echo "Rollout completed successfully or is paused for promotion."
+      else
+        echo "ERROR: Rollout failed or timed out."
+        kubectl argo rollouts get rollout "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+        exit 1
+      fi
+    # Show final state
+    - kubectl argo rollouts get rollout "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+    # Show analysis run results if any
+    - |
+      echo "=== Analysis Runs ==="
+      kubectl get analysisrun -n "${K8S_NAMESPACE}" \
+        -l rollouts-pod-template-hash \
+        --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -5 || true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+
+# ============================================================================
+# Job: rollout-promote
+# Manual gate for Blue-Green promotions (and optional manual canary gates)
+# For Blue-Green: triggers the active/preview service swap
+# For Canary: can force-promote skipping remaining pause steps
+#
+# Usage: Click "Play" button in GitLab CI pipeline UI
+# ============================================================================
+rollout-promote:
+  stage: promote
+  image: argoproj/kubectl-argo-rollouts:latest
+  needs:
+    - rollout-verify
+  when: manual  # Requires human approval in GitLab UI
+  before_script:
+    - |
+      if [ -n "${KUBECONFIG_B64}" ]; then
+        mkdir -p ~/.kube
+        echo "${KUBECONFIG_B64}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+      fi
+  script:
+    - |
+      echo "=== Manual Promotion: ${ROLLOUT_NAME} ==="
+      echo "Promoting rollout — traffic will switch to new version."
+      kubectl argo rollouts promote "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+    # Wait for post-promotion analysis (if configured in Rollout)
+    - |
+      echo "Watching post-promotion state..."
+      kubectl argo rollouts status "${ROLLOUT_NAME}" \
+        -n "${K8S_NAMESPACE}" \
+        --watch \
+        --timeout "${ROLLOUT_TIMEOUT:-300}s"
+    - kubectl argo rollouts get rollout "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+
+# ============================================================================
+# Job: rollout-abort
+# Emergency rollback — aborts current rollout and rolls back to stable
+# Use in emergencies: pipeline failure, post-deploy incidents
+#
+# Usage: Run manually from GitLab CI pipeline
+# ============================================================================
+rollout-abort:
+  stage: promote
+  image: argoproj/kubectl-argo-rollouts:latest
+  when: manual
+  allow_failure: true  # Abort may fail if no rollout is in progress
+  before_script:
+    - |
+      if [ -n "${KUBECONFIG_B64}" ]; then
+        mkdir -p ~/.kube
+        echo "${KUBECONFIG_B64}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+      fi
+  script:
+    - |
+      echo "=== EMERGENCY ABORT: ${ROLLOUT_NAME} ==="
+      echo "Aborting rollout — traffic will revert to stable version."
+      kubectl argo rollouts abort "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+    - kubectl argo rollouts get rollout "${ROLLOUT_NAME}" -n "${K8S_NAMESPACE}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging

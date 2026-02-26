@@ -1,0 +1,78 @@
+# =============================================================================
+# AnalysisTemplate: 4xx Error Rate
+# Demand: CICD-005
+# Strategy: Supplementary template — use for API-heavy services
+#
+# Requirement: Applications MUST expose the following Prometheus metric:
+#   http_requests_total{status=~"4..", service="<name>"}  (counter)
+#
+# Logic: 4xx error rate < 5% of total requests
+# If threshold exceeded for 'failureLimit' consecutive measurements → auto-rollback
+#
+# Note: 4xx errors (client errors) can increase legitimately during canary
+# traffic shifts (misconfigured clients, new validation rules). Use in
+# combination with success-rate for a complete picture.
+#
+# Usage (Rollout spec):
+#   analysis:
+#     templates:
+#       - templateName: error-rate-4xx
+#     args:
+#       - name: service-name
+#         value: my-app-canary
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-4xx
+  labels:
+    app.kubernetes.io/name: error-rate-4xx
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: progressive-delivery
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-005
+  annotations:
+    description: "4xx client error rate analysis — requires http_requests_total{status} metric"
+    metric-source: "Prometheus"
+    threshold: "<5%"
+spec:
+  # ---- Arguments (injected per Rollout) ------------------------------------
+  args:
+    - name: service-name
+      # Value injected by Rollout spec: args[].value = "<canary-service-name>"
+    - name: prometheus-url
+      value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    - name: error-rate-threshold
+      # Default: 0.05 (5%). Override per Rollout for stricter/looser policies.
+      value: "0.05"
+
+  # ---- Metric definition ---------------------------------------------------
+  metrics:
+    - name: error-rate-4xx
+      interval: 1m
+      count: 5
+      failureLimit: 2
+
+      provider:
+        prometheus:
+          address: "{{args.prometheus-url}}"
+          query: |
+            sum(
+              rate(
+                http_requests_total{
+                  status=~"4..",
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            ) /
+            sum(
+              rate(
+                http_requests_total{
+                  service="{{args.service-name}}"
+                }[2m]
+              )
+            )
+
+      # Success: 4xx rate < 5% (or NaN — no traffic yet, treated as healthy)
+      successCondition: result[0] < {{args.error-rate-threshold}} || isNaN(result[0])
+      failureCondition: result[0] >= {{args.error-rate-threshold}} && !isNaN(result[0])

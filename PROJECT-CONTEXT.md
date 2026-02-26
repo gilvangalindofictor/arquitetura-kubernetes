@@ -1,11 +1,11 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-13
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-3 ✅ | Marco 4 em andamento | Quickstart 80%)
+> **Última Atualização**: 2026-02-26
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 planejamento | Enterprise Assessment 3.8/5.0)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
-> **Custo AWS (Feb/2026)**: $458.62 (11 dias) — projeção ~$1.253/mês (~R$ 6.303)
+> **Custo AWS (Feb/2026)**: ~$800/mês staging | FinOps Savings: R$ 56.424/ano realizados
 
 ---
 
@@ -19,18 +19,20 @@
 
 - **O quê**: Implementação prática e tipada para AWS
 - **Por quê**: Necessidade específica de entregar plataforma funcional rapidamente
-- **Status**: Marco 3 completo (100%), Marco 4 em andamento, Quickstart 80%
+- **Status**: Marco 4 completo (100%), Marco 5 planejamento iniciado, Enterprise Assessment 3.8/5.0 (Advanced)
 - **Localização**: `/platform-provisioning/aws/kubernetes/`
 - **Documentação**: [aws-eks-gitlab-quickstart-REAL.md](docs/plan/quickstart/aws-eks-gitlab-quickstart-REAL.md)
 - **Características**:
   - ✅ Totalmente funcional em AWS
   - ✅ Terraform + Helm implementados
-  - ✅ Marcos 0, 1, 2, 3 completos
+  - ✅ Marcos 0, 1, 2, 3, 4 completos (CI/CD end-to-end)
   - ✅ EKS v1.34 (control plane + nodes) — Standard Support
-  - ✅ FinOps automation ativa (Lambda + EventBridge weekday + weekend)
+  - ✅ FinOps automation ativa (R$ 56.424/ano savings realizados)
+  - ✅ CI/CD Platform completo: GitLab + ArgoCD + SonarQube + Keycloak SSO
+  - ✅ Security: 8/8 vulnerabilities fixed, ESO 100% coverage
+  - ✅ CI/CD Enhancement: 49 artefatos preparados (CICD-001 a 005)
   - ⚠️ Usa alguns serviços AWS nativos (RDS PostgreSQL, AWS Secrets Manager)
-  - ⚠️ GitLab OIDC pendente (Helm pending-upgrade, STOP-AND-FIX)
-  - 📅 Timeline: 14 dias até Marco 3, Quickstart em progresso
+  - 📅 Timeline: 4 semanas Marco 0-4, Production Roadmap 14-19 semanas
 
 #### 🎨 VISÃO CORE: Plataforma Cloud-Agnostic (Futuro)
 
@@ -77,10 +79,11 @@
 
 **SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
 
-- Marco atual: **Marco 4** (CI/CD Pipeline — Keycloak OIDC ✅, ArgoCD v2.10.0 ✅, SonarQube 🔴, GitLab CI/CD 📋)
-- Quickstart MVP: **82% completo** (Task#1 ArgoCD ✅, Task#2 Node ✅, Tasks #3,4,5 pendentes)
-- Progresso Marco 3: **100% completo** (Todos os componentes operacionais)
-- Próximo: Completar Quickstart MVP (GitLab OIDC, E2E App, FinOps Dashboards)
+- Marco atual: **Marco 5** (Production Readiness — Enterprise Assessment 3.8/5.0, Production Roadmap 14-19 semanas)
+- Marco 4: **✅ 100% completo** (8/8 GAPs — CI/CD end-to-end funcional)
+- CI/CD Enhancement: **49 artefatos preparados** (CICD-001 a CICD-005 — Security, Quality, Automation, Progressive Delivery)
+- Progresso Geral: **65%** (Marcos 0-4 completos, Marco 5 planejamento)
+- Próximo: Deploy CI/CD Enhancement (Phase 1: SAST/DAST + Immutable Tags + Quality Gate, Phase 2: Secret Rotation, Phase 3: Argo Rollouts)
 
 **NÃO me refiro:**
 

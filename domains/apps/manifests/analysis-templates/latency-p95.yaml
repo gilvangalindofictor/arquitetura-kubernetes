@@ -1,0 +1,70 @@
+# =============================================================================
+# AnalysisTemplate: P95 Latency
+# Demand: CICD-005
+# Strategy: Used in both Canary and Blue-Green rollouts
+#
+# Requirement: Applications MUST expose the following Prometheus metric:
+#   http_request_duration_seconds_bucket{le="...", service="<name>"}  (histogram)
+#   (Standard Prometheus histogram format — exposed by most HTTP frameworks)
+#
+# Logic: p95 latency < 500ms
+# If threshold is exceeded for 'failureLimit' consecutive measurements → auto-rollback
+#
+# Usage (Rollout spec):
+#   analysis:
+#     templates:
+#       - templateName: latency-p95
+#     args:
+#       - name: service-name
+#         value: my-app-canary
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency-p95
+  labels:
+    app.kubernetes.io/name: latency-p95
+    app.kubernetes.io/component: analysis-template
+    app.kubernetes.io/part-of: progressive-delivery
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-005
+  annotations:
+    description: "P95 latency analysis — requires http_request_duration_seconds histogram metric"
+    metric-source: "Prometheus"
+    threshold: "<500ms"
+spec:
+  # ---- Arguments (injected per Rollout) ------------------------------------
+  args:
+    - name: service-name
+      # Value injected by Rollout spec: args[].value = "<canary-service-name>"
+    - name: prometheus-url
+      value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    - name: latency-threshold
+      # Default: 0.500 seconds (500ms). Override per Rollout if needed.
+      value: "0.500"
+
+  # ---- Metric definition ---------------------------------------------------
+  metrics:
+    - name: latency-p95
+      interval: 1m
+      count: 5
+      failureLimit: 2
+
+      provider:
+        prometheus:
+          address: "{{args.prometheus-url}}"
+          query: |
+            histogram_quantile(
+              0.95,
+              sum(
+                rate(
+                  http_request_duration_seconds_bucket{
+                    service="{{args.service-name}}"
+                  }[2m]
+                )
+              ) by (le)
+            )
+
+      # Success: p95 < 500ms (or NaN — no traffic yet, treated as healthy)
+      successCondition: result[0] < {{args.latency-threshold}} || isNaN(result[0])
+      failureCondition: result[0] >= {{args.latency-threshold}} && !isNaN(result[0])
