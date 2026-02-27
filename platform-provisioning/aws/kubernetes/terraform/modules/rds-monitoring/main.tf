@@ -148,10 +148,8 @@ resource "aws_cloudwatch_metric_alarm" "rds_stopped" {
 
   tags = merge(local.common_alarm_tags, {
     Severity    = "critical"
-    Impact      = "platform-wide"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md"
+    Impact      = "platform"
     AlertName   = "RDSInstanceStopped"
-    Description = "RDS instance stopped - all dependent services failing"
   })
 }
 
@@ -186,9 +184,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_cpu" {
   tags = merge(local.common_alarm_tags, {
     Severity    = "warning"
     Impact      = "performance"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md#high-cpu"
     AlertName   = "RDSHighCPU"
-    Description = "RDS CPU utilization above threshold"
   })
 }
 
@@ -224,9 +220,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_connections" {
   tags = merge(local.common_alarm_tags, {
     Severity    = "warning"
     Impact      = "availability"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md#high-connections"
     AlertName   = "RDSHighConnections"
-    Description = "RDS connection pool nearing exhaustion"
   })
 }
 
@@ -261,9 +255,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_low_storage" {
   tags = merge(local.common_alarm_tags, {
     Severity    = "warning"
     Impact      = "availability"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md#low-storage"
     AlertName   = "RDSLowStorage"
-    Description = "RDS free storage space below threshold"
   })
 }
 
@@ -298,9 +290,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_read_latency" {
   tags = merge(local.common_alarm_tags, {
     Severity    = "warning"
     Impact      = "performance"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md#high-latency"
     AlertName   = "RDSHighReadLatency"
-    Description = "RDS read latency above threshold"
   })
 }
 
@@ -328,9 +318,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_write_latency" {
   tags = merge(local.common_alarm_tags, {
     Severity    = "warning"
     Impact      = "performance"
-    Runbook     = "${var.runbook_base_url}/rds-monitoring-alerts-response.md#high-latency"
     AlertName   = "RDSHighWriteLatency"
-    Description = "RDS write latency above threshold"
   })
 }
 
@@ -363,39 +351,4 @@ resource "aws_db_event_subscription" "rds_instance_events" {
     Name        = "${var.environment}-rds-instance-events"
     Description = "RDS instance lifecycle event notifications"
   })
-}
-
-# =============================================================================
-# Outputs
-# =============================================================================
-
-output "sns_topic_arn" {
-  description = "SNS Topic ARN for RDS alerts"
-  value       = aws_sns_topic.rds_alerts.arn
-}
-
-output "sns_topic_name" {
-  description = "SNS Topic name"
-  value       = aws_sns_topic.rds_alerts.name
-}
-
-output "alarm_arns" {
-  description = "Map of CloudWatch alarm ARNs by alarm type"
-  value = merge(
-    {
-      rds_stopped = aws_cloudwatch_metric_alarm.rds_stopped.arn
-    },
-    var.enable_performance_alerts ? {
-      rds_high_cpu            = aws_cloudwatch_metric_alarm.rds_high_cpu[0].arn
-      rds_high_connections    = aws_cloudwatch_metric_alarm.rds_high_connections[0].arn
-      rds_low_storage         = aws_cloudwatch_metric_alarm.rds_low_storage[0].arn
-      rds_high_read_latency   = aws_cloudwatch_metric_alarm.rds_high_read_latency[0].arn
-      rds_high_write_latency  = aws_cloudwatch_metric_alarm.rds_high_write_latency[0].arn
-    } : {}
-  )
-}
-
-output "event_subscription_arn" {
-  description = "RDS event subscription ARN"
-  value       = aws_db_event_subscription.rds_instance_events.arn
 }
