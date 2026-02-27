@@ -1,0 +1,434 @@
+# =============================================================================
+# RDS Connectivity Alerts: Application-Level Database Connection Monitoring
+# =============================================================================
+# Purpose: Detect when Kubernetes workloads cannot connect to RDS PostgreSQL
+# Context: GitLab webservice stuck in Init:2/3 when RDS was stopped (no alerts)
+#
+# Architecture:
+#   - CloudWatch Alarms: RDS instance-level monitoring (AWS native)
+#   - Prometheus Alerts (this file): Application-level connectivity (K8s native)
+#   - Grafana Dashboard: Unified view combining both sources
+#
+# Critical Dependencies: GitLab, Keycloak, SonarQube, ArgoCD
+#
+# Related:
+#   - CloudWatch: platform-provisioning/.../modules/rds-monitoring/
+#   - ADR-089: RDS Availability Monitoring
+#   - Runbook: docs/runbooks/rds-monitoring-alerts-response.md
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rds-connectivity-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/name: rds-connectivity-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    prometheus: kube-prometheus-stack-prometheus
+    release: kube-prometheus-stack
+    role: alert-rules
+    team: platform-sre
+    demand: RDS-MONITORING
+spec:
+  groups:
+    # =========================================================================
+    # RDS Connectivity: Application-Level Database Connection Failures
+    # =========================================================================
+    - name: rds-connectivity
+      interval: 30s
+      rules:
+        # ---------------------------------------------------------------------
+        # GitLab Webservice: Stuck in Init State (DB Connection Failure)
+        # ---------------------------------------------------------------------
+        # Symptom: GitLab webservice pods stuck in Init:2/3 state for >5 minutes
+        # Root Cause: Cannot connect to RDS PostgreSQL (stopped, network, credentials)
+        # Impact: CRITICAL - GitLab CI/CD unavailable, Git operations failing
+        # ---------------------------------------------------------------------
+        - alert: GitLabRDSConnectivityFailure
+          expr: |
+            (
+              kube_pod_container_status_waiting_reason{
+                namespace="staging-platform-gitlab",
+                pod=~"gitlab-webservice-.*",
+                reason="PodInitializing"
+              } > 0
+            )
+            and
+            (
+              kube_pod_status_phase{
+                namespace="staging-platform-gitlab",
+                pod=~"gitlab-webservice-.*",
+                phase="Pending"
+              } > 0
+            )
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            component: gitlab
+            dependency: rds-postgresql
+            impact: platform-wide
+            alert_group: rds-connectivity
+          annotations:
+            summary: "CRITICAL: GitLab webservice cannot connect to RDS PostgreSQL"
+            description: |
+              GitLab webservice pod {{ $labels.pod }} in namespace {{ $labels.namespace }}
+              has been stuck in Init:2/3 state for more than 5 minutes.
+
+              This typically indicates the database connection is failing.
+
+              **Root Causes:**
+              - RDS instance stopped (manual or FinOps automation)
+              - RDS instance unreachable (network, security group)
+              - Database credentials invalid (Secret rotation issue)
+              - DNS resolution failing for RDS endpoint
+
+              **Impact:** CRITICAL
+              - GitLab web UI unavailable
+              - Git push/pull operations failing
+              - CI/CD pipelines cannot start
+              - Merge requests blocked
+
+              **Immediate Actions:**
+              1. Check RDS instance status:
+                 aws rds describe-db-instances --db-instance-identifier k8s-platform-prod-postgresql --query 'DBInstances[0].DBInstanceStatus' --region us-east-1
+
+              2. If stopped, start RDS instance:
+                 aws rds start-db-instance --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              3. Check GitLab init container logs:
+                 kubectl logs -n staging-platform-gitlab {{ $labels.pod }} -c configure-secrets --tail=50
+
+              4. Verify database Secret:
+                 kubectl get secret -n staging-platform-gitlab gitlab-postgresql-secret -o yaml
+
+              5. Check RDS security group rules (allow port 5432 from EKS)
+
+              **Escalation:**
+              - Platform SRE team (immediate)
+              - Database team (if RDS instance issues)
+              - Security team (if credential rotation issues)
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#gitlab-connectivity
+              **Dashboard:** https://grafana.internal/d/rds-monitoring
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#gitlab-connectivity"
+            dashboard_url: "https://grafana.internal/d/rds-monitoring"
+
+        # ---------------------------------------------------------------------
+        # Keycloak: CrashLoopBackOff (DB Connection Failure)
+        # ---------------------------------------------------------------------
+        # Symptom: Keycloak pods in CrashLoopBackOff (cannot start)
+        # Root Cause: Cannot connect to RDS PostgreSQL during startup
+        # Impact: CRITICAL - SSO unavailable, all OIDC authentication failing
+        # ---------------------------------------------------------------------
+        - alert: KeycloakRDSConnectivityFailure
+          expr: |
+            kube_pod_container_status_waiting_reason{
+              namespace="staging-keycloak-system",
+              pod=~"keycloak-.*",
+              reason="CrashLoopBackOff"
+            } > 0
+          for: 3m
+          labels:
+            severity: critical
+            team: platform-sre
+            component: keycloak
+            dependency: rds-postgresql
+            impact: platform-wide
+            alert_group: rds-connectivity
+          annotations:
+            summary: "CRITICAL: Keycloak cannot connect to RDS PostgreSQL"
+            description: |
+              Keycloak pod {{ $labels.pod }} in namespace {{ $labels.namespace }}
+              is in CrashLoopBackOff state for more than 3 minutes.
+
+              This typically indicates database connection failure during Keycloak startup.
+
+              **Root Causes:**
+              - RDS instance stopped or unreachable
+              - Database credentials invalid
+              - Keycloak database schema migration failure
+              - Connection pool exhaustion
+
+              **Impact:** CRITICAL
+              - SSO login unavailable (Grafana, ArgoCD, Harbor, GitLab, Vault)
+              - Users cannot authenticate to any platform service
+              - OIDC flows failing (Authorization Code, PKCE)
+
+              **Immediate Actions:**
+              1. Check Keycloak pod logs for database errors:
+                 kubectl logs -n staging-keycloak-system {{ $labels.pod }} --tail=100 | grep -i "database\|connection\|sql"
+
+              2. Verify RDS instance is running:
+                 aws rds describe-db-instances --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              3. Check Keycloak database Secret:
+                 kubectl get secret -n staging-keycloak-system keycloak-db-secret -o yaml
+
+              4. Test database connectivity from Keycloak pod (if running):
+                 kubectl exec -n staging-keycloak-system {{ $labels.pod }} -- pg_isready -h k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com -p 5432
+
+              5. If RDS stopped, start it immediately:
+                 aws rds start-db-instance --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              **Escalation:**
+              - Platform SRE team (immediate)
+              - Identity team (if Keycloak configuration issues)
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#keycloak-connectivity
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#keycloak-connectivity"
+
+        # ---------------------------------------------------------------------
+        # SonarQube: CrashLoopBackOff (DB Connection Failure)
+        # ---------------------------------------------------------------------
+        # Symptom: SonarQube pods in CrashLoopBackOff
+        # Root Cause: Cannot connect to RDS PostgreSQL during startup
+        # Impact: WARNING - Code quality scans unavailable (non-blocking for dev)
+        # ---------------------------------------------------------------------
+        - alert: SonarQubeRDSConnectivityFailure
+          expr: |
+            kube_pod_container_status_waiting_reason{
+              namespace="staging-sonarqube",
+              pod=~"sonarqube-.*",
+              reason="CrashLoopBackOff"
+            } > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            component: sonarqube
+            dependency: rds-postgresql
+            impact: development
+            alert_group: rds-connectivity
+          annotations:
+            summary: "WARNING: SonarQube cannot connect to RDS PostgreSQL"
+            description: |
+              SonarQube pod {{ $labels.pod }} in namespace {{ $labels.namespace }}
+              is in CrashLoopBackOff state for more than 5 minutes.
+
+              **Root Causes:**
+              - RDS instance stopped or unreachable
+              - Database credentials invalid
+              - SonarQube database schema incompatibility
+
+              **Impact:** WARNING
+              - Code quality scans unavailable
+              - SonarQube Quality Gate checks failing in CI/CD
+              - Technical debt metrics not updated
+
+              **Actions:**
+              1. Check SonarQube logs:
+                 kubectl logs -n staging-sonarqube {{ $labels.pod }} --tail=100
+
+              2. Verify RDS status (may be stopped by FinOps):
+                 aws rds describe-db-instances --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              3. Start RDS if needed:
+                 aws rds start-db-instance --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#sonarqube-connectivity
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#sonarqube-connectivity"
+
+        # ---------------------------------------------------------------------
+        # ArgoCD: Application Controller Degraded (DB Connection Issues)
+        # ---------------------------------------------------------------------
+        # Symptom: ArgoCD ApplicationSet controller reporting errors
+        # Root Cause: Cannot query RDS for application state persistence
+        # Impact: WARNING - GitOps sync operations may be delayed
+        # ---------------------------------------------------------------------
+        - alert: ArgoCDRDSConnectivityIssue
+          expr: |
+            (
+              kube_pod_container_status_restarts_total{
+                namespace="staging-argocd",
+                pod=~"argocd-application-controller-.*"
+              }
+              -
+              kube_pod_container_status_restarts_total{
+                namespace="staging-argocd",
+                pod=~"argocd-application-controller-.*"
+              } offset 10m
+            ) >= 3
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            component: argocd
+            dependency: rds-postgresql
+            impact: gitops
+            alert_group: rds-connectivity
+          annotations:
+            summary: "WARNING: ArgoCD application controller restarting frequently"
+            description: |
+              ArgoCD application controller pod {{ $labels.pod }} has restarted
+              {{ $value }} times in the last 10 minutes.
+
+              This may indicate database connectivity issues (ArgoCD uses PostgreSQL for app state).
+
+              **Impact:** WARNING
+              - GitOps sync operations may be delayed
+              - Application health status not updated
+              - Auto-sync may be paused
+
+              **Actions:**
+              1. Check ArgoCD application controller logs:
+                 kubectl logs -n staging-argocd {{ $labels.pod }} --tail=100 | grep -i "database\|postgres\|connection"
+
+              2. Verify RDS status:
+                 aws rds describe-db-instances --db-instance-identifier k8s-platform-prod-postgresql --region us-east-1
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#argocd-connectivity
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#argocd-connectivity"
+
+        # ---------------------------------------------------------------------
+        # Platform-Wide RDS Outage (Multiple Services Failing)
+        # ---------------------------------------------------------------------
+        # Symptom: 2+ services simultaneously failing database connections
+        # Root Cause: RDS instance stopped, network partition, or failover
+        # Impact: CRITICAL - Platform-wide database outage
+        # ---------------------------------------------------------------------
+        - alert: RDSPostgreSQLPlatformWideOutage
+          expr: |
+            (
+              count(
+                kube_pod_container_status_waiting_reason{
+                  reason=~"CrashLoopBackOff|PodInitializing",
+                  namespace=~"staging-platform-gitlab|staging-keycloak-system|staging-sonarqube|staging-argocd"
+                }
+              ) >= 2
+            )
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            component: rds-postgresql
+            impact: platform-wide
+            alert_group: rds-connectivity
+            pager: "true"  # Trigger PagerDuty
+          annotations:
+            summary: "🚨 CRITICAL: RDS PostgreSQL platform-wide outage detected"
+            description: |
+              **PLATFORM-WIDE DATABASE OUTAGE**
+
+              {{ $value }} critical services are simultaneously unable to connect to RDS PostgreSQL.
+
+              This indicates the RDS instance is likely DOWN or unreachable.
+
+              **Affected Services:**
+              - GitLab (CI/CD, Git operations)
+              - Keycloak (SSO authentication)
+              - SonarQube (code quality)
+              - ArgoCD (GitOps)
+
+              **Impact:** CRITICAL
+              - Development workflows completely blocked
+              - Users cannot authenticate (SSO down)
+              - CI/CD pipelines failing
+              - GitOps deployments halted
+
+              **IMMEDIATE ACTIONS (5-minute response SLA):**
+
+              1. **Check RDS instance status:**
+                 aws rds describe-db-instances \
+                   --db-instance-identifier k8s-platform-prod-postgresql \
+                   --query 'DBInstances[0].[DBInstanceStatus,Endpoint.Address]' \
+                   --region us-east-1
+
+              2. **If status = "stopped", START IMMEDIATELY:**
+                 aws rds start-db-instance \
+                   --db-instance-identifier k8s-platform-prod-postgresql \
+                   --region us-east-1
+
+                 Note: RDS takes 3-5 minutes to start. Monitor in AWS console.
+
+              3. **Check CloudWatch alarms:**
+                 aws cloudwatch describe-alarms \
+                   --alarm-names staging-rds-instance-stopped \
+                   --region us-east-1
+
+              4. **Check RDS events for failover/maintenance:**
+                 aws rds describe-events \
+                   --source-identifier k8s-platform-prod-postgresql \
+                   --source-type db-instance \
+                   --duration 60 \
+                   --region us-east-1
+
+              5. **Check network connectivity from EKS:**
+                 kubectl run -n default postgres-test --rm -it --image=postgres:16 --restart=Never -- \
+                   pg_isready -h k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com -p 5432
+
+              6. **Check security groups (allow port 5432 from EKS):**
+                 aws ec2 describe-security-groups \
+                   --group-ids sg-0e9ceb3811de9e8c7 \
+                   --region us-east-1
+
+              7. **Once RDS is running, verify pod recovery:**
+                 watch -n 5 'kubectl get pods -A | grep -E "gitlab-webservice|keycloak|sonarqube|argocd"'
+
+              **Escalation Path:**
+              - Minute 0-5: Platform SRE team (self-service RDS start)
+              - Minute 5-15: Database team (if RDS won't start)
+              - Minute 15+: AWS Support (Premium Support case)
+
+              **Communication:**
+              - Post incident notice in #platform-alerts Slack channel
+              - Update status page: https://status.internal
+              - Notify leadership if outage exceeds 15 minutes
+
+              **Post-Incident:**
+              - Review FinOps Lambda exclusion rules (prevent RDS auto-stop)
+              - Update RDS monitoring thresholds if needed
+              - Document root cause in incident postmortem
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#platform-wide-outage
+              **Dashboard:** https://grafana.internal/d/rds-monitoring
+              **AWS Console:** https://console.aws.amazon.com/rds/home?region=us-east-1#database:id=k8s-platform-prod-postgresql
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#platform-wide-outage"
+            dashboard_url: "https://grafana.internal/d/rds-monitoring"
+            aws_console_url: "https://console.aws.amazon.com/rds/home?region=us-east-1#database:id=k8s-platform-prod-postgresql"
+
+        # ---------------------------------------------------------------------
+        # PostgreSQL Exporter Down (Monitoring Gap)
+        # ---------------------------------------------------------------------
+        # Symptom: PostgreSQL metrics not being scraped
+        # Impact: WARNING - Loss of database performance visibility
+        # ---------------------------------------------------------------------
+        - alert: PostgreSQLExporterDown
+          expr: |
+            up{job="postgres-exporter"} == 0
+            or
+            absent(up{job="postgres-exporter"})
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            component: postgres-exporter
+            impact: observability
+            alert_group: rds-connectivity
+          annotations:
+            summary: "WARNING: PostgreSQL exporter is down - metrics unavailable"
+            description: |
+              PostgreSQL exporter (job={{ $labels.job }}, instance={{ $labels.instance }})
+              has been down for more than 5 minutes.
+
+              **Impact:** WARNING
+              - Loss of database performance metrics
+              - Cannot monitor query performance, connections, cache hit ratio
+              - Data-services alerts may not fire
+
+              **Actions:**
+              1. Check postgres-exporter pod:
+                 kubectl get pods -A -l app=postgres-exporter
+
+              2. Check postgres-exporter logs:
+                 kubectl logs -n <namespace> -l app=postgres-exporter --tail=100
+
+              3. Verify postgres-exporter can reach RDS:
+                 kubectl exec -n <namespace> <postgres-exporter-pod> -- \
+                   pg_isready -h k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+
+              **Runbook:** https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#exporter-down
+            runbook_url: "https://github.com/<org>/<repo>/docs/runbooks/rds-monitoring-alerts-response.md#exporter-down"
