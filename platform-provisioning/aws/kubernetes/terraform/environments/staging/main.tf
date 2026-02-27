@@ -1047,7 +1047,7 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
 module "kube_prometheus_stack_staging" {
   source = "../../modules/kube-prometheus-stack"
 
-  namespace = "monitoring"
+  namespace = "staging-observability-monitoring"
   # V-001 REMEDIATED: grafana_admin_password hardcoded "admin" removed (2026-02-20)
   # Admin password now managed by: Vault KV (secret/grafana/admin) → ESO → K8s Secret → existingSecret
   grafana_admin_use_existing_secret = true
@@ -1539,7 +1539,7 @@ resource "aws_vpc_endpoint" "s3" {
 module "observability_staging" {
   source = "../../modules/observability"
 
-  monitoring_namespace = "monitoring"
+  monitoring_namespace = "staging-observability-monitoring"
 }
 
 #------------------------------------------------------------------------------
@@ -2104,6 +2104,28 @@ module "snapshot_cleanup" {
 }
 
 #------------------------------------------------------------------------------
+# Data Lifecycle Manager (DLM) — Automated Snapshot Retention
+# Purpose: Automate EBS snapshot retention policies (Velero 30d, Manual 14d, Migration 7d)
+# Savings: R$ 252/ano (30% reduction post-stabilization, 3 months)
+# Current state: 22 snapshots (213 GB, R$ 766/ano), no snapshots > 30 days
+# Replaces: Manual snapshot management with automated DLM policies
+#------------------------------------------------------------------------------
+
+module "snapshot_lifecycle" {
+  source = "../../modules/snapshot-lifecycle"
+
+  policy_name_prefix       = "k8s-platform-staging"
+  velero_retention_days    = 30 # Velero backup snapshots
+  manual_retention_days    = 14 # Manually created snapshots
+  migration_retention_days = 7  # Migration/temporary snapshots
+
+  common_tags = merge(local.common_tags, {
+    Purpose     = "Automated EBS snapshot retention via DLM"
+    Criticality = "High"
+  })
+}
+
+#------------------------------------------------------------------------------
 # TASK-004 Validation: FCT Proposals Bucket Access Test
 # Purpose: Verify bucket creation, encryption, tagging, and IAM policy ARNs
 # Pattern: null_resource local-exec with Python (WSL-safe, no DNS issues)
@@ -2389,8 +2411,8 @@ module "waf_staging" {
 module "secret_rotation" {
   source = "../../modules/secret-rotation"
 
-  namespace    = "staging-security-vault"
-  environment  = local.environment
+  namespace   = "staging-security-vault"
+  environment = local.environment
 
   # Quarterly rotation — PCI-DSS 8.2.4 compliance
   rotation_schedule = "0 2 1 */3 *"
