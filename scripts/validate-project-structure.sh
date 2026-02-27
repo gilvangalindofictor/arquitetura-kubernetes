@@ -269,6 +269,96 @@ done
 echo ""
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}8. Validando Arquivos na Raiz do Projeto${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Lista de arquivos permitidos na raiz (conforme STRICT-RULES.md)
+ALLOWED_ROOT_FILES=(
+    ".editorconfig"
+    ".gitignore"
+    ".gitattributes"
+    ".gitallowed"
+    "README.md"
+    "PROJECT-CONTEXT.md"
+    "ARCHITECTURE-DIAGRAMS.md"
+    "platform-config.yaml"
+    "Kubernetes.code-workspace"
+    "kubectl"
+    "cluster-info"
+    "setup.sh"
+)
+
+# Verificar arquivos na raiz
+echo "Verificando arquivos na raiz do projeto..."
+ROOT_VIOLATIONS=0
+
+for file in *; do
+    # Pular diretórios e arquivos ocultos
+    if [ -d "$file" ] || [[ "$file" == .* ]]; then
+        continue
+    fi
+
+    # Verificar se está na lista de permitidos
+    is_allowed=0
+    for allowed in "${ALLOWED_ROOT_FILES[@]}"; do
+        if [ "$file" == "$allowed" ]; then
+            is_allowed=1
+            break
+        fi
+    done
+
+    if [ $is_allowed -eq 0 ]; then
+        ROOT_VIOLATIONS=$((ROOT_VIOLATIONS + 1))
+
+        # Determinar destino baseado no tipo de arquivo
+        case "$file" in
+            *.sh)
+                move_file "$file" "scripts/$file" "Scripts devem estar em scripts/"
+                ;;
+            *DEPLOYMENT*.md|*SESSION*.md|*SUMMARY*.md|*STATUS*.md|*ACTIONS*.md)
+                # Extrair data do nome do arquivo ou usar data atual
+                if [[ "$file" =~ 2026-[0-9]{2}-[0-9]{2} ]]; then
+                    date="${BASH_REMATCH[0]}"
+                else
+                    date=$(date +%Y-%m-%d)
+                fi
+                # Normalizar nome do arquivo
+                normalized=$(echo "$file" | tr '[:upper:]' '[:lower:]' | sed 's/^deployment-summary-/deployment-/' | sed 's/^final-status-/final-status-/' | sed 's/^session-summary-/session-summary-/' | sed 's/^next-actions-/next-actions-/')
+                move_file "$file" "docs/logbook/$date-$normalized" "Relatórios de sessão devem estar em docs/logbook/"
+                ;;
+            *VALIDATION*.md|*VALIDACAO*.md)
+                move_file "$file" "reports/security/$(echo $file | tr '[:upper:]' '[:lower:]')" "Relatórios de validação devem estar em reports/security/"
+                ;;
+            *VALIDATION*.json|*VALIDACAO*.json|*RESULTS*.json)
+                move_file "$file" "reports/security/$(echo $file | tr '[:upper:]' '[:lower:]')" "Resultados de validação devem estar em reports/security/"
+                ;;
+            *savings*.txt|*savings*.md|*cost*.txt|*cost*.md)
+                move_file "$file" "reports/finops/$file" "Relatórios FinOps devem estar em reports/finops/"
+                ;;
+            *.md)
+                echo -e "${RED}❌ Documento não permitido na raiz: $file${NC}"
+                echo -e "   ${YELLOW}Consulte: docs/governance/STRICT-RULES.md${NC}"
+                echo -e "   ${YELLOW}Mova manualmente para local apropriado${NC}"
+                ((ISSUES_FOUND++))
+                ;;
+            *)
+                echo -e "${YELLOW}⚠️  Arquivo não classificado na raiz: $file${NC}"
+                echo -e "   ${YELLOW}Revise manualmente se deve ser movido${NC}"
+                ((ISSUES_FOUND++))
+                ;;
+        esac
+    fi
+done
+
+if [ $ROOT_VIOLATIONS -eq 0 ]; then
+    echo -e "${GREEN}✅ Nenhum arquivo não permitido na raiz${NC}"
+else
+    echo -e "${YELLOW}⚠️  $ROOT_VIOLATIONS arquivo(s) não permitido(s) na raiz foram processados${NC}"
+fi
+echo ""
+
+echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}📊 RESUMO DA VALIDAÇÃO${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo ""
