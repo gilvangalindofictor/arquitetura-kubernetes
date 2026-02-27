@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-20
-**Versão:** 3.3 (V-001/V-002 DEPLOYED — 2/8 vulnerabilidades remediadas)
+**Última Atualização:** 2026-02-27
+**Versão:** 3.4 (Sprint 3 Complete — Loki Fix + RDS Monitoring Validated)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -38,7 +38,9 @@
 | **R-033** | **Terraform State Lock (Stale/Long-running)**                     | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Monitorado**                        | **Background apply legítimo**                                                            |
 | **R-034** | **Tempo OTLP Integration Blocker (GAP-7)**                        | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **Bloqueado**                         | **3 soluções propostas**                                                                 |
 | **R-035** | **AWS LB Controller TLS Timeout (IngressGroup)**                  | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (ADR-053)**               | **VPC Endpoint ELB**                                                                     |
-| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                       | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055)**               | **VPC Endpoint KMS**                                                                     |
+| **R-036** | **Vault Cluster Quorum Loss (KMS Timeout)**                       | **MÉDIO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-055, 2026-02-10)**   | **VPC Endpoint KMS — 3/3 pods healthy**                                                  |
+| **R-056** | **Loki Breaking Change (shared_store deprecated in 3.6.5)**       | **ALTO**      | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-27)**            | **Helm upgrade: delete_request_store:s3 — 0 CrashLoopBackOff**                           |
+| **R-057** | **RDS PostgreSQL Silent Outages (no monitoring)**                 | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Mitigado (2026-02-27)**             | **SNS alerts + CloudWatch alarms — MTTD 4h→2min**                                        |
 | **R-037** | **Redis Operator Migration Drift (SpotaHome→OT-Container-Kit)**   | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **TF module reescrito, CR+RBAC alinhados**                                               |
 | **R-038** | **Vault EBS Volume Loss (Data Permanente)**                       | **BAIXO**     | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (2026-02-13)**            | **Reinit + KV seed + K8s auth reconfig**                                                 |
 | **R-039** | **CoreDNS Split-Horizon Drift**                                   | **BAIXO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (2026-02-18)**             | **coredns-custom ConfigMap em TF (staging)**                                             |

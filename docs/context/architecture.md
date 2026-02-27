@@ -1,8 +1,8 @@
 # 🏗️ Arquitetura da Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-19
-**Versão:** 3.4 (ESO Zero-Drift — 7 ExternalSecrets + Grafana OIDC rotacionado)
-**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Harbor OIDC OK | ✅ Redis AUTH (OT-Container-Kit) | ✅ Vault OIDC SSO | ✅ ArgoCD OIDC SSO | ✅ ESO Zero-Drift
+**Última Atualização:** 2026-02-27
+**Versão:** 3.5 (Loki 3.6.5 Fix + Loki→Tempo Correlation)
+**Status:** 🚀 FinOps ATIVA | ✅ SSO 39/39 Passed | ✅ Loki Operational | ✅ Loki→Tempo Correlation | ✅ RDS Monitoring | ✅ Sprint 3: 97% Complete
 
 ---
 
