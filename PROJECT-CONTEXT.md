@@ -1,11 +1,12 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-26
+> **Última Atualização**: 2026-02-27
 > **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 planejamento | Enterprise Assessment 3.8/5.0)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
 > **Custo AWS (Feb/2026)**: ~$800/mês staging | FinOps Savings: R$ 56.424/ano realizados
+> **Recent Updates (2026-02-27)**: DEC-075 Namespace Standardization ✅ | ADR-086 FinOps Protection ✅ | CICD-003 Fix ✅
 
 ---
 

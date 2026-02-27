@@ -1,0 +1,259 @@
+# =============================================================================
+# DT-005: Alertmanager Production Configuration
+# Cluster: k8s-platform-prod (EKS)
+#
+# Routing Strategy:
+#   - Critical alerts -> immediate notification (Slack + Email), 5min repeat
+#   - Warning alerts -> batched notification (Slack), 30min repeat
+#   - Data services -> dedicated channel/recipient
+#   - Security alerts -> security team channel
+#
+# Receivers:
+#   - slack-critical: Immediate critical alerts
+#   - slack-warning: Batched warning alerts
+#   - slack-data-services: Data service specific alerts
+#   - slack-security: Security/vault/certificate alerts
+#   - email-critical: Email for critical alerts (backup channel)
+#   - null: Silenced/suppressed alerts
+#
+# IMPORTANT: Replace placeholder values before deploying:
+#   - SLACK_WEBHOOK_URL_* -> actual Slack webhook URLs
+#   - smtp_* -> actual SMTP server configuration
+#   - email_to_* -> actual email addresses
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: dt005-alertmanager-config
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    demand: DT-005
+    team: platform-sre
+spec:
+  route:
+    groupBy: ["namespace", "alertname", "severity"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+    receiver: "slack-warning"
+    routes:
+      # =====================================================================
+      # Critical alerts -> Immediate notification (Slack + Email)
+      # =====================================================================
+      - matchers:
+          - name: severity
+            value: critical
+            matchType: "="
+        receiver: "slack-critical"
+        repeatInterval: 5m
+        groupWait: 10s
+        groupInterval: 1m
+        continue: true
+
+      # Critical alerts -> Also send email (backup channel)
+      - matchers:
+          - name: severity
+            value: critical
+            matchType: "="
+        receiver: "email-critical"
+        repeatInterval: 15m
+        groupWait: 30s
+
+      # =====================================================================
+      # Data services alerts -> Dedicated channel
+      # =====================================================================
+      - matchers:
+          - name: service
+            value: "(postgresql|redis|rabbitmq)"
+            matchType: "=~"
+        receiver: "slack-data-services"
+        repeatInterval: 15m
+        groupBy: ["service", "alertname", "namespace"]
+
+      # =====================================================================
+      # Security alerts -> Security channel
+      # =====================================================================
+      - matchers:
+          - name: service
+            value: "(vault|cert-manager|external-secrets)"
+            matchType: "=~"
+        receiver: "slack-security"
+        repeatInterval: 10m
+        groupBy: ["service", "alertname"]
+
+      # =====================================================================
+      # Warning alerts -> Batched notifications
+      # =====================================================================
+      - matchers:
+          - name: severity
+            value: warning
+            matchType: "="
+        receiver: "slack-warning"
+        repeatInterval: 30m
+        groupWait: 60s
+        groupInterval: 10m
+
+  receivers:
+    # =====================================================================
+    # Slack - Critical Alerts (immediate)
+    # =====================================================================
+    - name: "slack-critical"
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: critical-webhook-url
+          channel: "#alerts-critical"
+          sendResolved: true
+          title: |
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Severity:* `{{ .Labels.severity }}`
+            *Namespace:* {{ .Labels.namespace }}
+            *Service:* {{ .Labels.service }}
+            *Description:* {{ .Annotations.description }}
+            *Started:* {{ .StartsAt | since }}
+            {{ if .Annotations.dashboard_url }}*Dashboard:* {{ .Annotations.dashboard_url }}{{ end }}
+            ---
+            {{ end }}
+
+    # =====================================================================
+    # Slack - Warning Alerts (batched)
+    # =====================================================================
+    - name: "slack-warning"
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: warning-webhook-url
+          channel: "#alerts-warning"
+          sendResolved: true
+          title: |
+            [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Severity:* `{{ .Labels.severity }}`
+            *Namespace:* {{ .Labels.namespace }}
+            {{ if .Annotations.description }}*Details:* {{ .Annotations.description | reReplaceAll "\n" " " | truncate 300 }}{{ end }}
+            ---
+            {{ end }}
+
+    # =====================================================================
+    # Slack - Data Services (dedicated)
+    # =====================================================================
+    - name: "slack-data-services"
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: data-services-webhook-url
+          channel: "#alerts-data-services"
+          sendResolved: true
+          title: |
+            [{{ .Status | toUpper }}] {{ .CommonLabels.service }}: {{ .CommonLabels.alertname }}
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Severity:* `{{ .Labels.severity }}`
+            *Service:* {{ .Labels.service }} / {{ .Labels.component }}
+            *Instance:* {{ .Labels.instance }}
+            *Description:* {{ .Annotations.description }}
+            ---
+            {{ end }}
+
+    # =====================================================================
+    # Slack - Security Alerts
+    # =====================================================================
+    - name: "slack-security"
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhook
+            key: security-webhook-url
+          channel: "#alerts-security"
+          sendResolved: true
+          title: |
+            [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+          text: |
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Severity:* `{{ .Labels.severity }}`
+            *Service:* {{ .Labels.service }}
+            *Description:* {{ .Annotations.description }}
+            ---
+            {{ end }}
+
+    # =====================================================================
+    # Email - Critical Alerts (backup channel)
+    # =====================================================================
+    - name: "email-critical"
+      emailConfigs:
+        - to: "sre-team@example.com"
+          sendResolved: true
+          headers:
+            - key: Subject
+              value: |
+                [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} - k8s-platform-prod
+
+    # =====================================================================
+    # Null receiver (for silenced alerts)
+    # =====================================================================
+    - name: "null"
+
+  # =======================================================================
+  # Inhibition Rules
+  # Prevent lower-severity alerts when higher-severity alerts are firing
+  # =======================================================================
+  inhibitRules:
+    # Critical inhibits warning for the same alert
+    - sourceMatch:
+        - name: severity
+          value: critical
+          matchType: "="
+      targetMatch:
+        - name: severity
+          value: warning
+          matchType: "="
+      equal: ["alertname", "namespace", "service"]
+
+    # Node-level critical inhibits pod-level warnings on the same node
+    - sourceMatch:
+        - name: alertname
+          value: NodeNotReady
+          matchType: "="
+      targetMatch:
+        - name: severity
+          value: warning
+          matchType: "="
+      equal: ["node"]
+
+---
+# =============================================================================
+# Slack Webhook Secret (placeholder - populate via ESO or kubectl)
+#
+# To create manually:
+#   kubectl create secret generic alertmanager-slack-webhook -n monitoring \
+#     --from-literal=critical-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
+#     --from-literal=warning-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
+#     --from-literal=data-services-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
+#     --from-literal=security-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ'
+#
+# Or via ExternalSecret (Vault path: secret/data/alertmanager/slack):
+# =============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-slack-webhook
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    demand: DT-005
+type: Opaque
+stringData:
+  # REPLACE THESE WITH ACTUAL WEBHOOK URLs
+  critical-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+  warning-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+  data-services-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+  security-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"

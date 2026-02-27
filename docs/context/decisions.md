@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-20
-**Versão:** 4.2 (V-001/V-002 Deployed + DT-005 Alertas)
+**Última Atualização:** 2026-02-27
+**Versão:** 4.3 (DEC-075 Namespace Standardization + ADR-086 FinOps Protection)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -64,6 +64,8 @@
 | **DEC-067** | **Grafana Admin Password Auto-Generation (V-001)** | **2026-02-20** | **✅ Deployed** | **Crítico** |
 | **DEC-068** | **ArgoCD Secrets via ESO + Auto-Generation (V-002)** | **2026-02-20** | **✅ Deployed** | **Alto** |
 | **DEC-069** | **PrometheusRule Alerting Infrastructure (DT-005)** | **2026-02-20** | **✅ Deployed** | **Alto** |
+| **DEC-075** | **Namespace Standardization - Observability Monitoring** | **2026-02-27** | **✅ Implementado** | **Alto** |
+| **ADR-086** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Implementado** | **Crítico** |
 
 ---
 

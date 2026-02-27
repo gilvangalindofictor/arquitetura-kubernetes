@@ -1,0 +1,7 @@
+# ApplicationSet auto-managed — DO NOT edit manually
+# Managed by: argocd/applicationsets/cluster-services.yaml
+# Service: loki | Environment: staging | Namespace: monitoring
+appVersion: "6.6.2"
+helmChart: loki
+helmRepo: https://grafana.github.io/helm-charts
+namespace: monitoring

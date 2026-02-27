@@ -1,0 +1,990 @@
+---
+# ============================================================================
+# ConfigMap: WAF Security Dashboard
+# GAP-010: AWS WAF v2 monitoring for iPaaS ALB protection
+# ============================================================================
+# Usage:
+#   kubectl apply -f waf-dashboard-configmap.yaml
+#   Dashboard auto-imported by Grafana sidecar (label: grafana_dashboard="1")
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-security-dashboard
+  namespace: staging-observability-monitoring
+  labels:
+    grafana_dashboard: "1"
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    domain: operations
+    owner: platform-team
+    environment: staging
+    component: dashboard
+    security-domain: waf
+  annotations:
+    description: "AWS WAF v2 Security Dashboard - monitors AllowedRequests, BlockedRequests, Rule-level metrics"
+    gap: "GAP-010"
+    created: "2026-02-27"
+    owner: "platform-team"
+data:
+  waf-security-dashboard.json: |-
+    {
+      "__inputs": [
+        {
+          "name": "DS_CLOUDWATCH",
+          "label": "CloudWatch",
+          "description": "AWS CloudWatch datasource for WAF metrics",
+          "type": "datasource",
+          "pluginId": "cloudwatch",
+          "pluginName": "CloudWatch"
+        }
+      ],
+      "__requires": [
+        {
+          "type": "grafana",
+          "id": "grafana",
+          "name": "Grafana",
+          "version": "8.5.0"
+        },
+        {
+          "type": "panel",
+          "id": "timeseries",
+          "name": "Time series",
+          "version": ""
+        },
+        {
+          "type": "panel",
+          "id": "stat",
+          "name": "Stat",
+          "version": ""
+        },
+        {
+          "type": "panel",
+          "id": "piechart",
+          "name": "Pie chart",
+          "version": ""
+        },
+        {
+          "type": "datasource",
+          "id": "cloudwatch",
+          "name": "CloudWatch",
+          "version": "1.0.0"
+        }
+      ],
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "AWS WAF v2 Security Dashboard - GAP-010 iPaaS Protection",
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [
+        {
+          "icon": "external link",
+          "tags": [],
+          "title": "WAF Console",
+          "type": "link",
+          "url": "https://console.aws.amazon.com/wafv2/homev2/web-acls"
+        },
+        {
+          "icon": "doc",
+          "tags": [],
+          "title": "WAF Runbook",
+          "type": "link",
+          "url": "/docs/runbooks/waf-incident-response.md"
+        }
+      ],
+      "panels": [
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Allowed Requests",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "AllowedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "✅ Allowed Requests (5m)",
+          "type": "stat"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 100
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Blocked Requests",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "🚫 Blocked Requests (5m)",
+          "type": "stat"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 5
+                  },
+                  {
+                    "color": "red",
+                    "value": 15
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "id": 3,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "text": {}
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Block Rate %",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "100 * (m1 / (m1 + m2))",
+              "id": "e1",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "📊 Block Rate %",
+          "type": "gauge"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Total Requests",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "m1 + m2",
+              "id": "e1",
+              "matchExact": true,
+              "metricName": "AllowedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "📈 Total Requests (5m)",
+          "type": "stat"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                },
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": true,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Allowed"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Blocked"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 6
+          },
+          "id": 5,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max",
+                "sum"
+              ],
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Allowed",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "AllowedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Blocked",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "B",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "📊 Request Rate Over Time (Allowed vs Blocked)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 14
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": [
+                "sum"
+              ],
+              "displayMode": "table",
+              "placement": "right"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Rate Limit",
+              "dimensions": {
+                "Rule": "rate-limit-per-ip",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Geo Block",
+              "dimensions": {
+                "Rule": "geo-block-high-risk-countries",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "B",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "OWASP Common",
+              "dimensions": {
+                "Rule": "aws-managed-owasp-common",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "C",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "SQL Injection",
+              "dimensions": {
+                "Rule": "aws-managed-sqli",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "D",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Known Bad Inputs",
+              "dimensions": {
+                "Rule": "aws-managed-known-bad-inputs",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "300",
+              "refId": "E",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "🛡️ Blocked Requests by Rule",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "tooltip": false,
+                  "viz": false,
+                  "legend": false
+                }
+              },
+              "mappings": [],
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 14
+          },
+          "id": 7,
+          "options": {
+            "displayLabels": [
+              "percent",
+              "value"
+            ],
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "values": [
+                "value",
+                "percent"
+              ]
+            },
+            "pieType": "donut",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Allowed",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "AllowedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Blocked",
+              "dimensions": {
+                "Rule": "ALL",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "B",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "📊 Request Distribution (Allowed vs Blocked)",
+          "type": "piechart"
+        },
+        {
+          "datasource": "${DS_CLOUDWATCH}",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "displayMode": "color-background"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 50
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 22
+          },
+          "id": 8,
+          "options": {
+            "footer": {
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "8.5.0",
+          "targets": [
+            {
+              "alias": "Rate Limit Blocks",
+              "dimensions": {
+                "Rule": "rate-limit-per-ip",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "A",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Geo Blocks",
+              "dimensions": {
+                "Rule": "geo-block-high-risk-countries",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "B",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "OWASP Common Blocks",
+              "dimensions": {
+                "Rule": "aws-managed-owasp-common",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "C",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "SQLi Blocks",
+              "dimensions": {
+                "Rule": "aws-managed-sqli",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "D",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            },
+            {
+              "alias": "Known Bad Input Blocks",
+              "dimensions": {
+                "Rule": "aws-managed-known-bad-inputs",
+                "WebACL": "$web_acl_name"
+              },
+              "expression": "",
+              "id": "",
+              "matchExact": true,
+              "metricName": "BlockedRequests",
+              "namespace": "AWS/WAFV2",
+              "period": "",
+              "refId": "E",
+              "region": "us-east-1",
+              "statistics": [
+                "Sum"
+              ]
+            }
+          ],
+          "title": "🔢 WAF Rule Statistics (Last Hour)",
+          "type": "table"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 36,
+      "style": "dark",
+      "tags": [
+        "waf",
+        "security",
+        "gap-010",
+        "aws"
+      ],
+      "templating": {
+        "list": [
+          {
+            "allValue": null,
+            "current": {
+              "selected": false,
+              "text": "waf-k8s-platform-prod-staging",
+              "value": "waf-k8s-platform-prod-staging"
+            },
+            "datasource": "${DS_CLOUDWATCH}",
+            "definition": "dimension_values(us-east-1,AWS/WAFV2,BlockedRequests,WebACL)",
+            "description": "Select WAF WebACL to monitor",
+            "hide": 0,
+            "includeAll": false,
+            "label": "WebACL",
+            "multi": false,
+            "name": "web_acl_name",
+            "options": [],
+            "query": "dimension_values(us-east-1,AWS/WAFV2,BlockedRequests,WebACL)",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {
+        "refresh_intervals": [
+          "30s",
+          "1m",
+          "5m",
+          "15m",
+          "30m"
+        ]
+      },
+      "timezone": "America/Sao_Paulo",
+      "title": "AWS WAF Security Dashboard - GAP-010",
+      "uid": "waf-security-dashboard",
+      "version": 1
+    }

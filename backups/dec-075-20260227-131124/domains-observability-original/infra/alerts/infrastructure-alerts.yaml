@@ -1,0 +1,293 @@
+# =============================================================================
+# DT-005: Infrastructure Alerts (Critical/Warning)
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Alerts:
+#   - NodeNotReady (critical)
+#   - NodeDiskPressureWarning (warning @ 80%)
+#   - NodeDiskPressureCritical (critical @ 90%)
+#   - NodeMemoryPressure (critical @ <20% available)
+#   - PersistentVolumeClaimNearFull (warning @ 85%, critical @ 95%)
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dt005-infrastructure-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: infrastructure-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: DT-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Node Health Alerts
+    # =========================================================================
+    - name: infrastructure.node-health
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # NodeNotReady - A node has been in NotReady state
+        # Metrics source: kube-state-metrics
+        # -----------------------------------------------------------------
+        - alert: NodeNotReady
+          expr: |
+            kube_node_status_condition{condition="Ready", status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: node
+            demand: DT-005
+          annotations:
+            summary: "Node {{ $labels.node }} is NotReady"
+            description: |
+              Kubernetes node {{ $labels.node }} has been in NotReady state for more than 5 minutes.
+
+              This means the kubelet on the node is not responding or has reported unhealthy conditions.
+              Workloads on this node may be evicted or unable to schedule.
+
+              Impact: Pods running on this node may become unavailable. Cluster capacity is reduced.
+
+              Immediate Actions:
+              1. Check node status: kubectl get node {{ $labels.node }} -o wide
+              2. Describe node: kubectl describe node {{ $labels.node }}
+              3. Check EC2 instance status in AWS Console (EKS node group)
+              4. Check kubelet logs: journalctl -u kubelet -n 100 (if SSH access available)
+
+              Runbook: domains/observability/docs/runbooks/dt005-node-not-ready.md
+            dashboard_url: "https://grafana.internal/d/node-overview"
+
+    # =========================================================================
+    # Node Disk Pressure Alerts
+    # =========================================================================
+    - name: infrastructure.disk-pressure
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # NodeDiskPressureWarning - Disk usage > 80%
+        # Metrics source: node-exporter
+        # -----------------------------------------------------------------
+        - alert: NodeDiskPressureWarning
+          expr: |
+            (
+              (node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"} - node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"})
+              /
+              node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+            ) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: disk
+            demand: DT-005
+          annotations:
+            summary: "Node {{ $labels.instance }} disk usage above 80%"
+            description: |
+              Root filesystem on node {{ $labels.instance }} is {{ $value | printf "%.1f" }}% full.
+
+              If disk usage continues to grow, the node will enter DiskPressure condition
+              and kubelet will start evicting pods.
+
+              Actions:
+              1. Identify large files: du -sh /* | sort -rh | head -20
+              2. Check container image cache: crictl images | wc -l
+              3. Prune unused images: crictl rmi --prune
+              4. Check log rotation: ls -la /var/log/
+
+              Runbook: domains/observability/docs/runbooks/dt005-node-disk-pressure.md
+            dashboard_url: "https://grafana.internal/d/node-overview"
+
+        # -----------------------------------------------------------------
+        # NodeDiskPressureCritical - Disk usage > 90%
+        # -----------------------------------------------------------------
+        - alert: NodeDiskPressureCritical
+          expr: |
+            (
+              (node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"} - node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"})
+              /
+              node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+            ) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: disk
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Node {{ $labels.instance }} disk usage above 90%"
+            description: |
+              Root filesystem on node {{ $labels.instance }} is {{ $value | printf "%.1f" }}% full.
+
+              Node is at imminent risk of DiskPressure eviction. Immediate action required.
+
+              Impact: SEVERE - Pod evictions will begin, workloads will be disrupted.
+
+              Immediate Actions:
+              1. Emergency cleanup: crictl rmi --prune && journalctl --vacuum-size=100M
+              2. Check for large log files: find /var/log -size +100M
+              3. Consider cordoning node: kubectl cordon {{ $labels.instance }}
+              4. Investigate root cause (log rotation, image accumulation, PV leaks)
+
+              Runbook: domains/observability/docs/runbooks/dt005-node-disk-pressure.md
+
+    # =========================================================================
+    # Node Memory Pressure Alerts
+    # =========================================================================
+    - name: infrastructure.memory-pressure
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # NodeMemoryPressureWarning - Available memory < 20%
+        # -----------------------------------------------------------------
+        - alert: NodeMemoryPressureWarning
+          expr: |
+            (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_MemTotal_bytes
+            ) * 100 < 20
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: memory
+            demand: DT-005
+          annotations:
+            summary: "Node {{ $labels.instance }} memory available below 20%"
+            description: |
+              Node {{ $labels.instance }} has only {{ $value | printf "%.1f" }}% memory available.
+
+              If memory continues to decline, the OOM killer will start terminating processes
+              and the node may enter MemoryPressure condition.
+
+              Actions:
+              1. Identify memory-hungry pods: kubectl top pods --all-namespaces --sort-by=memory | head -20
+              2. Check for memory leaks in application pods
+              3. Review resource limits: kubectl describe node {{ $labels.instance }} | grep -A5 "Allocated resources"
+              4. Consider scaling the node group if consistently above threshold
+
+              Runbook: domains/observability/docs/runbooks/dt005-node-memory-pressure.md
+            dashboard_url: "https://grafana.internal/d/node-overview"
+
+        # -----------------------------------------------------------------
+        # NodeMemoryPressureCritical - Available memory < 10%
+        # -----------------------------------------------------------------
+        - alert: NodeMemoryPressureCritical
+          expr: |
+            (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_MemTotal_bytes
+            ) * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: memory
+            demand: DT-005
+          annotations:
+            summary: "CRITICAL: Node {{ $labels.instance }} memory available below 10%"
+            description: |
+              Node {{ $labels.instance }} has only {{ $value | printf "%.1f" }}% memory available.
+
+              OOM kills are likely imminent. Immediate action required.
+
+              Impact: SEVERE - Random pod terminations, potential node instability.
+
+              Immediate Actions:
+              1. Identify top consumers: kubectl top pods --all-namespaces --sort-by=memory | head -10
+              2. Kill non-essential workloads if needed
+              3. Cordon node to prevent new scheduling: kubectl cordon <node-name>
+              4. If EKS: Consider scaling node group to add capacity
+
+              Runbook: domains/observability/docs/runbooks/dt005-node-memory-pressure.md
+
+    # =========================================================================
+    # PVC (Persistent Volume Claim) Alerts
+    # =========================================================================
+    - name: infrastructure.pvc
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # PersistentVolumeClaimNearFullWarning - PVC usage > 85%
+        # Metrics source: kubelet volume stats
+        # -----------------------------------------------------------------
+        - alert: PersistentVolumeClaimNearFullWarning
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes
+              /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 85
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: storage
+            demand: DT-005
+          annotations:
+            summary: 'PVC {{ $labels.persistentvolumeclaim }} in {{ $labels.namespace }} is {{ $value | printf "%.1f" }}% full'
+            description: |
+              Persistent Volume Claim {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }}
+              is using {{ $value | printf "%.1f" }}% of its provisioned capacity.
+
+              If usage reaches 100%, the application will fail to write new data.
+
+              Actions:
+              1. Check PVC details: kubectl get pvc {{ $labels.persistentvolumeclaim }} -n {{ $labels.namespace }}
+              2. Identify what is consuming space (application logs, database WAL, etc.)
+              3. Consider expanding the PVC (EBS CSI Driver supports online expansion):
+                 kubectl patch pvc {{ $labels.persistentvolumeclaim }} -n {{ $labels.namespace }} -p '{"spec":{"resources":{"requests":{"storage":"<new-size>"}}}}'
+              4. Review data retention policies for the application
+
+              Runbook: domains/observability/docs/runbooks/dt005-pvc-near-full.md
+            dashboard_url: "https://grafana.internal/d/pvc-overview"
+
+        # -----------------------------------------------------------------
+        # PersistentVolumeClaimNearFullCritical - PVC usage > 95%
+        # -----------------------------------------------------------------
+        - alert: PersistentVolumeClaimNearFullCritical
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes
+              /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: storage
+            demand: DT-005
+          annotations:
+            summary: 'CRITICAL: PVC {{ $labels.persistentvolumeclaim }} in {{ $labels.namespace }} is {{ $value | printf "%.1f" }}% full'
+            description: |
+              Persistent Volume Claim {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }}
+              is at {{ $value | printf "%.1f" }}% capacity. Application write failures are imminent.
+
+              Impact: SEVERE - Data loss or application crash if volume fills completely.
+
+              Immediate Actions:
+              1. EXPAND PVC NOW (EBS CSI supports online resize):
+                 kubectl patch pvc {{ $labels.persistentvolumeclaim }} -n {{ $labels.namespace }} -p '{"spec":{"resources":{"requests":{"storage":"<new-size>"}}}}'
+              2. If database PVC: check for runaway WAL/logs, run VACUUM if PostgreSQL
+              3. Emergency: delete old data or snapshots if safe to do so
+              4. Monitor EBS volume in AWS Console for completion of resize
+
+              Runbook: domains/observability/docs/runbooks/dt005-pvc-near-full.md

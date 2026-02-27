@@ -1,0 +1,301 @@
+apiVersion: v1
+items:
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"rabbitmq","namespace":"data-services"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"rabbitmq","maxAllowed":{"cpu":"1000m","memory":"2Gi"},"minAllowed":{"cpu":"100m","memory":"256Mi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"StatefulSet","name":"rabbitmq-server"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:08:54Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: rabbitmq
+    namespace: data-services
+    resourceVersion: "11754600"
+    uid: d60a219a-9ab4-4d29-8cb0-8ad5cebcc664
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: rabbitmq
+        maxAllowed:
+          cpu: 1000m
+          memory: 2Gi
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+    targetRef:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      name: k8s-platform-prod-rabbitmq-server
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-24T21:11:04Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "True"
+      type: NoPodsMatched
+    - lastTransitionTime: "2026-02-25T10:33:01Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "False"
+      type: RecommendationProvided
+    recommendation: {}
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"redis","namespace":"data-services"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"redis","maxAllowed":{"cpu":"500m","memory":"1Gi"},"minAllowed":{"cpu":"50m","memory":"64Mi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"StatefulSet","name":"redis"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:08:54Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: redis
+    namespace: data-services
+    resourceVersion: "13644109"
+    uid: 57dfcaab-b636-4430-9ae4-47c31e96c42c
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: redis
+        maxAllowed:
+          cpu: 500m
+          memory: 1Gi
+        minAllowed:
+          cpu: 50m
+          memory: 64Mi
+    targetRef:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      name: redis
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-23T13:44:16Z"
+      status: "True"
+      type: RecommendationProvided
+    recommendation:
+      containerRecommendations:
+      - containerName: redis
+        lowerBound:
+          cpu: 50m
+          memory: 64Mi
+        target:
+          cpu: 50m
+          memory: 64Mi
+        uncappedTarget:
+          cpu: 23m
+          memory: "52428800"
+        upperBound:
+          cpu: 120m
+          memory: "123716582"
+      - containerName: redis-exporter
+        lowerBound:
+          cpu: 10m
+          memory: "52428800"
+        target:
+          cpu: 11m
+          memory: "52428800"
+        uncappedTarget:
+          cpu: 11m
+          memory: "52428800"
+        upperBound:
+          cpu: 57m
+          memory: "60349557"
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"gitlab-sidekiq","namespace":"gitlab-staging"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"sidekiq","maxAllowed":{"cpu":"2000m","memory":"4Gi"},"minAllowed":{"cpu":"100m","memory":"256Mi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"gitlab-sidekiq-all-in-1-v2"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:08:55Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: gitlab-sidekiq
+    namespace: gitlab-staging
+    resourceVersion: "12441001"
+    uid: 4a9a5b70-f063-4cca-8612-b6615404feb4
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: sidekiq
+        maxAllowed:
+          cpu: 2000m
+          memory: 4Gi
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+    targetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: gitlab-sidekiq-all-in-1-v2
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-25T13:24:51Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "True"
+      type: NoPodsMatched
+    - lastTransitionTime: "2026-02-26T10:32:55Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "False"
+      type: RecommendationProvided
+    recommendation: {}
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"gitlab-webservice","namespace":"gitlab-staging"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"webservice","maxAllowed":{"cpu":"4000m","memory":"8Gi"},"minAllowed":{"cpu":"200m","memory":"1Gi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"gitlab-webservice-default"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:08:55Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: gitlab-webservice
+    namespace: gitlab-staging
+    resourceVersion: "12441002"
+    uid: 9aaedeb1-1c3d-456d-b462-5672e63f7de6
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: webservice
+        maxAllowed:
+          cpu: 4000m
+          memory: 8Gi
+        minAllowed:
+          cpu: 200m
+          memory: 1Gi
+    targetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: gitlab-webservice-default
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-25T13:24:51Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "True"
+      type: NoPodsMatched
+    - lastTransitionTime: "2026-02-26T10:32:55Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "False"
+      type: RecommendationProvided
+    recommendation: {}
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"harbor-core","namespace":"harbor-system"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"core","maxAllowed":{"cpu":"1000m","memory":"2Gi"},"minAllowed":{"cpu":"50m","memory":"128Mi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"harbor-core"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:10:00Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: harbor-core
+    namespace: harbor-system
+    resourceVersion: "13644110"
+    uid: f5325b1e-8495-45b1-8839-ef0079aab84c
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: core
+        maxAllowed:
+          cpu: 1000m
+          memory: 2Gi
+        minAllowed:
+          cpu: 50m
+          memory: 128Mi
+    targetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: harbor-core
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-18T14:10:51Z"
+      status: "True"
+      type: RecommendationProvided
+    recommendation:
+      containerRecommendations:
+      - containerName: core
+        lowerBound:
+          cpu: 50m
+          memory: 128Mi
+        target:
+          cpu: 50m
+          memory: 128Mi
+        uncappedTarget:
+          cpu: 15m
+          memory: "104857600"
+        upperBound:
+          cpu: 58m
+          memory: "335663467"
+- apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling.k8s.io/v1","kind":"VerticalPodAutoscaler","metadata":{"annotations":{},"labels":{"app.kubernetes.io/managed-by":"terraform","finops/component":"vpa-recommendation"},"name":"vault","namespace":"vault-system"},"spec":{"resourcePolicy":{"containerPolicies":[{"containerName":"vault","maxAllowed":{"cpu":"2000m","memory":"4Gi"},"minAllowed":{"cpu":"100m","memory":"128Mi"}}]},"targetRef":{"apiVersion":"apps/v1","kind":"StatefulSet","name":"vault"},"updatePolicy":{"updateMode":"Off"}}}
+    creationTimestamp: "2026-02-18T14:08:55Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: terraform
+      finops/component: vpa-recommendation
+    name: vault
+    namespace: vault-system
+    resourceVersion: "11491810"
+    uid: 7959e327-7a27-4cd5-aa0f-eb5187d04099
+  spec:
+    resourcePolicy:
+      containerPolicies:
+      - containerName: vault
+        maxAllowed:
+          cpu: 2000m
+          memory: 4Gi
+        minAllowed:
+          cpu: 100m
+          memory: 128Mi
+    targetRef:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      name: vault
+    updatePolicy:
+      updateMode: "Off"
+  status:
+    conditions:
+    - lastTransitionTime: "2026-02-24T20:26:03Z"
+      message: 'Cannot read targetRef. Reason: StatefulSet vault-system/vault does
+        not exist'
+      status: "True"
+      type: ConfigUnsupported
+    - lastTransitionTime: "2026-02-24T20:26:04Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "True"
+      type: NoPodsMatched
+    - lastTransitionTime: "2026-02-24T20:26:04Z"
+      message: No pods match this VPA object
+      reason: NoPodsMatched
+      status: "False"
+      type: RecommendationProvided
+    recommendation: {}
+kind: List
+metadata:
+  resourceVersion: ""

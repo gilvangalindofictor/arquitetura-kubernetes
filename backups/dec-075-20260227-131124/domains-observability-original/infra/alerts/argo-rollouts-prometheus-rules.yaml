@@ -1,0 +1,216 @@
+# =============================================================================
+# PrometheusRule: Argo Rollouts Alerts
+# Demand: CICD-005
+# ADR: ADR-085
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Metrics source: Argo Rollouts controller (port 8090/metrics)
+# ServiceMonitor: argo-rollouts-metrics (managed by Terraform module)
+#
+# Alerts:
+#   - RolloutStuck (critical): Rollout in Progressing state >30min
+#   - AnalysisFailed (critical): AnalysisRun phase Failed
+#   - FrequentRollbacks (warning): >3 rollbacks in 1h (instability signal)
+#   - RolloutDegraded (warning): Rollout phase Degraded
+#
+# Dependencies:
+#   - kube-prometheus-stack installed in monitoring namespace
+#   - Argo Rollouts controller running in argocd namespace
+#   - ServiceMonitor argo-rollouts-metrics deployed by Terraform
+#
+# Deploy:
+#   kubectl apply -f argo-rollouts-prometheus-rules.yaml
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cicd005-argo-rollouts-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: argo-rollouts-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: CICD-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Rollout Health Alerts
+    # Monitors rollout lifecycle state machine
+    # =========================================================================
+    - name: argo-rollouts.health
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # RolloutStuck
+        # A Rollout has been in Progressing state for >30 minutes.
+        # This indicates a stuck step (paused indefinitely, analysis hanging,
+        # or replica not coming up). Requires human investigation.
+        # -----------------------------------------------------------------------
+        - alert: RolloutStuck
+          expr: |
+            (
+              argo_rollout_info{phase="Progressing"} == 1
+            )
+            and on(name, namespace)
+            (
+              (time() - argo_rollout_created_time) > 1800
+            )
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: CICD-005
+            category: progressive-delivery
+          annotations:
+            summary: "Rollout {{ $labels.namespace }}/{{ $labels.name }} is stuck in Progressing"
+            description: |
+              Rollout {{ $labels.namespace }}/{{ $labels.name }} has been in Progressing
+              state for more than 30 minutes. This may indicate:
+              - A step pause with no manual promotion triggered
+              - An AnalysisRun that is waiting for metrics
+              - A replica that failed to start (check pod events)
+              - A stalled traffic routing update
+
+              Investigate:
+                kubectl argo rollouts get rollout {{ $labels.name }} -n {{ $labels.namespace }}
+                kubectl argo rollouts describe rollout {{ $labels.name }} -n {{ $labels.namespace }}
+
+              To promote manually:
+                kubectl argo rollouts promote {{ $labels.name }} -n {{ $labels.namespace }}
+
+              To abort:
+                kubectl argo rollouts abort {{ $labels.name }} -n {{ $labels.namespace }}
+            runbook_url: "https://docs.example.com/runbooks/argo-rollouts-troubleshooting"
+
+        # -----------------------------------------------------------------------
+        # RolloutDegraded
+        # A Rollout is in Degraded phase. This means the rollout completed
+        # but not all desired replicas are available. Service quality is impacted.
+        # -----------------------------------------------------------------------
+        - alert: RolloutDegraded
+          expr: |
+            argo_rollout_info{phase="Degraded"} == 1
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: CICD-005
+            category: progressive-delivery
+          annotations:
+            summary: "Rollout {{ $labels.namespace }}/{{ $labels.name }} is Degraded"
+            description: |
+              Rollout {{ $labels.namespace }}/{{ $labels.name }} is in Degraded phase.
+              Not all desired replicas are available, which means reduced capacity.
+
+              This can occur after a failed rollout that was aborted but replica
+              scale-down is incomplete, or if the stable version itself is unhealthy.
+
+              Check replica status:
+                kubectl get pods -n {{ $labels.namespace }} -l app={{ $labels.name }}
+                kubectl argo rollouts get rollout {{ $labels.name }} -n {{ $labels.namespace }}
+
+              If caused by a bad release, rollback:
+                kubectl argo rollouts undo {{ $labels.name }} -n {{ $labels.namespace }}
+            runbook_url: "https://docs.example.com/runbooks/argo-rollouts-troubleshooting"
+
+    # =========================================================================
+    # Analysis Run Alerts
+    # Monitors AnalysisRun lifecycle and failure conditions
+    # =========================================================================
+    - name: argo-rollouts.analysis
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # AnalysisFailed
+        # An AnalysisRun has reached Failed phase.
+        # This means the progressive delivery gates detected a degradation
+        # and Argo Rollouts automatically rolled back (or is rolling back).
+        # Requires root cause investigation to understand the regression.
+        # -----------------------------------------------------------------------
+        - alert: AnalysisFailed
+          expr: |
+            argo_analysis_run_info{phase="Failed"} == 1
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: CICD-005
+            category: progressive-delivery
+          annotations:
+            summary: "AnalysisRun failed in {{ $labels.namespace }}/{{ $labels.name }}"
+            description: |
+              AnalysisRun {{ $labels.namespace }}/{{ $labels.name }} has Failed.
+              This triggered an automatic rollback.
+
+              Root cause investigation steps:
+              1. Check which metric failed:
+                 kubectl describe analysisrun {{ $labels.name }} -n {{ $labels.namespace }}
+
+              2. Check Prometheus query results during the analysis window:
+                 - success-rate: sum(rate(http_requests_total{status=~"2.."}[2m])) / sum(rate(http_requests_total[2m]))
+                 - latency-p95: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))
+                 - error-rate-5xx: sum(rate(http_requests_total{status=~"5.."}[2m])) / sum(rate(http_requests_total[2m]))
+
+              3. Check rollout state (should be Degraded or rolling back):
+                 kubectl argo rollouts get rollout <name> -n {{ $labels.namespace }}
+
+              4. Look for relevant commit that caused the regression:
+                 kubectl argo rollouts history rollout <name> -n {{ $labels.namespace }}
+
+              Runbook: https://docs.example.com/runbooks/argo-rollouts-troubleshooting
+            runbook_url: "https://docs.example.com/runbooks/argo-rollouts-troubleshooting"
+
+    # =========================================================================
+    # Deployment Stability Alerts
+    # Monitors rollback frequency as a stability signal
+    # =========================================================================
+    - name: argo-rollouts.stability
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # FrequentRollbacks
+        # More than 3 rollbacks have occurred in the last 1 hour.
+        # This is a signal of deployment instability — code quality issues,
+        # flapping canary thresholds, or infrastructure instability.
+        # -----------------------------------------------------------------------
+        - alert: FrequentRollbacks
+          expr: |
+            increase(argo_rollout_phase_transition_total{phase="Degraded"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: CICD-005
+            category: progressive-delivery
+          annotations:
+            summary: "Frequent rollbacks detected for {{ $labels.namespace }}/{{ $labels.name }}"
+            description: |
+              More than 3 rollbacks have occurred in the last 1 hour for
+              Rollout {{ $labels.namespace }}/{{ $labels.name }}.
+
+              This is a deployment instability signal. Possible causes:
+              1. Code quality regression: recent commits are consistently breaking
+                 analysis thresholds
+              2. Threshold too strict: AnalysisTemplate thresholds may be too tight
+                 for current traffic patterns
+              3. Infrastructure issue: Prometheus queries returning incorrect results
+                 or missing data (NaN handling)
+              4. Flapping services: underlying dependency is unstable
+
+              Actions:
+              1. Review recent commits triggering rollbacks:
+                 kubectl argo rollouts history rollout <name> -n {{ $labels.namespace }}
+              2. Review AnalysisRun failures:
+                 kubectl get analysisrun -n {{ $labels.namespace }} --sort-by=.metadata.creationTimestamp
+              3. Consider temporarily pausing progressive delivery for this service
+                 while the root cause is investigated
+            runbook_url: "https://docs.example.com/runbooks/argo-rollouts-troubleshooting"

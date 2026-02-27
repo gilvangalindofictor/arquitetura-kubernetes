@@ -1,0 +1,32 @@
+# This file contains the specific overrides for running Loki with LocalStack S3
+
+# Use the same base configuration
+loki:
+  # Disable IRSA, as it's not needed for LocalStack
+  serviceAccount:
+    create: true
+    name: "loki"
+    annotations: {}
+
+  # Configure storage to use LocalStack's S3 service
+  storage:
+    type: "s3"
+    s3:
+      # The endpoint for LocalStack S3. 'http://localstack:4566' is the address
+      # of the LocalStack container from within the Docker network.
+      endpoint: "http://localstack:4566"
+      bucketNames:
+        ruler: observabilidade-loki-data
+        admin: observabilidade-loki-data
+        shipper:
+          active: observabilidade-loki-data
+        ingester:
+          active: observabilidade-loki-data
+      
+      # Use dummy credentials. LocalStack doesn't validate them by default.
+      accessKeyId: "test"
+      secretAccessKey: "test"
+      
+      # Required for LocalStack S3
+      s3ForcePathStyle: true
+      insecure: true

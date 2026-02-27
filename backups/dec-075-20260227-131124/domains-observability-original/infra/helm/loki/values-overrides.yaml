@@ -1,0 +1,35 @@
+# FinOps PDB Optimization — Loki
+# ADR-025: Graceful Node Drain for Lambda Shutdown (10-15min → 2-3min)
+#
+# PROBLEMA: PDBs com maxUnavailable=0 (default) impedem drain rápido
+# SOLUÇÃO: maxUnavailable=1 permite eviction de 1 pod, N-1 mantém HA
+# IMPACTO: Shutdown Lambda pode drenar nodes em <3min vs 10-15min atual
+#
+# Deployment mode: Simple Scalable (3 components: gateway, read, write, backend)
+# Replicas (default): gateway=2, read=2, write=3, backend=3
+# HA garantido: Com maxUnavailable=1, sempre N-1 pods disponíveis
+
+loki:
+  # Gateway component (single entry point)
+  # Replicas: 2 → maxUnavailable=1 permite 1 pod down, 1 mantém serviço
+  gateway:
+    podDisruptionBudget:
+      maxUnavailable: 1
+
+  # Read component (query path)
+  # Replicas: 2 → maxUnavailable=1 permite 1 pod down, 1 mantém queries
+  read:
+    podDisruptionBudget:
+      maxUnavailable: 1
+
+  # Write component (ingestion path)
+  # Replicas: 3 → maxUnavailable=1 permite 1 pod down, 2 mantêm ingestão
+  write:
+    podDisruptionBudget:
+      maxUnavailable: 1
+
+  # Backend component (compaction, retention)
+  # Replicas: 3 → maxUnavailable=1 permite 1 pod down, 2 mantêm backend ops
+  backend:
+    podDisruptionBudget:
+      maxUnavailable: 1

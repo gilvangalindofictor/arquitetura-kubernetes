@@ -1,0 +1,1298 @@
+apiVersion: v1
+items:
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/data/rabbitmq
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: data
+      environment: staging
+      service: rabbitmq
+    name: staging-data-rabbitmq
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895008"
+    uid: 6bad335a-e782-44cd-a09f-9315a14bab46
+  spec:
+    destination:
+      namespace: staging-data-rabbitmq
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/data/rabbitmq
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: data
+    - name: Service
+      value: rabbitmq
+    project: default
+    source:
+      path: apps/staging/data/rabbitmq
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-data-rabbitmq
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/data/rabbitmq
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/data/redis
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: data
+      environment: staging
+      service: redis
+    name: staging-data-redis
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895019"
+    uid: c523ac51-fdfa-4ab6-9abd-fe6210346fa7
+  spec:
+    destination:
+      namespace: staging-data-redis
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/data/redis
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: data
+    - name: Service
+      value: redis
+    project: default
+    source:
+      path: apps/staging/data/redis
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-data-redis
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/data/redis
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/governance/kyverno
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: governance
+      environment: staging
+      service: kyverno
+    name: staging-governance-kyverno
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895007"
+    uid: 889c03fe-e13b-4901-8439-bcc49f50d443
+  spec:
+    destination:
+      namespace: staging-governance-kyverno
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/governance/kyverno
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: governance
+    - name: Service
+      value: kyverno
+    project: default
+    source:
+      path: apps/staging/governance/kyverno
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-governance-kyverno
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/governance/kyverno
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: grafana
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 369
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: monitoring
+      environment: staging
+      service: grafana
+    name: staging-grafana
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895013"
+    uid: ccb6a007-9b51-40ea-9a7d-938999bc3886
+  spec:
+    destination:
+      namespace: monitoring
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: grafana
+    - name: Domain
+      value: monitoring
+    - name: Namespace
+      value: monitoring
+    project: default
+    source:
+      path: apps/staging/monitoring/grafana
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: monitoring
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/monitoring/grafana
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: harbor
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 369
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: platform
+      environment: staging
+      service: harbor
+    name: staging-harbor
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895012"
+    uid: 36a3605f-0366-49b8-949a-cdca7a055849
+  spec:
+    destination:
+      namespace: harbor-system
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: harbor
+    - name: Domain
+      value: platform
+    - name: Namespace
+      value: harbor-system
+    project: default
+    source:
+      path: apps/staging/platform/harbor
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: harbor-system
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/platform/harbor
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: keycloak
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 370
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: security
+      environment: staging
+      service: keycloak
+    name: staging-keycloak
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895011"
+    uid: 4afa805e-4875-44b1-b938-e19864bc2d3b
+  spec:
+    destination:
+      namespace: keycloak
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: keycloak
+    - name: Domain
+      value: security
+    - name: Namespace
+      value: keycloak
+    project: default
+    source:
+      path: apps/staging/security/keycloak
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: keycloak
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/security/keycloak
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: kyverno
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 369
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: governance
+      environment: staging
+      service: kyverno
+    name: staging-kyverno
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895016"
+    uid: 05c69dba-a3d5-4255-b58d-d484fad55424
+  spec:
+    destination:
+      namespace: staging-governance-kyverno
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: kyverno
+    - name: Domain
+      value: governance
+    - name: Namespace
+      value: staging-governance-kyverno
+    project: default
+    source:
+      path: apps/staging/governance/kyverno
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-governance-kyverno
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/governance/kyverno
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/monitoring/grafana
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: monitoring
+      environment: staging
+      service: grafana
+    name: staging-monitoring-grafana
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895020"
+    uid: 8abf0233-69d6-4148-84c9-c2de7eb4d8e5
+  spec:
+    destination:
+      namespace: staging-monitoring-grafana
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/monitoring/grafana
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: monitoring
+    - name: Service
+      value: grafana
+    project: default
+    source:
+      path: apps/staging/monitoring/grafana
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-monitoring-grafana
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/monitoring/grafana
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/monitoring/loki
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: monitoring
+      environment: staging
+      service: loki
+    name: staging-monitoring-loki
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895010"
+    uid: 4f87fb45-179b-4961-910e-c25035d82c6d
+  spec:
+    destination:
+      namespace: staging-monitoring-loki
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/monitoring/loki
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: monitoring
+    - name: Service
+      value: loki
+    project: default
+    source:
+      path: apps/staging/monitoring/loki
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-monitoring-loki
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/monitoring/loki
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/monitoring/tempo
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: monitoring
+      environment: staging
+      service: tempo
+    name: staging-monitoring-tempo
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895017"
+    uid: 98ffd8d8-eb8a-40b3-b5ab-7370ce5ca66b
+  spec:
+    destination:
+      namespace: staging-monitoring-tempo
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/monitoring/tempo
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: monitoring
+    - name: Service
+      value: tempo
+    project: default
+    source:
+      path: apps/staging/monitoring/tempo
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-monitoring-tempo
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/monitoring/tempo
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/platform/harbor
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: platform
+      environment: staging
+      service: harbor
+    name: staging-platform-harbor
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895009"
+    uid: 50a84ee3-ba8b-4a54-87ce-53bd41571797
+  spec:
+    destination:
+      namespace: staging-platform-harbor
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/platform/harbor
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: platform
+    - name: Service
+      value: harbor
+    project: default
+    source:
+      path: apps/staging/platform/harbor
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-platform-harbor
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/platform/harbor
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/platform/new-service
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 36
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: platform
+      environment: staging
+      service: new-service
+    name: staging-platform-new-service
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895018"
+    uid: bed841ed-c544-429d-a780-bd92f1382c48
+  spec:
+    destination:
+      namespace: staging-platform-new-service
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/platform/new-service
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: platform
+    - name: Service
+      value: new-service
+    project: default
+    source:
+      path: apps/staging/platform/new-service
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-02-25T13:03:07Z"
+      deployedAt: "2026-02-25T13:03:10Z"
+      id: 0
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      source:
+        path: apps/staging/platform/new-service
+        repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-02-25T13:03:10Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          prune: true
+          revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+      phase: Succeeded
+      startedAt: "2026-02-25T13:03:07Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: Namespace
+          message: namespace/staging-platform-new-service serverside-applied
+          name: staging-platform-new-service
+          namespace: ""
+          status: Synced
+          syncPhase: PreSync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          kind: Deployment
+          message: deployment.apps/new-service serverside-applied
+          name: new-service
+          namespace: staging-platform-new-service
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+        source:
+          path: apps/staging/platform/new-service
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+    reconciledAt: "2026-02-25T14:20:25Z"
+    resources:
+    - group: apps
+      health:
+        status: Healthy
+      kind: Deployment
+      name: new-service
+      namespace: staging-platform-new-service
+      status: Synced
+      version: v1
+    sourceType: Directory
+    summary:
+      images:
+      - nginx:1.25-alpine
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-platform-new-service
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/platform/new-service
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: rabbitmq
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 369
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: data
+      environment: staging
+      service: rabbitmq
+    name: staging-rabbitmq
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895005"
+    uid: abad2b4d-d33a-46f5-a626-4048fa69ddda
+  spec:
+    destination:
+      namespace: data-services
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: rabbitmq
+    - name: Domain
+      value: data
+    - name: Namespace
+      value: data-services
+    project: default
+    source:
+      path: apps/staging/data/rabbitmq
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: data-services
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/data/rabbitmq
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: redis
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 371
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: data
+      environment: staging
+      service: redis
+    name: staging-redis
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895006"
+    uid: eb6d7b55-d7c1-4d39-9d23-c34e27073c85
+  spec:
+    destination:
+      namespace: data-services
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: redis
+    - name: Domain
+      value: data
+    - name: Namespace
+      value: data-services
+    project: default
+    source:
+      path: apps/staging/data/redis
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: data-services
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/data/redis
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/security/keycloak
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: security
+      environment: staging
+      service: keycloak
+    name: staging-security-keycloak
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895021"
+    uid: 099d67cd-0cd3-444c-9a4e-7fcf4e408ea5
+  spec:
+    destination:
+      namespace: staging-security-keycloak
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/security/keycloak
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: security
+    - name: Service
+      value: keycloak
+    project: default
+    source:
+      path: apps/staging/security/keycloak
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-security-keycloak
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/security/keycloak
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/git-path: apps/staging/security/vault
+      gap.platform/source: applicationset/cluster-services
+    creationTimestamp: "2026-02-25T13:03:04Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 28
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: security
+      environment: staging
+      service: vault
+    name: staging-security-vault
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: cluster-services
+      uid: 98504605-a579-4489-a978-87a540c6a7d3
+    resourceVersion: "11895014"
+    uid: 48e3b0e8-08ba-4a75-9c17-aa1d847c0f68
+  spec:
+    destination:
+      namespace: staging-security-vault
+      server: https://kubernetes.default.svc
+    info:
+    - name: Git Path
+      value: apps/staging/security/vault
+    - name: Environment
+      value: staging
+    - name: Domain
+      value: security
+    - name: Service
+      value: vault
+    project: default
+    source:
+      path: apps/staging/security/vault
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-security-vault
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/security/vault
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      gap.platform/environment: staging
+      gap.platform/service: vault
+      gap.platform/source: applicationset/multi-env-services
+    creationTimestamp: "2026-02-24T21:26:53Z"
+    deletionGracePeriodSeconds: 0
+    deletionTimestamp: "2026-02-25T14:20:59Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 368
+    labels:
+      app.kubernetes.io/managed-by: applicationset
+      domain: security
+      environment: staging
+      service: vault
+    name: staging-vault
+    namespace: argocd
+    ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ApplicationSet
+      name: multi-env-services
+      uid: d72a8eb4-6441-4b50-87e0-4eaaad332eca
+    resourceVersion: "11895015"
+    uid: a8cdc987-b9ab-4f1d-ad4c-3311b2c68be4
+  spec:
+    destination:
+      namespace: staging-security-vault
+      server: https://kubernetes.default.svc
+    info:
+    - name: Environment
+      value: staging
+    - name: Service
+      value: vault
+    - name: Domain
+      value: security
+    - name: Namespace
+      value: staging-security-vault
+    project: default
+    source:
+      path: apps/staging/security/vault
+      repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  status:
+    controllerNamespace: argocd
+    health:
+      status: Healthy
+    reconciledAt: "2026-02-25T14:20:25Z"
+    sourceType: Directory
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: staging-security-vault
+          server: https://kubernetes.default.svc
+        source:
+          path: apps/staging/security/vault
+          repoURL: https://github.com/gilvangalindofictor/arquitetura-kubernetes.git
+          targetRevision: main
+      revision: ace89ce9525a7f42ac2052fdc9f172890673aa7e
+      status: Synced
+kind: List
+metadata:
+  resourceVersion: ""

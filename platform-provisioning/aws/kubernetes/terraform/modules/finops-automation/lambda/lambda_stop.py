@@ -35,11 +35,20 @@ SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', '')
 CREATE_RDS_SNAPSHOT = os.environ.get('CREATE_RDS_SNAPSHOT', 'false').lower() == 'true'
 
-# Node groups configuration (scale to 0)
+# FinOps Protection: Excluded node groups (NEVER scale to 0)
+EXCLUDED_NODE_GROUPS = os.environ.get('EXCLUDED_NODE_GROUPS', '').split(',')
+EXCLUDED_NODE_GROUPS = [ng.strip() for ng in EXCLUDED_NODE_GROUPS if ng.strip()]
+MIN_SYSTEM_NODES = int(os.environ.get('MIN_SYSTEM_NODES', '2'))
+MIN_CRITICAL_NODES = int(os.environ.get('MIN_CRITICAL_NODES', '2'))
+ENABLE_SCALING_PROTECTION = os.environ.get('ENABLE_SCALING_PROTECTION', 'true').lower() == 'true'
+
+logger.info(f"FinOps Protection: EXCLUDED_NODE_GROUPS={EXCLUDED_NODE_GROUPS}, MIN_SYSTEM_NODES={MIN_SYSTEM_NODES}, ENABLE_SCALING_PROTECTION={ENABLE_SCALING_PROTECTION}")
+
+# Node groups configuration (scale to 0 only if NOT protected)
 NODE_GROUPS_CONFIG = {
-    'system': {'min': 0, 'desired': 0, 'max': 4},
+    'system': {'min': MIN_SYSTEM_NODES if ENABLE_SCALING_PROTECTION else 0, 'desired': MIN_SYSTEM_NODES if ENABLE_SCALING_PROTECTION else 0, 'max': 4},
     'workloads': {'min': 0, 'desired': 0, 'max': 6},
-    'critical': {'min': 0, 'desired': 0, 'max': 4}
+    'critical': {'min': MIN_CRITICAL_NODES if ENABLE_SCALING_PROTECTION else 0, 'desired': MIN_CRITICAL_NODES if ENABLE_SCALING_PROTECTION else 0, 'max': 4}
 }
 
 
@@ -74,9 +83,19 @@ def lambda_handler(event, context):
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
 
-        # Stop node groups (scale to 0)
+        # Stop node groups (scale to 0 or MIN if protected)
         for ng_name, config in NODE_GROUPS_CONFIG.items():
             try:
+                # Check if node group is excluded from scaling
+                if ng_name in EXCLUDED_NODE_GROUPS:
+                    logger.info(f"Node group {ng_name} is EXCLUDED from scaling (protection enabled)")
+                    results['node_groups'][ng_name] = {
+                        'status': 'protected',
+                        'message': f'Node group excluded from scaling (min={config["min"]}, desired={config["desired"]})',
+                        'config': config
+                    }
+                    continue
+
                 stop_node_group(ng_name, config, results)
             except Exception as e:
                 logger.error(f"Error stopping node group {ng_name}: {str(e)}")

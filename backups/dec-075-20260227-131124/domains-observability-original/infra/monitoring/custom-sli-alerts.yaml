@@ -1,0 +1,308 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sli-custom-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+spec:
+  groups:
+    # =========================================================================
+    # SLI: Latency (P95) Alerts
+    # =========================================================================
+    - name: sli.latency
+      interval: 30s
+      rules:
+        - alert: ServiceHighLatencyP95Warning
+          expr: |
+            (
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job, le)
+              ) > 1.0
+            ) or (
+              histogram_quantile(0.95,
+                sum(rate(vault_core_handle_request_bucket[5m])) by (le)
+              ) > 0.2
+            )
+          for: 10m
+          labels:
+            severity: warning
+            alert_type: slo_violation
+            sli: latency
+            gap: GAP-001
+          annotations:
+            summary: "High P95 latency detected on {{ $labels.job }}"
+            description: |
+              P95 latency is {{ $value | humanizeDuration }} (above SLO threshold).
+
+              Service: {{ $labels.job }}
+              Threshold: GitLab/ArgoCD/Harbor > 1s, Vault > 200ms
+
+              Impact: User experience degraded, possible performance bottleneck.
+
+              Runbook: https://docs/runbooks/high-latency-p95.md
+            dashboard: "https://grafana/d/sli-overview"
+
+        - alert: ServiceHighLatencyP95Critical
+          expr: |
+            (
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job, le)
+              ) > 2.0
+            ) or (
+              histogram_quantile(0.95,
+                sum(rate(vault_core_handle_request_bucket[5m])) by (le)
+              ) > 0.4
+            )
+          for: 10m
+          labels:
+            severity: critical
+            alert_type: slo_violation
+            sli: latency
+            gap: GAP-001
+          annotations:
+            summary: "CRITICAL: Very high P95 latency on {{ $labels.job }}"
+            description: |
+              P95 latency is {{ $value | humanizeDuration }} (2x above SLO threshold).
+
+              Service: {{ $labels.job }}
+              Threshold: GitLab/ArgoCD/Harbor > 2s (2x SLO), Vault > 400ms (2x SLO)
+
+              Impact: SEVERE - User experience significantly degraded, possible outage.
+
+              Action Required: Immediate investigation and mitigation.
+
+              Runbook: https://docs/runbooks/high-latency-p95.md
+
+    # =========================================================================
+    # SLI: Error Rate (5xx) Alerts
+    # =========================================================================
+    - name: sli.errors
+      interval: 30s
+      rules:
+        - alert: ServiceHighErrorRate5xxWarning
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job)
+              /
+              sum(rate(http_requests_total{job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job)
+            ) * 100 > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            alert_type: slo_violation
+            sli: error_rate
+            gap: GAP-001
+          annotations:
+            summary: "High 5xx error rate on {{ $labels.job }}"
+            description: |
+              Error rate is {{ $value | printf "%.2f" }}% (above SLO threshold).
+
+              Service: {{ $labels.job }}
+              Threshold: > 1% error rate
+              Current: {{ $value | printf "%.2f" }}%
+
+              Impact: Some requests failing, user experience affected.
+
+              Check logs: kubectl logs -n {{ $labels.namespace }} -l app={{ $labels.job }} --tail=100
+
+              Runbook: https://docs/runbooks/high-error-rate-5xx.md
+            dashboard: "https://grafana/d/sli-overview"
+
+        - alert: ServiceHighErrorRate5xxCritical
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job)
+              /
+              sum(rate(http_requests_total{job=~"gitlab|argocd-metrics|harbor"}[5m])) by (job)
+            ) * 100 > 5.0
+          for: 5m
+          labels:
+            severity: critical
+            alert_type: slo_violation
+            sli: error_rate
+            gap: GAP-001
+          annotations:
+            summary: "CRITICAL: Very high 5xx error rate on {{ $labels.job }}"
+            description: |
+              Error rate is {{ $value | printf "%.2f" }}% (> 5% critical threshold).
+
+              Service: {{ $labels.job }}
+              Threshold: > 5% error rate (CRITICAL)
+              Current: {{ $value | printf "%.2f" }}%
+
+              Impact: SEVERE - Majority of requests failing, possible service outage.
+
+              Action Required: Immediate incident response, consider rollback.
+
+              Emergency commands:
+              - Check pod status: kubectl get pods -n {{ $labels.namespace }} -l app={{ $labels.job }}
+              - View recent logs: kubectl logs -n {{ $labels.namespace }} -l app={{ $labels.job }} --tail=200
+              - Describe pod: kubectl describe pod -n {{ $labels.namespace }} -l app={{ $labels.job }}
+
+              Runbook: https://docs/runbooks/high-error-rate-5xx.md
+
+    # =========================================================================
+    # SLI: Saturation - Database Connections
+    # =========================================================================
+    - name: sli.saturation.database
+      interval: 30s
+      rules:
+        - alert: PostgreSQLConnectionsHighWarning
+          expr: |
+            (
+              sum(pg_stat_database_numbackends{datname!~"template.*|postgres"})
+              /
+              pg_settings_max_connections
+            ) * 100 > 70
+          for: 5m
+          labels:
+            severity: warning
+            alert_type: saturation
+            sli: database_connections
+            gap: GAP-001
+          annotations:
+            summary: "PostgreSQL connections usage high"
+            description: |
+              Connection usage is {{ $value | printf "%.1f" }}% (> 70% warning threshold).
+
+              Impact: Risk of connection exhaustion, new connections may fail.
+
+              Actions:
+              1. Check active connections: SELECT count(*) FROM pg_stat_activity;
+              2. Identify long-running queries: SELECT * FROM pg_stat_activity WHERE state = 'active' ORDER BY query_start;
+              3. Consider increasing max_connections or connection pooling
+
+              Runbook: https://docs/runbooks/postgresql-connections-high.md
+            dashboard: "https://grafana/d/postgresql-overview"
+
+        - alert: PostgreSQLConnectionsHighCritical
+          expr: |
+            (
+              sum(pg_stat_database_numbackends{datname!~"template.*|postgres"})
+              /
+              pg_settings_max_connections
+            ) * 100 > 85
+          for: 5m
+          labels:
+            severity: critical
+            alert_type: saturation
+            sli: database_connections
+            gap: GAP-001
+          annotations:
+            summary: "CRITICAL: PostgreSQL connections near limit"
+            description: |
+              Connection usage is {{ $value | printf "%.1f" }}% (> 85% critical threshold).
+
+              Impact: SEVERE - New connections will fail imminently, service outage risk.
+
+              Immediate Actions:
+              1. Kill idle connections: SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle';
+              2. Identify connection sources: SELECT client_addr, count(*) FROM pg_stat_activity GROUP BY client_addr ORDER BY count DESC;
+              3. Emergency: Scale up RDS max_connections parameter
+
+              Emergency rollback: Consider service restart if connection leak detected.
+
+              Runbook: https://docs/runbooks/postgresql-connections-high.md
+
+    # =========================================================================
+    # SLI: Availability - Service Health Check
+    # =========================================================================
+    - name: sli.availability.enhanced
+      interval: 30s
+      rules:
+        - alert: CriticalServiceDown
+          expr: |
+            up{job=~"vault|keycloak"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            alert_type: availability
+            sli: uptime
+            gap: GAP-001
+          annotations:
+            summary: "CRITICAL: Critical service {{ $labels.job }} is DOWN"
+            description: |
+              Service {{ $labels.job }} has been unavailable for 2 minutes.
+
+              Instance: {{ $labels.instance }}
+              Job: {{ $labels.job }}
+              Namespace: {{ $labels.namespace }}
+
+              Impact: CRITICAL - Essential service unavailable, authentication/secrets access blocked.
+
+              Immediate Actions:
+              1. Check pod status: kubectl get pods -n {{ $labels.namespace }} -l app={{ $labels.job }}
+              2. Check events: kubectl get events -n {{ $labels.namespace }} --sort-by='.lastTimestamp' | grep {{ $labels.job }}
+              3. View logs: kubectl logs -n {{ $labels.namespace }} -l app={{ $labels.job }} --tail=100
+
+              Escalation: Page on-call SRE if not resolved in 5 minutes.
+
+              Runbook: https://docs/runbooks/critical-service-down.md
+
+---
+# ConfigMap with alert documentation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sli-alerts-documentation
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+data:
+  README.md: |
+    # Custom SLI Alerts - GAP-001
+
+    Este ConfigMap documenta os alertas SLI customizados implementados para GAP-001.
+
+    ## Alertas Implementados
+
+    ### 1. ServiceHighLatencyP95Warning/Critical
+    - **SLI:** Latency (P95)
+    - **Threshold Warning:** GitLab/ArgoCD/Harbor > 1s, Vault > 200ms
+    - **Threshold Critical:** 2x warning threshold
+    - **For:** 10 minutos
+
+    ### 2. ServiceHighErrorRate5xxWarning/Critical
+    - **SLI:** Error Rate (5xx)
+    - **Threshold Warning:** > 1% error rate
+    - **Threshold Critical:** > 5% error rate
+    - **For:** 5 minutos
+
+    ### 3. PostgreSQLConnectionsHighWarning/Critical
+    - **SLI:** Saturation (Database Connections)
+    - **Threshold Warning:** > 70% connections
+    - **Threshold Critical:** > 85% connections
+    - **For:** 5 minutos
+
+    ### 4. CriticalServiceDown
+    - **SLI:** Availability
+    - **Threshold:** Service up metric == 0
+    - **For:** 2 minutos
+    - **Services:** Vault, Keycloak
+
+    ## Deployment
+
+    ```bash
+    kubectl apply -f custom-sli-alerts.yaml
+    kubectl get prometheusrules -n monitoring sli-custom-alerts
+    ```
+
+    ## Validation
+
+    ```bash
+    # Port-forward Prometheus
+    kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
+
+    # Access http://localhost:9090/alerts
+    # Search for: ServiceHighLatencyP95, ServiceHighErrorRate5xx, PostgreSQLConnectionsHigh
+    ```
+
+    ## Referências
+
+    - [SLI/SLO Definitions](../../../../docs/operations/sli-slo-definitions.md)
+    - [Alert Validation Report](../docs/VALIDATION-REPORT.md)
+    - [GAP-001 Logbook](../../../../docs/logbook/2026-02-10-gap001-sli-slo.md)
