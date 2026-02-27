@@ -1,10 +1,10 @@
 # Observability Correlation Status - GAP-001
 
-| Campo          | Valor                                    |
-|----------------|------------------------------------------|
-| **Data**       | 2026-02-10                               |
-| **Versão**     | 1.0                                      |
-| **Status**     | 🟢 Infraestrutura OK, Validação Pendente |
+| Campo          | Valor                                                      |
+|----------------|------------------------------------------------------------|
+| **Data**       | 2026-02-27 (Updated)                                       |
+| **Versão**     | 1.1                                                        |
+| **Status**     | ✅ Loki→Tempo Derived Fields Configured, Loki Fix Pending |
 
 ---
 
@@ -18,7 +18,7 @@ A infraestrutura de observabilidade está **operacional** com todos os component
 ✅ **Grafana** - Visualization platform (31 dashboards)
 ✅ **OpenTelemetry Collector** - Telemetry pipeline (2 pods)
 
-⚠️ **Validação de correlação end-to-end** - Pendente de testes práticos
+⚠️ **Validação de correlação end-to-end** - Pendente (Loki CrashLoopBackOff precisa ser resolvido)
 
 ---
 
@@ -168,6 +168,32 @@ kube-prometheus-stack-grafana-xxxxx: Running
 ---
 
 ## 🔗 Correlação Traces ↔ Logs ↔ Metrics
+
+### ✅ UPDATE 2026-02-27: Loki → Tempo Derived Fields Configured
+
+**Status:** Configured via Grafana datasource ConfigMap
+
+**Implementation:**
+
+- 4 regex patterns for trace ID extraction (OpenTelemetry, JSON, dotted formats)
+- Bidirectional correlation: Loki → Tempo (derived fields) + Tempo → Loki (tracesToLogs)
+- Hot-reloaded via Grafana API (no pod restart required)
+- Documentation: ADR-087
+
+**Current Blocker:**
+
+- Loki backend pods in CrashLoopBackOff (18h+)
+- Configuration is ready, but Loki must be stable before end-to-end testing
+
+**Next Steps:**
+
+1. Fix Loki stability (investigate OOMKilled, apply VPA)
+2. Test correlation with instrumented app
+3. Validate trace ID clickable links work
+
+See: `/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/adr/adr-087-loki-tempo-derived-fields.md`
+
+---
 
 ### Fluxo de Dados
 
