@@ -148,7 +148,6 @@ spec:
 
               Current coverage: {{ $value | printf "%.1f" }}%
               Required: >= 80%
-              Deficit: {{ printf "%.1f" (sub 80 $value) }}%
 
               This will BLOCK merge requests for this project until coverage is restored.
 
