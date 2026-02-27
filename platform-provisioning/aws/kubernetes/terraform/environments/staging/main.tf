@@ -68,7 +68,7 @@ locals {
 
 provider "aws" {
   region  = var.aws_region
-  profile = "k8s-platform-staging"
+  profile = "k8s-platform-prod" # TEMP: Same account 891377105802, staging profile não configurado
 
   default_tags {
     tags = local.common_tags
@@ -843,7 +843,7 @@ module "argocd_staging" {
 
   # Cluster info
   cluster_name = local.cluster_name
-  namespace    = "argocd"
+  namespace    = "staging-platform-argocd" # DEC-075 namespace standardization
 
   # ArgoCD configuration
   argocd_chart_version = "5.51.6"
@@ -1068,10 +1068,10 @@ module "kube_prometheus_stack_staging" {
   grafana_keycloak_client_id = "grafana"
   # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
 
-  # Corporate Labels (ADR-048) — Added 2026-02-26
-  domain      = "operations"
-  owner       = "platform-team"
-  environment = "staging"
+  # Corporate Labels (ADR-048) — REMOVED 2026-02-27 (variables not supported by module)
+  # domain      = "operations"
+  # owner       = "platform-team"
+  # environment = "staging"
 }
 
 #------------------------------------------------------------------------------
@@ -1253,6 +1253,13 @@ module "finops_automation_staging" {
   # SNS notifications
   enable_sns_notifications = false # Usar apenas tópico externo (finops-alerts-staging)
   sns_topic_arn            = aws_sns_topic.finops_alerts_staging.arn
+
+  # FinOps Protection (2026-02-27): Never scale system/critical node groups to 0
+  # Fix: Prevent monitoring pods from becoming Pending/Unschedulable
+  excluded_node_groups      = ["system", "critical"]
+  min_system_nodes          = 2 # prometheus-node-exporter (11 pods), loki-canary (9 pods)
+  min_critical_nodes        = 2 # ArgoCD, Vault, other critical services
+  enable_scaling_protection = true
 
   # Tags
   tags = local.common_tags
