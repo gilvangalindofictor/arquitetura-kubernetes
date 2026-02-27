@@ -65,7 +65,9 @@
 | **DEC-068** | **ArgoCD Secrets via ESO + Auto-Generation (V-002)** | **2026-02-20** | **✅ Deployed** | **Alto** |
 | **DEC-069** | **PrometheusRule Alerting Infrastructure (DT-005)** | **2026-02-20** | **✅ Deployed** | **Alto** |
 | **DEC-075** | **Namespace Standardization - Observability Monitoring** | **2026-02-27** | **✅ Implementado** | **Alto** |
-| **ADR-086** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Implementado** | **Crítico** |
+| **ADR-086** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Código Pronto** | **Crítico** |
+| **ADR-087** | **Snapshot Lifecycle Management via DLM** | **2026-02-27** | **✅ Módulo Pronto** | **Alto** |
+| **ADR-088** | **Node Group Rightsizing Strategy (T3 → R5)** | **2026-02-27** | **📊 Análise Completa** | **Alto** |
 
 ---
 
