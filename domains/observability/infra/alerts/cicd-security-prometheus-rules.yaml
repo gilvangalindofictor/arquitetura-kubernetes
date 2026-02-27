@@ -25,7 +25,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: cicd001-security-scan-alerts
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     app: kube-prometheus-stack
     release: kube-prometheus-stack

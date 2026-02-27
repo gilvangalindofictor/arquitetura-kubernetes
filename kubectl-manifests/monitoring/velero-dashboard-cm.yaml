@@ -16,7 +16,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: velero-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: velero
@@ -25,7 +25,7 @@ metadata:
     release: kube-prometheus-stack
   annotations:
     meta.helm.sh/release-name: kube-prometheus-stack
-    meta.helm.sh/release-namespace: monitoring
+    meta.helm.sh/release-namespace: staging-observability-monitoring
 data:
   velero-backup-monitoring.json: |
     {

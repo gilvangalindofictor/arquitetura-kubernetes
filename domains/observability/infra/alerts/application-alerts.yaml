@@ -20,7 +20,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: dt005-application-alerts
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     app: kube-prometheus-stack
     release: kube-prometheus-stack
