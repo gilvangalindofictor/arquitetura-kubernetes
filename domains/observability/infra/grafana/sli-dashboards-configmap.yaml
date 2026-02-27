@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: sli-overview-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack
@@ -1359,7 +1359,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: error-budget-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack
@@ -2545,7 +2545,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gitlab-sli-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack
@@ -3750,7 +3750,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: argocd-sli-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack
@@ -4979,7 +4979,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vault-sli-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack
@@ -6307,7 +6307,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: golden-signals-dashboard
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack

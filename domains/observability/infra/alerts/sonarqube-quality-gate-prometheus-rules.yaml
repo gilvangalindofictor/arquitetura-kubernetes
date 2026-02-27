@@ -47,7 +47,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: cicd002-quality-gate-alerts
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     # Required for kube-prometheus-stack to pick up this rule
     app: kube-prometheus-stack
