@@ -1425,7 +1425,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 > **Objetivo**: Zerar gaps de staging via security-first + progressive delivery (SAST/DAST enforcement, secret rotation automation, immutable tags, quality gates, canary deployments)
 > **ROI**: ~R$ 70K/ano risk mitigation + compliance + efficiency
 
-### ✅ CICD-001: SAST/DAST Security Scanning Enforcement [ARTEFATOS CRIADOS]
+### ✅ CICD-001: SAST/DAST Security Scanning Enforcement [DEPLOYADO]
 
 **Prioridade**: 🔴 CRÍTICA (Security Blocker)
 **Status**: ✅ **ARTEFATOS CRIADOS** (2026-02-26) | ⏸️ Deploy aguardando SonarQube UP
@@ -1481,7 +1481,7 @@ Implementar e **enforcer** SAST (Static Application Security Testing) e DAST (Dy
 
 ---
 
-### 🟡 CICD-004: Immutable Image Tags Enforcement [PENDENTE]
+### ✅ CICD-004: Immutable Image Tags Enforcement [ARTEFATOS CRIADOS]
 
 **Prioridade**: 🟡 ALTA
 **Status**: 📋 **PENDENTE** (PARALLEL com CICD-001)
@@ -1528,7 +1528,7 @@ Enforcer immutable image tags no Harbor registry, prevenindo tag overwrite (late
 
 ---
 
-### 🟡 CICD-002: SonarQube Quality Gate Enforcement [PENDENTE]
+### ✅ CICD-002: SonarQube Quality Gate Enforcement [DEPLOYADO]
 
 **Prioridade**: 🟡 ALTA (AFTER CICD-001)
 **Status**: 📋 **PENDENTE**
@@ -1577,7 +1577,7 @@ Enforcer SonarQube quality gates no GitLab CI/CD, bloqueando merges de código c
 
 ---
 
-### 🟡 CICD-003: Automated Secret Rotation [PENDENTE]
+### ✅ CICD-003: Automated Secret Rotation [DEPLOYADO]
 
 **Prioridade**: 🟡 ALTA (INDEPENDENT - can parallel)
 **Status**: 📋 **PENDENTE**
@@ -1635,7 +1635,7 @@ Automatizar rotação trimestral de secrets (PostgreSQL, Redis, Keycloak admin, 
 
 ---
 
-### 🟢 CICD-005: Argo Rollouts Progressive Delivery [PENDENTE]
+### ✅ CICD-005: Argo Rollouts Progressive Delivery [DEPLOYADO]
 
 **Prioridade**: 🟢 MÉDIA (Nice-to-Have, AFTER apps instrumented)
 **Status**: 📋 **PENDENTE**
