@@ -68,6 +68,9 @@
 | **ADR-086** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Código Pronto** | **Crítico** |
 | **ADR-087** | **Snapshot Lifecycle Management via DLM** | **2026-02-27** | **✅ Módulo Pronto** | **Alto** |
 | **ADR-088** | **Node Group Rightsizing Strategy (T3 → R5)** | **2026-02-27** | **📊 Análise Completa** | **Alto** |
+| **ADR-089** | **Loki 3.6.5 Breaking Change Fix (shared_store → delete_request_store)** | **2026-02-27** | **✅ Implementado** | **Crítico** |
+| **ADR-090** | **Loki→Tempo Correlation via Derived Fields** | **2026-02-27** | **✅ Implementado** | **Alto** |
+| **ADR-091** | **RDS Availability Monitoring (Hybrid CloudWatch + Prometheus)** | **2026-02-27** | **✅ Validado** | **Alto** |
 
 ---
 
