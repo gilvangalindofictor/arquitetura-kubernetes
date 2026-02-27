@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marco4-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    description: "Marco 4 services dashboards - GitLab, ArgoCD, SonarQube, Keycloak"
+data:
+  gitlab-cicd-overview.json: |
+    {{ .Files.Get "gitlab-cicd-overview.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-sync-status-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    description: "ArgoCD application sync status and health monitoring"
+data:
+  argocd-sync-status.json: |
+    {{ .Files.Get "argocd-sync-status.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sonarqube-quality-metrics-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    description: "SonarQube code quality metrics and quality gates"
+data:
+  sonarqube-quality-metrics.json: |
+    {{ .Files.Get "sonarqube-quality-metrics.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-sso-usage-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    description: "Keycloak SSO usage, sessions, and security metrics"
+data:
+  keycloak-sso-usage.json: |
+    {{ .Files.Get "keycloak-sso-usage.json" | indent 4 }}

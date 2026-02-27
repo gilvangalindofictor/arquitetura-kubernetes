@@ -1,0 +1,24 @@
+---
+# Placeholder resource for Git Generator Pattern demonstration
+# In production, this would be replaced with actual Helm charts or Kustomize overlays
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-staging-info
+  namespace: observability-staging
+  labels:
+    app: observability
+    environment: staging
+data:
+  info: |
+    Observability Stack - Staging Environment
+
+    Components:
+    - Prometheus (monitoring metrics)
+    - Grafana (visualization)
+    - Loki (log aggregation)
+    - Tempo (distributed tracing)
+
+    This is a placeholder for actual Helm-based deployments.
+    ApplicationSet: platform-services-multi-env
+    Pattern: Git Generator

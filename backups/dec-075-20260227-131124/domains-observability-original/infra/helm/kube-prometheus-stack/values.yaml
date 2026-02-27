@@ -1,0 +1,253 @@
+# kube-prometheus-stack values
+# Deploys Prometheus, Grafana, and Alertmanager
+
+grafana:
+  enabled: true
+  # V-001 REMEDIATED: adminPassword removed. Now uses existingSecret from ESO.
+  # Vault path: secret/grafana/admin (key: password)
+  # ESO ExternalSecret: grafana-admin-credentials → K8s Secret → grafana.admin.existingSecret
+  admin:
+    existingSecret: grafana-admin-credentials
+    passwordKey: admin-password
+  persistence:
+    enabled: true
+    type: pvc
+    size: 10Gi
+    storageClassName: "gp2"
+
+  # Pre-configure Loki and Tempo datasources
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.observability.svc.cluster.local
+      access: proxy
+      isDefault: false
+    - name: Tempo
+      type: tempo
+      url: http://tempo.observability.svc.cluster.local:3200
+      access: proxy
+      isDefault: false
+  serviceAccount:
+    create: true
+    name: "grafana"
+
+prometheus:
+  prometheusSpec:
+    # Automatically discover PrometheusRule CRDs
+    ruleSelector:
+      matchLabels:
+        prometheus: kube-prometheus-stack-prometheus
+        role: alert-rules
+    # Set retention to 15 days as per ADR-002
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Remote write configuration for long-term storage (Phase 2)
+    # remoteWrite:
+    #   - url: "http://your-thanos-receiver-or-cortex/api/v1/write"
+  serviceAccount:
+    create: true
+    name: "prometheus"
+    # annotations:
+    #   eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/your-prometheus-s3-role"
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+  # =========================================================================
+  # DT-005: Production Alertmanager Routing Configuration
+  # Routing strategy:
+  #   - Critical -> immediate (slack-critical + email-critical), 5min repeat
+  #   - Warning  -> batched (slack-warning), 30min repeat
+  #   - Data services -> dedicated channel (slack-data-services)
+  #   - Security -> security channel (slack-security)
+  # =========================================================================
+  config:
+    global:
+      resolve_timeout: 5m
+      # SMTP configuration for email alerts (replace with actual values)
+      # smtp_smarthost: 'smtp.example.com:587'
+      # smtp_from: 'alertmanager@k8s-platform-prod.example.com'
+      # smtp_auth_username: 'alertmanager'
+      # smtp_auth_password: '' # Use secret reference in production
+      # smtp_require_tls: true
+
+    route:
+      group_by: ["namespace", "alertname", "severity"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: "slack-warning"
+
+      routes:
+        # Critical alerts -> immediate Slack notification
+        - match:
+            severity: critical
+          receiver: "slack-critical"
+          repeat_interval: 5m
+          group_wait: 10s
+          group_interval: 1m
+          continue: true # Also send to email
+
+        # Critical alerts -> email backup
+        - match:
+            severity: critical
+          receiver: "email-critical"
+          repeat_interval: 15m
+          group_wait: 30s
+
+        # Data services -> dedicated channel
+        - match_re:
+            service: "postgresql|redis|rabbitmq"
+          receiver: "slack-data-services"
+          repeat_interval: 15m
+          group_by: ["service", "alertname", "namespace"]
+
+        # Security alerts -> security channel
+        - match_re:
+            service: "vault|cert-manager|external-secrets"
+          receiver: "slack-security"
+          repeat_interval: 10m
+          group_by: ["service", "alertname"]
+
+        # Warning alerts -> batched notifications
+        - match:
+            severity: warning
+          receiver: "slack-warning"
+          repeat_interval: 30m
+          group_wait: 60s
+          group_interval: 10m
+
+    receivers:
+      - name: "null"
+
+      - name: "slack-critical"
+        slack_configs:
+          - api_url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+            channel: "#alerts-critical"
+            send_resolved: true
+            title: |-
+              [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
+            text: >-
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+
+              *Severity:* `{{ .Labels.severity }}`
+
+              *Namespace:* {{ .Labels.namespace }}
+
+              *Description:* {{ .Annotations.description }}
+
+              {{ end }}
+
+      - name: "slack-warning"
+        slack_configs:
+          - api_url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+            channel: "#alerts-warning"
+            send_resolved: true
+            title: |-
+              [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
+            text: >-
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+
+              *Severity:* `{{ .Labels.severity }}`
+
+              {{ end }}
+
+      - name: "slack-data-services"
+        slack_configs:
+          - api_url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+            channel: "#alerts-data-services"
+            send_resolved: true
+            title: |-
+              [{{ .Status | toUpper }}] {{ .CommonLabels.service }}: {{ .CommonLabels.alertname }}
+            text: >-
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+
+              *Service:* {{ .Labels.service }} / {{ .Labels.component }}
+
+              *Instance:* {{ .Labels.instance }}
+
+              {{ end }}
+
+      - name: "slack-security"
+        slack_configs:
+          - api_url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+            channel: "#alerts-security"
+            send_resolved: true
+            title: |-
+              [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+            text: >-
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+
+              *Service:* {{ .Labels.service }}
+
+              *Description:* {{ .Annotations.description }}
+
+              {{ end }}
+
+      - name: "email-critical"
+        email_configs:
+          - to: "sre-team@example.com"
+            send_resolved: true
+            # Requires global SMTP configuration above
+
+    inhibit_rules:
+      # Critical inhibits warning for the same alert
+      - source_match:
+          severity: "critical"
+        target_match:
+          severity: "warning"
+        equal: ["alertname", "namespace", "service"]
+
+      # NodeNotReady inhibits pod-level warnings
+      - source_match:
+          alertname: "NodeNotReady"
+        target_match:
+          severity: "warning"
+        equal: ["node"]
+
+    # =========================================================================
+    # Maintenance Window Templates
+    # To silence alerts during maintenance, create a silence via Alertmanager UI
+    # or use amtool:
+    #
+    # Silence all alerts for 2 hours (full maintenance):
+    #   amtool silence add --alertmanager.url=http://alertmanager:9093 \
+    #     --duration=2h --comment="Scheduled maintenance window" \
+    #     alertname=~".*"
+    #
+    # Silence specific namespace for 1 hour:
+    #   amtool silence add --alertmanager.url=http://alertmanager:9093 \
+    #     --duration=1h --comment="Deploying to gitlab namespace" \
+    #     namespace="gitlab-staging"
+    #
+    # Silence specific service alerts:
+    #   amtool silence add --alertmanager.url=http://alertmanager:9093 \
+    #     --duration=30m --comment="PostgreSQL maintenance" \
+    #     service="postgresql"
+    #
+    # List active silences:
+    #   amtool silence query --alertmanager.url=http://alertmanager:9093
+    #
+    # Expire a silence:
+    #   amtool silence expire --alertmanager.url=http://alertmanager:9093 <silence-id>
+    # =========================================================================

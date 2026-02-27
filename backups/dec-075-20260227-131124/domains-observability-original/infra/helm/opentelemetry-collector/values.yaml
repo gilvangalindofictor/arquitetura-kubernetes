@@ -1,0 +1,80 @@
+# OpenTelemetry Collector Gateway Configuration
+# Deploys a central collector to receive, process, and export signals.
+
+mode: gateway
+
+# Use the opentelemetry-operator for CRD-based management in the future
+# For now, a standard Helm deployment is sufficient for PoC.
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 75
+      spike_limit_percentage: 15
+    batch:
+      send_batch_size: 8192
+      timeout: 1s
+
+  exporters:
+    # Export metrics to Prometheus
+    prometheusremotewrite:
+      endpoint: "http://prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+      tls:
+        insecure: true
+
+    # Export logs to Loki
+    loki:
+      endpoint: "http://loki-gateway.observability.svc.cluster.local:80/loki/api/v1/push"
+      
+    # Export traces to Tempo
+    otlp/tempo:
+      endpoint: "http://tempo.observability.svc.cluster.local:4317"
+      tls:
+        insecure: true
+        
+    # For debugging purposes
+    logging:
+      loglevel: info
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/tempo, logging]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheusremotewrite, logging]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [loki, logging]
+
+# Expose the OTLP receiver via a LoadBalancer for external access
+service:
+  type: LoadBalancer
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+
+# Annotate the service account for IRSA if needed for specific exporters (e.g., AWS X-Ray)
+# For this stack, IRSA is primarily needed on the backend components (Loki, Tempo)
+serviceAccount:
+  create: true
+  name: "otel-collector-gateway"

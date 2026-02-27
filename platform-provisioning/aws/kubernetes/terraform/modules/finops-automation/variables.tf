@@ -68,6 +68,44 @@ variable "enable_automation" {
 }
 
 # -----------------------------------------------------------------------------
+# FinOps Protection Configuration
+# -----------------------------------------------------------------------------
+
+variable "excluded_node_groups" {
+  description = "Node groups excluded from scaling to 0 (comma-separated)"
+  type        = list(string)
+  default     = ["system", "critical"]
+}
+
+variable "min_system_nodes" {
+  description = "Minimum system nodes to keep running (never scale below this)"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.min_system_nodes >= 0 && var.min_system_nodes <= 10
+    error_message = "min_system_nodes must be between 0 and 10."
+  }
+}
+
+variable "min_critical_nodes" {
+  description = "Minimum critical nodes to keep running (never scale below this)"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.min_critical_nodes >= 0 && var.min_critical_nodes <= 10
+    error_message = "min_critical_nodes must be between 0 and 10."
+  }
+}
+
+variable "enable_scaling_protection" {
+  description = "Enable protection for system/critical node groups (recommended: true)"
+  type        = bool
+  default     = true
+}
+
+# -----------------------------------------------------------------------------
 # Lambda Configuration
 # -----------------------------------------------------------------------------
 
@@ -249,6 +287,11 @@ locals {
     LOG_LEVEL                 = "INFO"
     SNS_TOPIC_ARN             = var.enable_sns_notifications && length(aws_sns_topic.finops_notifications) > 0 ? aws_sns_topic.finops_notifications[0].arn : var.sns_topic_arn
     CIRCUIT_BREAKER_THRESHOLD = tostring(var.circuit_breaker_threshold)
+    # FinOps Protection (2026-02-27)
+    EXCLUDED_NODE_GROUPS      = join(",", var.excluded_node_groups)
+    MIN_SYSTEM_NODES          = tostring(var.min_system_nodes)
+    MIN_CRITICAL_NODES        = tostring(var.min_critical_nodes)
+    ENABLE_SCALING_PROTECTION = tostring(var.enable_scaling_protection)
   }
 }
 

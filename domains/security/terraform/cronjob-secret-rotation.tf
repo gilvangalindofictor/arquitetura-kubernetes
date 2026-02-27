@@ -17,10 +17,10 @@
 ################################################################################
 
 locals {
-  rotator_namespace   = "staging-security-vault"
-  rotator_name        = "secret-rotator"
-  rotator_image       = "vault:1.15.0"
-  rotator_schedule    = "0 2 1 */3 *"
+  rotator_namespace = "staging-security-vault"
+  rotator_name      = "secret-rotator"
+  rotator_image     = "hashicorp/vault:1.15.0"
+  rotator_schedule  = "0 2 1 */3 *"
 
   # Labels padrão projeto (ADR-048 naming conventions)
   rotator_labels = {
@@ -28,7 +28,7 @@ locals {
     "app.kubernetes.io/component"  = "security"
     "app.kubernetes.io/managed-by" = "terraform"
     "app.kubernetes.io/part-of"    = "platform-security"
-    "domain"                       = "security"
+    "domain"                       = "platform"
     "owner"                        = "platform-team"
     "environment"                  = "staging"
     "demand"                       = "CICD-003"
@@ -46,9 +46,9 @@ resource "kubernetes_service_account_v1" "secret_rotator" {
     namespace = local.rotator_namespace
     labels    = local.rotator_labels
     annotations = {
-      "description"        = "ServiceAccount for quarterly automated secret rotation (CICD-003)"
-      "adr"                = "ADR-083"
-      "rotation-schedule"  = local.rotator_schedule
+      "description"       = "ServiceAccount for quarterly automated secret rotation (CICD-003)"
+      "adr"               = "ADR-083"
+      "rotation-schedule" = local.rotator_schedule
     }
   }
 }
@@ -158,8 +158,8 @@ resource "kubernetes_manifest" "secret_rotator_external_secret" {
         kind = "ClusterSecretStore"
       }
       target = {
-        name            = "secret-rotator-vault-token"
-        creationPolicy  = "Owner"
+        name           = "secret-rotator-vault-token"
+        creationPolicy = "Owner"
       }
       data = [
         {
@@ -234,22 +234,20 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
     namespace = local.rotator_namespace
     labels    = local.rotator_labels
     annotations = {
-      "description"       = "Quarterly automated secret rotation for platform credentials (CICD-003)"
-      "adr"               = "ADR-083"
-      "schedule"          = local.rotator_schedule
-      "schedule-human"    = "Quarterly: 02:00 UTC on Jan 1, Apr 1, Jul 1, Oct 1"
-      "last-rotation"     = "N/A — first deployment"
-      "next-rotation"     = "2026-04-01T02:00:00Z"
+      "description"    = "Quarterly automated secret rotation for platform credentials (CICD-003)"
+      "adr"            = "ADR-083"
+      "schedule"       = local.rotator_schedule
+      "schedule-human" = "Quarterly: 02:00 UTC on Jan 1, Apr 1, Jul 1, Oct 1"
+      "next-rotation"  = "2026-04-01T02:00:00Z"
     }
   }
 
   spec {
     schedule                      = local.rotator_schedule
-    timezone                      = "UTC"
-    concurrency_policy            = "Forbid"    # Never run two rotations in parallel
+    concurrency_policy            = "Forbid" # Never run two rotations in parallel
     successful_jobs_history_limit = 3
     failed_jobs_history_limit     = 3
-    starting_deadline_seconds     = 600         # Abort if not started within 10 min
+    starting_deadline_seconds     = 600 # Abort if not started within 10 min
 
     job_template {
       metadata {
@@ -257,15 +255,15 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
       }
 
       spec {
-        backoff_limit              = 2           # Max 2 retries before marking failed
-        active_deadline_seconds    = 1800        # Max 30 min runtime (safety net)
-        ttl_seconds_after_finished = 86400       # Clean up finished jobs after 24h
+        backoff_limit              = 2     # Max 2 retries before marking failed
+        active_deadline_seconds    = 1800  # Max 30 min runtime (safety net)
+        ttl_seconds_after_finished = 86400 # Clean up finished jobs after 24h
 
         template {
           metadata {
             labels = local.rotator_labels
             annotations = {
-              "vault.hashicorp.com/agent-inject" = "false"  # Not using Vault Agent sidecar
+              "vault.hashicorp.com/agent-inject" = "false" # Not using Vault Agent sidecar
             }
           }
 
@@ -276,7 +274,7 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
             # Security: run as non-root
             security_context {
               run_as_non_root = true
-              run_as_user     = 100        # Vault image default UID
+              run_as_user     = 100 # Vault image default UID
               run_as_group    = 1000
               fs_group        = 1000
             }
@@ -348,7 +346,7 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
               # --- Environment: Keycloak connection ---
               env {
                 name  = "KEYCLOAK_URL"
-                value = "http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local"
+                value = "http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local/auth"
               }
 
               env {
@@ -359,17 +357,17 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
               # --- Environment: Rotation configuration ---
               env {
                 name  = "DRY_RUN"
-                value = "false"  # Set to "true" to test without applying changes
+                value = "false" # Set to "true" to test without applying changes
               }
 
               env {
                 name  = "ROTATION_GRACE_PERIOD_HOURS"
-                value = "24"  # ESO re-sync window before old secrets expire
+                value = "24" # ESO re-sync window before old secrets expire
               }
 
               env {
                 name  = "LOG_LEVEL"
-                value = "INFO"  # DEBUG for troubleshooting
+                value = "INFO" # DEBUG for troubleshooting
               }
 
               # --- Resource limits ---
@@ -386,7 +384,7 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
 
               # Security: read-only root filesystem
               security_context {
-                read_only_root_filesystem = false  # Vault CLI writes temp files
+                read_only_root_filesystem  = false # Vault CLI writes temp files
                 allow_privilege_escalation = false
                 capabilities {
                   drop = ["ALL"]
@@ -424,10 +422,10 @@ resource "kubernetes_cron_job_v1" "secret_rotator" {
             }
 
           } # end spec (pod)
-        } # end template
-      } # end spec (job)
-    } # end job_template
-  } # end spec (cronjob)
+        }   # end template
+      }     # end spec (job)
+    }       # end job_template
+  }         # end spec (cronjob)
 
   depends_on = [
     kubernetes_service_account_v1.secret_rotator,

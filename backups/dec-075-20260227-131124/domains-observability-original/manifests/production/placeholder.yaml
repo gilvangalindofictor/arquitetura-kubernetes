@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-production-info
+  namespace: observability-production
+  labels:
+    app: observability
+    environment: production
+data:
+  info: |
+    Observability Stack - Production Environment
+
+    Components:
+    - Prometheus (30d retention)
+    - Grafana (HA mode)
+    - Loki (S3 backend)
+    - Tempo (distributed tracing)
+
+    High availability, production-grade configuration.
+    ApplicationSet: platform-services-multi-env
+    Pattern: Git Generator

@@ -1,0 +1,403 @@
+# =============================================================================
+# CICD-002: SonarQube Quality Gate Observability Alerts
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS, 9 nodes, 3 node groups)
+#
+# Metrics sources:
+#   1. SonarQube native endpoint: /api/monitoring/metrics (GAP-008, ADR-075)
+#      Scraped via ServiceMonitor in sonarqube namespace
+#      Metrics:
+#        sonarqube_project_quality_gate_status    (0=OK, 1=WARN, 2=ERROR)
+#        sonarqube_project_bugs_total             (count per project)
+#        sonarqube_project_vulnerabilities_total  (count per project)
+#        sonarqube_project_code_coverage_percent  (percentage, new code)
+#        sonarqube_project_code_smells_total      (count per project)
+#        sonarqube_project_security_hotspots_total (count per project)
+#
+#   2. Prometheus PushGateway (from GitLab CI jobs — CICD-002 template)
+#      Pushed by sonarqube-quality-gate job after each pipeline
+#      Metrics:
+#        gitlab_ci_quality_gate_status            (1=pass, 0=fail)
+#        gitlab_ci_quality_gate_duration_seconds  (seconds)
+#
+# Alerts in this file:
+#   Group cicd002.quality-gate.sonarqube (native exporter metrics):
+#     - SonarQubeQualityGateFailed         (warning)  — gate in ERROR state
+#     - SonarQubeCoverageDropped           (warning)  — new code coverage < 80%
+#     - SonarQubeNewBugs                   (warning)  — any new bugs detected
+#     - SonarQubeNewVulnerabilities        (critical) — any new vulnerabilities
+#     - SonarQubeHighDebtAccumulation      (warning)  — code smells > threshold
+#
+#   Group cicd002.quality-gate.pipeline (PushGateway metrics):
+#     - QualityGatePipelineBlocked         (warning)  — pipeline blocked by gate
+#     - QualityGateScanTimeout             (warning)  — scan taking too long
+#     - QualityGateScanMissing             (warning)  — project not scanning
+#
+# Relationship to CICD-001:
+#   CICD-001 (cicd-security-prometheus-rules.yaml) alerts on SonarQubeQualityGateFailed
+#   with severity: critical. CICD-002 (this file) adds granular alerts on individual
+#   metrics (coverage, bugs, vulnerabilities, smells) from the native SonarQube exporter.
+#   These complement, not replace, the CICD-001 alerts.
+#
+# Deploy:
+#   kubectl apply -f domains/observability/infra/alerts/sonarqube-quality-gate-prometheus-rules.yaml
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cicd002-quality-gate-alerts
+  namespace: monitoring
+  labels:
+    # Required for kube-prometheus-stack to pick up this rule
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    # Identification labels
+    app.kubernetes.io/name: cicd002-quality-gate-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/part-of: cicd-platform
+    demand: CICD-002
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Group 1: SonarQube Native Metrics (from /api/monitoring/metrics)
+    # ServiceMonitor scrapes: sonarqube.sonarqube.svc.cluster.local:9000
+    # Scrape interval: 60s (configured in ServiceMonitor)
+    #
+    # Note on metric names: SonarQube 10.3.0 native Prometheus endpoint exposes
+    # metrics with labels {project="<project-key>"}. Verify actual metric names
+    # by running:
+    #   curl -u <token>: http://sonarqube.sonarqube.svc:9000/api/monitoring/metrics
+    # =========================================================================
+    - name: cicd002.quality-gate.sonarqube
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # SonarQubeQualityGateFailed (CICD-002 version)
+        #
+        # Triggers when a project's quality gate is in ERROR or WARN state.
+        # Severity: warning (distinct from CICD-001's critical alert on same)
+        #
+        # This alert fires on the project-level metric. The CICD-001 alert
+        # SonarQubeQualityGateFailed fires separately on the same condition
+        # with severity: critical. Both can fire simultaneously.
+        #
+        # sonarqube_project_quality_gate_status values:
+        #   0 = OK (green — all conditions pass)
+        #   1 = WARN (yellow — some conditions in warning)
+        #   2 = ERROR (red — blocking conditions failed)
+        # -----------------------------------------------------------------
+        - alert: SonarQubeQualityGateFailed
+          expr: |
+            sonarqube_project_quality_gate_status > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: quality-gate
+            demand: CICD-002
+          annotations:
+            summary: "SonarQube Quality Gate FAILED: project={{ $labels.project }}"
+            description: |
+              The Production quality gate is NOT passing for project {{ $labels.project }}.
+              Status value: {{ $value }} (0=OK, 1=WARN, 2=ERROR)
+
+              CICD-002 POLICY: Merge requests with a failing Quality Gate are BLOCKED.
+              All new code must pass: coverage >=80%, bugs=0, vulnerabilities=0, smells<=10, hotspots-reviewed>=80%.
+
+              Immediate Actions:
+              1. Open SonarQube: http://sonarqube.staging.internal/dashboard?id={{ $labels.project }}
+              2. Review failing conditions in "Overall Code" and "New Code" tabs
+              3. Fix issues or mark as false positive with justification (see developer guide)
+              4. Pipeline will unblock automatically after next passing scan
+
+              Developer Guide: docs/guides/quality-gate-compliance.md
+              Runbook: docs/runbooks/security-scan-failures-troubleshooting.md
+            runbook_url: "docs/runbooks/security-scan-failures-troubleshooting.md"
+            dashboard_url: "http://grafana.staging.internal/d/cicd002-quality-gate"
+
+        # -----------------------------------------------------------------
+        # SonarQubeCoverageDropped
+        #
+        # Fires when new code coverage drops below 80% for any project.
+        # This is the primary coverage enforcement metric.
+        #
+        # Note: This metric tracks "new code" coverage specifically (new_coverage),
+        # not overall project coverage. New code = code added in the last analysis period.
+        # -----------------------------------------------------------------
+        - alert: SonarQubeCoverageDropped
+          expr: |
+            sonarqube_project_code_coverage_percent < 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: coverage
+            demand: CICD-002
+          annotations:
+            summary: "SonarQube: Code coverage dropped below 80% for {{ $labels.project }}"
+            description: |
+              New code coverage for project {{ $labels.project }} is {{ $value | printf "%.1f" }}%,
+              which is below the 80% threshold required by the Production quality gate.
+
+              Current coverage: {{ $value | printf "%.1f" }}%
+              Required: >= 80%
+
+              This will BLOCK merge requests for this project until coverage is restored.
+
+              How to fix:
+              1. Run your test suite and view the coverage report:
+                 - Python: pytest --cov=. --cov-report=xml
+                 - Node: jest --coverage
+                 - Java: mvn test jacoco:report
+              2. Identify uncovered files/functions in the SonarQube UI
+              3. Add tests for new code paths
+              4. Configure SONAR_COVERAGE_REPORT in your .gitlab-ci.yml to upload report
+
+              SonarQube: http://sonarqube.staging.internal/component_measures?id={{ $labels.project }}&metric=new_coverage
+              Guide: docs/guides/quality-gate-compliance.md#improving-coverage
+
+        # -----------------------------------------------------------------
+        # SonarQubeNewBugs
+        #
+        # Fires when any project has new bugs (logic errors detected by SonarQube).
+        # Bugs are reliability issues: null dereference, unclosed streams, etc.
+        # -----------------------------------------------------------------
+        - alert: SonarQubeNewBugs
+          expr: |
+            sonarqube_project_bugs_total > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: reliability
+            demand: CICD-002
+          annotations:
+            summary: "SonarQube: {{ $value }} new bug(s) detected in {{ $labels.project }}"
+            description: |
+              SonarQube detected {{ $value }} new bug(s) in project {{ $labels.project }}.
+              The Production quality gate requires: New Bugs = 0.
+
+              Common bug categories detected by SonarQube:
+              - Null pointer dereferences
+              - Unclosed resources (streams, connections)
+              - Incorrect use of APIs (e.g., equals() instead of ==)
+              - Thread safety issues
+
+              Actions:
+              1. View bugs: http://sonarqube.staging.internal/project/issues?id={{ $labels.project }}&types=BUG&resolved=false
+              2. For each bug: fix the root cause OR mark as "False Positive" with justification
+              3. False positives REQUIRE: comment explaining why it's not a real bug
+              4. Peer review of all false positive decisions
+
+              Guide: docs/guides/quality-gate-compliance.md#fixing-bugs
+
+        # -----------------------------------------------------------------
+        # SonarQubeNewVulnerabilities
+        #
+        # Fires when any project has new security vulnerabilities.
+        # Severity: critical because vulnerabilities are security risks.
+        # Zero-tolerance: even 1 new vulnerability blocks.
+        # -----------------------------------------------------------------
+        - alert: SonarQubeNewVulnerabilities
+          expr: |
+            sonarqube_project_vulnerabilities_total > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: sonarqube
+            component: security
+            demand: CICD-002
+          annotations:
+            summary: "CRITICAL: SonarQube detected {{ $value }} vulnerability(ies) in {{ $labels.project }}"
+            description: |
+              SonarQube detected {{ $value }} security vulnerability/vulnerabilities in
+              project {{ $labels.project }}.
+
+              SEVERITY: CRITICAL — Security vulnerabilities indicate code that can be exploited.
+              CICD-002 POLICY: New Vulnerabilities = 0 (zero tolerance).
+
+              Common vulnerability categories:
+              - SQL Injection, XSS, CSRF (web application vulnerabilities)
+              - Hardcoded credentials or cryptographic weaknesses
+              - Command injection, path traversal
+              - Insecure deserialization
+
+              Immediate Actions:
+              1. View vulnerabilities: http://sonarqube.staging.internal/project/issues?id={{ $labels.project }}&types=VULNERABILITY&resolved=false
+              2. Assess severity: CRITICAL/HIGH require immediate fix
+              3. Fix the vulnerability (refer to SonarQube's "Why is this an issue?" explanation)
+              4. For false positives: document WHY it's not exploitable in your context
+                 Get security team review before marking as false positive
+
+              Do NOT merge until all vulnerabilities are resolved or reviewed.
+
+              Guide: docs/guides/quality-gate-compliance.md#security-vulnerabilities
+              Contact: Platform SRE for security guidance
+
+        # -----------------------------------------------------------------
+        # SonarQubeHighDebtAccumulation
+        #
+        # Fires when new code smells exceed 10 per project.
+        # Code smells are maintainability issues: long methods, duplicate code,
+        # complex logic, etc. Threshold of 10 allows minor issues while
+        # preventing technical debt accumulation.
+        # -----------------------------------------------------------------
+        - alert: SonarQubeHighDebtAccumulation
+          expr: |
+            sonarqube_project_code_smells_total > 10
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: maintainability
+            demand: CICD-002
+          annotations:
+            summary: "SonarQube: {{ $value }} code smells in {{ $labels.project }} (threshold: 10)"
+            description: |
+              Project {{ $labels.project }} has {{ $value }} new code smells, exceeding
+              the threshold of 10 set by the Production quality gate.
+
+              Code smells indicate maintainability issues that increase long-term costs:
+              - Methods too long (>100 lines), too complex (cyclomatic > 10)
+              - Classes too large (God Object antipattern)
+              - Duplicate code blocks
+              - Inconsistent naming, unused imports
+
+              Actions:
+              1. View smells: http://sonarqube.staging.internal/project/issues?id={{ $labels.project }}&types=CODE_SMELL&resolved=false
+              2. Sort by effort (SonarQube shows estimated fix time)
+              3. Fix the highest-effort smells first (biggest debt reduction)
+              4. For legacy code that cannot be refactored now: discuss with tech lead
+
+              Note: This will block MRs if total new smells > 10 in a single PR.
+              Break large PRs into smaller ones to stay under the threshold.
+
+              Guide: docs/guides/quality-gate-compliance.md#code-smells
+
+    # =========================================================================
+    # Group 2: Pipeline-Level Quality Gate Metrics (PushGateway)
+    # Source: GitLab CI sonarqube-quality-gate job (CICD-002 template)
+    # Pushed to: http://prometheus-pushgateway.monitoring.svc:9091
+    # =========================================================================
+    - name: cicd002.quality-gate.pipeline
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # QualityGatePipelineBlocked
+        #
+        # Fires when a CI pipeline is blocked by the quality gate.
+        # Triggered by the PushGateway metric pushed by the CI job.
+        # This gives real-time visibility of which pipelines are blocked.
+        # -----------------------------------------------------------------
+        - alert: QualityGatePipelineBlocked
+          expr: |
+            gitlab_ci_quality_gate_status == 0
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: quality-gate
+            demand: CICD-002
+          annotations:
+            summary: "Quality Gate BLOCKED pipeline: project={{ $labels.project }} branch={{ $labels.branch }}"
+            description: |
+              The SonarQube Quality Gate (Production) BLOCKED a pipeline for
+              project={{ $labels.project }} on branch={{ $labels.branch }}.
+
+              This means a merge request cannot proceed until quality issues are resolved.
+              Gate: Production
+              Required: coverage>=80%, bugs=0, vulns=0, smells<=10, hotspots-reviewed>=80%
+
+              Actions:
+              1. Check SonarQube dashboard for the failing condition
+              2. View in GitLab: the sonarqube-quality-gate job logs show the detailed reason
+              3. Fix issues and push again — gate re-evaluates automatically
+
+              Developer Guide: docs/guides/quality-gate-compliance.md
+
+        # -----------------------------------------------------------------
+        # QualityGateScanTimeout
+        #
+        # Fires when a SonarQube scan takes more than 5 minutes.
+        # Normal scans: 1-3 minutes. >5 minutes indicates performance issues.
+        # -----------------------------------------------------------------
+        - alert: QualityGateScanTimeout
+          expr: |
+            gitlab_ci_quality_gate_duration_seconds > 300
+          for: 0m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: sonarqube
+            component: performance
+            demand: CICD-002
+          annotations:
+            summary: "Quality Gate scan taking >5 minutes: {{ $labels.project }}"
+            description: |
+              SonarQube analysis for {{ $labels.project }} took {{ $value | printf "%.0f" }}
+              seconds — exceeding the 300s expected maximum.
+
+              Common causes:
+              - Large codebase without SonarQube cache: first full analysis
+              - SonarQube server under load (check CPU/memory in sonarqube namespace)
+              - sonar.qualitygate.timeout reached (default: 300s in CI template)
+              - Network issues between GitLab runner and SonarQube
+
+              Actions:
+              1. Check SonarQube pod resources: kubectl top pod -n sonarqube
+              2. Check SonarQube logs: kubectl logs -n sonarqube -l app=sonarqube --tail=100
+              3. If timeout, increase SONAR_TIMEOUT variable in project CI settings
+              4. Consider enabling SonarQube's background task queue monitoring
+
+        # -----------------------------------------------------------------
+        # QualityGateScanMissing
+        #
+        # Fires when a project has not reported quality gate metrics for 48 hours.
+        # Indicates the project may have stopped including the CICD-002 template.
+        # -----------------------------------------------------------------
+        - alert: QualityGateScanMissing
+          expr: |
+            (
+              time() - gitlab_ci_quality_gate_status_timestamp_seconds > 172800
+            )
+            unless
+            (
+              absent(gitlab_ci_quality_gate_status)
+            )
+          for: 1h
+          labels:
+            severity: warning
+            team: platform-sre
+            service: gitlab-ci
+            component: quality-gate
+            demand: CICD-002
+          annotations:
+            summary: "Quality Gate scan missing for 48h: {{ $labels.project }}"
+            description: |
+              Project {{ $labels.project }} has not pushed quality gate metrics
+              to PushGateway in the last 48 hours.
+
+              This may indicate:
+              - Project CI pipeline has not run recently (low activity)
+              - sonarqube-quality-gate template was removed from .gitlab-ci.yml
+              - PUSHGATEWAY_URL variable is not set in the runner environment
+              - Pipeline is failing before the quality-gate stage
+
+              Actions:
+              1. Check project's .gitlab-ci.yml for sonarqube-quality-gate include
+              2. Check recent pipelines in GitLab for the project
+              3. Verify PUSHGATEWAY_URL is set in runner configuration
+
+              If the project is intentionally inactive, this alert can be silenced
+              via Alertmanager inhibition rules.

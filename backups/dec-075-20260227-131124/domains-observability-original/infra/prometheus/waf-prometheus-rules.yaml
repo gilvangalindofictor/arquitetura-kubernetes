@@ -1,0 +1,149 @@
+---
+# ============================================================================
+# PrometheusRule: AWS WAF Security Alerts
+# GAP-010: Monitors WAF metrics from CloudWatch and triggers alerts
+# ============================================================================
+# Requirements:
+#   - CloudWatch datasource configured in Prometheus (via cloudwatch-exporter)
+#   - WAF WebACL deployed with CloudWatch metrics enabled
+# ============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: waf-security-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    domain: operations
+    owner: platform-team
+    environment: staging
+    component: alerts
+    security-domain: waf
+  annotations:
+    description: "AWS WAF security monitoring alerts - high block rate, geo-blocking spikes, SQL injection attempts"
+    gap: "GAP-010"
+    created: "2026-02-27"
+    owner: "platform-team"
+spec:
+  groups:
+    - name: waf_security_alerts
+      interval: 60s
+      rules:
+        # =====================================================================
+        # Alert 1: WAF High Block Rate
+        # Triggers when >15% of requests are blocked in a 5-minute window
+        # =====================================================================
+        - alert: WAFHighBlockRate
+          expr: |
+            (
+              sum(rate(aws_wafv2_blocked_requests_sum{dimension_WebACL=~"waf-.*"}[5m]))
+              /
+              (
+                sum(rate(aws_wafv2_blocked_requests_sum{dimension_WebACL=~"waf-.*"}[5m]))
+                +
+                sum(rate(aws_wafv2_allowed_requests_sum{dimension_WebACL=~"waf-.*"}[5m]))
+              )
+            ) * 100 > 15
+          for: 5m
+          labels:
+            severity: warning
+            component: waf
+            security_impact: high
+            gap: "GAP-010"
+            runbook: "https://docs/runbooks/waf-incident-response.md#high-block-rate"
+          annotations:
+            summary: "WAF High Block Rate Detected"
+            description: |
+              WAF WebACL {{ $labels.dimension_WebACL }} is blocking {{ $value | humanizePercentage }} of requests.
+
+              **Impact**: Potential attack in progress or false positive misconfiguration.
+
+              **Actions**:
+              1. Check WAF dashboard: https://grafana/d/waf-security-dashboard
+              2. Review blocked request samples in WAF console
+              3. Identify top triggered rules (rate-limit, geo-block, SQLi, OWASP)
+              4. If legitimate traffic: adjust rules or add rule exceptions
+              5. If attack: monitor for escalation, consider additional rate limiting
+
+              **Current Value**: {{ $value | humanizePercentage }} block rate
+              **Threshold**: >15%
+              **Window**: 5 minutes
+
+        # =====================================================================
+        # Alert 2: WAF Geographic Blocking Spike
+        # Triggers when geo-blocking rule blocks >50 requests in 5 minutes
+        # Indicates potential coordinated attack from blocked countries
+        # =====================================================================
+        - alert: WAFGeoBlockSpike
+          expr: |
+            sum(increase(aws_wafv2_blocked_requests_sum{
+              dimension_WebACL=~"waf-.*",
+              dimension_Rule="geo-block-high-risk-countries"
+            }[5m])) > 50
+          for: 2m
+          labels:
+            severity: warning
+            component: waf
+            security_impact: medium
+            gap: "GAP-010"
+            runbook: "https://docs/runbooks/waf-incident-response.md#geo-block-spike"
+          annotations:
+            summary: "WAF Geographic Blocking Spike"
+            description: |
+              WAF WebACL {{ $labels.dimension_WebACL }} blocked {{ $value }} requests from high-risk countries in the last 5 minutes.
+
+              **Impact**: Potential coordinated attack from CN/RU/KP or similar blocked regions.
+
+              **Actions**:
+              1. Review WAF logs in S3 for blocked IPs and user-agents
+              2. Check CloudWatch Logs Insights for attack patterns
+              3. Verify blocked countries list is appropriate for business needs
+              4. If legitimate traffic blocked: adjust geo-blocking rules or add exceptions
+              5. If attack: monitor for IP rotation, consider adding rate-based rules per country
+
+              **Current Value**: {{ $value }} requests blocked
+              **Threshold**: >50 requests per 5 minutes
+              **Blocked Countries**: CN, RU, KP (default)
+
+        # =====================================================================
+        # Alert 3: WAF SQL Injection Attempts Detected
+        # Triggers when SQLi protection rule blocks >10 requests in 5 minutes
+        # Indicates potential database attack or malicious scanning
+        # =====================================================================
+        - alert: WAFSQLInjectionAttempts
+          expr: |
+            sum(increase(aws_wafv2_blocked_requests_sum{
+              dimension_WebACL=~"waf-.*",
+              dimension_Rule="aws-managed-sqli"
+            }[5m])) > 10
+          for: 1m
+          labels:
+            severity: critical
+            component: waf
+            security_impact: critical
+            gap: "GAP-010"
+            runbook: "https://docs/runbooks/waf-incident-response.md#sqli-attempts"
+          annotations:
+            summary: "🚨 WAF SQL Injection Attack Detected"
+            description: |
+              WAF WebACL {{ $labels.dimension_WebACL }} detected and blocked {{ $value }} SQL injection attempts in the last 5 minutes.
+
+              **Impact**: CRITICAL - Active database attack attempt. Potential data breach risk if WAF bypassed.
+
+              **Immediate Actions**:
+              1. ⚠️  ESCALATE to security team (Slack: #security-incidents)
+              2. Review blocked SQLi payloads in WAF sampled requests
+              3. Verify database access logs for any successful connections from attacker IPs
+              4. Check application logs for anomalous database queries
+              5. Consider temporary IP blocking at NLB/ALB level if single-source attack
+              6. Document incident in Security Incident Log
+
+              **Forensics**:
+              - Query WAF logs: `aws wafv2 get-sampled-requests --web-acl-id <id> --rule-metric-name aws-managed-sqli`
+              - Check attacker IPs, payloads, target endpoints
+              - Correlate with RDS slow query logs and CloudTrail database API calls
+
+              **Current Value**: {{ $value }} SQLi attempts blocked
+              **Threshold**: >10 attempts per 5 minutes
+              **Attack Type**: SQL Injection (OWASP Top 10 #3)

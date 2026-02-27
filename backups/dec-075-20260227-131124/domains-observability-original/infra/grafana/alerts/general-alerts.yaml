@@ -1,0 +1,62 @@
+# General Alert Rules for Services
+# This is a PrometheusRule CRD that will be detected by the Prometheus Operator.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: general-service-alerts
+  namespace: observability # Deploy this in the same namespace as your prometheus-stack
+  labels:
+    # This label is used by the Prometheus Operator to discover the rules.
+    # The key and value must match the `ruleSelector` in the prometheus-stack values.
+    prometheus: prometheus-stack-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: general.rules
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{outcome!="SUCCESS"}[5m])) by (job, service, namespace)
+            /
+            sum(rate(http_server_requests_seconds_count[5m])) by (job, service, namespace)
+            * 100 > 5
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High Error Rate on {{ $labels.service }}"
+            description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has an error rate above 5% for the last 5 minutes. Current value is {{ $value | printf \"%.2f\" }}%."
+
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, job, service, namespace))
+            > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High P99 Latency on {{ $labels.service }}"
+            description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has a P99 latency above 500ms for the last 5 minutes. Current value is {{ $value | printf \"%.2f\" }}s."
+
+        - alert: InstanceDown
+          expr: up == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Instance {{ $labels.instance }} down"
+            description: "Instance {{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."
+
+        - alert: HighCpuSaturation
+          expr: |
+            sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate{namespace=~"observability-.*"}) by (pod, namespace)
+            /
+            sum(kube_pod_container_resource_limits{resource="cpu", namespace=~"observability-.*"}) by (pod, namespace)
+            * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU Saturation on pod {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been using over 85% of its CPU limit for the last 10 minutes. Current value is {{ $value | printf \"%.2f\" }}%."

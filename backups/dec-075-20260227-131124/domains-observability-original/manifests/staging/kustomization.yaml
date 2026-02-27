@@ -1,0 +1,28 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Observability stack for staging environment
+# Auto-managed by ApplicationSet: platform-services-multi-env
+
+namespace: observability-staging
+
+# Base resources from Helm charts (referenced, not duplicated)
+resources:
+# Placeholder - actual resources deployed via Helm/Terraform
+# This demonstrates the structure for Git Generator Pattern
+- placeholder.yaml
+
+# ConfigMaps for environment-specific configs
+configMapGenerator:
+- name: observability-config
+  literals:
+  - environment=staging
+  - retention.days=7
+  - log.level=debug
+
+# Labels applied to all resources
+commonLabels:
+  environment: staging
+  domain: observability
+  managed-by: applicationset
