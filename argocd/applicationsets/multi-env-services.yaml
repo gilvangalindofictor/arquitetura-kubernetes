@@ -12,7 +12,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: multi-env-services
-  namespace: argocd
+  namespace: staging-platform-argocd  # DEC-075 namespace standardization
   labels:
     app.kubernetes.io/managed-by: applicationset
     app.kubernetes.io/part-of: gitops-automation
@@ -48,24 +48,24 @@ spec:
             namespace: staging-security-vault
           - service: keycloak
             domain: security
-            namespace: keycloak
+            namespace: staging-platform-keycloak  # DEC-075
           - service: harbor
             domain: platform
-            namespace: harbor-system
+            namespace: staging-platform-harbor  # DEC-075
           - service: kyverno
             domain: governance
-            namespace: staging-governance-kyverno
+            namespace: staging-governance-kyverno  # DEC-075
           - service: rabbitmq
             domain: data
-            namespace: data-services
+            namespace: staging-data-infrastructure  # DEC-075
           - service: redis
             domain: data
-            namespace: data-services
+            namespace: staging-data-infrastructure  # DEC-075
 
   template:
     metadata:
       name: '{{environment}}-{{service}}'
-      namespace: argocd
+      namespace: staging-platform-argocd  # DEC-075 namespace standardization
       labels:
         app.kubernetes.io/managed-by: applicationset
         environment: '{{environment}}'

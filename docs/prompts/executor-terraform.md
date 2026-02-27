@@ -1349,6 +1349,49 @@ RESTORE:
 11. **Sync de docs é obrigatório pós-fix, ANTES de retomar.** Não existe retomada com docs desatualizados.
 12. **Freshness check no CTX-RESTORE.** Re-validar que todos os docs refletem o estado real após o fix. Docs stale = bloqueio de retomada.
 
+### Anti-Patterns STOP-AND-FIX (PROIBIDOS)
+
+❌ **ANTI-PATTERN #1: Orphan Cleanup WITHOUT K8s Cross-Check**
+- NEVER delete AWS resources apenas por "não tem tag" ou "não conectado a instância"
+- ALWAYS cross-check com K8s state ANTES de delete:
+  - EBS volumes: `kubectl get pv -o json | jq -r '.items[].spec.awsElasticBlockStore.volumeID'`
+  - ALBs: `kubectl get ingress -A` + `kubectl get svc -A --field-selector spec.type=LoadBalancer`
+  - Security Groups: `kubectl get nodes` + EKS cluster SG
+- Use dry-run FIRST, validate impact, THEN execute
+- **Evidência histórica:** 11 EBS volumes deletados erroneamente (2026-02-11) = 13 pods CrashLoop + data loss
+
+❌ **ANTI-PATTERN #2: Terraform Apply com Cluster Unhealthy**
+- NEVER apply terraform se cluster health <80%
+- **Triggers obrigatórios de STOP:**
+  - CrashLoopBackOff em workloads críticos (monitoring, data-services, ingress)
+  - Nodes NotReady (>10% node count)
+  - PVC/PV issues (Pending, Multi-Attach, FailedMount)
+  - DNS failures (CoreDNS pods down)
+- **Workflow correto:** STOP → FIX cluster health → VALIDATE 30min stability → RESUME terraform
+- **Rationale:** Terraform apply altera recursos. Cluster unhealthy + terraform changes = agravamento do problema.
+
+❌ **ANTI-PATTERN #3: Multi-Container Resource Assumptions**
+- NEVER assume container index order (NÃO é alfabético, NÃO é determinístico)
+- ALWAYS verificar ordem real ANTES de patch:
+  ```bash
+  kubectl get <kind> <name> -o jsonpath='{.spec.template.spec.containers[*].name}'
+  ```
+- Terraform path: `/spec/template/spec/containers[INDEX]/resources`
+- INDEX = position na array (0-based), NÃO nome do container
+- **Aplicável a:** GitLab webservice (3 containers), Grafana (3 containers), Tempo (2 containers)
+- **Evidência histórica:** GitLab CrashLoopBackOff (2026-02-20) — resources aplicados em wrong container index
+
+❌ **ANTI-PATTERN #4: Direct Operator-Managed Resource Patches**
+- NEVER patch child resources (StatefulSet, Deployment) se ownerReferences presente
+- ALWAYS patch parent CRD — operator reconcilia child automaticamente (~10-30s)
+- **Check obrigatório:**
+  ```bash
+  kubectl get <kind> <name> -o jsonpath='{.metadata.ownerReferences[0].kind}'
+  ```
+- **Se controller exists:** patch parent (RabbitmqCluster, Application, Prometheus CR)
+- **Se sem ownerReferences:** pode patch direto (resources standalone)
+- **Evidência histórica:** RabbitMQ StatefulSet patches revertidos (2026-02-20) — operator reconciliation overwrite
+
 ---
 
 ## 📓 DIÁRIO DE BORDO (LOGBOOK)
@@ -1956,8 +1999,12 @@ Quando STOP-AND-FIX é ativado e correções são aplicadas:
 
 6. Configurar Integração
    ├─ ServiceMonitors (Prometheus)
-   ├─ Secrets (credentials)
-   └─ NetworkPolicies
+   ├─ ExternalSecrets (ESO + Vault) — credenciais DB, API keys, tokens
+   │  ├─ Criar secret em Vault: vault kv put secret/data/...
+   │  ├─ ExternalSecret manifests (secretStoreRef + remoteRef)
+   │  └─ Validar sync: kubectl get externalsecret -n <ns>
+   ├─ NetworkPolicies (isolar tráfego)
+   └─ PodDisruptionBudgets (HA garantido)
 
 7. 📄 Sincronizar Documentos
    ├─ architecture.md (novo componente)
@@ -2001,6 +2048,605 @@ data "kubectl_path_documents" "redis_status" {
   pattern = "${path.module}/manifests/redis-failover.yaml"
 }
 ```
+
+### 🔐 Padrões de Secrets Management (OBRIGATÓRIO)
+
+> ⚠️ **REGRA CRÍTICA**: Toda credencial DEVE usar External Secrets Operator + Vault. Kubernetes Secrets nativos são PROIBIDOS para dados sensíveis.
+
+#### Fluxo Padrão: ESO + Vault
+
+```text
+1. Criar Secret no Vault
+   └─ vault kv put secret/data/<namespace>/<service>/credentials \
+      username=<user> password=<pass> [key=value ...]
+
+2. Criar ExternalSecret Manifest
+   ├─ kind: ExternalSecret
+   ├─ secretStoreRef: vault-backend (SecretStore já provisionado)
+   ├─ target.name: <service>-credentials (Secret K8s gerado)
+   └─ data[]: remoteRef.key (path Vault)
+
+3. Apply via Terraform ou GitOps
+   └─ ESO Controller sincroniza Vault → K8s Secret automaticamente
+
+4. Validar Sincronização
+   ├─ kubectl get externalsecret -n <ns> <name>
+   ├─ Status: SecretSynced (conditions.status=True)
+   └─ kubectl get secret -n <ns> <target-name> (secret criado)
+
+5. Configurar RefreshInterval (rotação automática)
+   └─ refreshInterval: 1h (default) ou customizado
+```
+
+#### Exemplo Terraform: ExternalSecret para PostgreSQL
+
+```hcl
+# 1. Secret no Vault (criado previamente ou via terraform-vault-provider)
+resource "vault_kv_secret_v2" "postgres_credentials" {
+  mount = "secret"
+  name  = "staging/postgresql/admin"
+
+  data_json = jsonencode({
+    username = "postgres_admin"
+    password = random_password.postgres_admin.result
+    database = "k8s_platform"
+    host     = aws_db_instance.postgresql.endpoint
+  })
+}
+
+# 2. ExternalSecret manifest via kubectl provider
+resource "kubectl_manifest" "postgres_external_secret" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: postgresql-admin-credentials
+      namespace: databases
+      labels:
+        app.kubernetes.io/name: postgresql
+        app.kubernetes.io/component: database
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: vault-backend
+        kind: SecretStore
+      target:
+        name: postgresql-admin-credentials
+        creationPolicy: Owner
+        template:
+          engineVersion: v2
+          data:
+            # Connection string completa (opcional)
+            DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@{{ .host }}:5432/{{ .database }}"
+      data:
+        - secretKey: username
+          remoteRef:
+            key: staging/postgresql/admin
+            property: username
+        - secretKey: password
+          remoteRef:
+            key: staging/postgresql/admin
+            property: password
+        - secretKey: database
+          remoteRef:
+            key: staging/postgresql/admin
+            property: database
+        - secretKey: host
+          remoteRef:
+            key: staging/postgresql/admin
+            property: host
+  YAML
+
+  depends_on = [
+    vault_kv_secret_v2.postgres_credentials,
+    kubernetes_namespace.databases
+  ]
+}
+
+# 3. Deployment consumindo o secret
+resource "kubectl_manifest" "postgres_client" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app-backend
+      namespace: applications
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backend
+            envFrom:
+              - secretRef:
+                  name: postgresql-admin-credentials  # Secret gerado pelo ESO
+  YAML
+}
+```
+
+#### Validação Obrigatória (AML)
+
+```bash
+# Ciclo de monitoramento durante apply
+while true; do
+  # 1. Verificar ExternalSecret status
+  STATUS=$(kubectl get externalsecret -n databases postgresql-admin-credentials \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+
+  if [[ "$STATUS" == "True" ]]; then
+    echo "✅ ExternalSecret synced"
+
+    # 2. Validar Secret K8s criado
+    kubectl get secret -n databases postgresql-admin-credentials &>/dev/null
+    if [[ $? -eq 0 ]]; then
+      echo "✅ K8s Secret criado com sucesso"
+
+      # 3. Validar keys esperadas
+      KEYS=$(kubectl get secret -n databases postgresql-admin-credentials \
+        -o jsonpath='{.data}' | jq -r 'keys[]')
+
+      for key in username password database host; do
+        echo "$KEYS" | grep -q "^${key}$"
+        [[ $? -eq 0 ]] && echo "✅ Key ${key} presente" || echo "❌ Key ${key} AUSENTE"
+      done
+
+      break
+    fi
+  else
+    echo "⏳ Aguardando sync... (status: ${STATUS:-Unknown})"
+  fi
+
+  sleep 5
+done
+```
+
+#### Casos de Uso Comuns
+
+| Cenário | Vault Path Pattern | ExternalSecret Name | Target Secret |
+| --------- | ------------------- | ------------------- | --------------- |
+| PostgreSQL RDS | `secret/data/<env>/rds/postgresql` | `rds-postgresql-creds` | `rds-postgresql-creds` |
+| Redis Operator | `secret/data/<env>/redis/admin` | `redis-admin-creds` | `redis-admin-creds` |
+| RabbitMQ Operator | `secret/data/<env>/rabbitmq/admin` | `rabbitmq-admin-creds` | `rabbitmq-admin-creds` |
+| Harbor Registry | `secret/data/<env>/harbor/admin` | `harbor-admin-creds` | `harbor-admin-creds` |
+| Keycloak SSO | `secret/data/<env>/keycloak/admin` | `keycloak-admin-creds` | `keycloak-admin-creds` |
+| API Keys (GitLab CI) | `secret/data/<env>/cicd/gitlab-runner` | `gitlab-runner-token` | `gitlab-runner-token` |
+| Velero Backup (S3) | `secret/data/<env>/velero/aws-credentials` | `velero-aws-creds` | `cloud-credentials` |
+
+#### Exceções (Kubernetes Secrets Permitidos)
+
+✅ **Permitido usar K8s Secrets nativos:**
+
+- TLS certificates gerados por cert-manager (`kind: Certificate`)
+- Service Account tokens (gerados automaticamente pelo K8s)
+- ConfigMaps públicos (não contêm dados sensíveis)
+- Secrets gerados por operators (ex: Redis sentinel config, RabbitMQ cluster cookie)
+
+❌ **PROIBIDO usar K8s Secrets nativos:**
+
+- Database credentials (username, password, connection strings)
+- API keys e tokens (GitLab, GitHub, AWS, third-party APIs)
+- SSO credentials (Keycloak, LDAP, OAuth client secrets)
+- Encryption keys e private keys (exceto TLS via cert-manager)
+
+#### Rotação Automática
+
+```yaml
+# ExternalSecret com rotação automática a cada 30 minutos
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: service-api-key
+  namespace: applications
+spec:
+  refreshInterval: 30m  # ← Sincronização automática
+  secretStoreRef:
+    name: vault-backend
+    kind: SecretStore
+  target:
+    name: service-api-key
+    creationPolicy: Owner
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: staging/applications/service-api-key
+        property: key
+```
+
+**Rotação Manual (quando necessário):**
+
+```bash
+# 1. Atualizar secret no Vault
+vault kv put secret/data/staging/service/credentials password=<new-password>
+
+# 2. Forçar refresh do ExternalSecret (opcional, se não quer aguardar refreshInterval)
+kubectl annotate externalsecret -n <ns> <name> \
+  force-sync="$(date +%s)" --overwrite
+
+# 3. Validar sincronização
+kubectl get externalsecret -n <ns> <name> -w  # Watch até status Ready=True
+```
+
+#### Troubleshooting
+
+```bash
+# 1. ExternalSecret não sincroniza
+kubectl describe externalsecret -n <ns> <name>
+# Verificar: Events, status.conditions (motivo da falha)
+
+# 2. Validar SecretStore configurado
+kubectl get secretstore -n <ns> vault-backend -o yaml
+# Verificar: spec.provider.vault.server, auth configuration
+
+# 3. Logs do ESO Controller
+kubectl logs -n external-secrets-system \
+  -l app.kubernetes.io/name=external-secrets -f
+
+# 4. Testar acesso ao Vault manualmente
+vault kv get secret/data/<path>  # Deve retornar o secret
+```
+
+#### Checklist de Implementação
+
+- [ ] Secret criado no Vault (vault kv put)
+- [ ] ExternalSecret manifest criado (kind: ExternalSecret)
+- [ ] secretStoreRef aponta para `vault-backend` (SecretStore válido)
+- [ ] remoteRef.key correto (path no Vault)
+- [ ] target.name único no namespace
+- [ ] refreshInterval configurado (default: 1h)
+- [ ] Apply via Terraform ou GitOps
+- [ ] Validar status: `kubectl get externalsecret` → Ready=True
+- [ ] Validar Secret K8s criado: `kubectl get secret <target-name>`
+- [ ] Deployment/StatefulSet configurado com `secretRef` ou `envFrom`
+- [ ] Documentar em `decisions.md` (ADR do padrão ESO + Vault)
+- [ ] Registrar no logbook (timeline do setup)
+
+---
+
+## 📊 VPA/RIGHTSIZING WORKFLOW
+
+> ⚠️ **REGRA CRÍTICA**: VPA rightsizing SEM resource requests baseline = savings impossível. FASE 0 é OBRIGATÓRIA.
+
+### Problema Comum
+
+**Sintoma**: VPA deployed, 30d coleta completa, mas savings calculados = ~R$ 62/ano (esperado: R$ 15-19K/ano)
+
+**Root Cause**: 11/12 workloads SEM resource requests definidos → VPA não tem baseline para calcular delta → recommendations inúteis
+
+**Solução**: FASE 0 Baseline + 7d reconvergence ANTES de rightsizing
+
+---
+
+### FASE 0: Baseline Resource Requests (MANDATORY PRE-REQUISITE)
+
+#### Etapa 1: Discovery
+
+**Objetivo**: Identificar workloads sem resource requests
+
+```bash
+# List workloads WITHOUT requests
+kubectl get deployment,statefulset -A -o json | \
+  jq -r '.items[] |
+    select(.spec.template.spec.containers[0].resources.requests == null) |
+    .metadata.namespace + "/" + .metadata.name'
+
+# Expected output (example):
+# monitoring/prometheus-kube-prometheus-stack-prometheus
+# gitlab-staging/gitlab-webservice-default
+# data-services/rabbitmq-cluster
+```
+
+**Validation**: Se ≥80% workloads sem requests → FASE 0 é BLOCKER
+
+#### Etapa 2: Apply Baseline (VPA lowerBound)
+
+**Strategy**: Usar VPA recommendations como baseline conservador
+
+```bash
+# Get VPA lowerBound for workload
+kubectl get vpa <vpa-name> -n <namespace> -o jsonpath='{.status.recommendation.lowerBound}'
+
+# Example output:
+# {
+#   "cpu": "100m",
+#   "memory": "128Mi"
+# }
+```
+
+**Apply via Terraform (recommended):**
+
+```hcl
+# terraform/modules/<service>/main.tf
+resource "kubectl_manifest" "baseline_resources" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${var.service_name}
+      namespace: ${var.namespace}
+    spec:
+      template:
+        spec:
+          containers:
+          - name: main
+            resources:
+              requests:
+                cpu: ${var.baseline_cpu}     # VPA lowerBound
+                memory: ${var.baseline_memory}
+              limits:
+                cpu: ${var.baseline_cpu * 4}    # 4x headroom
+                memory: ${var.baseline_memory * 5}  # 5x headroom
+  YAML
+}
+```
+
+**Apply via Helm values (alternative):**
+
+```yaml
+# values.yaml
+resources:
+  requests:
+    cpu: 100m      # VPA lowerBound
+    memory: 128Mi
+  limits:
+    cpu: 400m      # 4x requests
+    memory: 640Mi  # 5x requests
+```
+
+**Baseline Guidelines:**
+
+- **CPU requests**: VPA lowerBound (conservative)
+- **CPU limits**: 4-5x requests (allow burst)
+- **Memory requests**: VPA lowerBound
+- **Memory limits**: 4-5x requests (prevent OOMKill during spikes)
+
+#### Etapa 3: VPA Reconvergence (7 days wait)
+
+**Rationale**: VPA precisa recalcular recommendations baseado nas novas requests
+
+**Timeline:**
+
+- Day 0: Apply baseline resources
+- Day 1-6: VPA coleta métricas com baseline ativo
+- Day 7: VPA recommendations convergem para novo state
+
+**Monitoring:**
+
+```bash
+# Check VPA recommendations daily
+kubectl get vpa -A -o custom-columns=\
+NAME:.metadata.name,\
+NAMESPACE:.metadata.namespace,\
+TARGET_CPU:.status.recommendation.target.cpu,\
+TARGET_MEM:.status.recommendation.target.memory,\
+LOWER_CPU:.status.recommendation.lowerBound.cpu,\
+LOWER_MEM:.status.recommendation.lowerBound.memory,\
+UPPER_CPU:.status.recommendation.upperBound.cpu,\
+UPPER_MEM:.status.recommendation.upperBound.memory
+
+# Save daily snapshots
+kubectl get vpa -A -o json > /tmp/vpa-snapshot-$(date +%Y%m%d).json
+```
+
+**Convergence Criteria:**
+
+- ✅ Target recommendation STABLE (±10% variation over 3d)
+- ✅ LowerBound ≠ UpperBound (indica range definido)
+- ✅ Target > LowerBound (indica room para optimization)
+
+#### Etapa 4: Savings Re-Calculation
+
+**Baseline Calculation:**
+
+```python
+# Calculate savings after FASE 0
+current_requests = baseline_cpu + baseline_memory  # Applied in FASE 0
+vpa_target = vpa_recommendation.target
+savings_potential = current_requests - vpa_target
+
+# Cost model
+cpu_cost_per_core_month = 24.00  # AWS EKS pricing
+memory_cost_per_gb_month = 2.70
+
+cpu_savings = (current_cpu - target_cpu) * cpu_cost_per_core_month * 12
+memory_savings = (current_memory - target_memory) * memory_cost_per_gb_month * 12
+total_savings = cpu_savings + memory_savings
+```
+
+**Expected Results (post-FASE 0):**
+
+- Workloads with requests: 11/12 → 12/12 (100%)
+- Savings identified: R$ 62/ano → R$ 15.000-19.000/ano (+24.000%)
+- Workloads with rightsizing potential: 2/12 → 10/12 (+400%)
+
+**Validation Gate:**
+
+- ✅ PASS: Savings ≥80% target (ex: ≥R$ 12K de R$ 15K target)
+- ❌ FAIL: Savings <80% target → investigate (low utilization? wrong baseline? cluster rightsizing needed?)
+
+#### Etapa 5: Wave Execution (Rightsizing)
+
+**Wave Strategy**: Progressive rollout baseado em criticality
+
+**Wave 1 (P2 - LOW risk):** Workloads não-críticos
+
+- Examples: test apps, monitoring exporters, CI runners
+- Target: 100% uncapped (apply VPA target fully)
+- Stability gate: 48h observation, rollback se CPU >80% sustained
+
+**Wave 2 (P1 - MEDIUM risk):** Workloads importantes
+
+- Examples: Grafana, Loki, Tempo, Harbor
+- Target: 50% uncapped (apply 50% delta entre baseline e VPA target)
+- Stability gate: 72h observation, rollback se memory >85% sustained
+
+**Wave 3 (P0 - HIGH risk):** Workloads críticos
+
+- Examples: Prometheus, GitLab, Keycloak, Vault
+- Target: 20% incremental (3 iterations: 20% → 40% → 60% delta)
+- Stability gates: 7d / 7d / 14d observation entre iterations
+
+**Rollback Criteria (qualquer wave):**
+
+- CPU sustained >90% por 1h
+- Memory sustained >90% por 30min
+- OOMKill events >0
+- CrashLoopBackOff >2 restarts/10min
+- Latency P95 >2x baseline
+
+---
+
+### Multi-Container Workloads Pattern
+
+**Problem**: Helm charts e Terraform assumem single-container, mas workloads podem ter 2-3 containers
+
+**Check container order FIRST:**
+
+```bash
+kubectl get deployment gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.template.spec.containers[*].name}'
+
+# Output example:
+# webservice gitlab-workhorse gitlab-pages
+
+# Container index:
+# containers[0] = webservice
+# containers[1] = gitlab-workhorse
+# containers[2] = gitlab-pages
+```
+
+**CRITICAL**: Index NÃO é alfabético, é ordem de definição no template
+
+**Apply resources to CORRECT container:**
+
+```bash
+# WRONG (assumes alphabetical):
+kubectl patch deployment gitlab-webservice-default -p '
+spec:
+  template:
+    spec:
+      containers[0]:  # WRONG: this is webservice, NOT workhorse
+        resources:
+          requests:
+            cpu: 50m  # workhorse resources applied to webservice = CrashLoop
+'
+
+# CORRECT (verified index):
+kubectl patch deployment gitlab-webservice-default -p '
+spec:
+  template:
+    spec:
+      containers[1]:  # CORRECT: gitlab-workhorse is containers[1]
+        resources:
+          requests:
+            cpu: 50m
+'
+```
+
+**Terraform path syntax:**
+
+```hcl
+# Multi-container patch
+resource "kubectl_manifest" "gitlab_webservice_resources" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: gitlab-webservice-default
+      namespace: gitlab-staging
+    spec:
+      template:
+        spec:
+          containers:
+          - name: webservice       # containers[0]
+            resources:
+              requests:
+                cpu: 2168Mi
+          - name: gitlab-workhorse # containers[1]
+            resources:
+              requests:
+                cpu: 50m
+          - name: gitlab-pages     # containers[2]
+            resources:
+              requests:
+                cpu: 25m
+  YAML
+}
+```
+
+**Affected workloads:**
+
+- GitLab webservice (3 containers)
+- Grafana (3 containers: grafana, sidecar-dashboards, sidecar-datasources)
+- Tempo (2 containers: tempo, config-reloader)
+
+---
+
+### Operator-Managed Resources Pattern
+
+**Check ownerReferences BEFORE patch:**
+
+```bash
+kubectl get statefulset rabbitmq-cluster-server -n data-services \
+  -o jsonpath='{.metadata.ownerReferences[0].kind}'
+
+# Output: RabbitmqCluster (operator-managed)
+```
+
+**If controller exists → patch parent CRD:**
+
+```bash
+# WRONG (direct StatefulSet patch):
+kubectl patch statefulset rabbitmq-cluster-server -p '...'
+# Result: operator reconciles (~10s) → patch REVERTED
+
+# CORRECT (patch parent CRD):
+kubectl patch rabbitmqcluster k8s-platform-prod-rabbitmq -n data-services -p '
+spec:
+  override:
+    statefulSet:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: rabbitmq
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+' --type=merge
+
+# Result: operator reconciles StatefulSet → patch PERSISTENT
+```
+
+**Operator-managed workloads:**
+
+- RabbitMQ (RabbitmqCluster CR)
+- Redis (RedisFailover CR ou Redis CR, depende do operator)
+- ArgoCD (Application CR)
+- Prometheus (Prometheus CR)
+
+**Standalone workloads (can patch directly):**
+
+- Loki (Helm chart, sem operator)
+- Grafana (Helm chart, sem operator)
+- Tempo (Helm chart, sem operator)
+- Harbor (Helm chart, sem operator)
+
+---
+
+### Validation Checklist (FASE 0)
+
+- [ ] Discovery: identificar workloads sem requests (kubectl get + jq)
+- [ ] Baseline calculation: extrair VPA lowerBound para cada workload
+- [ ] Apply baseline: Terraform/Helm com requests + limits (4-5x headroom)
+- [ ] Validate deployment: kubectl rollout status (all Running)
+- [ ] VPA reconvergence: aguardar 7 dias, monitorar daily
+- [ ] Savings re-calculation: validate ≥80% target
+- [ ] Multi-container: verificar container order ANTES de patch
+- [ ] Operator-managed: identificar ownerReferences, patch parent CRD
+- [ ] Wave planning: classificar workloads P0/P1/P2, definir targets
+- [ ] Documentation: registrar baseline values, VPA snapshots, savings calculation
+
+---
 
 ### Hooks de Documentação
 
@@ -2115,6 +2761,701 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 
 ---
 
+## 🔧 TROUBLESHOOTING PATTERNS (Problemas Recorrentes)
+
+### Pattern 1: S3 TLS Timeout (VPC Gateway Endpoint + Secondary ENI)
+
+**Sintoma:**
+
+```
+TLS handshake timeout connecting to S3
+Error: dial tcp 52.216.x.x:443: i/o timeout
+```
+
+**Root Cause**: Pods em secondary ENIs (ens6, ens7) têm routing assimétrico para VPC Gateway Endpoints
+
+**Diagnosis:**
+
+```bash
+# 1. Check pod IP source
+kubectl get pod <pod-name> -o jsonpath='{.status.podIP}'
+
+# 2. Check node ENIs
+kubectl get pod <pod-name> -o jsonpath='{.spec.nodeName}' | xargs -I {} \
+  aws ec2 describe-instances \
+    --filters "Name=private-dns-name,Values={}" \
+    --query 'Reservations[].Instances[].NetworkInterfaces[].PrivateIpAddress'
+
+# 3. If pod IP is in secondary ENI range → routing issue confirmed
+```
+
+**Fix Options:**
+
+**Option 1 (Recommended)**: Migrate workload to critical nodegroup (primary ENI only)
+
+```yaml
+# deployment.yaml
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-group: critical  # Nodes with primary ENI traffic only
+      affinity:
+        podAntiAffinity:  # Spread across AZs
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: topology.kubernetes.io/zone
+```
+
+**Option 2**: Use S3 Interface Endpoint (vs Gateway) — adds cost ($7.20/mo per AZ)
+
+**Option 3**: Avoid SNAT bypass rules (workarounds routing, but breaks other functionality)
+
+**Affected Workloads:**
+
+- Tempo ingester (S3 backend)
+- Velero (S3 backups)
+- GitLab artifacts (S3 storage)
+- Harbor (S3 registry backend)
+
+**Prevention**: Use `nodeSelector: critical` + zone affinity para workloads S3-heavy
+
+---
+
+### Pattern 2: GitLab Runner DNS Rewrite (CoreDNS Port Mismatch)
+
+**Sintoma:**
+
+```
+ERROR: Checking for jobs... failed
+error: dial tcp 10.0.x.x:80: connect: connection refused
+```
+
+**Root Cause**: CoreDNS rewrite rules DEVEM incluir porta correta. GitLab webservice escuta **8080**, NÃO 80.
+
+**Diagnosis:**
+
+```bash
+# 1. Check DNS resolution
+kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
+  nslookup gitlab.staging.internal
+
+# 2. Check service port
+kubectl get svc gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.ports[?(@.name=="workhorse")].port}'
+# Output: 8080 (NOT 80)
+
+# 3. Check CoreDNS rewrite rule
+kubectl get cm coredns-custom -n kube-system -o yaml | grep gitlab
+```
+
+**Fix**: Update CoreDNS ConfigMap with correct port
+
+```yaml
+# coredns-custom ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  gitlab.server: |
+    rewrite name gitlab.staging.internal gitlab-webservice-default.gitlab-staging.svc.cluster.local
+
+    # CRITICAL: Use port 8080 for GitLab webservice
+    template IN A gitlab.staging.internal {
+      match "^gitlab\\.staging\\.internal\\.$"
+      answer "{{ .Name }} 60 IN A {{ (index (service \"gitlab-webservice-default.gitlab-staging.svc.cluster.local:8080\") 0).IP }}"
+      fallthrough
+    }
+```
+
+**Common Port Mistakes:**
+
+| Service | Wrong Port | Correct Port | Service Name |
+| ------- | ---------- | ------------ | ------------ |
+| GitLab webservice | 80 | **8080** | workhorse |
+| Harbor core | 8080 | **80** | http |
+| Keycloak | 8080 | **80** | http (com ingress) |
+| Grafana | 80 | **3000** | http |
+
+**Validation:**
+
+```bash
+# Test DNS + port connectivity
+kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- \
+  curl -v http://gitlab.staging.internal:8080/api/v4/version
+
+# Expected: HTTP 200 + version JSON
+```
+
+---
+
+### Pattern 3: SonarQube PostgreSQL Auth Failure (Secret Drift)
+
+**Sintoma:**
+
+```
+FATAL: password authentication failed for user "sonarqube_user"
+Error: pq: password authentication failed
+```
+
+**Root Cause**: Secret drift entre K8s Secret e RDS password
+
+**Diagnosis:**
+
+```bash
+# 1. Check K8s secret value
+kubectl get secret sonarqube-postgresql-credentials -n sonarqube \
+  -o jsonpath='{.data.password}' | base64 -d
+
+# 2. Test RDS connection with K8s secret
+kubectl run -it --rm psql-test --image=postgres:15 --restart=Never -- \
+  psql -h <rds-endpoint> -U sonarqube_user -d sonarqube_db
+# Enter password from step 1
+
+# 3. If auth fails → password drift confirmed
+```
+
+**Fix Options:**
+
+**Option 1 (Temporary)**: ALTER USER via psql pod com master credentials
+
+```bash
+# Create temporary psql pod
+kubectl run -it psql-admin --image=postgres:15 --restart=Never -- \
+  psql -h <rds-endpoint> -U postgres -d sonarqube_db
+
+# Inside pod:
+ALTER USER sonarqube_user WITH PASSWORD '<k8s-secret-password>';
+\q
+```
+
+**Option 2 (Permanent)**: Force ESO sync from Vault
+
+```bash
+# 1. Verify Vault has correct password
+vault kv get secret/data/sonarqube/postgresql
+
+# 2. Force ESO resync
+kubectl annotate externalsecret sonarqube-postgresql-credentials \
+  -n sonarqube \
+  force-sync="$(date +%s)" \
+  --overwrite
+
+# 3. Wait for sync (check status)
+kubectl get externalsecret sonarqube-postgresql-credentials -n sonarqube \
+  -w  # Watch until status.conditions[?(@.type=="Ready")].status == True
+
+# 4. Restart application pods
+kubectl rollout restart deployment sonarqube -n sonarqube
+```
+
+**Prevention**: Secret rotation automation (quarterly scheduled)
+
+```yaml
+# CronJob for quarterly secret rotation
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rotate-postgresql-secrets
+spec:
+  schedule: "0 2 1 */3 *"  # Every 3 months, 1st day, 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: rotate
+            image: vault:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Generate new password
+              NEW_PASSWORD=$(openssl rand -base64 32)
+
+              # Update Vault
+              vault kv put secret/sonarqube/postgresql password="$NEW_PASSWORD"
+
+              # Update RDS (via AWS Secrets Manager rotation)
+              aws secretsmanager rotate-secret --secret-id sonarqube-rds-password
+```
+
+---
+
+### Pattern 4: Prometheus Operator Reconciliation (NodeSelector Revert)
+
+**Sintoma:**
+
+```
+# Applied patch manually:
+kubectl patch prometheus kube-prometheus-stack-prometheus \
+  -p '{"spec":{"nodeSelector":{}}}' --type=merge
+
+# 30 seconds later:
+kubectl get prometheus kube-prometheus-stack-prometheus -o jsonpath='{.spec.nodeSelector}'
+# Output: {"node-group":"monitoring"}  ← REVERTED
+```
+
+**Root Cause**: Prometheus Operator reconcilia CR baseado em Helm chart values, NÃO CR diretamente
+
+**Diagnosis:**
+
+```bash
+# 1. Check Helm values (source of truth)
+helm get values kube-prometheus-stack -n monitoring
+
+# 2. Check if operator is running
+kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus-operator
+
+# 3. Check operator logs (shows reconciliation)
+kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus-operator --tail=50 | grep -i reconcil
+```
+
+**Fix**: Update Helm values (NOT CR directly)
+
+```bash
+# WRONG (direct CR patch - temporary, reverted in ~30s):
+kubectl patch prometheus <name> -p '...'
+
+# CORRECT (Helm upgrade - persistent):
+
+# 1. Create values override file
+cat > /tmp/prometheus-values.yaml <<EOF
+prometheus:
+  prometheusSpec:
+    nodeSelector: {}  # Empty map (schedule on any node)
+    tolerations: []
+EOF
+
+# 2. Helm upgrade
+helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  -n monitoring \
+  --values /tmp/prometheus-values.yaml \
+  --reuse-values
+
+# 3. Validate (operator reconciles in ~10s)
+kubectl get prometheus kube-prometheus-stack-prometheus \
+  -o jsonpath='{.spec.nodeSelector}'
+# Output: {} (empty, persistent)
+```
+
+**Terraform Approach:**
+
+```hcl
+resource "helm_release" "kube_prometheus_stack" {
+  name       = "kube-prometheus-stack"
+  chart      = "kube-prometheus-stack"
+  namespace  = "monitoring"
+
+  values = [
+    yamlencode({
+      prometheus = {
+        prometheusSpec = {
+          nodeSelector = {}  # Empty map
+          tolerations  = []
+        }
+      }
+      alertmanager = {
+        alertmanagerSpec = {
+          nodeSelector = {}
+          tolerations  = []
+        }
+      }
+    })
+  ]
+}
+```
+
+**Operator-Managed Resources (same pattern):**
+
+- Prometheus (kube-prometheus-stack)
+- Alertmanager (kube-prometheus-stack)
+- Grafana (grafana-operator, se usar operator)
+- Loki (loki-operator, se usar operator — Helm charts NÃO têm reconciliation)
+
+**Key Insight**: Helm values = source of truth para operator-managed CRs
+
+---
+
+## ✅ CHECKLISTS OBRIGATÓRIOS
+
+### PRE-FLIGHT VALIDATION (Executar ANTES de terraform apply)
+
+**Duração esperada:** 2-5min | **Blocker:** Qualquer check FAIL → STOP (fix first)
+
+#### 1. AWS Session Validation
+
+```bash
+# Verify AWS credentials
+aws sts get-caller-identity --profile k8s-platform-prod
+# Expected: Account ID, ARN com role correto
+
+# Refresh kubeconfig
+aws eks update-kubeconfig --name k8s-platform-prod --profile k8s-platform-prod
+# Expected: Updated context
+```
+
+**Validação:**
+
+- ✅ Account ID correto (staging: 891377105802)
+- ✅ Role adequado (AdministratorAccess ou equivalente)
+- ✅ Kubeconfig updated (context k8s-platform-prod)
+
+#### 2. Cluster Health Check
+
+```bash
+# Node status
+kubectl get nodes
+# Expected: All nodes Ready (0 NotReady)
+
+# Critical workload health
+kubectl get pods -A | grep -v "Running\|Completed" | wc -l
+# Expected: ≤5 (tolerate some Init/ContainerCreating, mas NOT CrashLoopBackOff)
+
+# Critical namespaces health
+for ns in kube-system monitoring data-services ingress-nginx; do
+  echo "=== $ns ==="
+  kubectl get pods -n $ns --field-selector=status.phase!=Running,status.phase!=Succeeded
+done
+```
+
+**Critérios STOP:**
+
+- ❌ Nodes NotReady >10% (scale issue, infra problem)
+- ❌ CrashLoopBackOff em workloads críticos (monitoring, data-services, ingress)
+- ❌ PVC Pending >5 (storage issue, quota, EBS attach failure)
+- ❌ CoreDNS down (cluster DNS broken)
+
+**Se STOP triggered:** Execute STOP-AND-FIX protocol, resolve cluster health → 100% Running, THEN resume terraform
+
+#### 3. Terraform State Backup
+
+```bash
+# Backup remote state
+terraform state pull > /tmp/terraform-state-backup-$(date +%Y%m%d-%H%M%S).json
+
+# Verify backup
+ls -lh /tmp/terraform-state-backup-*.json
+# Expected: File size >10KB (non-empty state)
+```
+
+**Rationale:** Rollback safety net. Se terraform apply corrompe state, restore de backup.
+
+#### 4. File Dependencies Validation (Terraform Modules)
+
+```bash
+# Check file() paths exist (evita terraform validate failures)
+cd terraform/environments/staging
+
+# List all file() calls
+grep -r 'file(' . --include="*.tf" | \
+  sed 's/.*file("\([^"]*\)").*/\1/' | \
+  sort -u > /tmp/terraform-file-dependencies.txt
+
+# Validate each file exists
+while read filepath; do
+  if [[ ! -f "$filepath" ]]; then
+    echo "❌ MISSING: $filepath"
+  fi
+done < /tmp/terraform-file-dependencies.txt
+```
+
+**Common missing files:**
+
+- Linkerd dashboards JSON (4 files)
+- Keycloak realm export JSON
+- TLS certificates PEM
+
+**Fix:** Comment broken modules OU create placeholder files (`touch <path>`)
+
+#### 5. OIDC Thumbprint Validation (IRSA Workloads)
+
+```bash
+# Get current OIDC provider thumbprint
+aws iam list-open-id-connect-providers --profile k8s-platform-prod | \
+  jq -r '.OpenIDConnectProviderList[0].Arn' | \
+  xargs -I {} aws iam get-open-id-connect-provider --open-id-connect-provider-arn {} | \
+  jq -r '.ThumbprintList[]'
+
+# Get current EKS OIDC certificate thumbprint
+openssl s_client -connect oidc.eks.us-east-1.amazonaws.com:443 -showcerts 2>/dev/null | \
+  openssl x509 -fingerprint -sha1 -noout | \
+  cut -d'=' -f2 | tr -d ':'
+```
+
+**Validation:** Thumbprints DEVEM match. Se mismatch → update IAM OIDC provider ANTES de apply IRSA workloads (Velero, Harbor S3, etc.)
+
+#### 6. Orphan Cleanup Cross-Check (se aplicável)
+
+**Se demanda envolve cleanup de recursos AWS:**
+
+```bash
+# BEFORE deleting EBS volumes
+kubectl get pv -o json | jq -r '.items[].spec.awsElasticBlockStore.volumeID' | \
+  sort > /tmp/k8s-ebs-volumes.txt
+
+aws ec2 describe-volumes --filters "Name=status,Values=available" \
+  --query 'Volumes[].VolumeId' --output text | \
+  tr '\t' '\n' | sort > /tmp/aws-orphan-volumes.txt
+
+# Diff: safe to delete = in AWS list AND NOT in K8s list
+comm -23 /tmp/aws-orphan-volumes.txt /tmp/k8s-ebs-volumes.txt
+```
+
+**CRITICAL:** NEVER delete volume in K8s PV list (even if "available" in AWS)
+
+#### 7. Multi-Container Workloads Identification
+
+```bash
+# List workloads with >1 container
+kubectl get deploy,statefulset -A -o json | \
+  jq -r '.items[] |
+    select((.spec.template.spec.containers | length) > 1) |
+    .metadata.namespace + "/" + .metadata.name + " (" + (.spec.template.spec.containers | length | tostring) + " containers)"'
+
+# For each multi-container workload, verify container order
+kubectl get deployment gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.template.spec.containers[*].name}'
+```
+
+**Affected workloads (staging):**
+
+- gitlab-webservice-default (3 containers)
+- grafana (3 containers)
+- tempo-distributor (2 containers)
+
+**Action:** Document container order BEFORE applying resource patches
+
+#### 8. Operator-Managed Resources Identification
+
+```bash
+# List workloads with ownerReferences
+kubectl get deploy,statefulset -A -o json | \
+  jq -r '.items[] |
+    select(.metadata.ownerReferences != null) |
+    .metadata.namespace + "/" + .metadata.name + " ← " + .metadata.ownerReferences[0].kind'
+
+# Example output:
+# data-services/rabbitmq-cluster-server ← RabbitmqCluster
+# monitoring/prometheus-kube-prometheus-stack-prometheus ← Prometheus
+```
+
+**Action:** Para workloads com ownerReferences → patch parent CRD, NOT child resource
+
+---
+
+### POST-APPLY VALIDATION (Executar APÓS terraform apply)
+
+**Duração esperada:** 3-8min | **Critério:** 100% validação PASS = apply successful
+
+#### 1. Idempotência Validation (MANDATORY)
+
+```bash
+# Run terraform plan (same modules/targets as apply)
+terraform plan -out=/tmp/tfplan
+
+# Expected output: "No changes. Your infrastructure matches the configuration."
+```
+
+**Validation:**
+
+- ✅ PASS: "No changes" ou "0 to add, 0 to change, 0 to destroy"
+- ❌ FAIL: Drift detectado (plan shows changes após apply)
+
+**Se FAIL:**
+
+- Analyze: manual changes? operator reconciliation? provider bug? file() evaluation?
+- Fix: update IaC to match real state OR reapply to fix real state
+- DOCUMENT drift no logbook
+
+**Rationale:** Idempotência garante que apply é repeatable, state reflete realidade, sem drift
+
+#### 2. Drift Detection
+
+```bash
+# Check for manual changes (não capturados por Terraform)
+kubectl get all -A -o json > /tmp/cluster-state-post-apply.json
+
+# Compare with pre-apply state (se salvou snapshot)
+diff /tmp/cluster-state-pre-apply.json /tmp/cluster-state-post-apply.json | head -50
+```
+
+**Common drift sources:**
+
+- Helm upgrades manuais (bypassing Terraform)
+- kubectl apply direto (bypassing GitOps)
+- Operator reconciliation changes (expected, mas document)
+
+#### 3. Multi-Container Resources Validation
+
+**Para workloads multi-container que receberam resource patches:**
+
+```bash
+# Verify resources applied to CORRECT containers
+kubectl get deployment gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.template.spec.containers[*].name}'
+# Output: webservice gitlab-workhorse gitlab-pages
+
+kubectl get deployment gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.template.spec.containers[0].resources}'
+# Expected: webservice resources (2168Mi memory), NOT workhorse (50Mi)
+
+kubectl get deployment gitlab-webservice-default -n gitlab-staging \
+  -o jsonpath='{.spec.template.spec.containers[1].resources}'
+# Expected: workhorse resources (50Mi), NOT webservice
+```
+
+**Validation:** Resources match intended container (NOT wrong index)
+
+#### 4. PodDisruptionBudgets Functioning
+
+```bash
+# List all PDBs
+kubectl get pdb -A
+
+# Validate PDB status
+kubectl get pdb -A -o custom-columns=\
+NAME:.metadata.name,\
+NAMESPACE:.metadata.namespace,\
+MIN-AVAILABLE:.spec.minAvailable,\
+MAX-UNAVAILABLE:.spec.maxUnavailable,\
+ALLOWED-DISRUPTIONS:.status.disruptionsAllowed,\
+CURRENT-HEALTHY:.status.currentHealthy
+
+# Expected: disruptionsAllowed ≥1 (permite drain), currentHealthy matches replicas
+```
+
+**Validation:**
+
+- ✅ PDBs exist para workloads críticos (prometheus, grafana, loki, rabbitmq, redis, keycloak)
+- ✅ maxUnavailable configured (permite graceful drain)
+- ✅ disruptionsAllowed >0 (não bloqueia drain indefinidamente)
+
+**Se disruptionsAllowed=0:** Investigate (replicas too low? minAvailable too high?)
+
+#### 5. IRSA Functioning (se workloads IRSA deployed)
+
+**Test assume-role functionality:**
+
+```bash
+# For each IRSA workload (Velero, Harbor S3, GitLab artifacts, etc.)
+POD=$(kubectl get pod -n velero -l app.kubernetes.io/name=velero -o jsonpath='{.items[0].metadata.name}')
+
+kubectl exec -n velero $POD -- aws sts get-caller-identity
+# Expected output:
+# {
+#   "UserId": "AROA...:velero-pod-identity",
+#   "Account": "891377105802",
+#   "Arn": "arn:aws:sts::891377105802:assumed-role/k8s-platform-prod-velero-irsa-role/..."
+# }
+```
+
+**Validation:**
+
+- ✅ Arn contains "assumed-role" (NOT IAM user)
+- ✅ Role name matches expected (velero-irsa-role, harbor-s3-role, etc.)
+- ✅ Account ID correct
+
+**Se FAIL:** Check OIDC thumbprint (Pre-Flight validation #5), ServiceAccount annotation, IAM trust policy
+
+#### 6. VPA Recommendations Stability (se VPA deployed)
+
+```bash
+# Check VPA objects status
+kubectl get vpa -A -o custom-columns=\
+NAME:.metadata.name,\
+NAMESPACE:.metadata.namespace,\
+MODE:.spec.updateMode,\
+TARGET-CPU:.status.recommendation.target.cpu,\
+TARGET-MEM:.status.recommendation.target.memory
+
+# Validate recommendations exist
+kubectl get vpa -A -o json | \
+  jq -r '.items[] | select(.status.recommendation == null) | .metadata.namespace + "/" + .metadata.name'
+
+# Expected: Empty output (all VPAs have recommendations)
+```
+
+**Validation:**
+
+- ✅ All VPA objects have `.status.recommendation` populated
+- ✅ updateMode correctly set (Off para recommendation-only, Auto para auto-apply)
+- ✅ Recommendations within expected range (não extremos: 1m CPU ou 50Gi memory)
+
+**Se recommendations missing:** Wait 5-10min (VPA needs metrics), check VPA recommender logs
+
+#### 7. Operator Reconciliation Validation
+
+**Para workloads operator-managed:**
+
+```bash
+# Check if operator reconciled changes
+kubectl get rabbitmqcluster k8s-platform-prod-rabbitmq -n data-services \
+  -o jsonpath='{.status.conditions[?(@.type=="ReconcileSuccess")].status}'
+# Expected: True
+
+# Check StatefulSet matches CRD spec
+kubectl get statefulset rabbitmq-cluster-server -n data-services \
+  -o jsonpath='{.spec.template.spec.containers[0].resources}' | jq .
+
+# Compare with CRD .spec.override.statefulSet resources
+```
+
+**Validation:** Child resources (StatefulSet, Service, ConfigMap) match parent CRD spec
+
+#### 8. Cluster Health Post-Apply
+
+```bash
+# Overall health check (same as Pre-Flight)
+kubectl get nodes
+kubectl get pods -A | grep -v "Running\|Completed" | wc -l
+
+# Check for new CrashLoopBackOff (introduced by apply)
+kubectl get pods -A --field-selector=status.phase=Failed -o wide
+
+# Check events for errors
+kubectl get events -A --sort-by='.lastTimestamp' | tail -20
+```
+
+**Validation:**
+
+- ✅ No new CrashLoopBackOff pods (vs pre-apply state)
+- ✅ All nodes still Ready
+- ✅ No critical events (FailedMount, ImagePullBackOff, OOMKilled)
+
+**Se FAIL:** Rollback changes, investigate root cause, fix, reapply
+
+---
+
+### CHECKLIST CONSOLIDADO
+
+**PRE-FLIGHT (ANTES de apply):**
+
+- [ ] AWS session valid (account, role, kubeconfig)
+- [ ] Cluster health ≥80% (nodes Ready, pods Running)
+- [ ] Terraform state backup salvo
+- [ ] File dependencies validated (file() paths exist)
+- [ ] OIDC thumbprint updated (IRSA workloads)
+- [ ] Orphan cleanup cross-checked (se aplicável)
+- [ ] Multi-container workloads identified + order documented
+- [ ] Operator-managed resources identified (ownerReferences)
+
+**POST-APPLY (APÓS apply):**
+
+- [ ] Idempotência: terraform plan → 0 changes
+- [ ] Drift detection: zero manual changes
+- [ ] Multi-container: resources applied to correct containers
+- [ ] PDBs functioning (disruptionsAllowed >0)
+- [ ] IRSA functioning (aws sts assume-role working)
+- [ ] VPA recommendations exist + stable
+- [ ] Operator reconciliation successful (child = CRD spec)
+- [ ] Cluster health maintained (no new CrashLoops)
+
+---
+
 ## 🔒 REGRAS INVIOLÁVEIS
 
 1. **Nunca executar apply/destroy sem plan prévio revisado.**
@@ -2142,6 +3483,15 @@ O agente Terraform Specialist DEVE bloquear execução se detectar:
 23. **Zero desperdício de tempo.** Se um comando roda em background, você DEVE estar fazendo algo produtivo: monitorando, validando, documentando, antecipando problemas. Tempo ocioso = ineficiência.
 24. **SEMPRE consultar logbook ANTES de iniciar trabalho.** Etapa 0 (consulta ao histórico) é OBRIGATÓRIA e NUNCA deve ser pulada. Começar do zero quando há histórico disponível é desperdício de conhecimento e aumenta risco de repetir erros.
 25. **SEMPRE validar sessão AWS ANTES de tudo.** PRE-CHECK é obrigatório antes da Etapa 0. Se sessão expirada, executar `aws sso login` automaticamente, enviar APENAS o link para o usuário e aguardar autenticação. Nunca pedir para usuário digitar comandos.
+26. **CREDENCIAIS = ESO + Vault SEMPRE.** Toda implementação que necessite credenciais (databases, APIs, SSO, operators, services) DEVE usar External Secrets Operator + Vault. Kubernetes Secrets nativos são PROIBIDOS para credenciais. Exceção: secrets gerados automaticamente por operators (TLS certs) ou ConfigMaps públicos. Pattern: `ExternalSecret` → Vault path → `refreshInterval` configurado. Rotação automática quando disponível.
+27. **Parallel Execution Obrigatória.** Para demandas independentes (GAPs, CI/CD, Infrastructure): SEMPRE usar execução paralela de agentes. Launch via Task tool em single message, coordinate via log files, consolidate results. Eficiência esperada: 80-95% time reduction vs sequential.
+28. **Terraform Bypass Pattern.** Quando terraform validate falha em módulos NÃO-ALVO: comment temporarily broken modules + corresponding outputs, apply com `-target=working_module`, create TASK ticket para permanent fix, uncomment após fix, validate idempotência. DOCUMENT bypass reason no logbook.
+29. **VPA Baseline Mandatory (FASE 0).** VPA rightsizing SEM resource requests baseline = inútil (savings impossível). SEMPRE apply FASE 0: baseline = VPA lowerBound, aguardar 7d reconvergence, validate ≥80% savings target ANTES de Wave 1. Sem FASE 0 = blocker.
+30. **Operator CRD Patch.** Workloads com ownerReferences: PATCH parent CRD, NEVER child resource (StatefulSet/Deployment). Operator reconcilia child automaticamente. Check: `kubectl get <kind> <name> -o jsonpath='{.metadata.ownerReferences[0].kind}'`. Examples: RabbitmqCluster, Application, Prometheus CR.
+31. **Orphan Cleanup Cross-Check.** NEVER delete AWS resources sem cross-check K8s state. EBS: `kubectl get pv`, ALBs: `kubectl get ingress,svc`, SGs: `kubectl get nodes` + cluster SG. Dry-run FIRST, validate impact, THEN execute. Orphan cleanup without K8s validation = incident risk.
+32. **Helm Empty Maps.** NEVER use `--set 'key={}'` (produz array, NOT map). ALWAYS use `--values file.yaml` com `key: {}` para empty maps. Aplicável a: nodeSelector, tolerations, annotations, labels.
+33. **EBS Multi-Attach Recovery.** Dead node EBS stuck: ALWAYS 2 steps required: (1) `aws ec2 detach-volume --force`, (2) `kubectl delete volumeattachment <csi-id>`. NEVER apenas detach OU apenas delete (ambos required).
+34. **IRSA Troubleshooting Priority.** STS ValidationError: FIRST check OIDC thumbprint updated (cert rotation), SECOND check ARN format (role/name NOT role:name). Extract thumbprint: `openssl s_client -connect oidc.eks.<region>.amazonaws.com:443 -showcerts | openssl x509 -fingerprint -sha1`.
 
 ---
 
