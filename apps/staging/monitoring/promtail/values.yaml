@@ -45,6 +45,15 @@ config:
             regex: ""
             action: drop
 
+# Corporate labels (Kyverno policy compliance - ADR-048)
+podLabels:
+  domain: platform
+  owner: sre
+  environment: staging
+  app.kubernetes.io/name: promtail
+  app.kubernetes.io/part-of: observability
+  app.kubernetes.io/managed-by: helm
+
 # Resource limits
 resources:
   limits:
