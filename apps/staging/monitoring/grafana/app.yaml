@@ -1,7 +1,7 @@
 # ApplicationSet auto-managed — DO NOT edit manually
 # Managed by: argocd/applicationsets/cluster-services.yaml
-# Service: grafana | Environment: staging | Namespace: monitoring
+# Service: grafana | Environment: staging | Namespace: staging-observability-monitoring
 appVersion: "10.4.1"
 helmChart: grafana
 helmRepo: https://grafana.github.io/helm-charts
-namespace: monitoring
+namespace: staging-observability-monitoring

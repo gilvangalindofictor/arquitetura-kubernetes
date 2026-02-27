@@ -1,7 +1,7 @@
 # ApplicationSet auto-managed — DO NOT edit manually
 # Managed by: argocd/applicationsets/cluster-services.yaml
-# Service: tempo | Environment: staging | Namespace: monitoring
+# Service: tempo | Environment: staging | Namespace: staging-observability-monitoring
 appVersion: "1.8.0"
 helmChart: tempo-distributed
 helmRepo: https://grafana.github.io/helm-charts
-namespace: monitoring
+namespace: staging-observability-monitoring

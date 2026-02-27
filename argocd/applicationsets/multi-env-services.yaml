@@ -42,7 +42,7 @@ spec:
           elements:
           - service: grafana
             domain: monitoring
-            namespace: monitoring
+            namespace: staging-observability-monitoring
           - service: vault
             domain: security
             namespace: staging-security-vault
