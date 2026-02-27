@@ -1,0 +1,76 @@
+---
+# Promtail configuration for staging observability
+# Deploys log shipper to send pod logs to Loki
+
+config:
+  # Loki endpoint configuration
+  clients:
+    - url: http://loki-gateway.staging-observability-monitoring.svc.cluster.local/loki/api/v1/push
+      tenant_id: ""
+
+  # Scrape configuration for Kubernetes pods
+  snippets:
+    scrapeConfigs: |
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - tracing-test
+                - staging-observability-monitoring
+        relabel_configs:
+          # Add namespace label
+          - source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
+
+          # Add pod name label
+          - source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
+
+          # Add container name label
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            target_label: container
+
+          # Add app label
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            target_label: app
+
+          # Drop empty containers
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            regex: ""
+            action: drop
+
+# Resource limits
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Deploy on system nodes
+nodeSelector:
+  node-type: system
+
+tolerations:
+  - key: node-type
+    operator: Equal
+    value: system
+    effect: NoSchedule
+
+# ServiceMonitor for Prometheus
+serviceMonitor:
+  enabled: true
+  namespace: staging-observability-monitoring
+  labels:
+    release: kube-prometheus-stack
+
+# Run as DaemonSet
+daemonset:
+  enabled: true
