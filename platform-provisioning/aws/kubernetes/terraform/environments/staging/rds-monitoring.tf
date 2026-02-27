@@ -42,7 +42,7 @@ module "rds_monitoring_staging" {
   kms_key_id = ""  # Optional: add KMS key ID for SNS encryption
 
   # Runbook base URL (update with your GitHub org/repo)
-  runbook_base_url = "https://github.com/<org>/<repo>/docs/runbooks"
+  runbook_base_url = "https://github.com/fctconsig/k8s-platform/docs/runbooks"
 
   tags = merge(local.common_tags, {
     Module      = "rds-monitoring"
