@@ -1067,6 +1067,11 @@ module "kube_prometheus_stack_staging" {
   grafana_keycloak_url       = "http://keycloak.staging.internal/auth" # externo: browser precisa resolver
   grafana_keycloak_client_id = "grafana"
   # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
+
+  # Corporate Labels (ADR-048) — Added 2026-02-26
+  domain      = "operations"
+  owner       = "platform-team"
+  environment = "staging"
 }
 
 #------------------------------------------------------------------------------
@@ -2245,8 +2250,8 @@ module "rds_replica_staging" {
     aws = aws.us-west-2
   }
 
-  cluster_name  = local.cluster_name
-  environment   = local.environment
+  cluster_name   = local.cluster_name
+  environment    = local.environment
   replica_region = "us-west-2"
 
   # Source (primary) RDS instance in us-east-1
@@ -2332,9 +2337,9 @@ module "waf_staging" {
   blocked_countries   = var.waf_blocked_countries
 
   # Managed rule groups (all enabled in staging to validate before production)
-  enable_owasp_common_ruleset      = true
-  enable_sqli_ruleset              = true
-  enable_known_bad_inputs_ruleset  = true
+  enable_owasp_common_ruleset     = true
+  enable_sqli_ruleset             = true
+  enable_known_bad_inputs_ruleset = true
 
   # Logging — module creates the S3 bucket (aws-waf-logs-k8s-platform-prod-staging)
   enable_logging     = true
@@ -2372,6 +2377,39 @@ module "waf_staging" {
 # Blocker: modules/linkerd/main.tf uses file() in data block (always evaluated even with count=0)
 # Missing files: modules/linkerd/dashboards/*.json (4 files)
 # Created: TASK-XXX to fix file() bug (use try(file(), null) or dynamic block)
+#------------------------------------------------------------------------------
+# CICD-003: Automated Secret Rotation (ADR-083)
+# Quarterly CronJob that rotates PostgreSQL, Keycloak, Harbor and OIDC secrets.
+# Pre-requisites:
+#   1. Vault policy applied:  vault policy write secret-rotation scripts/vault/vault-rotation-policy.hcl
+#   2. Vault KV path created: vault kv put secret/secret-rotator/token token=<service-token>
+#   3. Vault KV path created: vault kv put secret/postgresql-admin/password username=<user> password=<pass>
+# First execution: 2026-04-01T02:00:00Z (quarterly schedule 0 2 1 */3 *)
+#------------------------------------------------------------------------------
+module "secret_rotation" {
+  source = "../../modules/secret-rotation"
+
+  namespace    = "staging-security-vault"
+  environment  = local.environment
+
+  # Quarterly rotation — PCI-DSS 8.2.4 compliance
+  rotation_schedule = "0 2 1 */3 *"
+
+  # Vault connection (cluster-internal)
+  vault_addr = "http://vault.staging-security-vault.svc.cluster.local:8200"
+
+  # RDS endpoint (staging shares prod RDS — ADR-050)
+  rds_endpoint = "k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com"
+
+  # Keycloak connection
+  keycloak_url   = "http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local"
+  keycloak_realm = "platform"
+
+  # Staging: dry_run=false (real rotation). Set to true for first test.
+  dry_run   = false
+  log_level = "INFO"
+}
+
 # Re-enable after: dashboards downloaded OR module fixed
 #
 # module "linkerd" {
