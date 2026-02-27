@@ -43,9 +43,9 @@ loki:
     replication_factor: 2
   compactor:
     compaction_interval: 10m
+    delete_request_store: s3
     retention_delete_delay: 2h
     retention_enabled: true
-    shared_store: s3
     working_directory: /var/loki/compactor
   limits_config:
     max_query_length: 744h

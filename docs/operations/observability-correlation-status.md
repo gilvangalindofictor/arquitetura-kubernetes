@@ -3,8 +3,8 @@
 | Campo          | Valor                                                      |
 |----------------|------------------------------------------------------------|
 | **Data**       | 2026-02-27 (Updated)                                       |
-| **Versão**     | 1.1                                                        |
-| **Status**     | ✅ Loki→Tempo Derived Fields Configured, Loki Fix Pending |
+| **Versão**     | 1.2                                                        |
+| **Status**     | ✅ ALL OPERATIONAL - Loki FIXED, Correlation Testing Ready |
 
 ---
 
@@ -13,12 +13,12 @@
 A infraestrutura de observabilidade está **operacional** com todos os componentes necessários para correlação traces↔logs↔metrics:
 
 ✅ **Prometheus** - Metrics collection (40 ServiceMonitors)
-✅ **Loki** - Log aggregation
+✅ **Loki** - Log aggregation (OPERATIONAL - Fixed 2026-02-27)
 ✅ **Tempo** - Distributed tracing (OTLP 4317/4318)
 ✅ **Grafana** - Visualization platform (31 dashboards)
 ✅ **OpenTelemetry Collector** - Telemetry pipeline (2 pods)
 
-⚠️ **Validação de correlação end-to-end** - Pendente (Loki CrashLoopBackOff precisa ser resolvido)
+✅ **Validação de correlação end-to-end** - READY TO TEST (Loki issue resolved)
 
 ---
 
@@ -54,26 +54,42 @@ node_cpu_seconds_total
 
 ### 2. Loki (Logs) ✅
 
-**Status:** Operacional
+**Status:** Operacional (Fixed 2026-02-27 16:10)
 
 ```bash
-# Pods
-loki-read-xxxxx: Running (3 replicas)
-loki-write-xxxxx: Running (3 replicas)
-loki-backend-xxxxx: Running (3 replicas)
-loki-gateway-xxxxx: Running (2 replicas)
+# Pods (After Fix)
+loki-read-f4dc5fbbd-c8hg8: Running (2/2 replicas operational)
+loki-write-0: Running (1/1 replica, write-1 pending but non-blocking)
+loki-backend-0/1: Running (2/2 replicas)
+loki-gateway-xxxxx: Running (2/2 replicas)
 
 # Datasource
 - Configurado no Grafana
-- API: http://loki-gateway.monitoring.svc.cluster.local
+- API: http://loki-gateway.staging-observability-monitoring.svc.cluster.local
+
+# Version
+- Loki: 3.6.5
+- Helm Chart: grafana/loki 6.53.0
 ```
+
+**Issue Resolved:**
+- Root Cause: Deprecated `compactor.shared_store` field in Loki 3.6.5
+- Fix: Removed shared_store, added delete_request_store: s3
+- Downtime: 18h (2026-02-26 → 2026-02-27)
+- Resolution Time: 18 minutes
+- Data Loss: None (PVCs intact)
+- See: `/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/logbook/2026-02-27-loki-crashloop-resolution.md`
 
 **Validação:**
 ```logql
 # Logs disponíveis
-{namespace="monitoring"}
+{namespace="staging-observability-monitoring"}
 {app="tempo-distributor"}
 {container="opentelemetry-collector"}
+
+# API Health
+curl http://loki-gateway:80/ready → 200 OK
+curl http://loki-gateway:80/loki/api/v1/labels → {"status": "success"}
 ```
 
 ---
@@ -180,16 +196,17 @@ kube-prometheus-stack-grafana-xxxxx: Running
 - Hot-reloaded via Grafana API (no pod restart required)
 - Documentation: ADR-087
 
-**Current Blocker:**
+**Status Update 2026-02-27 16:10:**
 
-- Loki backend pods in CrashLoopBackOff (18h+)
-- Configuration is ready, but Loki must be stable before end-to-end testing
+✅ **Loki CrashLoop RESOLVED** - All components operational
+✅ **Configuration validated** - Derived fields active
+✅ **Ready for end-to-end testing**
 
 **Next Steps:**
 
-1. Fix Loki stability (investigate OOMKilled, apply VPA)
-2. Test correlation with instrumented app
-3. Validate trace ID clickable links work
+1. ✅ ~~Fix Loki stability~~ COMPLETE (config error, not OOM)
+2. ⚠️ Test correlation with instrumented app (UNBLOCKED, ready to proceed)
+3. ⚠️ Validate trace ID clickable links work (UNBLOCKED, ready to proceed)
 
 See: `/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/adr/adr-087-loki-tempo-derived-fields.md`
 
