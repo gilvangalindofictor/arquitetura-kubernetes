@@ -86,16 +86,26 @@ if [[ $EXIT_CODE -eq 0 ]]; then
   # 2. Sessão expirada detectada
   PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
 
-  # 3. Executar login SSO (background para capturar output)
-  aws sso login --profile "$PROFILE" 2>&1 | tee /tmp/sso-login.log
+  # 3. Executar login SSO com --no-browser (CRÍTICO: evita tentar abrir browser)
+  #    O processo fica aguardando callback em localhost:XXXXX
+  (aws sso login --profile "$PROFILE" --no-browser > /tmp/sso-login.log 2>&1 &)
 
-  # 4. Extrair URL do output
+  # 4. Aguardar 3 segundos para capturar output
+  sleep 3
+
+  # 5. Extrair URL do output
   SSO_URL=$(grep -oP 'https://[^\s]+' /tmp/sso-login.log | head -1)
 
-  # 5. Enviar APENAS o link para o usuário
-  echo "🔐 Sessão expirada | $SSO_URL"
+  # 6. Enviar APENAS o link para o usuário
+  echo "🔐 Sessão expirada | Login SSO iniciado"
+  echo "PROFILE: $PROFILE"
+  echo "LINK: $SSO_URL"
+  echo ""
+  echo "Clique no link acima para autenticar. Aguardando callback..."
 fi
 ```
+
+**⚠️ IMPORTANTE**: O comando `aws sso login --no-browser` deve rodar em **background** (`&`) para que o processo fique escutando o callback OAuth em `localhost:XXXXX`. Se rodar em foreground com timeout, o callback não será recebido.
 
 ### Formato de Resposta (COMPACTO)
 
@@ -127,13 +137,49 @@ Se sessão expirar DURANTE uma execução (ex: terraform apply rodando), o AML d
 5. **Retomar execução** assim que sessão estiver ativa
 
 ```bash
-# Exemplo de polling após enviar link
-while true; do
-  aws sts get-caller-identity --profile "$PROFILE" &>/dev/null
-  if [[ $? -eq 0 ]]; then
-    echo "✅ Login confirmado"
-    break
+# Polling após enviar link (timeout 5 minutos = 60 iterações × 5s)
+for i in {1..60}; do
+  if aws sts get-caller-identity --profile "$PROFILE" &>/dev/null; then
+    echo "✅ Login confirmado após $((i*5))s"
+    aws sts get-caller-identity --profile "$PROFILE" --output json | \
+      jq -r '"Account: \(.Account) | ARN: \(.Arn)"'
+
+    # Atualizar kubeconfig para usar nova sessão
+    aws eks update-kubeconfig --name <cluster-name> --region <region> --profile "$PROFILE"
+
+    exit 0
   fi
+  echo "⏳ Aguardando autorização... ($((i*5))s)"
+  sleep 5
+done
+
+echo "⏱️ Timeout (5min) - Sessão não confirmada"
+exit 1
+```
+
+**Exemplo real** (Session 2026-02-27):
+```bash
+# Detectar sessão expirada
+kubectl cluster-info 2>&1 | grep -q "Token has expired"
+
+# Ler profile
+PROFILE=$(yq eval '.aws.profile' platform-config.yaml)
+
+# Executar login em background
+(aws sso login --profile "$PROFILE" --no-browser > /tmp/sso-login.log 2>&1 &)
+sleep 3
+
+# Extrair e enviar link
+SSO_URL=$(grep -oP 'https://[^\s]+' /tmp/sso-login.log | head -1)
+echo "🔐 LINK: $SSO_URL"
+
+# Polling automático (exit após 5s quando usuário autoriza)
+for i in {1..60}; do
+  aws sts get-caller-identity --profile "$PROFILE" &>/dev/null && {
+    echo "✅ Sessão confirmada!"
+    aws eks update-kubeconfig --name k8s-platform-prod --region us-east-1 --profile "$PROFILE"
+    break
+  }
   sleep 5
 done
 ```
