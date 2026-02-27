@@ -230,14 +230,13 @@ get_or_create_quality_gate() {
   local gates_response
   gates_response=$(sonar_api GET "qualitygates/list")
 
-  local gate_id
-  gate_id=$(echo "${gates_response}" | jq -r ".qualitygates[] | select(.name == \"${GATE_NAME}\") | .id")
+  local gate_exists
+  gate_exists=$(echo "${gates_response}" | jq -r ".qualitygates[] | select(.name == \"${GATE_NAME}\") | .name")
 
-  if [[ -z "${gate_id}" ]]; then
+  if [[ -z "${gate_exists}" ]]; then
     log_info "Quality gate '${GATE_NAME}' not found — creating..."
     if ${DRY_RUN}; then
       log_dry "Would create quality gate: '${GATE_NAME}'"
-      echo "DRY_RUN_GATE_ID"
       return
     fi
 
@@ -246,15 +245,14 @@ get_or_create_quality_gate() {
 
     local create_response
     create_response=$(sonar_api POST "qualitygates/create" "name=${encoded_name}")
-    gate_id=$(echo "${create_response}" | jq -r '.id')
-    log_success "Created quality gate '${GATE_NAME}' with ID: ${gate_id}"
+    log_success "Created quality gate '${GATE_NAME}'"
   else
-    log_info "Found existing quality gate '${GATE_NAME}' with ID: ${gate_id}"
+    log_info "Found existing quality gate '${GATE_NAME}'"
 
     # Remove all existing conditions for idempotency (clean slate approach)
     log_info "Removing existing conditions for idempotency..."
     local gate_detail
-    gate_detail=$(sonar_api GET "qualitygates/show?id=${gate_id}")
+    gate_detail=$(sonar_api GET "qualitygates/show?name=${GATE_NAME}")
     local conditions
     conditions=$(echo "${gate_detail}" | jq -r '.conditions[]?.id // empty')
 
@@ -267,15 +265,13 @@ get_or_create_quality_gate() {
       fi
     done
   fi
-
-  echo "${gate_id}"
 }
 
 # ── Add a single condition to the quality gate ───────────────────────────────
-# Usage: add_condition gate_id metric operator threshold description
+# Usage: add_condition gate_name metric operator threshold description
 # Operator: GT (greater than), LT (less than)
 add_condition() {
-  local gate_id="$1"
+  local gate_name="$1"
   local metric="$2"
   local op="$3"
   local threshold="$4"
@@ -293,16 +289,16 @@ add_condition() {
   fi
 
   sonar_api POST "qualitygates/create_condition" \
-    "gateId=${gate_id}&metric=${metric}&op=${op}&error=${threshold}" > /dev/null
+    "gateName=${gate_name}&metric=${metric}&op=${op}&error=${threshold}" > /dev/null
 
   log_success "  Condition set: ${metric} ${op_display} ${threshold}"
 }
 
 # ── Configure all quality gate conditions ────────────────────────────────────
 configure_quality_gate_conditions() {
-  local gate_id="$1"
+  local gate_name="$1"
   log_section "Quality Gate Conditions"
-  log_info "Configuring conditions for gate ID: ${gate_id}"
+  log_info "Configuring conditions for gate: ${gate_name}"
   log_info "Thresholds: coverage>=${COVERAGE_THRESHOLD}%, bugs<=${MAX_BUGS}, vulns<=${MAX_VULNERABILITIES}, smells<=${MAX_CODE_SMELLS}, hotspot-review>=${HOTSPOT_REVIEW_THRESHOLD}%"
   echo ""
 
@@ -310,7 +306,7 @@ configure_quality_gate_conditions() {
   # Metric: new_coverage
   # Operator: LT (error if coverage is LESS THAN threshold)
   # Industry standard: 80% ensures meaningful test coverage on all new code
-  add_condition "${gate_id}" \
+  add_condition "${gate_name}" \
     "new_coverage" \
     "LT" \
     "${COVERAGE_THRESHOLD}" \
@@ -320,7 +316,7 @@ configure_quality_gate_conditions() {
   # Metric: new_bugs
   # Operator: GT (error if bugs is GREATER THAN 0)
   # Zero tolerance: bugs in new code indicate logic errors that must be fixed
-  add_condition "${gate_id}" \
+  add_condition "${gate_name}" \
     "new_bugs" \
     "GT" \
     "${MAX_BUGS}" \
@@ -330,7 +326,7 @@ configure_quality_gate_conditions() {
   # Metric: new_vulnerabilities
   # Operator: GT (error if vulnerabilities is GREATER THAN 0)
   # Zero tolerance: security-first policy, no new CVEs may be introduced
-  add_condition "${gate_id}" \
+  add_condition "${gate_name}" \
     "new_vulnerabilities" \
     "GT" \
     "${MAX_VULNERABILITIES}" \
@@ -340,7 +336,7 @@ configure_quality_gate_conditions() {
   # Metric: new_code_smells
   # Operator: GT (error if smells exceed threshold)
   # Maintainability gate: prevents technical debt accumulation
-  add_condition "${gate_id}" \
+  add_condition "${gate_name}" \
     "new_code_smells" \
     "GT" \
     "${MAX_CODE_SMELLS}" \
@@ -350,7 +346,7 @@ configure_quality_gate_conditions() {
   # Metric: new_security_hotspots_reviewed
   # Operator: LT (error if review rate is LESS THAN threshold)
   # Security posture: ensures security-sensitive code is reviewed
-  add_condition "${gate_id}" \
+  add_condition "${gate_name}" \
     "new_security_hotspots_reviewed" \
     "LT" \
     "${HOTSPOT_REVIEW_THRESHOLD}" \
@@ -362,7 +358,7 @@ configure_quality_gate_conditions() {
 
 # ── Set this gate as the default ─────────────────────────────────────────────
 set_as_default_gate() {
-  local gate_id="$1"
+  local gate_name="$1"
   log_section "Set Default Gate"
 
   if ! ${SET_DEFAULT}; then
@@ -373,11 +369,11 @@ set_as_default_gate() {
   log_info "Setting '${GATE_NAME}' as the default quality gate for all projects..."
 
   if ${DRY_RUN}; then
-    log_dry "Would set gate ID ${gate_id} as default"
+    log_dry "Would set gate '${gate_name}' as default"
     return
   fi
 
-  sonar_api POST "qualitygates/set_as_default" "id=${gate_id}" > /dev/null
+  sonar_api POST "qualitygates/set_as_default" "name=${gate_name}" > /dev/null
   log_success "Gate '${GATE_NAME}' is now the default for all new projects"
 }
 
@@ -408,15 +404,15 @@ validate_configuration() {
   echo ""
 
   # Verify our target gate exists
-  local our_gate_id
-  our_gate_id=$(echo "${gates_response}" | jq -r ".qualitygates[] | select(.name == \"${GATE_NAME}\") | .id")
+  local our_gate_exists
+  our_gate_exists=$(echo "${gates_response}" | jq -r ".qualitygates[] | select(.name == \"${GATE_NAME}\") | .name")
 
-  if [[ -z "${our_gate_id}" ]]; then
+  if [[ -z "${our_gate_exists}" ]]; then
     log_warn "Quality gate '${GATE_NAME}' NOT FOUND. Run without --validate to create it."
   else
-    echo "Conditions for '${GATE_NAME}' (ID: ${our_gate_id}):"
+    echo "Conditions for '${GATE_NAME}':"
     local gate_detail
-    gate_detail=$(sonar_api GET "qualitygates/show?id=${our_gate_id}")
+    gate_detail=$(sonar_api GET "qualitygates/show?name=${GATE_NAME}")
     echo "${gate_detail}" | jq -r '
       .conditions[]? |
       "  [" + .op + "] metric=" + .metric +
@@ -502,15 +498,14 @@ main() {
     exit 0
   fi
 
-  local gate_id
-  gate_id=$(get_or_create_quality_gate)
+  get_or_create_quality_gate
 
-  if [[ "${gate_id}" == "DRY_RUN_GATE_ID" ]]; then
+  if ${DRY_RUN}; then
     log_dry "Skipping condition setup (dry-run mode)"
     log_dry "Would configure 5 conditions for gate '${GATE_NAME}'"
   else
-    configure_quality_gate_conditions "${gate_id}"
-    set_as_default_gate "${gate_id}"
+    configure_quality_gate_conditions "${GATE_NAME}"
+    set_as_default_gate "${GATE_NAME}"
   fi
 
   check_webhook_configured
