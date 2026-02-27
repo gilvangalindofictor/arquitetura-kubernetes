@@ -43,6 +43,11 @@ terraform {
       source  = "mrparkers/keycloak"
       version = "~> 4.4.0"
     }
+    # GAP-011: Linkerd mTLS — TLS provider for trust anchor + issuer PKI generation
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -74,6 +79,20 @@ provider "aws" {
 provider "aws" {
   alias   = "sa_east_1"
   region  = "sa-east-1"
+  profile = "k8s-platform-staging"
+
+  default_tags {
+    tags = local.common_tags
+  }
+}
+
+# Provider for us-west-2 (GAP-012: DR Multi-Region)
+# Used by:
+#   - module.velero_dr_staging  (replica S3 bucket)
+#   - module.rds_replica_staging (RDS read replica)
+provider "aws" {
+  alias   = "us-west-2"
+  region  = "us-west-2"
   profile = "k8s-platform-staging"
 
   default_tags {
@@ -723,50 +742,56 @@ module "harbor_staging" {
 # ADR: TASK-002 (docs/tasks/TASK-002-terraform-keycloak-provider.md)
 #------------------------------------------------------------------------------
 
-module "keycloak_clients_staging" {
-  source = "../../modules/keycloak-clients"
-
-  # NOTE: depends_on removed - legacy module with provider config incompatible with depends_on
-  # Manual ordering: apply keycloak_staging first, then keycloak_clients_staging
-
-  # WSL-safe: uses localhost port-forward
-  # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak
-  keycloak_url = "http://localhost:18080"
-
-  # Admin password from K8s secret (V-006: migrado para ESO 2026-02-24)
-  # Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-credentials -n keycloak -o jsonpath='{.data.password}' | base64 -d)
-  keycloak_admin_password = var.keycloak_admin_password
-
-  # Realm
-  realm = "platform"
-
-  # Domain (staging.internal)
-  domain_suffix = "staging.internal"
-  environment   = local.environment
-  cluster_name  = local.cluster_name
-
-  # Enable all clients (TASK-002: full 6-client IaC coverage)
-  gitlab_enabled     = true
-  argocd_enabled     = true
-  grafana_enabled    = true
-  harbor_enabled     = true
-  vault_enabled      = true
-  sonarqube_enabled  = true
-
-  # Kubernetes namespaces
-  gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
-  argocd_namespace     = "argocd"
-  grafana_namespace    = "monitoring"
-  harbor_namespace     = "harbor-system"
-  vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
-  sonarqube_namespace  = "sonarqube"
-
-  # grafana-admins group + oidc-group-membership-mapper
-  # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
-  grafana_admins_group_enabled = true
-
-  common_tags = local.common_tags
-}
+# TEMPORARILY DISABLED (2026-02-26) — TASK-002 Keycloak Clients Module
+# Blocker: modules/keycloak-clients/main.tf references 17 undeclared resources
+# Root cause: Clients were created manually (TASK-002 import incomplete?)
+# Created: TASK-YYY to complete Terraform import of existing clients
+# Re-enable after: terraform import keycloak_realm.platform <realm-id> (+ 16 client imports)
+#
+# module "keycloak_clients_staging" {
+#   source = "../../modules/keycloak-clients"
+#
+#   # NOTE: depends_on removed - legacy module with provider config incompatible with depends_on
+#   # Manual ordering: apply keycloak_staging first, then keycloak_clients_staging
+#
+#   # WSL-safe: uses localhost port-forward
+#   # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak
+#   keycloak_url = "http://localhost:18080"
+#
+#   # Admin password from K8s secret (V-006: migrado para ESO 2026-02-24)
+#   # Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-credentials -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+#   keycloak_admin_password = var.keycloak_admin_password
+#
+#   # Realm
+#   realm = "platform"
+#
+#   # Domain (staging.internal)
+#   domain_suffix = "staging.internal"
+#   environment   = local.environment
+#   cluster_name  = local.cluster_name
+#
+#   # Enable all clients (TASK-002: full 6-client IaC coverage)
+#   gitlab_enabled     = true
+#   argocd_enabled     = true
+#   grafana_enabled    = true
+#   harbor_enabled     = true
+#   vault_enabled      = true
+#   sonarqube_enabled  = true
+#
+#   # Kubernetes namespaces
+#   gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
+#   argocd_namespace     = "argocd"
+#   grafana_namespace    = "monitoring"
+#   harbor_namespace     = "harbor-system"
+#   vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
+#   sonarqube_namespace  = "sonarqube"
+#
+#   # grafana-admins group + oidc-group-membership-mapper
+#   # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
+#   grafana_admins_group_enabled = true
+#
+#   common_tags = local.common_tags
+# }
 
 module "keycloak_staging" {
   source = "../../modules/keycloak"
@@ -841,6 +866,50 @@ module "argocd_staging" {
   # Tags
   common_tags = local.common_tags
 }
+
+#------------------------------------------------------------------------------
+# ARGO ROLLOUTS - Progressive Delivery (CICD-005)
+# Canary and Blue-Green deployments with automated analysis
+# Deployed in ArgoCD namespace (co-located per ADR-085)
+#------------------------------------------------------------------------------
+
+# TEMPORARILY DISABLED (2026-02-26) — CICD-005 Argo Rollouts Module
+# Blocker: modules/argo-rollouts/main.tf uses templatefile() with missing values.yaml.tpl
+# Missing file: modules/argo-rollouts/values.yaml.tpl
+# Created: TASK-ZZZ to add values.yaml.tpl template file
+# Alternative: Deploy manually via Helm (already done, 2 controller pods running)
+# Re-enable after: values.yaml.tpl created in module directory
+#
+# module "argo_rollouts_staging" {
+#   source = "../../modules/argo-rollouts"
+#
+#   depends_on = [
+#     module.argocd_staging,
+#     module.kube_prometheus_stack_staging
+#   ]
+#
+#   # Cluster info
+#   cluster_name = local.cluster_name
+#   namespace    = "staging-platform-argocd" # DEC-074 namespace migration
+#
+#   # Argo Rollouts configuration
+#   chart_version       = "2.35.0"
+#   controller_replicas = 2 # HA
+#
+#   # Prometheus integration for AnalysisRun
+#   metrics_enabled = true
+#   prometheus_url  = "http://kube-prometheus-stack-prometheus.staging-observability-monitoring.svc.cluster.local:9090"
+#
+#   # Dashboard
+#   dashboard_enabled = true
+#   dashboard_port    = 3100
+#
+#   # Metrics port
+#   metrics_port = 8090
+#
+#   # Tags
+#   common_tags = local.common_tags
+# }
 
 #------------------------------------------------------------------------------
 # SONARQUBE - Code Quality Platform
@@ -2113,19 +2182,250 @@ resource "null_resource" "fct_proposals_validation" {
 }
 
 #------------------------------------------------------------------------------
-# Velero DR - V-008 IRSA Migration (2026-02-25)
-# Disaster Recovery with S3-based backup storage
-# RTO: 1h, RPO: 24h (daily backups)
+# Velero DR Multi-Region - GAP-012 (2026-02-26)
+# Upgrades single-region backup to full DR architecture:
+#   - S3 CRR: us-east-1 → us-west-2 (RTC 15-min SLA)
+#   - Velero IRSA: access to primary (R/W) + replica (R/O) buckets
+#   - CloudWatch alarms: replication failures + pending bytes
+# RTO: 4h  |  RPO: 1h (hourly backup) / 15min (S3 CRR replication lag)
+# Cost: ~$10/month additional (S3 CRR + RTC + CloudWatch)
 #------------------------------------------------------------------------------
 
 module "velero_dr_staging" {
   source = "../../modules/velero-dr"
 
+  # Multi-region provider aliases (required by module versions.tf)
+  providers = {
+    aws         = aws
+    aws.replica = aws.us-west-2
+  }
+
   cluster_name      = local.cluster_name
   environment       = local.environment
-  bucket_name       = "${local.cluster_name}-velero-backups"
   velero_namespace  = "velero"
   oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
   oidc_provider_url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
-  aws_region        = "us-east-1"
+
+  # Region configuration
+  primary_region = "us-east-1"
+  replica_region = "us-west-2"
+
+  # Retention: 30d primary, 90d replica (DR compliance)
+  retention_days_primary = 30
+  retention_days_replica = 90
+
+  # RTC: 15-min replication SLA (~$0.75/month)
+  enable_replication_time_control = true
+
+  # Monitoring: reuse existing FinOps SNS topic (saves one SNS topic)
+  enable_cloudwatch_alarms = true
+  create_sns_topic         = false
+  existing_sns_topic_arn   = aws_sns_topic.finops_alerts_staging.arn
+
+  common_tags = local.common_tags
 }
+
+#------------------------------------------------------------------------------
+# RDS Cross-Region Read Replica - GAP-012 (2026-02-26)
+# PostgreSQL read replica in us-west-2 for DR failover.
+# Replication lag alarm: > 60s → SNS → PagerDuty
+# Cost: ~$50/month (db.t4g.medium + 20 GB gp3 storage)
+#
+# PRE-REQUISITE: var.dr_vpc_id, var.dr_subnet_ids, var.dr_allowed_cidrs
+# must be populated in terraform.tfvars before applying this module.
+# Set dr_enable_rds_replica = false to defer RDS replica creation.
+#------------------------------------------------------------------------------
+
+module "rds_replica_staging" {
+  count  = var.dr_enable_rds_replica ? 1 : 0
+  source = "../../modules/rds-replica"
+
+  # All resources are created in us-west-2
+  providers = {
+    aws = aws.us-west-2
+  }
+
+  cluster_name  = local.cluster_name
+  environment   = local.environment
+  replica_region = "us-west-2"
+
+  # Source (primary) RDS instance in us-east-1
+  source_db_identifier = module.postgresql_staging.db_instance_id
+
+  # Replica sizing (FinOps: t4g.medium = ~$47/month, sufficient for staging DR)
+  replica_instance_class  = var.dr_rds_replica_instance_class
+  max_allocated_storage   = 100
+  backup_retention_period = 7
+
+  # Networking in us-west-2 (must be pre-provisioned or via separate VPC module)
+  replica_vpc_id        = var.dr_vpc_id
+  replica_subnet_ids    = var.dr_subnet_ids
+  replica_allowed_cidrs = var.dr_allowed_cidrs
+
+  # Monitoring: replication lag alarm fires at 60s
+  enable_cloudwatch_alarms          = true
+  replication_lag_threshold_seconds = 60
+  storage_free_threshold_bytes      = 4294967296 # 4 GB
+
+  # Reuse FinOps SNS topic — avoid creating a second topic for staging
+  create_sns_topic       = false
+  existing_sns_topic_arn = aws_sns_topic.finops_alerts_staging.arn
+
+  common_tags = local.common_tags
+
+  depends_on = [module.postgresql_staging]
+}
+
+#------------------------------------------------------------------------------
+# WAF v2 + DDoS Protection - GAP-010 (2026-02-26)
+# Protects iPaaS public endpoint via ALB Ingress Controller association.
+# Rules (priority order):
+#   10 → Rate limit: 1000 req/5min per IP (BLOCK 429)
+#   20 → Geo-block: CN, RU, KP (BLOCK)
+#   30 → OWASP Common Rule Set — AWSManagedRulesCommonRuleSet (BLOCK)
+#   40 → SQLi Protection — AWSManagedRulesSQLiRuleSet (BLOCK)
+#   50 → Known Bad Inputs — AWSManagedRulesKnownBadInputsRuleSet (BLOCK)
+#
+# ALB ARN: retrieved dynamically via data source.
+# Logging: dedicated S3 bucket created by the module (aws-waf-logs-* prefix).
+# Cost estimate: ~$10-13/month (WAF WebACL + 5 rules + requests).
+#
+# IMPORTANT: The data.aws_lb.ingress_alb data source below resolves the ALB
+# ARN by the tag set added by the AWS Load Balancer Controller. Verify tags
+# after the first ALB is created:
+#   aws elbv2 describe-load-balancers --query 'LoadBalancers[*].{Name:LoadBalancerName,ARN:LoadBalancerArn}'
+#
+# If the ALB does not yet exist (fresh deploy), set var.waf_alb_arn explicitly
+# in terraform.tfvars or secrets.auto.tfvars instead of using the data source.
+#------------------------------------------------------------------------------
+
+# Data source: resolve the iPaaS ALB ARN from AWS Load Balancer Controller tags.
+# TEMPORARILY DISABLED (2026-02-26) — no ALB with stack=ipaas-public exists yet
+# Using waf_alb_arn variable instead: platform-staging ALB
+# Re-enable after: iPaaS deployed OR update to search for stack=platform-staging
+#
+# data "aws_lb" "ingress_alb" {
+#   # Look up the ALB by its cluster ownership tag injected by AWS LBC
+#   tags = {
+#     "kubernetes.io/cluster/${local.cluster_name}" = "owned"
+#     "ingress.k8s.aws/stack"                       = "ipaas-public"
+#   }
+# }
+
+module "waf_staging" {
+  source = "../../modules/waf"
+
+  # Identity
+  environment  = local.environment
+  cluster_name = local.cluster_name
+  common_tags  = local.common_tags
+
+  # ALB to protect — using var.waf_alb_arn directly (data source disabled)
+  # TEMPORARY: data.aws_lb.ingress_alb commented out, requires waf_alb_arn variable
+  alb_arn = var.waf_alb_arn
+
+  # Rate limiting
+  rate_limit = var.waf_rate_limit
+
+  # Geographic blocking
+  enable_geo_blocking = var.waf_enable_geo_blocking
+  blocked_countries   = var.waf_blocked_countries
+
+  # Managed rule groups (all enabled in staging to validate before production)
+  enable_owasp_common_ruleset      = true
+  enable_sqli_ruleset              = true
+  enable_known_bad_inputs_ruleset  = true
+
+  # Logging — module creates the S3 bucket (aws-waf-logs-k8s-platform-prod-staging)
+  enable_logging     = true
+  create_log_bucket  = true
+  log_retention_days = var.waf_log_retention_days
+
+  # Observability
+  cloudwatch_metrics_enabled = true
+  enable_sampled_requests    = true
+}
+
+#------------------------------------------------------------------------------
+# GAP-011: Linkerd Service Mesh — mTLS End-to-End (BACEN BCB 85/2021)
+#
+# Implements mutual TLS between all annotated iPaaS pods using SPIFFE identity.
+# Control plane only; data plane injection is opt-in via pod/namespace annotation:
+#   linkerd.io/inject: enabled
+#
+# Timeline: 3 semanas | Custo adicional: ~$5/mes (overhead minimal de proxy CPU)
+# ADR: GAP-011 | Compliance: BCB 85/2021 Art. 6 SS IV (criptografia em transito)
+#
+# Ordem de apply:
+#   1. linkerd-crds (CRDs)
+#   2. linkerd-control-plane
+#   3. linkerd-viz (se enable_viz=true)
+#   Dependencias gerenciadas internamente pelo modulo via depends_on.
+#
+# Verificacao pos-deploy:
+#   linkerd check
+#   linkerd viz dashboard
+#   linkerd tap deploy/<app> -n ipaas
+#------------------------------------------------------------------------------
+
+# TEMPORARILY DISABLED (2026-02-26) — GAP-011 Linkerd Module
+# Blocker: modules/linkerd/main.tf uses file() in data block (always evaluated even with count=0)
+# Missing files: modules/linkerd/dashboards/*.json (4 files)
+# Created: TASK-XXX to fix file() bug (use try(file(), null) or dynamic block)
+# Re-enable after: dashboards downloaded OR module fixed
+#
+# module "linkerd" {
+#   source = "../../modules/linkerd"
+#
+#   cluster_name = local.cluster_name
+#   environment  = local.environment
+#   common_tags  = local.common_tags
+#
+#   # --- Versoes Helm (stable-2.16.x channel) ---
+#   # Verificar versoes atuais em: https://artifacthub.io/packages/helm/linkerd2
+#   linkerd_crds_chart_version = "1.8.0"
+#   linkerd_version            = "1.16.11"
+#   linkerd_viz_chart_version  = "30.12.11"
+#
+#   # --- PKI (TLS provider — auto-gerado pelo Terraform) ---
+#   # trust_anchor: root CA, validade 365 dias (renovar antes do vencimento)
+#   # issuer: intermediario, assina certs de workload (24h TTL, auto-rotacao)
+#   trust_domain              = "cluster.local"
+#   certificate_validity_days = 365
+#
+#   # --- Proxy Resources (staging: limites minimos) ---
+#   proxy_cpu_request    = "100m"
+#   proxy_memory_request = "64Mi"
+#   proxy_cpu_limit      = "500m"
+#   proxy_memory_limit   = "256Mi"
+#
+#   # --- HA Mode ---
+#   # staging: false (1 replica por componente, sem PDB)
+#   # production: true (3 replicas, PodDisruptionBudgets habilitados)
+#   ha_mode = false
+#
+#   # --- Viz Extension ---
+#   # Usa Prometheus externo (kube-prometheus-stack) — NAO sobe instancia proprio
+#   enable_viz              = true
+#   viz_prometheus_enabled  = false
+#   external_prometheus_url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+#
+#   # --- Grafana Dashboards ---
+#   # Desabilitado ate que os JSONs sejam baixados em modules/linkerd/dashboards/
+#   # Ver README: modules/linkerd/README.md#integracao-grafana
+#   enable_grafana_dashboards = false
+#
+#   # --- Jaeger / Tracing ---
+#   # Desabilitado em staging (OpenTelemetry Collector ja existe em monitoring)
+#   # Para habilitar: enable_jaeger=true e configurar collector_backend_addr
+#   enable_jaeger = false
+#
+#   # --- Opt-in Proxy Injection por Namespace ---
+#   # Apenas namespaces listados recebem inject automatico de sidecar.
+#   # Adicionar namespace novo: incluir aqui + fazer rolling restart dos pods:
+#   #   kubectl rollout restart deployment -n <namespace>
+#   proxy_inject_namespaces = [
+#     "ipaas",        # iPaaS core services — principal escopo GAP-011
+#     "integration",  # Integration workers (consumers RabbitMQ, etc.)
+#   ]
+# }

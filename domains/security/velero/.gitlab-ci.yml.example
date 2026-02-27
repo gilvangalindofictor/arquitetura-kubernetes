@@ -1,0 +1,98 @@
+# ============================================================================
+# Example: GitLab CI for Velero Deployment with Drift Detection
+# ============================================================================
+# Usage: Copy to .gitlab-ci.yml in your Velero project root
+# Customize: Update CLUSTER_NAME, TERRAFORM_DIR, and job names as needed
+# ============================================================================
+
+include:
+  # Import Velero drift detection template
+  - project: 'platform/ci-templates'  # Adjust to your GitLab group/project
+    file: '/domains/cicd-platform/infra/gitlab-ci/templates/.gitlab-ci-velero-drift-template.yml'
+
+# Or if template is in the same repository:
+# include:
+#   - local: 'domains/cicd-platform/infra/gitlab-ci/templates/.gitlab-ci-velero-drift-template.yml'
+
+stages:
+  - validate
+  - pre-deploy
+  - deploy
+  - post-deploy
+  - audit
+  - remediate
+
+variables:
+  VELERO_NAMESPACE: "velero"
+  CLUSTER_NAME: "k8s-platform-prod"
+  TERRAFORM_DIR: "platform-provisioning/aws/kubernetes/terraform/environments/staging"
+  AWS_REGION: "us-east-1"
+
+# ============================================================================
+# Validation Stage (runs on every MR)
+# ============================================================================
+velero:validate:
+  extends: .velero_drift_check
+  stage: validate
+  only:
+    - merge_requests
+    - main
+  except:
+    - schedules
+
+# ============================================================================
+# Deployment Stage (manual, with pre/post validation)
+# ============================================================================
+velero:deploy:
+  stage: deploy
+  image: hashicorp/terraform:latest
+  before_script:
+    - cd $TERRAFORM_DIR
+    - terraform init
+  script:
+    - echo "🚀 Deploying Velero via Terraform..."
+    - terraform plan -target=module.velero_staging -out=/tmp/velero.tfplan
+    - terraform apply /tmp/velero.tfplan
+    - echo "✅ Velero deployment complete"
+  artifacts:
+    paths:
+      - $TERRAFORM_DIR/terraform.tfstate
+    expire_in: 7 days
+  dependencies:
+    - velero:drift:pre-deploy  # Wait for pre-deploy validation
+  when: manual
+  only:
+    - main
+  tags:
+    - kubernetes
+    - terraform
+
+# ============================================================================
+# Post-deployment verification (inherited from template)
+# ============================================================================
+# velero:drift:post-deploy runs automatically after velero:deploy
+# No need to redefine - already configured in template
+
+# ============================================================================
+# Scheduled audit (configured via GitLab CI/CD Schedules)
+# ============================================================================
+# To create schedule:
+#   1. Go to GitLab > CI/CD > Schedules
+#   2. Click "New schedule"
+#   3. Description: "Velero Drift Detection Daily Audit"
+#   4. Interval Pattern: "0 2 * * *" (daily at 2 AM)
+#   5. Target branch: main
+#   6. Variables: (none needed, uses defaults)
+#   7. Save
+#
+# velero:drift:scheduled job will run automatically on schedule
+
+# ============================================================================
+# Auto-remediation (manual trigger, use with caution)
+# ============================================================================
+# velero:drift:auto-fix is available but MUST be triggered manually
+# To use:
+#   1. Review drift report from velero:drift:scheduled job
+#   2. Go to failed pipeline > velero:drift:auto-fix
+#   3. Click "Play" button (manual trigger)
+#   4. Monitor logs and verify fix was successful

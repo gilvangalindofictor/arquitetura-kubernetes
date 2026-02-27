@@ -1,0 +1,207 @@
+# ============================================================================
+# GitLab CI Template: Velero Drift Detection
+# ============================================================================
+# Created: 2026-02-26
+# Purpose: Prevent Velero configuration drift (IRSA role, bucket name)
+# Usage: include this template in .gitlab-ci.yml for Velero deployments
+#
+# Integration Points:
+#   - Pre-deployment validation (before Helm upgrade)
+#   - Post-deployment verification (after Helm upgrade)
+#   - Scheduled audit (daily, via GitLab CI/CD Schedules)
+#   - Auto-remediation (manual trigger only, never automatic)
+#
+# Requirements:
+#   - Scripts: scripts/velero/check-velero-drift.sh (must be in repo)
+#   - Kubernetes access: KUBECONFIG or cluster credentials
+#   - AWS credentials: for Terraform output query (optional)
+# ============================================================================
+
+.velero_drift_check:
+  stage: validate
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  variables:
+    VELERO_NAMESPACE: "velero"
+    DRIFT_SCRIPT_PATH: "scripts/velero/check-velero-drift.sh"
+    CLUSTER_NAME: "k8s-platform-prod"  # Override in your .gitlab-ci.yml
+  before_script:
+    - apk add --no-cache jq curl bash aws-cli
+    - chmod +x $DRIFT_SCRIPT_PATH
+  script:
+    - echo "🔍 Running Velero drift detection for cluster $CLUSTER_NAME..."
+    - |
+      if $DRIFT_SCRIPT_PATH --json > /tmp/drift-report.json; then
+        echo "✅ No drift detected"
+        cat /tmp/drift-report.json | jq '.'
+        exit 0
+      else
+        EXIT_CODE=$?
+        echo "❌ Drift detected (exit code: $EXIT_CODE)"
+        cat /tmp/drift-report.json | jq '.'
+
+        if [ $EXIT_CODE -eq 1 ]; then
+          echo "🔧 Configuration drift found. Review the report above."
+          echo "💡 To auto-fix: Run scripts/velero/update-velero-values.sh --auto-fix"
+          echo "📊 Drift Details:"
+          cat /tmp/drift-report.json | jq -r '.drifts[] | "  - \(.field): expected \(.expected), got \(.actual)"'
+          exit 1  # Fail pipeline
+        elif [ $EXIT_CODE -eq 2 ]; then
+          echo "⚠️ Error running drift detection script"
+          exit 2
+        fi
+      fi
+  artifacts:
+    when: always
+    paths:
+      - /tmp/drift-report.json
+    expire_in: 7 days
+  allow_failure: false  # Block pipeline if drift detected
+  only:
+    - merge_requests
+    - main
+  tags:
+    - kubernetes
+    - velero
+
+# ============================================================================
+# Pre-deployment Validation (before Helm upgrade)
+# ============================================================================
+velero:drift:pre-deploy:
+  extends: .velero_drift_check
+  stage: pre-deploy
+  script:
+    - echo "🔍 Pre-deployment drift check..."
+    - echo "Blocking deployment if configuration drift detected"
+    - $DRIFT_SCRIPT_PATH --json > /tmp/drift-report.json || (cat /tmp/drift-report.json && exit 1)
+    - echo "✅ Pre-deployment validation passed"
+  when: manual  # Require manual trigger for deployments
+  needs: []
+
+# ============================================================================
+# Post-deployment Verification (after Helm upgrade)
+# ============================================================================
+velero:drift:post-deploy:
+  extends: .velero_drift_check
+  stage: post-deploy
+  script:
+    - echo "🔍 Post-deployment drift verification..."
+    - echo "Verifying that Helm upgrade applied configuration correctly"
+    - sleep 30  # Wait for Velero pods to stabilize
+    - $DRIFT_SCRIPT_PATH --json > /tmp/drift-report.json || (cat /tmp/drift-report.json && exit 1)
+    - echo "✅ Post-deployment verification passed"
+  dependencies:
+    - velero:deploy  # Run after Velero deployment job (customize job name)
+  when: on_success
+  needs: ["velero:deploy"]
+
+# ============================================================================
+# Scheduled Audit (daily, via GitLab CI/CD Schedules)
+# ============================================================================
+velero:drift:scheduled:
+  extends: .velero_drift_check
+  stage: audit
+  script:
+    - echo "🔍 Scheduled drift audit (daily)..."
+    - |
+      if ! $DRIFT_SCRIPT_PATH --json > /tmp/drift-report.json; then
+        echo "⚠️ Drift detected in scheduled audit"
+
+        # Send notification (Slack, email, etc)
+        if [ -n "$SLACK_WEBHOOK_URL" ]; then
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"⚠️ Velero configuration drift detected in $CLUSTER_NAME!\",
+              \"attachments\": [{
+                \"color\": \"warning\",
+                \"title\": \"GitLab CI Job\",
+                \"title_link\": \"$CI_JOB_URL\",
+                \"fields\": [
+                  {\"title\": \"Cluster\", \"value\": \"$CLUSTER_NAME\", \"short\": true},
+                  {\"title\": \"Pipeline\", \"value\": \"$CI_PIPELINE_ID\", \"short\": true}
+                ]
+              }]
+            }"
+        fi
+
+        exit 1
+      fi
+      echo "✅ Scheduled audit passed - no drift detected"
+  only:
+    - schedules  # Trigger via GitLab CI/CD > Schedules (create: 0 2 * * *)
+  allow_failure: true  # Don't block scheduled pipelines
+  needs: []
+
+# ============================================================================
+# Auto-remediation (MANUAL ONLY, never automatic)
+# ============================================================================
+velero:drift:auto-fix:
+  stage: remediate
+  image:
+    name: bitnami/kubectl:latest
+    entrypoint: [""]
+  variables:
+    VELERO_NAMESPACE: "velero"
+    CLUSTER_NAME: "k8s-platform-prod"
+  before_script:
+    - apk add --no-cache jq curl bash aws-cli
+    - chmod +x scripts/velero/update-velero-values.sh
+    - chmod +x scripts/velero/check-velero-drift.sh
+  script:
+    - echo "🔧 Auto-remediation: Fixing Velero drift for $CLUSTER_NAME..."
+    - echo "⚠️ This will update Velero Helm values and restart pods"
+    - scripts/velero/update-velero-values.sh --auto-fix --yes
+    - echo "✅ Drift remediated. Verifying..."
+    - sleep 30
+    - scripts/velero/check-velero-drift.sh --json > /tmp/drift-report-after-fix.json
+    - |
+      if [ $? -eq 0 ]; then
+        echo "✅ Verification passed - drift successfully remediated"
+      else
+        echo "❌ Drift still detected after remediation - manual investigation required"
+        cat /tmp/drift-report-after-fix.json | jq '.'
+        exit 1
+      fi
+  artifacts:
+    when: always
+    paths:
+      - /tmp/drift-report-after-fix.json
+    expire_in: 30 days
+  when: manual  # ALWAYS manual (never automatic)
+  only:
+    - main  # Only allow on main branch
+  allow_failure: false
+  needs: []
+  tags:
+    - kubernetes
+    - velero
+
+# ============================================================================
+# CI/CD Best Practices
+# ============================================================================
+# 1. Schedule daily audit: GitLab CI/CD > Schedules > New Schedule
+#    - Description: "Velero Drift Detection"
+#    - Interval: "0 2 * * *" (daily at 2 AM)
+#    - Target branch: main
+#
+# 2. Configure Slack webhook:
+#    - CI/CD Variables > New Variable
+#    - Key: SLACK_WEBHOOK_URL
+#    - Value: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+#    - Protected: yes, Masked: yes
+#
+# 3. Pre-deployment validation:
+#    - Always run velero:drift:pre-deploy before deploying Velero
+#    - Block merges if pre-deploy fails
+#
+# 4. Post-deployment verification:
+#    - Automatically runs after velero:deploy job
+#    - Verifies that Helm upgrade applied configuration correctly
+#
+# 5. Auto-remediation:
+#    - Use velero:drift:auto-fix ONLY when drift is detected
+#    - Manual approval required (never automatic)
+#    - Review drift report before approving fix
+# ============================================================================
