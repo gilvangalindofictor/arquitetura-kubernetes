@@ -1,0 +1,276 @@
+# GitLab CI Security Scanning Template (CICD-001)
+# ADR-081: SAST/DAST Pipeline Enforcement Strategy
+# Usage: Include this template in your .gitlab-ci.yml
+#
+# include:
+#   - project: 'platform/templates'
+#     file: '/gitlab-ci/templates/.gitlab-ci-security-template.yml'
+#
+# stages:
+#   - security-scan
+#
+# Author: Platform SRE Team
+# Date: 2026-02-26
+
+variables:
+  # Prometheus PushGateway for metrics
+  PUSHGATEWAY_URL: "http://prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+
+  # Scanner versions
+  SONARQUBE_SCANNER_VERSION: "5.0"
+  TRIVY_VERSION: "0.50.0"
+  OWASP_DC_VERSION: "latest"
+  TRUFFLEHOG_VERSION: "latest"
+
+  # SonarQube configuration
+  SONAR_HOST_URL: "http://sonarqube.sonarqube.svc.cluster.local:9000"
+  SONAR_QUALITYGATE_WAIT: "true"
+
+  # Trivy configuration
+  TRIVY_SEVERITY: "HIGH,CRITICAL"
+  TRIVY_EXIT_CODE: "1"
+
+  # OWASP Dependency-Check configuration
+  OWASP_DC_CVSS_THRESHOLD: "7"
+  OWASP_DC_FAIL_THRESHOLD: "1"
+
+  # TruffleHog configuration
+  TRUFFLEHOG_SCAN_DEPTH: "10"
+  TRUFFLEHOG_TIMEOUT: "5m"
+
+stages:
+  - security-scan
+
+# YAML anchor for PushGateway metrics
+.push_metric: &push_metric
+  after_script:
+    - |
+      SCAN_STATUS=$([[ $CI_JOB_STATUS == "success" ]] && echo "1" || echo "0")
+      SCAN_DURATION=$(($(date +%s) - SCAN_START_TIME))
+
+      cat <<EOF | curl --data-binary @- ${PUSHGATEWAY_URL}/metrics/job/gitlab-ci/instance/${CI_PROJECT_PATH_SLUG}/branch/${CI_COMMIT_REF_SLUG}
+      # TYPE gitlab_ci_pipeline_security_scan_status gauge
+      # HELP gitlab_ci_pipeline_security_scan_status Security scan status (1=pass, 0=fail)
+      gitlab_ci_pipeline_security_scan_status{scanner="${SCANNER_NAME}",project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}"} ${SCAN_STATUS}
+
+      # TYPE gitlab_ci_pipeline_security_scan_duration_seconds gauge
+      # HELP gitlab_ci_pipeline_security_scan_duration_seconds Security scan duration in seconds
+      gitlab_ci_pipeline_security_scan_duration_seconds{scanner="${SCANNER_NAME}",project="${CI_PROJECT_PATH_SLUG}",branch="${CI_COMMIT_REF_SLUG}",status="${CI_JOB_STATUS}"} ${SCAN_DURATION}
+      EOF
+
+# ============================================================================
+# SCANNER 1: SonarQube SAST
+# ============================================================================
+
+.sonarqube-sast:
+  stage: security-scan
+  image: sonarsource/sonar-scanner-cli:${SONARQUBE_SCANNER_VERSION}
+  variables:
+    SCANNER_NAME: "sonarqube"
+    GIT_DEPTH: 0  # Full history for accurate blame
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-sonar"
+    paths:
+      - .sonar/cache
+  before_script:
+    - export SCAN_START_TIME=$(date +%s)
+  script:
+    - |
+      sonar-scanner \
+        -Dsonar.host.url=${SONAR_HOST_URL} \
+        -Dsonar.login=${SONAR_TOKEN} \
+        -Dsonar.projectKey=${CI_PROJECT_PATH_SLUG} \
+        -Dsonar.projectName="${CI_PROJECT_NAME}" \
+        -Dsonar.projectVersion=${CI_COMMIT_SHORT_SHA} \
+        -Dsonar.sources=. \
+        -Dsonar.qualitygate.wait=${SONAR_QUALITYGATE_WAIT} \
+        -Dsonar.qualitygate.timeout=300
+  <<: *push_metric
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*/'
+    - if: '$CI_COMMIT_BRANCH =~ /^hotfix\/.*/'
+
+security:sast:
+  extends: .sonarqube-sast
+
+# ============================================================================
+# SCANNER 2: Trivy Container Scan
+# ============================================================================
+
+.trivy-container-scan:
+  stage: security-scan
+  image: aquasec/trivy:${TRIVY_VERSION}
+  variables:
+    SCANNER_NAME: "trivy"
+    IMAGE_TAG: "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+  cache:
+    key: "trivy-db"
+    paths:
+      - .trivy-cache/
+  before_script:
+    - export SCAN_START_TIME=$(date +%s)
+    - export TRIVY_CACHE_DIR=$(pwd)/.trivy-cache
+  script:
+    - |
+      echo "Scanning image: ${IMAGE_TAG}"
+      trivy image \
+        --severity ${TRIVY_SEVERITY} \
+        --exit-code ${TRIVY_EXIT_CODE} \
+        --no-progress \
+        --format table \
+        --output trivy-report.txt \
+        ${IMAGE_TAG}
+
+      # Also generate SARIF for GitLab Security tab (future)
+      trivy image \
+        --severity ${TRIVY_SEVERITY} \
+        --format sarif \
+        --output trivy-report.sarif \
+        ${IMAGE_TAG} || true
+
+      cat trivy-report.txt
+  artifacts:
+    reports:
+      # GitLab Security tab integration (requires GitLab Ultimate)
+      container_scanning: trivy-report.sarif
+    paths:
+      - trivy-report.txt
+      - trivy-report.sarif
+    expire_in: 30 days
+  <<: *push_metric
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*/'
+    - if: '$CI_COMMIT_BRANCH =~ /^hotfix\/.*/'
+
+security:container:
+  extends: .trivy-container-scan
+
+# ============================================================================
+# SCANNER 3: OWASP Dependency-Check
+# ============================================================================
+
+.owasp-dependency-check:
+  stage: security-scan
+  image: owasp/dependency-check:${OWASP_DC_VERSION}
+  variables:
+    SCANNER_NAME: "owasp-dependency-check"
+  cache:
+    key: "owasp-dc-nvd"
+    paths:
+      - .owasp-cache/data/
+  before_script:
+    - export SCAN_START_TIME=$(date +%s)
+    - mkdir -p .owasp-cache/data
+  script:
+    - |
+      /usr/share/dependency-check/bin/dependency-check.sh \
+        --scan . \
+        --format HTML \
+        --format JSON \
+        --out dependency-check-report \
+        --data .owasp-cache/data \
+        --suppression dependency-check-suppression.xml \
+        --failOnCVSS ${OWASP_DC_CVSS_THRESHOLD} \
+        --enableExperimental \
+        || SCAN_EXIT_CODE=$?
+
+      # Generate summary
+      if [ -f dependency-check-report/dependency-check-report.json ]; then
+        echo "=== OWASP Dependency-Check Summary ==="
+        cat dependency-check-report/dependency-check-report.json | \
+          jq -r '.dependencies[] | select(.vulnerabilities) |
+            "File: \(.fileName)\nVulnerabilities: \(.vulnerabilities | length)\n"'
+      fi
+
+      # Fail if critical vulnerabilities found
+      if [ ! -z "$SCAN_EXIT_CODE" ]; then
+        echo "ERROR: CVSS >= ${OWASP_DC_CVSS_THRESHOLD} vulnerabilities found!"
+        exit $SCAN_EXIT_CODE
+      fi
+  artifacts:
+    paths:
+      - dependency-check-report/
+    expire_in: 30 days
+    when: always
+  <<: *push_metric
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*/'
+    - if: '$CI_COMMIT_BRANCH =~ /^hotfix\/.*/'
+
+security:dependencies:
+  extends: .owasp-dependency-check
+
+# ============================================================================
+# SCANNER 4: TruffleHog Secret Detection
+# ============================================================================
+
+.trufflehog-secret-scan:
+  stage: security-scan
+  image: trufflesecurity/trufflehog:${TRUFFLEHOG_VERSION}
+  variables:
+    SCANNER_NAME: "trufflehog"
+    GIT_DEPTH: 0  # Full history for secret detection
+  before_script:
+    - export SCAN_START_TIME=$(date +%s)
+  script:
+    - |
+      echo "Scanning last ${TRUFFLEHOG_SCAN_DEPTH} commits for secrets..."
+
+      trufflehog git file://. \
+        --since-commit HEAD~${TRUFFLEHOG_SCAN_DEPTH} \
+        --only-verified \
+        --json \
+        --fail \
+        > trufflehog-report.json || SCAN_EXIT_CODE=$?
+
+      # Print summary
+      if [ -s trufflehog-report.json ]; then
+        echo "=== TruffleHog Verified Secrets Found ==="
+        cat trufflehog-report.json | jq -r '
+          "Detector: \(.DetectorName)\nFile: \(.SourceMetadata.Data.Git.file)\nLine: \(.SourceMetadata.Data.Git.line)\n"
+        '
+        echo "ERROR: Verified secrets detected in git history!"
+        exit 1
+      else
+        echo "No verified secrets detected."
+      fi
+
+      # Fail if secrets found
+      if [ ! -z "$SCAN_EXIT_CODE" ]; then
+        exit $SCAN_EXIT_CODE
+      fi
+  artifacts:
+    paths:
+      - trufflehog-report.json
+    expire_in: 30 days
+    when: always
+  <<: *push_metric
+  allow_failure: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/.*/'
+    - if: '$CI_COMMIT_BRANCH =~ /^hotfix\/.*/'
+
+security:secrets:
+  extends: .trufflehog-secret-scan
+
+# ============================================================================
+# SECURITY SCAN BYPASS (EMERGENCY ONLY)
+# ============================================================================
+# To bypass security scans in exceptional cases:
+# 1. Platform SRE or Tech Lead must approve via GitLab MR review
+# 2. Create tracking issue with SLA (max 5 business days)
+# 3. Set CI/CD variable: SECURITY_SCAN_BYPASS_REASON="<justification>"
+# 4. Commit message: [SECURITY-BYPASS] Reason: <justification>
+#
+# NEVER set allow_failure: true as permanent workaround!

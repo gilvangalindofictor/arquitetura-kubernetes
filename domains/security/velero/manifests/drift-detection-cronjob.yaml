@@ -1,0 +1,256 @@
+# ============================================================================
+# Kubernetes CronJob: Velero Drift Detection
+# ============================================================================
+# Purpose: Daily scheduled audit to detect unauthorized configuration changes
+# Schedule: 2 AM UTC daily
+# Alert: Slack webhook on drift detected
+# ============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: velero-drift-detection
+  namespace: velero
+  labels:
+    app: velero-drift-detection
+    component: monitoring
+    domain: security
+    owner: platform-team
+    environment: staging
+  annotations:
+    description: "Daily Velero configuration drift detection"
+    runbook: "docs/runbooks/velero-deployment-drift-prevention.md"
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM UTC
+  timeZone: "UTC"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run concurrent audits
+  jobTemplate:
+    metadata:
+      labels:
+        app: velero-drift-detection
+        component: monitoring
+        domain: security
+        owner: platform-team
+        environment: staging
+    spec:
+      backoffLimit: 2  # Retry twice on failure
+      template:
+        metadata:
+          labels:
+            app: velero-drift-detection
+            component: monitoring
+            domain: security
+            owner: platform-team
+            environment: staging
+        spec:
+          serviceAccountName: velero-drift-checker
+          restartPolicy: OnFailure
+          containers:
+          - name: drift-checker
+            image: bitnami/kubectl:1.28
+            command:
+              - /bin/bash
+              - -c
+              - |
+                set -euo pipefail
+
+                echo "🔍 Starting Velero drift detection..."
+                echo "Cluster: $CLUSTER_NAME"
+                echo "Namespace: $VELERO_NAMESPACE"
+                echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+                # Download drift detection script from repository
+                echo "📥 Downloading drift detection script..."
+                SCRIPT_URL="${SCRIPT_BASE_URL}/scripts/velero/check-velero-drift.sh"
+                curl -sSL -o /tmp/check-velero-drift.sh "$SCRIPT_URL"
+                chmod +x /tmp/check-velero-drift.sh
+
+                # Run drift detection
+                echo "🔍 Running drift detection..."
+                if /tmp/check-velero-drift.sh --json > /tmp/drift-report.json; then
+                  echo "✅ No drift detected"
+                  cat /tmp/drift-report.json | jq '.'
+
+                  # Send success notification (optional)
+                  if [ -n "$SLACK_WEBHOOK_URL" ] && [ "$NOTIFY_ON_SUCCESS" = "true" ]; then
+                    curl -X POST "$SLACK_WEBHOOK_URL" \
+                      -H 'Content-Type: application/json' \
+                      -d "{
+                        \"text\": \"✅ Velero drift detection passed\",
+                        \"attachments\": [{
+                          \"color\": \"good\",
+                          \"fields\": [
+                            {\"title\": \"Cluster\", \"value\": \"$CLUSTER_NAME\", \"short\": true},
+                            {\"title\": \"Timestamp\", \"value\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"short\": true}
+                          ]
+                        }]
+                      }"
+                  fi
+
+                  exit 0
+                else
+                  EXIT_CODE=$?
+                  echo "❌ Drift detected (exit code: $EXIT_CODE)"
+                  cat /tmp/drift-report.json | jq '.'
+
+                  # Extract drift details
+                  DRIFT_SUMMARY=$(cat /tmp/drift-report.json | jq -r '.drifts[] | "• \(.field): expected \(.expected), got \(.actual)"' | head -5)
+                  DRIFT_COUNT=$(cat /tmp/drift-report.json | jq '.drifts | length')
+
+                  # Send alert (Slack webhook)
+                  if [ -n "$SLACK_WEBHOOK_URL" ]; then
+                    curl -X POST "$SLACK_WEBHOOK_URL" \
+                      -H 'Content-Type: application/json' \
+                      -d "{
+                        \"text\": \"⚠️ Velero configuration drift detected!\",
+                        \"attachments\": [{
+                          \"color\": \"danger\",
+                          \"title\": \"Drift Details\",
+                          \"text\": \"Found $DRIFT_COUNT configuration drift(s):\n\n$DRIFT_SUMMARY\",
+                          \"fields\": [
+                            {\"title\": \"Cluster\", \"value\": \"$CLUSTER_NAME\", \"short\": true},
+                            {\"title\": \"Namespace\", \"value\": \"$VELERO_NAMESPACE\", \"short\": true},
+                            {\"title\": \"Timestamp\", \"value\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"short\": true},
+                            {\"title\": \"Exit Code\", \"value\": \"$EXIT_CODE\", \"short\": true}
+                          ],
+                          \"footer\": \"Review: kubectl logs -n velero -l app=velero-drift-detection\"
+                        }]
+                      }"
+                  fi
+
+                  exit 1
+                fi
+            env:
+            - name: VELERO_NAMESPACE
+              value: "velero"
+            - name: CLUSTER_NAME
+              value: "k8s-platform-prod"
+            - name: SCRIPT_BASE_URL
+              value: "https://raw.githubusercontent.com/yourorg/platform/main"  # Update to your repo
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: monitoring-webhooks
+                  key: slack-webhook-url
+                  optional: true  # Don't fail if secret doesn't exist
+            - name: NOTIFY_ON_SUCCESS
+              value: "false"  # Set to "true" to get success notifications
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "100m"
+              limits:
+                memory: "128Mi"
+                cpu: "200m"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false  # Need to write script to /tmp
+              runAsNonRoot: true
+              runAsUser: 1000
+              capabilities:
+                drop:
+                  - ALL
+
+---
+# ============================================================================
+# ServiceAccount: velero-drift-checker
+# ============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-drift-checker
+  namespace: velero
+  labels:
+    app: velero-drift-detection
+    component: monitoring
+    domain: security
+    owner: platform-team
+    environment: staging
+  annotations:
+    description: "Service account for Velero drift detection CronJob"
+
+---
+# ============================================================================
+# Role: velero-drift-checker (namespace-scoped permissions)
+# ============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: velero-drift-checker
+  namespace: velero
+  labels:
+    app: velero-drift-detection
+    component: monitoring
+    domain: security
+    owner: platform-team
+    environment: staging
+rules:
+# Read Velero ServiceAccount (check IRSA annotation)
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get", "list"]
+# Read Velero BackupStorageLocation (check bucket configuration)
+- apiGroups: ["velero.io"]
+  resources: ["backupstoragelocations"]
+  verbs: ["get", "list"]
+# Read ConfigMaps (if Velero config stored in ConfigMap)
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+
+---
+# ============================================================================
+# RoleBinding: velero-drift-checker
+# ============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: velero-drift-checker
+  namespace: velero
+  labels:
+    app: velero-drift-detection
+    component: monitoring
+    domain: security
+    owner: platform-team
+    environment: staging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: velero-drift-checker
+subjects:
+- kind: ServiceAccount
+  name: velero-drift-checker
+  namespace: velero
+
+---
+# ============================================================================
+# Secret: monitoring-webhooks (example)
+# ============================================================================
+# Create this secret to enable Slack alerts:
+#
+#   kubectl create secret generic monitoring-webhooks \
+#     -n velero \
+#     --from-literal=slack-webhook-url='https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+#
+# Or use ExternalSecret (Vault):
+#
+# apiVersion: external-secrets.io/v1beta1
+# kind: ExternalSecret
+# metadata:
+#   name: monitoring-webhooks
+#   namespace: velero
+# spec:
+#   refreshInterval: 24h
+#   secretStoreRef:
+#     name: vault-backend
+#     kind: ClusterSecretStore
+#   target:
+#     name: monitoring-webhooks
+#     creationPolicy: Owner
+#   data:
+#   - secretKey: slack-webhook-url
+#     remoteRef:
+#       key: secret/data/monitoring/webhooks
+#       property: slack_url
+# ============================================================================

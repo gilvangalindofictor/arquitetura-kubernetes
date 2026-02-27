@@ -37,7 +37,7 @@ spec:
     - name: service-name
       # Value injected by Rollout spec: args[].value = "<canary-service-name>"
     - name: prometheus-url
-      value: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+      value: http://kube-prometheus-stack-prometheus.staging-observability-monitoring.svc.cluster.local:9090
 
   # ---- Metric definition ---------------------------------------------------
   metrics:

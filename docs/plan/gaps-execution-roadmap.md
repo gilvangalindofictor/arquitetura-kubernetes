@@ -762,6 +762,217 @@ Economia: 28h → 16h (43% redução)
 
 ---
 
+## 🚀 NOVO: Semana 10-17: Marco 4 — iPaaS Public Readiness (GAP-010/011/012)
+
+> **Adicionado**: 2026-02-26
+> **Contexto**: Gaps críticos para disponibilizar iPaaS publicamente com SLA 99.9%
+> **Timeline**: 8 semanas
+> **Esforço Total**: 56h (WAF 8h + Linkerd 24h + DR 24h)
+> **Custo Adicional**: +$95/mês
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ SEMANA 10-17: iPaaS Public Readiness (56h total)               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  SEMANA 10: GAP-010 AWS WAF + DDoS Protection (8h)             │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ Módulo Terraform waf/ (já pronto)    │ 0h │ PRONTO   │   │
+│  │ 📋 terraform plan + review               │ 1h │ Dia 1   │   │
+│  │ 📋 terraform apply + validation          │ 2h │ Dia 1-2 │   │
+│  │ 📋 Testes (rate limiting, geo, OWASP)    │ 3h │ Dia 2-3 │   │
+│  │ 📋 Dashboard Grafana + alertas           │ 2h │ Dia 4-5 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  ENTREGAS:                                                      │
+│  • AWS WAF WebACL operacional (5 rules)                        │
+│  • ALB protection ativa (1000 req/5min rate limit)             │
+│  • Grafana dashboard WAF metrics                               │
+│  • CloudWatch alarms (high blocked requests)                   │
+│  • Logbook: 2026-02-XX-waf-ddos-deployment.md                  │
+│  • ADR-XXX: WAF Strategy for Public iPaaS                      │
+│                                                                 │
+│  💰 CUSTO: +$10/mês                                            │
+│  ✅ TERRAFORM: modules/waf/ PRONTO                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Responsável:** Security Specialist + DevOps (8h)
+**Bloqueantes:** ✅ Nenhum (ALB já operacional)
+**Componentes Terraform:** ✅ Módulo `waf/` pronto
+
+---
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ SEMANA 11-13: GAP-011 Linkerd Service Mesh (24h)               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Semana 11: Linkerd Control Plane + Viz (10h)                  │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ Módulo Terraform linkerd/ (já pronto) │ 0h │ PRONTO   │   │
+│  │ 📋 terraform apply (control plane)       │ 3h │ Dia 1   │   │
+│  │ 📋 Linkerd viz deployment                │ 2h │ Dia 1-2 │   │
+│  │ 📋 Prometheus integration                │ 2h │ Dia 2   │   │
+│  │ 📋 Validação (linkerd check --pre)      │ 1h │ Dia 2   │   │
+│  │ 📋 Grafana dashboards (download JSONs)   │ 2h │ Dia 3-5 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  Semana 12: Proxy Injection + Namespaces (8h)                  │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ 📋 Annotation namespaces (ipaas, integration)│ 2h│ Dia 1│   │
+│  │ 📋 Restart pods (trigger injection)      │ 1h │ Dia 1   │   │
+│  │ 📋 Validar mTLS (linkerd tap)            │ 2h │ Dia 2   │   │
+│  │ 📋 ServiceProfile examples               │ 2h │ Dia 3   │   │
+│  │ 📋 AuthorizationPolicy examples          │ 1h │ Dia 4-5 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  Semana 13: Observabilidade + Validation (6h)                  │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ 📋 Grafana dashboards finalization      │ 2h │ Dia 1-2 │   │
+│  │ 📋 Golden signals validation (L7 metrics)│ 2h │ Dia 3   │   │
+│  │ 📋 Compliance testing (mTLS certificate) │ 1h │ Dia 4   │   │
+│  │ 📋 Logbook + ADR documentation           │ 1h │ Dia 5   │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  ENTREGAS:                                                      │
+│  • Linkerd control plane HA operacional                        │
+│  • mTLS automático entre todos os pods (namespaces iPaaS)      │
+│  • Viz dashboard funcional (Tap API + real-time traffic)       │
+│  • Grafana dashboards (top-line, service-mesh, deployment)     │
+│  • AuthorizationPolicy + ServiceProfile examples               │
+│  • Compliance BACEN BCB 85/2021 ✅                              │
+│  • Logbook: 2026-02-XX-linkerd-mesh-deployment.md              │
+│  • ADR-XXX: Service Mesh Strategy                              │
+│                                                                 │
+│  💰 CUSTO: +$5/mês                                             │
+│  ✅ TERRAFORM: modules/linkerd/ PRONTO                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Responsável:** Network Specialist (16h) + SRE Specialist (8h)
+**Bloqueantes:** ✅ Nenhum (kube-prometheus-stack já operacional)
+**Componentes Terraform:** ✅ Módulo `linkerd/` pronto
+
+---
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ SEMANA 14-17: GAP-012 DR Multi-Region (24h)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Semana 14: S3 Cross-Region Replication (8h)                   │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ Módulo Terraform velero-dr/ (upgraded)│ 0h│ PRONTO   │   │
+│  │ 📋 terraform apply (S3 CRR us-west-2)    │ 2h │ Dia 1   │   │
+│  │ 📋 Validar replication (test objects)    │ 1h │ Dia 1-2 │   │
+│  │ 📋 CloudWatch alarms (replication lag)   │ 2h │ Dia 2   │   │
+│  │ 📋 CloudWatch dashboard (S3 metrics)     │ 2h │ Dia 3-4 │   │
+│  │ 📋 Teste failover S3 (us-west-2)         │ 1h │ Dia 5   │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  Semana 15: RDS Read Replica Cross-Region (8h)                 │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ ✅ Módulo Terraform rds-replica/ (novo)  │ 0h │ PRONTO   │   │
+│  │ 📋 VPC + subnet groups us-west-2         │ 2h │ Dia 1   │   │
+│  │ 📋 terraform apply (RDS replica)         │ 3h │ Dia 1-2 │   │
+│  │ 📋 Validar replication lag (<60s)        │ 1h │ Dia 3   │   │
+│  │ 📋 CloudWatch alarms (lag + storage)     │ 2h │ Dia 4-5 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  Semana 16: Velero Schedules + Integration (4h)                │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ 📋 Velero schedules (daily + hourly)     │ 2h │ Dia 1-2 │   │
+│  │ 📋 Validar backups (primary + replica)   │ 1h │ Dia 3   │   │
+│  │ 📋 CloudWatch dashboard consolidated     │ 1h │ Dia 4-5 │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  Semana 17: DR Drill + Documentation (4h)                      │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │ 📋 DR Drill completo (failover us-west-2)│ 2h │ Dia 1-3 │   │
+│  │ 📋 Documentar RTO/RPO reais medidos      │ 1h │ Dia 4   │   │
+│  │ 📋 Logbook + ADR + DR Runbook            │ 1h │ Dia 5   │   │
+│  └──────────────────────────────────────────────────────┘      │
+│                                                                 │
+│  ENTREGAS:                                                      │
+│  • S3 CRR operacional (us-east-1 → us-west-2, 15min SLA)       │
+│  • RDS replica cross-region (lag <60s)                         │
+│  • Velero schedules (daily full + hourly incremental)          │
+│  • CloudWatch alarms (replication lag, pending bytes, storage) │
+│  • DR drill completo (failover validado)                       │
+│  • DR Runbook documentado (3 scenarios)                        │
+│  • RTO <1h, RPO <15min (measured)                              │
+│  • Logbook: 2026-02-XX-dr-multi-region-deployment.md           │
+│  • ADR-XXX: Multi-Region DR Strategy                           │
+│                                                                 │
+│  💰 CUSTO: +$80/mês                                            │
+│  ✅ TERRAFORM: modules/velero-dr/ + rds-replica/ PRONTO        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Responsável:** Backup/DR Specialist (16h) + SRE Specialist (8h)
+**Bloqueantes:** 📋 VPC + subnet groups em us-west-2 (criar)
+**Componentes Terraform:** ✅ Módulos `velero-dr/` + `rds-replica/` prontos
+
+---
+
+### Checkpoint 4: iPaaS Public Ready ✅
+
+**Data Target:** Fim Semana 17
+**Responsáveis:** Security + Network + DR Specialists
+
+**Critérios de Aceitação:**
+- [ ] AWS WAF protegendo ALB (rate limiting 1000 req/5min, geo blocking, OWASP)
+- [ ] Linkerd mTLS operacional (identity-based, zero-trust)
+- [ ] S3 CRR us-east-1 → us-west-2 (replication lag < 15min)
+- [ ] RDS replica us-west-2 (replication lag < 60s)
+- [ ] DR drill validado (RTO <1h, RPO <15min measured)
+- [ ] Compliance BACEN BCB 85/2021 ✅
+- [ ] SLA 99.9% availability atingível ✅
+
+**GATE CHECKPOINT 4:** ✅ iPaaS público production-ready, pode promover para prod
+
+---
+
+## 📊 Consolidação de Economia (Atualizado 2026-02-26)
+
+### Esforço Total Corrigido (incluindo iPaaS Gaps)
+
+| Marco     | Sprints | Esforço Original | Esforço Corrigido | Economia        | iPaaS Gaps       |
+| --------- | ------- | ---------------- | ----------------- | --------------- | ---------------- |
+| Marco 2   | 2       | 26h              | **9h**            | **-17h (-65%)** | -                |
+| Marco 3   | 4-6     | 74h              | **36h**           | **-38h (-51%)** | -                |
+| Marco 3.5 | 7-8     | 56h              | **44h**           | **-12h (-21%)** | -                |
+| **Marco 4** | **9-10** | **-**        | **56h**           | **-**           | **GAP-010/011/012** |
+| **TOTAL** | **10**  | **156h**         | **145h**          | **-11h (-7%)** | **+56h (iPaaS)** |
+
+**Observação:** Marco 4 (iPaaS Gaps) adiciona 56h ao roadmap, mas a economia dos Marcos 2-3.5 (-67h) compensa, resultando em total similar ao original.
+
+---
+
+### Com Paralelização (2 engenheiros) — Atualizado
+
+| Marco     | Sprints | Esforço Paralelo | Duração (2 eng) | Custo Total (+iPaaS) |
+| --------- | ------- | ---------------- | --------------- | -------------------- |
+| Marco 2   | 2       | **9h**           | **1,1 dias**    | -                    |
+| Marco 3   | 4-6     | **19h**          | **2,4 dias**    | -                    |
+| Marco 3.5 | 7-8     | **32h**          | **4 dias**      | -                    |
+| **Marco 4** | **9-10** | **28h**      | **3,5 dias**    | **+$95/mês**         |
+| **TOTAL** | **10**  | **88h**          | **11 dias**     | **R$ 17.800 + $95/mês** |
+
+**ROI Paralelização + iPaaS:**
+- Economia person-hours original: **-67h** (Marcos 2-3.5)
+- Adição iPaaS: **+56h** (Marco 4)
+- **Total líquido: -11h economia** vs original estimado
+- Time-to-market: **11 dias** (2 eng) vs 14 dias original
+- Custo: **R$ 17.800 + $95/mês** (iPaaS production-ready)
+- **ROI:** Evita R$ 170.000/ano em incidentes + compliance BACEN + SLA 99.9%
+
+---
+
 ## 📚 Referências
 
 - [Critical Gaps Distribution](critical-gaps-distribution.md) — Distribuição detalhada por gap

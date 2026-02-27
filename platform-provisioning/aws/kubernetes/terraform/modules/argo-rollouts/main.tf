@@ -7,19 +7,6 @@
 # Namespace: argocd (co-located with ArgoCD per ADR-085)
 # -----------------------------------------------------------------------------
 
-terraform {
-  required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.20"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.12"
-    }
-  }
-}
-
 # -----------------------------------------------------------------------------
 # Argo Rollouts Helm Release
 # Deployed in argocd namespace — namespace already exists (created by argocd module)
