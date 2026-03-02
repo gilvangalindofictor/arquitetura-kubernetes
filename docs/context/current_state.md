@@ -8,7 +8,7 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-02-27 (Optimization Sprint + FinOps Node Protection + Snapshot DLM ✅ VALIDATED + Node Rightsizing Analysis)
+**Última Atualização**: 2026-03-02 (Cluster Remediation: Loki FailedScheduling + Kyverno 100% + External Secrets consolidated + GitLab Runner namespace drift + Terraform KPS state reconciled)
 
 **Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + Enterprise Assessment + Production Roadmap + CI/CD Pipeline Enhancement (CICD-001 a CICD-005)
 
@@ -262,12 +262,12 @@
 | ---------------------------- | ------------- | ------ | -------- | ----------------------- | ------------------------ |
 | Prometheus                   | ✅ Operacional | 2.48.0 | 1        | monitoring              | Metrics collection ok    |
 | Grafana                      | ✅ Operacional | 10.2.0 | 1        | monitoring              | Dashboards principais ok |
-| Loki                         | ✅ Operacional | 2.9.3  | 1        | monitoring              | Logs agregados           |
-| Tempo                        | ✅ Operacional | 2.3.1  | 1        | monitoring              | Traces distribuídos      |
+| Loki                         | ✅ Operacional | 3.6.5  | 18 pods  | staging-observability-monitoring | SimpleScalable (backend×2, write×2, read×2, gateway×2, cache×2, canary×9) — Kyverno 100% (2026-03-02) |
+| Tempo                        | ✅ Operacional | 2.9.0  | Vários   | staging-observability-monitoring | Traces distribuídos, Loki→Tempo correlation ativo |
 | Cluster Autoscaler           | ✅ Operacional | 1.28.x | 1        | kube-system             | Auto-scaling nodes       |
 | Metrics Server               | ✅ Operacional | 0.6.4  | 1        | kube-system             | HPA support              |
 | AWS Load Balancer Controller | ✅ Operacional | 2.7.0  | 2        | kube-system             | Ingress ALB              |
-| External Secrets Operator    | ✅ Operacional | 0.9.11 | 1        | external-secrets-system | Vault integration        |
+| External Secrets Operator    | ✅ Operacional | 0.12.1 | 1        | staging-security-externalsecrets | Vault integration — consolidado DEC-074 (2026-03-02) |
 
 ---
 
@@ -278,7 +278,7 @@
 | PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —              | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)               |
 | Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services  | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
 | RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services  | —                         | Official operator                                         |
-| GitLab           | ✅ Operacional | 17.7.0       | Vários                                    | gitlab-staging | PostgreSQL RDS            | Webservice Running, Runner id=115 online (2026-02-18)     |
+| GitLab           | ✅ Operacional | 17.7.0       | Vários                                    | staging-platform-gitlab | PostgreSQL RDS | Webservice Running, Runner Running 0 restarts — CI_SERVER_URL namespace drift DEC-074 fixado (2026-03-02) |
 | Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system  | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
 | Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system   | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
 
@@ -628,5 +628,50 @@ go mod tidy && make test-all
 - Rastreabilidade total via logbooks
 
 ---
+
+---
+
+## Incidentes Resolvidos — 2026-03-02
+
+### Loki FailedScheduling (2d+ Pending → Running)
+
+- **Root cause**: chunksCache memory request 9830Mi > t3.large capacity 7080Mi + nodeSelector restrito a `node-type=system`
+- **Fix**: allocatedMemory 8192→3584 MB, cpu 500m→200m, nodeSelector removido de backend/gateway/read
+- **Resultado**: 18/18 pods Running, 0 CrashLoopBackOff
+
+### Kyverno Corporate Labels — staging-observability-monitoring
+
+- **Root cause**: commonLabels só propagava para pods, não para metadata de StatefulSets/Deployments/Services
+- **Fix**: kubectl label em 11 Deployments + 8 StatefulSets + 3 DaemonSets + 33 Services
+- **Resultado**: 100% compliance — 80/80 PASS
+
+### GitLab Runner CrashLoop (DEC-074 namespace drift)
+
+- **Root cause**: `CI_SERVER_URL` apontava para `gitlab-staging` (namespace antigo, 0 pods) após DEC-074 wave migration
+- **Fix**: env var atualizado para `staging-platform-gitlab`, values.yaml.tpl corrigido permanentemente
+- **Resultado**: Runner Running 0 restarts, Runner registrado na primeira tentativa
+
+### External Secrets Operator — 533 restarts (2d+)
+
+- **Root cause**: Dois Helm releases (v0.9.11 em `external-secrets-system` + v0.12.1 em `staging-security-externalsecrets`) competindo por CRDs cluster-scoped; RBAC apontava para SA errado
+- **Fix**: Uninstall do release duplicado em `external-secrets-system`; CRDs recuperados via helm upgrade --force; 16 ExternalSecrets recriados
+- **Resultado**: 1 único release, 16/16 ExternalSecrets SecretSynced, 0 CrashLoop
+
+### Terraform KPS State Drift
+
+- **Root cause**: `kubernetes_namespace.monitoring` em state referenciava ns deletado; helm_release não estava em state
+- **Fix**: `terraform state rm` (3 orphans) + `terraform import` (helm_release + namespace)
+- **Resultado**: `terraform apply` bem-sucedido (0 add, 1 change, 0 destroy)
+
+### Node Pod Capacity (t3.medium VPC CNI limit 17/17)
+
+- **Root cause**: DaemonSet pods `promtail` e `loki-canary` não conseguiam scheduling em ip-10-0-141-179 e ip-10-0-149-68
+- **Fix**: Evicção seletiva de 3 pods de baixa prioridade (cert-manager-webhook, gitlab-shell, tempo-querier); todos reescalonados em outros nodes
+- **Resultado**: 0 Pending DaemonSets, zero downtime de serviços
+
+### commit-msg Hook Bugfix
+
+- **Root cause**: Hook chamava `git secrets` como subcomando git; binário disponível apenas em `~/.local/bin/git-secrets`
+- **Fix**: Atualizado para usar path direto com guard `[ -x "$GIT_SECRETS_BIN" ]`
 
 _Auto-atualizado pelo sistema de scaffold | Última task: Bootstrap Scaffold Kit em 2026-02-06_

@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-27
-**Versão:** 4.3 (DEC-075 Namespace Standardization + ADR-086 FinOps Protection)
+**Última Atualização:** 2026-03-02
+**Versão:** 4.4 (DEC-076 ESO Namespace Consolidation + ADR-092 Loki FailedScheduling Fix)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -71,6 +71,8 @@
 | **ADR-089** | **Loki 3.6.5 Breaking Change Fix (shared_store → delete_request_store)** | **2026-02-27** | **✅ Implementado** | **Crítico** |
 | **ADR-090** | **Loki→Tempo Correlation via Derived Fields** | **2026-02-27** | **✅ Implementado** | **Alto** |
 | **ADR-091** | **RDS Availability Monitoring (Hybrid CloudWatch + Prometheus)** | **2026-02-27** | **✅ Validado** | **Alto** |
+| **DEC-076** | **ESO Namespace Consolidation (external-secrets-system → staging-security-externalsecrets)** | **2026-03-02** | **✅ Implementado** | **Crítico** |
+| **ADR-092** | **Loki FailedScheduling Fix (nodeSelector removed + chunksCache downsize)** | **2026-03-02** | **✅ Implementado** | **Crítico** |
 
 ---
 
