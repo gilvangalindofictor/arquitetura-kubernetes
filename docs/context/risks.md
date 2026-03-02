@@ -1,7 +1,7 @@
 # ⚠️ Análise de Riscos - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-02-27
-**Versão:** 3.4 (Sprint 3 Complete — Loki Fix + RDS Monitoring Validated)
+**Última Atualização:** 2026-03-02
+**Versão:** 3.5 (Cluster Remediation Complete — ESO Consolidated + Loki FailedScheduling + Kyverno 100%)
 **Framework:** Baseado em executor-terraform.md
 
 ---
@@ -60,6 +60,10 @@
 | **R-053** | **Harbor secrets plaintext em Helm values — V-003/V-004/V-005**   | **MÉDIO**     | **MÉDIO**   | **🟡 MÉDIO**   | ⚠️ **ABERTO (DT-002 Audit, 2026-02-20)** | **Migrar Harbor PostgreSQL/admin/Redis passwords para Vault + ESO**                      |
 | **R-054** | **RDS Production era Single-AZ no codigo (documentado Multi-AZ)** | **BAIXO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (DT-004, 2026-02-20)**    | **`multi_az = var.multi_az` parametrizado; prod=true**                                   |
 | **R-055** | **IaC sem testes automatizados (risco regressao)**                | **MÉDIO**     | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Mitigado (DT-003, 2026-02-20)**     | **Terratest framework: 290+ assertions, CI pipeline 4 stages**                           |
+| **R-058** | **ESO Duplicate Helm Release (namespace conflict)**               | **ALTO**      | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (DEC-076, 2026-03-02)**   | **Uninstall external-secrets-system; consolidado em staging-security-externalsecrets**   |
+| **R-059** | **GitLab Runner namespace drift (DEC-074 artifact)**              | **MÉDIO**     | **ALTO**    | **🟢 BAIXO**   | ✅ **Resolvido (2026-03-02)**            | **CI_SERVER_URL atualizado + values.yaml.tpl corrigido**                                 |
+| **R-060** | **Loki FailedScheduling (chunksCache OOM + nodeSelector)**        | **ALTO**      | **CRÍTICO** | **🟢 BAIXO**   | ✅ **Resolvido (ADR-092, 2026-03-02)**   | **allocatedMemory 8192→3584MB + nodeSelector removido**                                  |
+| **R-061** | **Terraform KPS state drift (monitoring ns → staging-obs-monitoring)** | **MÉDIO** | **MÉDIO**   | **🟢 BAIXO**   | ✅ **Resolvido (2026-03-02)**            | **state rm + import; apply succeeded**                                                   |
 
 ---
 
