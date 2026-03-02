@@ -327,7 +327,7 @@ module "gitlab_staging" {
 
   # GitLab configuration
   gitlab_edition         = "ce"
-  gitlab_version         = "8.7.0"
+  gitlab_version         = "8.11.8"  # INFRA-001: Updated 2026-03-02 (4/5 steps — v17.11.7 | blocked at 9.0.x: PG16 required — INFRA-002)
   gitlab_replicas        = 1 # Cost-optimized for staging
   gitlab_runner_replicas = 1 # Cost-optimized for staging
 
