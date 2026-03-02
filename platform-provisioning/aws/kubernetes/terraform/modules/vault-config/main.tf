@@ -437,7 +437,7 @@ resource "random_password" "harbor_admin" {
 }
 
 resource "vault_kv_secret_v2" "harbor_admin" {
-  count      = var.harbor_admin_password != "" || length(random_password.harbor_admin) > 0 ? 1 : 0
+  count      = 1
   mount      = vault_mount.kv.path
   name       = "harbor/admin"
   depends_on = [vault_mount.kv]
@@ -471,7 +471,7 @@ resource "random_password" "harbor_redis" {
 }
 
 resource "vault_kv_secret_v2" "harbor_redis" {
-  count      = var.harbor_redis_password != "" || length(random_password.harbor_redis) > 0 ? 1 : 0
+  count      = 1
   mount      = vault_mount.kv.path
   name       = "harbor/redis"
   depends_on = [vault_mount.kv]
@@ -505,7 +505,7 @@ resource "random_password" "keycloak_admin" {
 }
 
 resource "vault_kv_secret_v2" "keycloak_admin" {
-  count      = var.keycloak_admin_password != "" || length(random_password.keycloak_admin) > 0 ? 1 : 0
+  count      = 1
   mount      = vault_mount.kv.path
   name       = "keycloak/admin"
   depends_on = [vault_mount.kv]

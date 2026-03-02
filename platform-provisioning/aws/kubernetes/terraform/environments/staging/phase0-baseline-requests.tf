@@ -24,8 +24,8 @@ resource "null_resource" "vault_baseline_requests" {
   triggers = {
     cpu_request    = "100m"
     memory_request = "128Mi"
-    cpu_limit      = "500m"   # 100m × 5
-    memory_limit   = "512Mi"  # 128Mi × 4
+    cpu_limit      = "500m"  # 100m × 5
+    memory_limit   = "512Mi" # 128Mi × 4
   }
 
   provisioner "local-exec" {
@@ -112,14 +112,14 @@ resource "null_resource" "harbor_core_baseline_requests" {
 
 resource "null_resource" "gitlab_webservice_baseline_requests" {
   triggers = {
-    workhorse_cpu_request    = "10m"
-    workhorse_memory_request = "50Mi"
-    workhorse_cpu_limit      = "50m"    # 10m × 5
-    workhorse_memory_limit   = "200Mi"  # 50Mi × 4
-    webservice_cpu_request   = "200m"
+    workhorse_cpu_request     = "10m"
+    workhorse_memory_request  = "50Mi"
+    workhorse_cpu_limit       = "50m"   # 10m × 5
+    workhorse_memory_limit    = "200Mi" # 50Mi × 4
+    webservice_cpu_request    = "200m"
     webservice_memory_request = "2168Mi"
-    webservice_cpu_limit     = "1000m"  # 200m × 5
-    webservice_memory_limit  = "8672Mi" # 2168Mi × 4
+    webservice_cpu_limit      = "1000m"  # 200m × 5
+    webservice_memory_limit   = "8672Mi" # 2168Mi × 4
   }
 
   provisioner "local-exec" {

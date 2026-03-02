@@ -55,12 +55,47 @@ resource "helm_release" "kube_prometheus_stack" {
   ]
 
   # -----------------------------------------------------------------------------
+  # Global Corporate Labels (ADR-048 - Kyverno Compliance)
+  # -----------------------------------------------------------------------------
+
+  set {
+    name  = "commonLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "commonLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "commonLabels.environment"
+    value = var.environment
+  }
+
+  # -----------------------------------------------------------------------------
   # Prometheus Operator
   # -----------------------------------------------------------------------------
 
   set {
     name  = "prometheusOperator.enabled"
     value = "true"
+  }
+
+  # Corporate Labels - Prometheus Operator
+  set {
+    name  = "prometheusOperator.labels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "prometheusOperator.labels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "prometheusOperator.labels.environment"
+    value = var.environment
   }
 
   # nodeSelector removido: pods podem escalar em qualquer node disponível
@@ -94,6 +129,22 @@ resource "helm_release" "kube_prometheus_stack" {
   set {
     name  = "prometheus.enabled"
     value = "true"
+  }
+
+  # Corporate Labels - Prometheus
+  set {
+    name  = "prometheus.prometheusSpec.podMetadata.labels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.podMetadata.labels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.podMetadata.labels.environment"
+    value = var.environment
   }
 
   # Storage (EBS via EBS CSI Driver)
@@ -201,6 +252,22 @@ resource "helm_release" "kube_prometheus_stack" {
   set {
     name  = "grafana.enabled"
     value = "true"
+  }
+
+  # Corporate Labels - Grafana
+  set {
+    name  = "grafana.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "grafana.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "grafana.podLabels.environment"
+    value = var.environment
   }
 
   # Admin credentials — V-001 remediation:
@@ -488,6 +555,22 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
+  # Corporate Labels - Alertmanager
+  set {
+    name  = "alertmanager.alertmanagerSpec.podMetadata.labels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.podMetadata.labels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.podMetadata.labels.environment"
+    value = var.environment
+  }
+
   # Storage
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.accessModes[0]"
@@ -578,6 +661,22 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
+  # Corporate Labels - Node Exporter
+  set {
+    name  = "prometheus-node-exporter.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "prometheus-node-exporter.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "prometheus-node-exporter.podLabels.environment"
+    value = var.environment
+  }
+
   # -----------------------------------------------------------------------------
   # Kube State Metrics
   # -----------------------------------------------------------------------------
@@ -585,6 +684,22 @@ resource "helm_release" "kube_prometheus_stack" {
   set {
     name  = "kubeStateMetrics.enabled"
     value = "true"
+  }
+
+  # Corporate Labels - Kube State Metrics
+  set {
+    name  = "kube-state-metrics.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "kube-state-metrics.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "kube-state-metrics.podLabels.environment"
+    value = var.environment
   }
 
   # nodeSelector removido: kube-state-metrics pode escalar em qualquer node disponível

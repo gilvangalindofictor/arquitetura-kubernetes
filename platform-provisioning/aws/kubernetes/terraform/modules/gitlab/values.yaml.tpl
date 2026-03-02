@@ -251,10 +251,11 @@ gitlab-runner:
   install: true
   replicas: ${runner_replicas}
 
-  # Use internal Kubernetes DNS — namespace is gitlab-staging (not gitlab)
+  # Use internal Kubernetes DNS — namespace is staging-platform-gitlab (DEC-074 migration)
   # ADR-021 Fase 1: No external domain, use service DNS
   # Fix 2026-02-13: namespace corrected from gitlab → gitlab-staging
-  gitlabUrl: http://gitlab-webservice-default.gitlab-staging.svc.cluster.local:8080
+  # Fix 2026-03-02: namespace corrected from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
+  gitlabUrl: http://gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local:8080
 
   # GitLab 17.x authentication token compatibility:
   # runners.locked must NOT generate REGISTER_LOCKED env var.
@@ -274,7 +275,7 @@ gitlab-runner:
     config: |
       [[runners]]
         [runners.kubernetes]
-          namespace = "gitlab-staging"
+          namespace = "staging-platform-gitlab"
           image = "ubuntu:22.04"
           privileged = false
           cpu_request = "100m"

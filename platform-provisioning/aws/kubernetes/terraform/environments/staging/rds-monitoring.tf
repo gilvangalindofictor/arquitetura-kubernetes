@@ -23,7 +23,7 @@ module "rds_monitoring_staging" {
 
   # Alert notification configuration
   alert_emails = [
-    var.finops_alert_email,  # Reuse FinOps email for RDS alerts
+    var.finops_alert_email, # Reuse FinOps email for RDS alerts
     # Add additional emails here:
     # "sre-team@example.com",
     # "database-team@example.com"
@@ -33,13 +33,13 @@ module "rds_monitoring_staging" {
   enable_performance_alerts = true
 
   # Threshold configuration (adjusted for db.t3.medium)
-  cpu_threshold            = 80    # Alert at 80% CPU (sustained 5min)
-  max_connections_override = 147   # db.t3.medium PostgreSQL 16 max_connections
-  storage_threshold_gb     = 20    # Alert when free storage <20GB
-  latency_threshold_ms     = 50    # Alert at 50ms read/write latency
+  cpu_threshold            = 80  # Alert at 80% CPU (sustained 5min)
+  max_connections_override = 147 # db.t3.medium PostgreSQL 16 max_connections
+  storage_threshold_gb     = 20  # Alert when free storage <20GB
+  latency_threshold_ms     = 50  # Alert at 50ms read/write latency
 
   # KMS encryption for SNS topic (reuse FinOps KMS key if available)
-  kms_key_id = ""  # Optional: add KMS key ID for SNS encryption
+  kms_key_id = "" # Optional: add KMS key ID for SNS encryption
 
   # Runbook base URL (update with your GitHub org/repo)
   runbook_base_url = "https://github.com/fctconsig/k8s-platform/docs/runbooks"

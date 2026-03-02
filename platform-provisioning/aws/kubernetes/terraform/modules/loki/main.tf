@@ -234,6 +234,24 @@ resource "helm_release" "loki" {
   }
 
   # -----------------------------------------------------------------------------
+  # Global Corporate Labels (ADR-048 - Kyverno Compliance)
+  # -----------------------------------------------------------------------------
+  set {
+    name  = "global.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "global.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "global.podLabels.environment"
+    value = var.environment
+  }
+
+  # -----------------------------------------------------------------------------
   # Loki Configuration
   # -----------------------------------------------------------------------------
   set {
@@ -326,7 +344,9 @@ resource "helm_release" "loki" {
   }
 
   set {
-    name  = "loki.compactor.shared_store"
+    # NOTE: loki.compactor.shared_store was DEPRECATED in Loki 3.x and caused
+    # CrashLoopBackOff. Replaced with delete_request_store (ADR-089, 2026-02-27).
+    name  = "loki.compactor.delete_request_store"
     value = "s3"
   }
 
@@ -351,6 +371,22 @@ resource "helm_release" "loki" {
   set {
     name  = "read.replicas"
     value = var.read_replicas
+  }
+
+  # Corporate Labels - Read Component
+  set {
+    name  = "read.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "read.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "read.podLabels.environment"
+    value = var.environment
   }
 
   set {
@@ -420,6 +456,22 @@ resource "helm_release" "loki" {
   set {
     name  = "write.replicas"
     value = var.write_replicas
+  }
+
+  # Corporate Labels - Write Component
+  set {
+    name  = "write.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "write.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "write.podLabels.environment"
+    value = var.environment
   }
 
   set {
@@ -506,6 +558,22 @@ resource "helm_release" "loki" {
     value = var.backend_replicas
   }
 
+  # Corporate Labels - Backend Component
+  set {
+    name  = "backend.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "backend.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "backend.podLabels.environment"
+    value = var.environment
+  }
+
   set {
     name  = "backend.resources.requests.cpu"
     value = "100m"
@@ -588,6 +656,22 @@ resource "helm_release" "loki" {
   set {
     name  = "gateway.enabled"
     value = "true"
+  }
+
+  # Corporate Labels - Gateway Component
+  set {
+    name  = "gateway.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "gateway.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "gateway.podLabels.environment"
+    value = var.environment
   }
 
   set {
@@ -698,6 +782,100 @@ resource "helm_release" "loki" {
   set {
     name  = "monitoring.serviceMonitor.namespace"
     value = var.namespace
+  }
+
+  # -----------------------------------------------------------------------------
+  # Loki Canary (Health Testing)
+  # -----------------------------------------------------------------------------
+
+  # Corporate Labels - Loki Canary
+  set {
+    name  = "lokiCanary.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "lokiCanary.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "lokiCanary.podLabels.environment"
+    value = var.environment
+  }
+
+  # -----------------------------------------------------------------------------
+  # Chunks Cache (Memcached) - Corporate Labels (ADR-048)
+  # Required by Kyverno: require-corporate-labels + validate-label-values
+  # Note: chunksCache pods need app.kubernetes.io/part-of because the Helm chart
+  # does NOT set it automatically for Memcached sub-charts
+  # -----------------------------------------------------------------------------
+  set {
+    name  = "chunksCache.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "chunksCache.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "chunksCache.podLabels.environment"
+    value = var.environment
+  }
+
+  set {
+    name  = "chunksCache.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
+  # -----------------------------------------------------------------------------
+  # Results Cache (Memcached) - Corporate Labels (ADR-048)
+  # Same rationale as chunksCache above
+  # -----------------------------------------------------------------------------
+  set {
+    name  = "resultsCache.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "resultsCache.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "resultsCache.podLabels.environment"
+    value = var.environment
+  }
+
+  set {
+    name  = "resultsCache.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
+  # -----------------------------------------------------------------------------
+  # Common Labels (applied to all chart resources via Helm commonLabels)
+  # Provides a fallback for any component not covered by individual podLabels
+  # -----------------------------------------------------------------------------
+  set {
+    name  = "commonLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "commonLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "commonLabels.environment"
+    value = var.environment
+  }
+
+  set {
+    name  = "commonLabels.managed-by"
+    value = "helm"
   }
 
   # -----------------------------------------------------------------------------

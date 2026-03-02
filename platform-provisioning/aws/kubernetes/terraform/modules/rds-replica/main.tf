@@ -129,14 +129,14 @@ resource "aws_db_instance" "replica" {
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   # Deletion protection — false on replica (it can be destroyed and re-created)
-  deletion_protection       = false
-  skip_final_snapshot       = true # Replica: no final snapshot on destroy
-  apply_immediately         = false
+  deletion_protection = false
+  skip_final_snapshot = true # Replica: no final snapshot on destroy
+  apply_immediately   = false
 
   tags = merge(local.common_tags, {
-    Name                  = local.replica_identifier
-    PromotionReadiness    = "ready"
-    ReplicationSource     = var.source_db_identifier
+    Name               = local.replica_identifier
+    PromotionReadiness = "ready"
+    ReplicationSource  = var.source_db_identifier
   })
 
   lifecycle {
@@ -244,9 +244,9 @@ resource "aws_cloudwatch_metric_alarm" "storage_space_low" {
   statistic           = "Minimum"
   # Threshold: 20% of allocated storage in bytes
   # data.aws_db_instance.primary.allocated_storage returns GB; convert to bytes
-  threshold           = var.storage_free_threshold_bytes
-  alarm_description   = "GAP-012: RDS DR replica ${local.replica_identifier} free storage below threshold. Replication may stop if storage fills."
-  treat_missing_data  = "breaching"
+  threshold          = var.storage_free_threshold_bytes
+  alarm_description  = "GAP-012: RDS DR replica ${local.replica_identifier} free storage below threshold. Replication may stop if storage fills."
+  treat_missing_data = "breaching"
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.replica.identifier

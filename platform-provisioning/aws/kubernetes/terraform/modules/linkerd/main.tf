@@ -237,8 +237,8 @@ resource "kubernetes_namespace" "linkerd_viz" {
     name = var.viz_namespace
 
     labels = merge(local.module_labels, {
-      "linkerd.io/extension"         = "viz"
-      "kubernetes.io/metadata.name"  = var.viz_namespace
+      "linkerd.io/extension"        = "viz"
+      "kubernetes.io/metadata.name" = var.viz_namespace
     })
 
     annotations = {

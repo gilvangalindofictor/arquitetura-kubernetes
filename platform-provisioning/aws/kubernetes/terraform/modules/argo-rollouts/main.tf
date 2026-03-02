@@ -23,13 +23,13 @@ resource "helm_release" "argo_rollouts" {
   create_namespace = false # Namespace managed by argocd module
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name       = var.cluster_name
+    cluster_name        = var.cluster_name
     controller_replicas = var.controller_replicas
-    metrics_enabled    = var.metrics_enabled
-    prometheus_url     = var.prometheus_url
-    dashboard_enabled  = var.dashboard_enabled
-    dashboard_port     = var.dashboard_port
-    metrics_port       = var.metrics_port
+    metrics_enabled     = var.metrics_enabled
+    prometheus_url      = var.prometheus_url
+    dashboard_enabled   = var.dashboard_enabled
+    dashboard_port      = var.dashboard_port
+    metrics_port        = var.metrics_port
   })]
 
   timeout = 300 # 5 minutes
@@ -59,11 +59,11 @@ resource "kubernetes_config_map" "analysis_templates" {
   }
 
   data = {
-    "templates-path"   = "domains/apps/manifests/analysis-templates/"
-    "templates-count"  = "4"
-    "templates-list"   = "success-rate.yaml, latency-p95.yaml, error-rate-4xx.yaml, error-rate-5xx.yaml"
-    "deploy-command"   = "kubectl apply -f domains/apps/manifests/analysis-templates/ -n <APP_NAMESPACE>"
-    "prometheus-url"   = var.prometheus_url
+    "templates-path"  = "domains/apps/manifests/analysis-templates/"
+    "templates-count" = "4"
+    "templates-list"  = "success-rate.yaml, latency-p95.yaml, error-rate-4xx.yaml, error-rate-5xx.yaml"
+    "deploy-command"  = "kubectl apply -f domains/apps/manifests/analysis-templates/ -n <APP_NAMESPACE>"
+    "prometheus-url"  = var.prometheus_url
   }
 
   depends_on = [helm_release.argo_rollouts]
