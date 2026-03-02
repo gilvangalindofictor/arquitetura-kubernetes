@@ -294,7 +294,7 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
 
               volumes = [
                 {
-                  name = "tmp"
+                  name     = "tmp"
                   emptyDir = {}
                 },
                 {

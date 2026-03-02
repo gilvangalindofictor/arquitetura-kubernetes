@@ -112,3 +112,25 @@ variable "alertmanager_storage_size" {
   type        = string
   default     = "2Gi"
 }
+
+# -----------------------------------------------------------------------------
+# Corporate Labels (ADR-048)
+# -----------------------------------------------------------------------------
+
+variable "domain" {
+  description = "Domain label para agrupar recursos por área funcional (ADR-048)"
+  type        = string
+  default     = "operations"
+}
+
+variable "owner" {
+  description = "Owner label para identificar time responsável (ADR-048)"
+  type        = string
+  default     = "platform-team"
+}
+
+variable "environment" {
+  description = "Environment label para identificar ambiente (staging/production)"
+  type        = string
+  default     = "staging"
+}

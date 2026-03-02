@@ -27,7 +27,7 @@ output "linkerd_viz_url" {
     Access via: kubectl port-forward -n linkerd-viz svc/web 8084:8084
     Then open:  http://localhost:8084
   EOT
-  value = var.enable_viz ? "http://web.${var.viz_namespace}.svc.cluster.local:8084" : ""
+  value       = var.enable_viz ? "http://web.${var.viz_namespace}.svc.cluster.local:8084" : ""
 }
 
 output "linkerd_tap_api_url" {
@@ -54,8 +54,8 @@ output "trust_anchor_certificate" {
     SENSITIVE: used by all Linkerd proxies as the SPIFFE root of trust.
     Store this in Vault (secret/linkerd/pki) immediately after apply.
   EOT
-  value     = tls_self_signed_cert.trust_anchor.cert_pem
-  sensitive = true
+  value       = tls_self_signed_cert.trust_anchor.cert_pem
+  sensitive   = true
 }
 
 output "trust_anchor_certificate_expiry" {

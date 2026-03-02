@@ -1,6 +1,26 @@
+# =============================================================================
+# Corporate Labels (ADR-048 - Kyverno Compliance)
+# Applied as permanent fix 2026-03-02 — resolves PolicyViolation on all Loki
+# StatefulSets (backend, write, chunksCache, resultsCache) and Deployments
+# (gateway, read). Labels are required by Kyverno policies:
+#   - require-corporate-labels (domain, owner, environment)
+#   - validate-label-values (validated values per policy rules)
+# =============================================================================
+commonLabels:
+  domain: "operations"
+  owner: "platform-team"
+  environment: "staging"
+  managed-by: "helm"
+
+deploymentMode: SimpleScalable
+
+# =============================================================================
+# Backend Component (Compaction, ruler, compactor)
+# =============================================================================
 backend:
-  nodeSelector:
-    node-type: system
+  # nodeSelector removed to allow scheduling on workloads nodes (2026-03-02 FailedScheduling fix)
+  # nodeSelector:
+  #   node-type: system
   persistence:
     enabled: true
     size: 10Gi
@@ -13,12 +33,22 @@ backend:
     requests:
       cpu: 100m
       memory: 256Mi
-  tolerations:
-  - effect: NoSchedule
-    key: node-type
-    operator: Equal
-    value: system
-deploymentMode: SimpleScalable
+  # tolerations removed (no longer needed without nodeSelector)
+  # tolerations:
+  # - effect: NoSchedule
+  #   key: node-type
+  #   operator: Equal
+  #   value: system
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+    app.kubernetes.io/part-of: "observability"
+
+# =============================================================================
+# Gateway Component (Nginx reverse proxy)
+# =============================================================================
 gateway:
   enabled: true
   nodeSelector:
@@ -36,6 +66,15 @@ gateway:
     key: node-type
     operator: Equal
     value: system
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+
+# =============================================================================
+# Loki Core Configuration
+# =============================================================================
 loki:
   auth_enabled: false
   commonConfig:
@@ -67,8 +106,15 @@ loki:
     s3:
       region: us-east-1
     type: s3
+  # Corporate labels for loki pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+
 minio:
   enabled: false
+
 monitoring:
   selfMonitoring:
     enabled: false
@@ -77,6 +123,10 @@ monitoring:
   serviceMonitor:
     enabled: true
     namespace: staging-observability-monitoring
+
+# =============================================================================
+# Read Component (Query Path)
+# =============================================================================
 read:
   nodeSelector:
     node-type: system
@@ -93,11 +143,22 @@ read:
     key: node-type
     operator: Equal
     value: system
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+
 serviceAccount:
   create: false
   name: loki
+
 test:
   enabled: false
+
+# =============================================================================
+# Write Component (Ingestion Path)
+# =============================================================================
 write:
   nodeSelector:
     node-type: system
@@ -118,3 +179,49 @@ write:
     key: node-type
     operator: Equal
     value: system
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+
+# =============================================================================
+# Chunks Cache (Memcached) - 2026-03-02 FailedScheduling fix + Kyverno labels
+# =============================================================================
+chunksCache:
+  enabled: true
+  replicas: 1
+  allocatedMemory: 3584  # Reduced from 8192 (8GB) to 3584 (3.5GB) to fit in t3.large nodes
+  resources:
+    requests:
+      cpu: 200m  # Reduced from 500m (VPA data shows avg 80m)
+      memory: 4096Mi  # 4GB total (3.5GB memcached + 512Mi overhead)
+    limits:
+      memory: 4096Mi
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+    app.kubernetes.io/part-of: "observability"
+
+# =============================================================================
+# Results Cache (Memcached)
+# =============================================================================
+resultsCache:
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"
+    app.kubernetes.io/part-of: "observability"
+
+# =============================================================================
+# Loki Canary (Health Testing DaemonSet)
+# =============================================================================
+lokiCanary:
+  # Corporate labels for pods (ADR-048)
+  podLabels:
+    domain: "operations"
+    owner: "platform-team"
+    environment: "staging"

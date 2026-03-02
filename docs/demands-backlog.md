@@ -1,10 +1,10 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-02-26 21:00 BRT (VALIDAÇÕES + CORREÇÕES: 4 validações ✅, 3 correções ✅, Kyverno compliance 44%↑)
-> **Fonte**: Análise de documentos de contexto + Orquestração paralela 8 agentes (deployment) + 7 agentes (validação/correção)
-> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement ✅ 6/6 artefatos + 2/3 infra deployed + VALIDATED**
-> **Infrastructure Health**: WAF ✅ (1 attack blocked), Velero DR ✅ (<1s replication), Monitoring ✅ (44% Kyverno compliance↑)
+> **Última Revisão**: 2026-02-27 17:00 BRT (VALIDAÇÃO REAL: CICD-003 ✅ | CICD-005 ✅ | CICD-001/002 60% | CICD-004 0%)
+> **Fonte**: Confrontação cluster real vs documentação
+> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 2/5 COMPLETOS + 2/5 PARCIAIS**
+> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ (15/20 pods) | Kyverno 100%
 
 ---
 
@@ -1425,10 +1425,10 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 > **Objetivo**: Zerar gaps de staging via security-first + progressive delivery (SAST/DAST enforcement, secret rotation automation, immutable tags, quality gates, canary deployments)
 > **ROI**: ~R$ 70K/ano risk mitigation + compliance + efficiency
 
-### ✅ CICD-001: SAST/DAST Security Scanning Enforcement [DEPLOYADO]
+### ✅ CICD-001: SAST/DAST Security Scanning Enforcement [60% DEPLOYADO]
 
 **Prioridade**: 🔴 CRÍTICA (Security Blocker)
-**Status**: ✅ **ARTEFATOS CRIADOS** (2026-02-26) | ⏸️ Deploy aguardando SonarQube UP
+**Status**: 🟡 **60% COMPLETO** — PrometheusRule ✅ | Dashboard ✅ | Scripts aguardando execução
 **Duração Real**: 11min 28s (agent execution) + 16h (artifact creation)
 **Esforço**: M (24h) → Real: 16h
 **Impacto**: Security Specialist 5/5, Orchestrator 5/5
@@ -1481,11 +1481,11 @@ Implementar e **enforcer** SAST (Static Application Security Testing) e DAST (Dy
 
 ---
 
-### ✅ CICD-004: Immutable Image Tags Enforcement [ARTEFATOS CRIADOS]
+### CICD-004: Immutable Image Tags Enforcement [ARTEFATOS CRIADOS]
 
 **Prioridade**: 🟡 ALTA
-**Status**: 📋 **PENDENTE** (PARALLEL com CICD-001)
-**Esforço**: S (16h) | **Duração**: 2 dias
+**Status**: 🔴 **PENDENTE DEPLOY** — Artefatos 100% criados, aguardando execução script
+**Esforço**: S (16h) | **Artefatos**: 6h | **Deploy Pendente**: 10 min
 **Impacto**: Security Specialist 4.5/5, Orchestrator 4/5
 
 **Descrição**:
@@ -1528,11 +1528,11 @@ Enforcer immutable image tags no Harbor registry, prevenindo tag overwrite (late
 
 ---
 
-### ✅ CICD-002: SonarQube Quality Gate Enforcement [DEPLOYADO]
+### ✅ CICD-002: SonarQube Quality Gate Enforcement [60% DEPLOYADO]
 
 **Prioridade**: 🟡 ALTA (AFTER CICD-001)
-**Status**: 📋 **PENDENTE**
-**Esforço**: S (16h) | **Duração**: 2 dias
+**Status**: 🟡 **60% COMPLETO** — PrometheusRule ✅ | Dashboard ✅ | Script aguardando execução
+**Esforço**: S (16h) | **Duração Real**: 8h
 **Impacto**: Security Specialist 4.5/5, Observability 5/5
 
 **Descrição**:
@@ -1577,11 +1577,11 @@ Enforcer SonarQube quality gates no GitLab CI/CD, bloqueando merges de código c
 
 ---
 
-### ✅ CICD-003: Automated Secret Rotation [DEPLOYADO]
+### ✅ CICD-003: Automated Secret Rotation [COMPLETO]
 
 **Prioridade**: 🟡 ALTA (INDEPENDENT - can parallel)
-**Status**: 📋 **PENDENTE**
-**Esforço**: L (40h) | **Duração**: 5 dias
+**Status**: ✅ **COMPLETO** (DEPLOYED 2026-02-26) — CronJob Running
+**Esforço**: L (40h) | **Duração Real**: 2h
 **Impacto**: Security Specialist 5/5 CRÍTICO, Orchestrator 3.5/5
 
 **Descrição**:
@@ -1635,11 +1635,11 @@ Automatizar rotação trimestral de secrets (PostgreSQL, Redis, Keycloak admin, 
 
 ---
 
-### ✅ CICD-005: Argo Rollouts Progressive Delivery [DEPLOYADO]
+### ✅ CICD-005: Argo Rollouts Progressive Delivery [COMPLETO]
 
 **Prioridade**: 🟢 MÉDIA (Nice-to-Have, AFTER apps instrumented)
-**Status**: 📋 **PENDENTE**
-**Esforço**: XL (64h) | **Duração**: 8 dias
+**Status**: ✅ **COMPLETO** (DEPLOYED 2026-02-26) — Helm Chart + AnalysisTemplates
+**Esforço**: XL (64h) | **Duração Real**: 16h
 **Impacto**: Orchestrator 5/5 TRANSFORMACIONAL, Observability 5/5
 
 **Descrição**:
@@ -1691,21 +1691,23 @@ Implementar Argo Rollouts para deployments progressivos (canary, blue-green), re
 
 ### 📊 CI/CD Enhancement Roadmap Summary
 
-**Total Effort**: 160h (20 dias) | **Duration**: 4-6 semanas (sequential) | 2-3 semanas (parallel)
+**Total Effort**: 160h → **Real: 32h** | **Status**: 2/5 Completos, 2/5 Parciais, 1/5 Pendente
 
-**Implementation Sequence (Optimal Path)**:
+**Implementation Status (2026-02-27)**:
 
 ```
-Phase 1 (Week 1-2): Security Foundation (Parallel)
-├─ CICD-001: SAST/DAST (3 dias) ← START HERE
-├─ CICD-004: Immutable Tags (2 dias) ← PARALLEL with CICD-001
-└─ CICD-002: Quality Gate (2 dias) ← AFTER CICD-001
+✅ COMPLETO (2/5):
+├─ CICD-003: Secret Rotation — CronJob deployed and running
+└─ CICD-005: Argo Rollouts — Helm + 4 AnalysisTemplates + 2 dashboards
 
-Phase 2 (Week 3-4): Automation (Parallel)
-└─ CICD-003: Secret Rotation (5 dias) ← INDEPENDENT (can start Day 1)
+🟡 PARCIAL (2/5):
+├─ CICD-001: SAST/DAST — 60% (PrometheusRule ✅ | Dashboard ✅ | Scripts pending)
+└─ CICD-002: Quality Gate — 60% (PrometheusRule ✅ | Dashboard ✅ | Script pending)
 
-Phase 3 (Week 5-6): Progressive Delivery
-└─ CICD-005: Argo Rollouts (8 dias) ← AFTER apps instrumented
+🔴 PENDENTE (1/5):
+└─ CICD-004: Immutable Tags — Artefatos 100%, deploy 0% (~10 min)
+
+Esforço Restante: ~30 minutos (3 scripts)
 ```
 
 **Savings/ROI**:
@@ -1727,4 +1729,6 @@ Phase 3 (Week 5-6): Progressive Delivery
 
 ---
 
-*Última atualização: 2026-02-25 | Fonte: CI/CD Pipeline Enhancement (5 demandas CICD-001 a CICD-005) - Enterprise Maturity Assessment 360º*
+## Atualização
+
+Última atualização: 2026-02-27 | Fonte: Validação real cluster vs documentação (CICD-003 ✅ CICD-005 ✅ deployados)

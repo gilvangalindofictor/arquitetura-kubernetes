@@ -1,0 +1,102 @@
+---
+# =============================================================================
+# Loki StatefulSet Corporate Labels Patch
+# Reference: ADR-048 Corporate Labels | Kyverno policies: require-corporate-labels,
+#            validate-label-values
+# Date: 2026-03-02
+# Namespace: staging-observability-monitoring
+# Helm Release: loki (grafana/loki chart, revision 9, Loki 3.6.5)
+#
+# USAGE (emergency / out-of-band patch when cluster is live):
+#   kubectl patch statefulset loki-backend -n staging-observability-monitoring \
+#     --type merge -p "$(grep -A20 'loki-backend' fix-loki-labels-patch.yaml | grep spec -A20)"
+#
+# PERMANENT FIX: These labels are now embedded in:
+#   - docs/migrations/wave5-monitoring/loki-values-updated.yaml (Helm values)
+#   - platform-provisioning/aws/kubernetes/terraform/modules/loki/main.tf (IaC)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# loki-backend StatefulSet
+# Missing labels: domain, owner, environment
+# app.kubernetes.io/name already present (set by Helm chart)
+# app.kubernetes.io/part-of = "memberlist" (set by chart, valid for ADR-048)
+# -----------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki-backend
+  namespace: staging-observability-monitoring
+spec:
+  template:
+    metadata:
+      labels:
+        domain: operations
+        owner: platform-team
+        environment: staging
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: observability
+
+# -----------------------------------------------------------------------------
+# loki-write StatefulSet
+# Missing labels: domain, owner, environment
+# app.kubernetes.io/part-of = "memberlist" (set by chart, valid for ADR-048)
+# -----------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki-write
+  namespace: staging-observability-monitoring
+spec:
+  template:
+    metadata:
+      labels:
+        domain: operations
+        owner: platform-team
+        environment: staging
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: observability
+
+# -----------------------------------------------------------------------------
+# loki-chunks-cache StatefulSet (Memcached)
+# Missing labels: domain, owner, environment, app.kubernetes.io/part-of
+# app.kubernetes.io/name already present
+# -----------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki-chunks-cache
+  namespace: staging-observability-monitoring
+spec:
+  template:
+    metadata:
+      labels:
+        domain: operations
+        owner: platform-team
+        environment: staging
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: observability
+
+# -----------------------------------------------------------------------------
+# loki-results-cache StatefulSet (Memcached)
+# Missing labels: domain, owner, environment, app.kubernetes.io/part-of
+# app.kubernetes.io/name already present
+# -----------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki-results-cache
+  namespace: staging-observability-monitoring
+spec:
+  template:
+    metadata:
+      labels:
+        domain: operations
+        owner: platform-team
+        environment: staging
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: observability

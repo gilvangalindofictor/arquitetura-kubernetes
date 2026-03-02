@@ -68,8 +68,8 @@ output "sns_topic_arn" {
 output "cloudwatch_alarm_arns" {
   description = "Map of CloudWatch alarm ARNs created by this module. Empty map when enable_cloudwatch_alarms = false."
   value = var.enable_cloudwatch_alarms ? {
-    replication_lag    = aws_cloudwatch_metric_alarm.replication_lag[0].arn
-    storage_space_low  = aws_cloudwatch_metric_alarm.storage_space_low[0].arn
+    replication_lag     = aws_cloudwatch_metric_alarm.replication_lag[0].arn
+    storage_space_low   = aws_cloudwatch_metric_alarm.storage_space_low[0].arn
     replica_unavailable = aws_cloudwatch_metric_alarm.replica_unavailable[0].arn
   } : {}
 }

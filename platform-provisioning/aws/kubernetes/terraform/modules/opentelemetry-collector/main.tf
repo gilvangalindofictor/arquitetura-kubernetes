@@ -77,11 +77,16 @@ resource "kubernetes_manifest" "otel_pdb" {
 }
 
 # Network Policies: Ingress (apps → collector) + Egress (collector → backends)
+# Note: yamldecode of the policies YAML returns a heterogeneous tuple (ingress vs egress specs differ).
+# We always parse the YAML but guard resource creation with enable_network_policies in for_each.
 resource "kubernetes_manifest" "otel_network_policies" {
-  for_each = var.enable_network_policies ? toset(yamldecode(templatefile("${path.module}/network-policies.yaml", {
-    namespace               = var.namespace
-    observability_namespace = var.observability_namespace
-  }))) : []
+  for_each = {
+    for policy in yamldecode(templatefile("${path.module}/network-policies.yaml", {
+      namespace               = var.namespace
+      observability_namespace = var.observability_namespace
+    })) : policy.metadata.name => policy
+    if var.enable_network_policies
+  }
 
   manifest = each.value
 

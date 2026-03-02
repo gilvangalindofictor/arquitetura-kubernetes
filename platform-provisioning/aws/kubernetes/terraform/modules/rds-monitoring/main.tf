@@ -147,9 +147,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_stopped" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "critical"
-    Impact      = "platform"
-    AlertName   = "RDSInstanceStopped"
+    Severity  = "critical"
+    Impact    = "platform"
+    AlertName = "RDSInstanceStopped"
   })
 }
 
@@ -182,9 +182,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_cpu" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "warning"
-    Impact      = "performance"
-    AlertName   = "RDSHighCPU"
+    Severity  = "warning"
+    Impact    = "performance"
+    AlertName = "RDSHighCPU"
   })
 }
 
@@ -218,9 +218,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_connections" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "warning"
-    Impact      = "availability"
-    AlertName   = "RDSHighConnections"
+    Severity  = "warning"
+    Impact    = "availability"
+    AlertName = "RDSHighConnections"
   })
 }
 
@@ -253,9 +253,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_low_storage" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "warning"
-    Impact      = "availability"
-    AlertName   = "RDSLowStorage"
+    Severity  = "warning"
+    Impact    = "availability"
+    AlertName = "RDSLowStorage"
   })
 }
 
@@ -288,9 +288,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_read_latency" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "warning"
-    Impact      = "performance"
-    AlertName   = "RDSHighReadLatency"
+    Severity  = "warning"
+    Impact    = "performance"
+    AlertName = "RDSHighReadLatency"
   })
 }
 
@@ -316,9 +316,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_high_write_latency" {
   ok_actions    = [aws_sns_topic.rds_alerts.arn]
 
   tags = merge(local.common_alarm_tags, {
-    Severity    = "warning"
-    Impact      = "performance"
-    AlertName   = "RDSHighWriteLatency"
+    Severity  = "warning"
+    Impact    = "performance"
+    AlertName = "RDSHighWriteLatency"
   })
 }
 
@@ -337,10 +337,10 @@ resource "aws_db_event_subscription" "rds_instance_events" {
   source_ids  = [var.rds_instance_identifier]
 
   event_categories = [
-    "availability",    # Instance start/stop/failover
-    "failure",         # Instance failure events
-    "maintenance",     # Scheduled maintenance
-    "backup",          # Backup events
+    "availability", # Instance start/stop/failover
+    "failure",      # Instance failure events
+    "maintenance",  # Scheduled maintenance
+    "backup",       # Backup events
     "configuration change",
     "deletion"
   ]

@@ -443,26 +443,28 @@ resource "null_resource" "gitlab_runner_envfrom" {
 
   triggers = {
     secret_name = "gitlab-ci-credentials"
-    namespace   = "gitlab-staging"
+    # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
+    namespace   = "staging-platform-gitlab"
   }
 
   provisioner "local-exec" {
     command = <<-EOT
-      kubectl patch deployment gitlab-gitlab-runner -n gitlab-staging --type='json' -p='[
+      kubectl patch deployment gitlab-gitlab-runner -n staging-platform-gitlab --type='json' -p='[
         {"op":"add","path":"/spec/template/spec/containers/0/envFrom","value":[{"secretRef":{"name":"gitlab-ci-credentials"}}]}
       ]' || true
     EOT
   }
 }
 
-# Fix: executor namespace was "gitlab" (non-existent) → "gitlab-staging"
+# Fix: executor namespace was "gitlab" (non-existent) → "gitlab-staging" → "staging-platform-gitlab"
 # Helm lifecycle.ignore_changes=all → must patch configmap directly
 # Uses python3 interpreter to avoid bash quoting issues with TOML content
+# Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
 resource "null_resource" "gitlab_runner_namespace_fix" {
   depends_on = [module.gitlab_staging]
 
   triggers = {
-    executor_namespace = "gitlab-staging"
+    executor_namespace = "staging-platform-gitlab"
     s3_bucket          = "k8s-platform-gitlab-artifacts-891377105802"
   }
 
@@ -472,8 +474,9 @@ resource "null_resource" "gitlab_runner_namespace_fix" {
       import json, subprocess
       toml = "\n".join([
         "[[runners]]",
+        "  clone_url = \"http://gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local:8181\"",
         "  [runners.kubernetes]",
-        "    namespace = \"gitlab-staging\"",
+        "    namespace = \"staging-platform-gitlab\"",
         "    image = \"ubuntu:22.04\"",
         "    privileged = false",
         "    cpu_request = \"100m\"",
@@ -493,7 +496,7 @@ resource "null_resource" "gitlab_runner_namespace_fix" {
       patch = json.dumps({"data": {"config.template.toml": toml}})
       r = subprocess.run(
         ["kubectl", "patch", "configmap", "gitlab-gitlab-runner",
-         "-n", "gitlab-staging", "--type", "merge", "-p", patch],
+         "-n", "staging-platform-gitlab", "--type", "merge", "-p", patch],
         capture_output=True
       )
       print(r.stdout.decode() + r.stderr.decode())
@@ -510,7 +513,8 @@ resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
     kind       = "Role"
     metadata = {
       name      = "gitlab-gitlab-runner"
-      namespace = "gitlab-staging"
+      # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
+      namespace = "staging-platform-gitlab"
       labels = {
         "app"                          = "gitlab-gitlab-runner"
         "app.kubernetes.io/managed-by" = "Terraform"
@@ -1068,10 +1072,10 @@ module "kube_prometheus_stack_staging" {
   grafana_keycloak_client_id = "grafana"
   # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
 
-  # Corporate Labels (ADR-048) — REMOVED 2026-02-27 (variables not supported by module)
-  # domain      = "operations"
-  # owner       = "platform-team"
-  # environment = "staging"
+  # Corporate Labels (ADR-048) — Re-enabled 2026-03-02 (variables confirmed in module variables.tf)
+  domain      = "operations"
+  owner       = "platform-team"
+  environment = "staging"
 }
 
 #------------------------------------------------------------------------------
