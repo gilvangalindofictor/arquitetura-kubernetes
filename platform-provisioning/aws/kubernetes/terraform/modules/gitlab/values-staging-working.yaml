@@ -78,6 +78,18 @@ global:
         - secret: gitlab-oidc-keycloak
           key: provider
 
+    # Required for GitLab 8.10.x+ (chart 8.10.x disables cell by default)
+    cell:
+      enabled: false
+
+    # Required for GitLab 8.11.x+ (chart 8.11.x)
+    oidcProvider:
+      openidIdTokenExpireInSeconds: 120
+
+  # Versão atual deployada — atualizar a cada upgrade step
+  # INFRA-001: 8.11.8 é o máximo até upgrade PostgreSQL 14→16 (INFRA-002)
+  gitlabVersion: "17.11.7"
+
 # Resources (staging optimized)
 gitlab:
   webservice:
@@ -140,6 +152,14 @@ registry:
 gitlab-runner:
   install: true
   replicas: 1
+  # GitLab 17.x+ auth token (glrt-): set runnerRegistrationToken="" to signal
+  # isAuthToken=true. This prevents REGISTER_LOCKED/RUNNER_TAG_LIST env vars
+  # that cause FATAL error with auth token registration flow.
+  # The actual token lives in runner-token key of gitlab-gitlab-runner-secret.
+  runnerRegistrationToken: ""
+  # Override computed URL (http://host:80) since nginx-ingress is disabled.
+  # Runner must reach GitLab via workhorse port 8181 directly.
+  gitlabUrl: "http://gitlab.staging.internal:8181"
   resources:
     requests:
       cpu: 100m
@@ -147,3 +167,19 @@ gitlab-runner:
     limits:
       cpu: 500m
       memory: 512Mi
+  runners:
+    # GitLab 17.x+ auth token workflow: locked/tags managed server-side
+    # Do NOT set runners.locked or runners.tags here — causes FATAL registration error
+    config: |
+      [[runners]]
+        [runners.kubernetes]
+          image = "ubuntu:22.04"
+        [runners.cache]
+          Type = "s3"
+          Path = "gitlab-runner"
+          Shared = true
+          [runners.cache.s3]
+            ServerAddress = "minio.staging.internal"
+            BucketName = "runner-cache"
+            BucketLocation = "us-east-1"
+            Insecure = false

@@ -216,7 +216,7 @@ add_condition() {
   fi
 
   sonar_api POST "qualitygates/create_condition" \
-    "gateId=${gate_id}&metric=${metric}&op=${op}&error=${error_threshold}" > /dev/null
+    "gateName=${GATE_NAME}&metric=${metric}&op=${op}&error=${error_threshold}" > /dev/null
 
   log_success "  Condition added: ${metric} ${op} ${error_threshold}"
 }
