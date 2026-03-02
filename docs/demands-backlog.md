@@ -1898,38 +1898,254 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
 
 ---
 
-## INFRA-002 — Upgrade RDS PostgreSQL 14 → 16
+## INFRA-002 — Upgrade RDS PostgreSQL 14.8 → 16.4
 
 | Campo | Valor |
 | ----- | ----- |
 | **ID** | INFRA-002 |
-| **Prioridade** | P2 — Alta |
-| **Status** | 🔴 PRÉ-REQUISITO PARA INFRA-001 STEP 5 |
-| **Estimativa** | 8h (planejamento + migração + validação) |
+| **Prioridade** | P1 — Crítico (desbloqueador INFRA-001) |
+| **Status** | 📋 PLANO APROVADO — Aguardando ambiente (implementar próxima sessão) |
+| **Estimativa** | ~65 min (plano detalhado validado 2026-03-02) |
 | **Criada em** | 2026-03-02 |
-| **Depende de** | Janela de manutenção aprovada |
+| **Planejada em** | 2026-03-02 |
+| **Executor** | Agentes: AWS Specialist + Terraform Specialist + Observability + Doc Specialist |
+| **Protocolo** | executor-terraform.md (PRE-CHECK → Agentes → AML → STOP-AND-FIX) |
 
 ### Descrição
 
-Upgrade do Amazon RDS PostgreSQL de 14.8 para 16.x.
+Upgrade in-place do Amazon RDS PostgreSQL **14.8.0 → 16.4** via Terraform. Desbloqueador direto do INFRA-001 Step 5 (GitLab chart 8.11.8 → 9.0.x / v18.x).
 
-**Motivação:** GitLab 18.x (chart 9.x) requer PostgreSQL ≥ 16. Sem este upgrade, o INFRA-001 está bloqueado no chart 8.11.8 (GitLab 17.11.7).
+**Motivação:** GitLab 18.x (chart 9.x) requer PostgreSQL ≥ 16. Instância atual: `k8s-platform-staging-postgresql` — db.t3.micro — 20GB gp3 — PostgreSQL 14.8.0.
 
-### Escopo
+**Diagnóstico Técnico (2026-03-02):**
 
-- [ ] Avaliar compatibilidade aplicações com PG16 (breaking changes)
-- [ ] Criar snapshot RDS antes da migração
-- [ ] Realizar upgrade de major version (in-place ou blue-green)
-- [ ] Validar conexões GitLab pós-migração
-- [ ] Validar GitLab Registry database (também requer PG16)
-- [ ] Testar rollback para PG14 (via snapshot)
-- [ ] Executar INFRA-001 Step 5 após validação PG16
+- Módulo Terraform `modules/postgresql/main.tf:104` já tem `engine_version = "16.4"` (estado desejado)
+- Falta apenas `allow_major_version_upgrade = true` no resource → Terraform nunca efetivou o upgrade
+- GOV-002: snapshot manual obrigatório pré-upgrade
+- DT-001: upgrade in-place não altera subnet group (private subnets mantidas)
+- `apply_immediately = true` para staging (sem janela de manutenção obrigatória)
+
+### Compatibilidade Validada
+
+| Aplicação | PG16 Compatível | Observação |
+|-----------|----------------|------------|
+| GitLab 17.11.7 | ✅ | Requer PG14+ |
+| GitLab 18.x | ✅ | **Requer PG16+** (motivo do upgrade) |
+| Keycloak 23+ | ✅ | Suporta PG16 |
+| SonarQube Community | ✅ | Suporta PG16 |
+| SCRAM-SHA-256 auth | ✅ | AWS RDS preserva auth method existente |
+
+### Plano de Execução (5 Fases)
+
+#### ETAPA 0 — PRE-CHECK (obrigatório, executor-terraform.md)
+
+```bash
+# 1. Verificar sessão AWS SSO (platform-config.yaml: aws.profile)
+aws sts get-caller-identity
+
+# 2. Confirmar estado real RDS
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-staging-postgresql \
+  --query 'DBInstances[0].{Engine:Engine,Version:EngineVersion,Status:DBInstanceStatus,Class:DBInstanceClass}'
+# Esperado: Engine=postgres, Version=14.8.x
+
+# 3. Verificar upgrade targets disponíveis (confirmar 14→16 direto)
+aws rds describe-db-engine-versions \
+  --engine postgres --engine-version 14.8 \
+  --query 'DBEngineVersions[0].ValidUpgradeTarget[*].{Version:EngineVersion,Auto:AutoUpgrade}'
+
+# 4. Consultar logbook anterior
+# → docs/runbooks/rds-monitoring-alerts-response.md
+# → docs/runbooks/rds-start-stop-operations.md
+```
+
+#### FASE 1 — Snapshot Pré-Upgrade (AWS Specialist)
+
+```bash
+# GOV-002: snapshot obrigatório antes de qualquer upgrade
+aws rds create-db-snapshot \
+  --db-instance-identifier k8s-platform-staging-postgresql \
+  --db-snapshot-identifier infra-002-pre-pg16-upgrade-$(date +%Y%m%d%H%M)
+
+# AML: polling 30s até Status: available
+aws rds describe-db-snapshots \
+  --db-snapshot-identifier "infra-002-pre-pg16-upgrade-*" \
+  --query 'DBSnapshots[0].{Status:Status,GB:AllocatedStorage}'
+```
+
+#### FASE 2 — Terraform Changes (Terraform Specialist)
+
+**Arquivo 1** — `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/main.tf`
+
+Adicionar dentro de `resource "aws_db_instance" "postgresql"` (após `engine_version`):
+
+```hcl
+allow_major_version_upgrade = var.allow_major_version_upgrade
+apply_immediately           = var.apply_immediately
+```
+
+**Arquivo 2** — `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/variables.tf`
+
+```hcl
+variable "allow_major_version_upgrade" {
+  description = "Allow major version upgrade (required for PG major upgrades e.g. 14→16)"
+  type        = bool
+  default     = false
+}
+
+variable "apply_immediately" {
+  description = "Apply immediately (true for staging). false = next maintenance window"
+  type        = bool
+  default     = false
+}
+```
+
+**Arquivo 3** — `platform-provisioning/aws/kubernetes/terraform/environments/staging/main.tf`
+
+No bloco `module "postgresql"`:
+
+```hcl
+allow_major_version_upgrade = true   # INFRA-002: PG14→16, pode remover após upgrade
+apply_immediately           = true   # staging: sem janela de manutenção
+```
+
+**Execução:**
+
+```bash
+cd platform-provisioning/aws/kubernetes/terraform/environments/staging
+
+terraform plan -out=infra-002-pg-upgrade.tfplan \
+  -target=module.postgresql.aws_db_instance.postgresql
+
+# GATE: plan deve mostrar APENAS engine_version update (in-place)
+# NÃO deve mostrar: recreate / destroy / subnet changes
+
+terraform apply infra-002-pg-upgrade.tfplan
+```
+
+#### FASE 3 — AML Monitoring (3 threads paralelos)
+
+```bash
+# Thread 1: terraform apply (background)
+# Thread 2: monitor AWS (15s polling)
+watch -n 15 'aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-staging-postgresql \
+  --query "DBInstances[0].{Status:DBInstanceStatus,Version:EngineVersion}"'
+# Sequência: available → modifying → upgrading → available (~10-20 min)
+
+# Thread 3: monitor K8s (downtime esperado 10-15 min)
+kubectl get pods -n gitlab-staging -w &
+kubectl get pods -n staging-platform-sso -w &
+kubectl get pods -n staging-platform-sonar -w
+```
+
+#### FASE 4 — Validação Pós-Upgrade
+
+```bash
+# 1. Confirmar versão RDS
+aws rds describe-db-instances \
+  --db-instance-identifier k8s-platform-staging-postgresql \
+  --query 'DBInstances[0].EngineVersion'
+# Esperado: "16.4"
+
+# 2. GitLab DB check
+kubectl exec -n gitlab-staging deploy/gitlab-webservice-default -- \
+  gitlab-rake gitlab:check 2>/dev/null | grep -E "Database|Status"
+
+# 3. Keycloak logs (sem erros DB)
+kubectl logs -n staging-platform-sso deploy/keycloak --since=5m | grep -i "error\|database" | tail -10
+
+# 4. SonarQube logs (sem erros DB)
+kubectl logs -n staging-platform-sonar deploy/sonarqube --since=5m | grep -i "error\|database" | tail -10
+
+# 5. Terraform state reconciliado
+terraform show | grep engine_version
+# Esperado: engine_version = "16.4"
+```
+
+**Critérios de sucesso (todos obrigatórios):**
+
+- [ ] RDS: `EngineVersion = "16.4"` + `Status = "available"`
+- [ ] GitLab: pods Running, UI acessível, OIDC funcional
+- [ ] Keycloak: sem erros de DB nos logs pós-upgrade
+- [ ] SonarQube: sem erros de DB nos logs pós-upgrade
+- [ ] Terraform state: `engine_version = "16.4"` reconciliado
+
+#### FASE 5 — Entregáveis & Trigger INFRA-001
+
+```bash
+# Após validação: acionar INFRA-001 Step 5
+helm upgrade gitlab gitlab/gitlab \
+  --version 9.0.x \
+  --namespace gitlab-staging \
+  --reuse-values \
+  --set global.gitlabVersion=18.0.x
+```
+
+### Rollback Plan
+
+| Trigger | Ação |
+|---------|------|
+| RDS stuck `upgrading` > 30 min | `aws rds describe-events --source-identifier k8s-platform-staging-postgresql` |
+| RDS não volta para `available` | `aws rds restore-db-instance-from-db-snapshot --db-snapshot-identifier infra-002-pre-pg16-*` |
+| App quebra por auth SCRAM | Verificar parameter group → `rds.force_ssl=0` temporário + restart pods |
+| Terraform plan mostra `destroy` | **PARAR** — não aplicar, investigar state drift |
+
+**Snapshot de rollback**: `infra-002-pre-pg16-upgrade-<timestamp>` — retido por 7 dias (GOV-002)
+
+### Arquivos a Modificar
+
+| Arquivo | Mudança | Linhas |
+|---------|---------|--------|
+| `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/main.tf` | +2 params: `allow_major_version_upgrade`, `apply_immediately` | ~após L104 |
+| `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/variables.tf` | +2 variáveis bool (default false) | append |
+| `platform-provisioning/aws/kubernetes/terraform/environments/staging/main.tf` | +2 overrides no module postgresql | bloco module |
+| `docs/demands-backlog.md` | INFRA-002 status → ✅ COMPLETO | esta seção |
+
+### Documentos a Criar (STRICT-RULES.md)
+
+| Documento | Localização | Tipo |
+|-----------|-------------|------|
+| `adr-093-rds-postgresql-14-to-16-upgrade.md` | `docs/adr/` | ADR (Doc Specialist) |
+| `<data>-infra-002-rds-pg16-upgrade.md` | `docs/logbook/` | Logbook execução |
+
+### Estimativa de Execução
+
+| Fase | Tempo |
+|------|-------|
+| ETAPA 0 + PRE-CHECK | 5 min |
+| Snapshot pré-upgrade | 5-10 min |
+| TF changes + plan review | 5 min |
+| `terraform apply` (upgrade RDS) | 10-20 min |
+| Validação pós-upgrade | 10 min |
+| Docs background (ADR + logbook) | 15 min |
+| **Total** | **~50-65 min** |
+
+### Riscos & Mitigações
+
+| Risco | Prob | Impacto | Mitigação |
+|-------|------|---------|-----------|
+| AWS não suporta 14→16 direto | Baixa | Médio | ETAPA 0 verifica upgrade targets |
+| Terraform plan mostra recreate | Baixa | Alto | **PARAR** — só apply com in-place change |
+| Downtime > 20 min | Média | Médio | AML monitora + rollback via snapshot |
+| SCRAM-SHA-256 quebra conexão | Baixa | Alto | Logs imediatos + parameter group fix |
+
+### Dependências Pós-INFRA-002
+
+```text
+INFRA-002 ✅ → INFRA-001 Step 5 (chart 9.0.x / v18.0.x)
+              → INFRA-001 Steps 6-8 (v18.1.x → v18.9.1)
+              → GitLab 18.x fully operational
+```
 
 ### Referências
 
-- [GitLab 18.x upgrade guide](https://docs.gitlab.com/charts/installation/upgrade.html)
 - [AWS RDS Major Version Upgrade](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_UpgradeDBInstance.PostgreSQL.html)
-- [PostgreSQL 14→16 migration notes](https://www.postgresql.org/docs/16/upgrading.html)
+- [GitLab 18.x upgrade guide](https://docs.gitlab.com/charts/installation/upgrade.html)
+- [GOV-002](docs/governance/GOV-002-postgresql-governance.md) — PostgreSQL governance
+- [ADR-051](docs/adr/adr-051-postgresql-rds-vs-operator.md) — RDS decision
+- [Runbook RDS](docs/runbooks/rds-monitoring-alerts-response.md) — incident response
+- Módulo TF: `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/`
 
 ---
 
