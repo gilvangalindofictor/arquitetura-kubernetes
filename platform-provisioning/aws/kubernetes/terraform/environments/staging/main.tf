@@ -590,10 +590,10 @@ module "external_secrets_staging" {
   depends_on = [module.vault_staging]
 
   cluster_name      = local.cluster_name
-  namespace         = "external-secrets-system"
-  eso_chart_version = "0.9.11"
+  namespace         = "staging-security-externalsecrets" # DEC-074: migrated from external-secrets-system (2026-03-02)
+  eso_chart_version = "0.12.1"                          # Updated from 0.9.11 to match active Helm release
   replicas          = 1 # Cost-optimized for staging
-  vault_addr        = "http://vault.vault-system.svc.cluster.local:8200"
+  vault_addr        = "http://vault.staging-security-vault.svc.cluster.local:8200" # Updated to canonical vault addr
   enable_monitoring = true
   common_tags       = local.common_tags
 }
@@ -609,7 +609,7 @@ module "vault_config_staging" {
   cluster_name        = local.cluster_name
   kubernetes_host     = data.aws_eks_cluster.cluster.endpoint
   kubernetes_ca_cert  = data.aws_eks_cluster.cluster.certificate_authority[0].data
-  eso_namespace       = "external-secrets-system"
+  eso_namespace       = "staging-security-externalsecrets" # DEC-074: migrated from external-secrets-system (2026-03-02)
   eso_service_account = "external-secrets"
 
   # Keycloak PostgreSQL credentials
