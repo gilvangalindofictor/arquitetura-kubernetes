@@ -619,6 +619,7 @@ annotations:
 - **ADR-002**: Estrutura de Domínios Técnicos (Camada 1)
 - **ADR-048**: Naming Conventions Determinísticas (complementar)
 - **ADR-049**: Governança e RBAC (complementar)
+- **ADR-098**: DNS e Controle de Acesso — Implementação de domínio real alvocard.com.br para staging
 - **Domain-Driven Design (DDD)**: Eric Evans, "Domain-Driven Design: Tackling Complexity in the Heart of Software"
 - **Backstage Documentation**: https://backstage.io/docs/features/software-catalog/
 - **CNCF Recommended Labels**: https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
@@ -643,3 +644,4 @@ annotations:
 6. 📋 Criar estrutura GitLab (`/corporate-domains/`)
 7. 📋 Implementar scripts de validação (`/scripts/governance/`)
 8. 📋 Onboarding de 1ª aplicação por domínio (5 pilotos)
+9. 📋 Implementar DNS real (ADR-098) — Route53 + ACM para `*.staging.alvocard.com.br`
