@@ -187,10 +187,74 @@ Para novos clients:
 
 ---
 
+## Identity Federation — Entra ID (Planejado)
+
+> **Status**: 📝 Planejado (2026-03-03) — INFRA-003
+> **ADRs**: ADR-095, ADR-096, ADR-097
+
+### Arquitetura Futura
+
+```
+Microsoft Entra ID (Corporate Identity Source)
+        │ OIDC v2.0
+        ▼
+Keycloak (Authorization Hub)
+├── Identity Brokering (Entra ID → local user JIT)
+├── Group Sync (Entra ID Security Groups → Keycloak Groups)
+├── Realm Roles (platform-admin, platform-developer, platform-viewer)
+├── Client Roles (per-app: order-manager, report-viewer)
+├── Authorization Services (Resources, Scopes, Policies, Permissions)
+└── Token Enrichment (custom claims: department, cost_center)
+        │
+        ├── OIDC/SAML → Platform Tools (GitLab, ArgoCD, Grafana, etc.)
+        └── AuthZ API (UMA 2.0) → Business Applications
+```
+
+### Princípios de Governança para Federation
+
+1. **Groups = Identidade organizacional** (fonte: Entra ID, sync automático)
+2. **Roles = Permissão técnica** (fonte: Keycloak, gerenciado via Terraform)
+3. **Break-glass accounts**: Manter contas locais com MFA TOTP para emergências
+4. **Session lifetimes**: SSO idle 15min, SSO max 4h (reduzir de 8h para mitigar sync lag)
+5. **Backchannel logout**: Obrigatório em todos os clients OIDC
+6. **Audit logging**: Obrigatório — eventos Keycloak → Loki (BACEN BCB 85/2021)
+7. **Entra ID client secret**: Incluir na rotação trimestral (ADR-083)
+
+### Naming Conventions — Roles
+
+```yaml
+Realm Roles:
+  Formato: {escopo}-{nível}
+  Exemplos: platform-admin, deploy-viewer
+
+Client Roles:
+  Formato: {recurso}-{ação}
+  Exemplos: order-manager, report-exporter
+
+Groups (sync Entra ID):
+  Formato: {equipe}-team
+  Exemplos: platform-team, integration-team, data-team
+```
+
+### Onboarding de Aplicação de Negócio (com Authorization Services)
+
+1. Criar OIDC client com `authorization_services_enabled = true` (Terraform)
+2. Definir Resources (ex: `api:/orders`, `api:/reports`)
+3. Definir Scopes (ex: `read`, `write`, `approve`)
+4. Criar Policies (role-based, group-based, time-based)
+5. Criar Permissions (bind resources + scopes + policies)
+6. App consome via `POST /token` com `grant_type=uma-ticket`
+7. Armazenar client secret no Vault KV `secret/keycloak/{produto}`
+
+---
+
 ## Referências
 
 - [ADR-046: Keycloak SSO Strategy](../adr/adr-046-keycloak-sso-strategy.md)
 - [ADR-055: Disable PKCE ArgoCD](../adr/adr-055-disable-pkce-argocd-v293.md)
+- [ADR-095: Entra ID Identity Federation](../adr/adr-095-entra-id-identity-federation.md)
+- [ADR-096: Keycloak Authorization Services](../adr/adr-096-keycloak-authorization-services.md)
+- [ADR-097: Role vs Group Strategy](../adr/adr-097-role-vs-group-strategy.md)
 - [Bootstrap Guide](../../platform-provisioning/aws/kubernetes/terraform/scripts/keycloak/BOOTSTRAP_GUIDE.md)
 - [Keycloak Client Creation Runbook](../runbooks/keycloak-client-creation.md)
 - [Vendor: Keycloak](../vendor/keycloak.md)

@@ -1,4 +1,4 @@
-# ADR-086: FinOps Node Group Protection
+# ADR-094: FinOps Node Group Protection
 
 **Status**: Accepted
 **Date**: 2026-02-27

@@ -274,28 +274,20 @@ kubectl logs -n velero \
 
 ## 🚨 Known Issues & Blockers
 
-### 1. System Node Group FinOps Automation
+### 1. System Node Group FinOps Automation — ✅ RESOLVIDO (2026-02-28)
 
 **Issue**: System node group scaled to 0 by FinOps automation (discovered 2026-02-27)
 **Impact**: 15 monitoring pods Pending/Unschedulable
-**Resolution**: Scaled to 2 nodes (AÇÃO-004 complete)
-**Follow-up**: Review FinOps Lambda exclusion rules to protect system node group
+**Resolution**: ✅ COMPLETO (2026-02-28) — Lambda protection deployed and tested manually.
+- Lambda `finops_start` + `finops_stop`: `EXCLUDED_NODE_GROUPS=system,critical`
+- `terraform apply`: 2 added, 3 changed, 0 destroyed
+- Logbook: `docs/logbook/2026-02-27-finops-lambda-deploy.md`
 
-**Action Required**:
-```bash
-# Check FinOps Lambda configuration
-aws lambda get-function --function-name eks-cluster-cost-optimizer
-
-# Add exclusion rule for system node group
-# Update Lambda environment variables: EXCLUDED_NODE_GROUPS=system
-```
-
-### 2. Staging Environment Down (2026-02-26)
+### 2. Staging Environment Down (2026-02-26) — ✅ RESOLVIDO (2026-03-02)
 
 **Issue**: Environment offline preventing GAP-011 Linkerd deployment
 **Impact**: All deployment/testing blocked
-**Status**: Waiting for environment to come online
-**ETA**: Unknown
+**Status**: ✅ RESOLVIDO — Ambiente online desde 2026-03-02. GAP-011 Linkerd DEPLOYED (2026-03-03).
 
 ### 3. CloudWatch Datasource for WAF Dashboard
 

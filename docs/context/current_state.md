@@ -8,11 +8,11 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-03-02 (Cluster Remediation: Loki FailedScheduling + Kyverno 100% + External Secrets consolidated + GitLab Runner namespace drift + Terraform KPS state reconciled)
+**Última Atualização**: 2026-03-03 (INFRA-001: GitLab v18.9.1 ✅ | INFRA-002: PostgreSQL 14→16 ✅ | GAP-011: Linkerd DEPLOYED ✅ | CICD-001 a 005: TODOS DEPLOYED ✅ | ADR-098 DNS alvocard.com.br: PLANEJADO)
 
-**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + Enterprise Assessment + Production Roadmap + CI/CD Pipeline Enhancement (CICD-001 a CICD-005)
+**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + CI/CD Enhancement 5/5 DEPLOYED + Infraestrutura Upgrades (GitLab v18.9.1, PostgreSQL 16, Linkerd mTLS) + DNS Demand em planejamento
 
-**Marco Atual**: Marco 4 - CI/CD Platform ✅ **100% COMPLETO** (8/8 GAPs) + FinOps Optimization (90% roadmap, R$ 56.424/ano savings) + Security Remediation (8/8 vulnerabilities FIXED) + **CI/CD Enhancement 5 demandas preparadas**
+**Marco Atual**: Marco 4 - CI/CD Platform ✅ **100% COMPLETO** (8/8 GAPs) + FinOps Optimization (90% roadmap, R$ 56.424/ano savings) + Security Remediation (8/8 vulnerabilities FIXED) + **CI/CD Enhancement 5/5 DEPLOYED** + **INFRA-001/002 COMPLETOS**
 
 **Progresso Geral**: 65% ████████████████████░░░░░░░░ (Marco 0-4 completo, Marco 5 planejamento iniciado)
 
@@ -275,10 +275,10 @@
 
 | Aplicação        | Status        | Versão       | Réplicas                                  | Namespace      | Database                  | Notas                                                     |
 | ---------------- | ------------- | ------------ | ----------------------------------------- | -------------- | ------------------------- | --------------------------------------------------------- |
-| PostgreSQL RDS   | ✅ Operacional | 15.4         | —                                         | —              | db.t3.medium Single-AZ    | Temporariamente em subnet pública (ADR-046)               |
+| PostgreSQL RDS   | ✅ Operacional | **16.4**     | —                                         | —              | db.t3.medium Single-AZ    | Upgraded 14→16 (INFRA-002, 2026-03-03). Subnet privada.  |
 | Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services  | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
 | RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services  | —                         | Official operator                                         |
-| GitLab           | ✅ Operacional | 17.7.0       | Vários                                    | staging-platform-gitlab | PostgreSQL RDS | Webservice Running, Runner Running 0 restarts — CI_SERVER_URL namespace drift DEC-074 fixado (2026-03-02) |
+| GitLab           | ✅ Operacional | **18.9.1** (Chart 9.9.1) | 11 pods (Rev 36)                          | staging-platform-gitlab | PostgreSQL RDS | INFRA-001 COMPLETO (2026-03-03). 9 breaking changes resolvidos. Runner id=115 online. |
 | Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system  | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
 | Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system   | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
 

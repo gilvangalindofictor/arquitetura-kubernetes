@@ -356,12 +356,33 @@ A plataforma Kubernetes precisa de uma solução centralizada de autenticação 
 
 ---
 
+## Future: Identity Federation + Authorization Hub (INFRA-003)
+
+> **Status**: 📝 Planejado (2026-03-03) — Documentação completa, aguardando momento propício
+
+A próxima evolução do Keycloak SSO é a federação com Microsoft Entra ID e a ativação de Authorization Services para aplicações de negócio. Esta evolução está documentada em 3 ADRs complementares:
+
+- **[ADR-095: Entra ID Identity Federation](adr-095-entra-id-identity-federation.md)** — OIDC Brokering com Entra ID como source of identity corporativa. Usuários autenticam via Microsoft 365 credentials, MFA delegado ao Entra ID Conditional Access.
+
+- **[ADR-096: Keycloak Authorization Services](adr-096-keycloak-authorization-services.md)** — Modelo de autorização em 2 camadas: JWT claims (RBAC simples para plataforma) + Authorization Services API (fine-grained ABAC para apps de negócio via UMA 2.0).
+
+- **[ADR-097: Role vs Group Strategy](adr-097-role-vs-group-strategy.md)** — Groups representam identidade organizacional (sync do Entra ID), Roles representam permissão técnica (gerenciados no Keycloak via Terraform).
+
+**Impacto nos clients existentes**: Mínimo — as 6 ferramentas de plataforma ganham login via Microsoft 365 mas mantêm seus RBAC próprios. Authorization Services é para aplicações de negócio.
+
+**Demanda**: [INFRA-003 no demands-backlog.md](../demands-backlog.md)
+
+---
+
 ## Related Decisions
 
 - [ADR-003: Secrets Management Strategy](adr-003-secrets-management-strategy.md)
 - [ADR-004: Terraform vs Helm](adr-004-terraform-vs-helm-for-platform-services.md)
 - [ADR-006: Network Policies](adr-006-network-policies-strategy.md)
 - [ADR-042: Tolerations Pattern](adr-042-tolerations-for-critical-workloads.md)
+- [ADR-095: Entra ID Identity Federation](adr-095-entra-id-identity-federation.md)
+- [ADR-096: Keycloak Authorization Services](adr-096-keycloak-authorization-services.md)
+- [ADR-097: Role vs Group Strategy](adr-097-role-vs-group-strategy.md)
 
 ---
 
