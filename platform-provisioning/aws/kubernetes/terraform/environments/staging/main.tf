@@ -188,6 +188,12 @@ module "postgresql_staging" {
   multi_az              = false                                # DT-004: Single-AZ accepted for staging (FinOps)
   common_tags           = local.common_tags
 
+  # INFRA-002: PostgreSQL 14→16 major version upgrade (pre-req GitLab 18.x)
+  # These flags enable in-place major version upgrade during terraform apply.
+  # After successful upgrade, set both back to false to prevent accidental upgrades.
+  allow_major_version_upgrade = true
+  apply_immediately           = true
+
   # RDS was recreated on 2026-02-09 outside TF with a different master password.
   # This override uses the actual SM password so the PostgreSQL provider can connect.
   master_password_override = data.aws_secretsmanager_secret_version.rds_actual_master.secret_string
@@ -2406,10 +2412,9 @@ module "waf_staging" {
 #   linkerd tap deploy/<app> -n ipaas
 #------------------------------------------------------------------------------
 
-# TEMPORARILY DISABLED (2026-02-26) — GAP-011 Linkerd Module
-# Blocker: modules/linkerd/main.tf uses file() in data block (always evaluated even with count=0)
-# Missing files: modules/linkerd/dashboards/*.json (4 files)
-# Created: TASK-XXX to fix file() bug (use try(file(), null) or dynamic block)
+# GAP-011 Linkerd Module — RE-ENABLED (2026-03-03)
+# Blocker RESOLVED: 4 dashboard JSON files created (linkerd-top-line, service-mesh, deployment, namespace)
+# Original blocker: file() always evaluated even with count=0 — now resolved (files exist)
 #------------------------------------------------------------------------------
 # CICD-003: Automated Secret Rotation (ADR-083)
 # Quarterly CronJob that rotates PostgreSQL, Keycloak, Harbor and OIDC secrets.
@@ -2443,60 +2448,59 @@ module "secret_rotation" {
   log_level = "INFO"
 }
 
-# Re-enable after: dashboards downloaded OR module fixed
-#
-# module "linkerd" {
-#   source = "../../modules/linkerd"
-#
-#   cluster_name = local.cluster_name
-#   environment  = local.environment
-#   common_tags  = local.common_tags
-#
-#   # --- Versoes Helm (stable-2.16.x channel) ---
-#   # Verificar versoes atuais em: https://artifacthub.io/packages/helm/linkerd2
-#   linkerd_crds_chart_version = "1.8.0"
-#   linkerd_version            = "1.16.11"
-#   linkerd_viz_chart_version  = "30.12.11"
-#
-#   # --- PKI (TLS provider — auto-gerado pelo Terraform) ---
-#   # trust_anchor: root CA, validade 365 dias (renovar antes do vencimento)
-#   # issuer: intermediario, assina certs de workload (24h TTL, auto-rotacao)
-#   trust_domain              = "cluster.local"
-#   certificate_validity_days = 365
-#
-#   # --- Proxy Resources (staging: limites minimos) ---
-#   proxy_cpu_request    = "100m"
-#   proxy_memory_request = "64Mi"
-#   proxy_cpu_limit      = "500m"
-#   proxy_memory_limit   = "256Mi"
-#
-#   # --- HA Mode ---
-#   # staging: false (1 replica por componente, sem PDB)
-#   # production: true (3 replicas, PodDisruptionBudgets habilitados)
-#   ha_mode = false
-#
-#   # --- Viz Extension ---
-#   # Usa Prometheus externo (kube-prometheus-stack) — NAO sobe instancia proprio
-#   enable_viz              = true
-#   viz_prometheus_enabled  = false
-#   external_prometheus_url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
-#
-#   # --- Grafana Dashboards ---
-#   # Desabilitado ate que os JSONs sejam baixados em modules/linkerd/dashboards/
-#   # Ver README: modules/linkerd/README.md#integracao-grafana
-#   enable_grafana_dashboards = false
-#
-#   # --- Jaeger / Tracing ---
-#   # Desabilitado em staging (OpenTelemetry Collector ja existe em monitoring)
-#   # Para habilitar: enable_jaeger=true e configurar collector_backend_addr
-#   enable_jaeger = false
-#
-#   # --- Opt-in Proxy Injection por Namespace ---
-#   # Apenas namespaces listados recebem inject automatico de sidecar.
-#   # Adicionar namespace novo: incluir aqui + fazer rolling restart dos pods:
-#   #   kubectl rollout restart deployment -n <namespace>
-#   proxy_inject_namespaces = [
-#     "ipaas",        # iPaaS core services — principal escopo GAP-011
-#     "integration",  # Integration workers (consumers RabbitMQ, etc.)
-#   ]
-# }
+# Re-enabled (2026-03-03) — Dashboard blocker resolved
+module "linkerd" {
+  source = "../../modules/linkerd"
+
+  cluster_name = local.cluster_name
+  environment  = local.environment
+  common_tags  = local.common_tags
+
+  # --- Versoes Helm (stable-2.16.x channel) ---
+  # Verificar versoes atuais em: https://artifacthub.io/packages/helm/linkerd2
+  linkerd_crds_chart_version = "1.8.0"
+  linkerd_version            = "1.16.11"
+  linkerd_viz_chart_version  = "30.12.11"
+
+  # --- PKI (TLS provider — auto-gerado pelo Terraform) ---
+  # trust_anchor: root CA, validade 365 dias (renovar antes do vencimento)
+  # issuer: intermediario, assina certs de workload (24h TTL, auto-rotacao)
+  trust_domain              = "cluster.local"
+  certificate_validity_days = 365
+
+  # --- Proxy Resources (staging: limites minimos) ---
+  proxy_cpu_request    = "100m"
+  proxy_memory_request = "64Mi"
+  proxy_cpu_limit      = "500m"
+  proxy_memory_limit   = "256Mi"
+
+  # --- HA Mode ---
+  # staging: false (1 replica por componente, sem PDB)
+  # production: true (3 replicas, PodDisruptionBudgets habilitados)
+  ha_mode = false
+
+  # --- Viz Extension ---
+  # Usa Prometheus externo (kube-prometheus-stack) — NAO sobe instancia proprio
+  enable_viz              = true
+  viz_prometheus_enabled  = false
+  external_prometheus_url = "http://kube-prometheus-stack-prometheus.staging-observability-monitoring.svc.cluster.local:9090"
+
+  # --- Grafana Dashboards ---
+  # ENABLED (2026-03-03) — 4 dashboard JSONs created (top-line, service-mesh, deployment, namespace)
+  enable_grafana_dashboards       = true
+  grafana_dashboard_namespace     = "staging-observability-monitoring"
+
+  # --- Jaeger / Tracing ---
+  # Desabilitado em staging (OpenTelemetry Collector ja existe em monitoring)
+  # Para habilitar: enable_jaeger=true e configurar collector_backend_addr
+  enable_jaeger = false
+
+  # --- Opt-in Proxy Injection por Namespace ---
+  # Namespaces para inject automatico de sidecar Linkerd.
+  # NOTA: Namespaces devem existir no cluster antes de serem listados aqui.
+  # Adicionar namespace novo: incluir aqui + fazer rolling restart dos pods:
+  #   kubectl rollout restart deployment -n <namespace>
+  # Habilitado quando namespaces ipaas/integration forem criados:
+  #   proxy_inject_namespaces = ["staging-integration-ipaas", "staging-integration-workers"]
+  proxy_inject_namespaces = []
+}

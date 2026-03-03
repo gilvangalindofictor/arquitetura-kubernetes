@@ -1,6 +1,7 @@
 # ADR-081: SAST/DAST Pipeline Enforcement Strategy (CICD-001)
 
 **Data**: 2026-02-26
+**Atualizado**: 2026-03-03 — SonarQube 10.x API compatibility fix (gateId -> gateName)
 **Status**: Proposto
 **Decisor**: Platform SRE Team
 **Contexto**: CICD-001 — Security scanning enforcement in GitLab CI/CD pipelines
@@ -94,6 +95,24 @@ GitLab MR Push
 - Evita custo de tool adicional
 - Quality Gate "Platform Security Gate" criado via API (script configure-blocking.sh)
 
+**SonarQube 10.x API Compatibility (2026-03-03 fix)**:
+
+SonarQube 10.x introduced breaking changes to the Quality Gate API parameters.
+The `configure-blocking.sh` script was updated to use the v10.x API exclusively:
+
+| API Endpoint | v9.x Parameter | v10.x Parameter (current) |
+|---|---|---|
+| `qualitygates/create_condition` | `gateId=<numeric-id>` | `gateName=<gate-name>` |
+| `qualitygates/set_as_default` | `id=<numeric-id>` | `name=<gate-name>` |
+| `qualitygates/show` | `id=<numeric-id>` | `name=<gate-name>` |
+
+The script now:
+- Detects SonarQube version at startup and aborts if < 10.x
+- Uses `gateName`/`name` parameters throughout (not `gateId`/`id`)
+- Properly URL-encodes the gate name for API calls
+- Validates curl responses with proper error handling
+- Is fully idempotent (removes existing conditions before re-creating)
+
 **Condições de bloqueio (Quality Gate)**:
 | Métrica | Threshold | Tipo |
 |---|---|---|
@@ -104,10 +123,11 @@ GitLab MR Push
 | New Reliability Rating | > A | BLOCKING |
 | New Security Rating | > A | BLOCKING |
 | New Code Smells | > 20 | WARNING (informativo) |
+| New Duplicated Lines | > 5% | WARNING (informativo) |
 
 **Alternativas rejeitadas**:
 - Semgrep: Requer deployment adicional; SonarQube já cobre o caso de uso
-- Checkmarx/Veracode: Custo SaaS — contrário à estratégia on-premises
+- Checkmarx/Veracode: Custo SaaS — contrario a estrategia on-premises
 
 ### 2. Container Scan — `aquasec/trivy:0.50.0`
 
@@ -359,10 +379,12 @@ Manter scanners não-bloqueantes mas alertar no Slack/PagerDuty.
    ```bash
    kubectl apply -f domains/observability/infra/alerts/cicd-security-prometheus-rules.yaml
    ```
-2. Configurar SonarQube Quality Gate:
+2. Configurar SonarQube Quality Gate (SonarQube 10.x API - gateName):
    ```bash
    SONAR_TOKEN=<token> ./scripts/sonarqube/configure-blocking.sh
    ```
+   Note: Script updated 2026-03-03 for SonarQube 10.x compatibility.
+   Uses `gateName`/`name` parameters (not `gateId`/`id` from v9.x).
 3. Configurar Harbor Trivy:
    ```bash
    HARBOR_ADMIN_PASSWORD=<pass> ./scripts/harbor/configure-trivy-blocking.sh
@@ -412,4 +434,5 @@ Manter scanners não-bloqueantes mas alertar no Slack/PagerDuty.
 
 **Implementado por**: Platform SRE Team
 **Data**: 2026-02-26
+**Atualizado**: 2026-03-03 — SonarQube 10.x API fix (gateId -> gateName/name)
 **Status**: Artefatos prontos — aguardando cluster UP para deploy

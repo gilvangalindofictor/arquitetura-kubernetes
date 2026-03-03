@@ -67,6 +67,24 @@ spec:
       - resources:
           kinds:
           - Namespace
+    exclude:
+      any:
+      - resources:
+          names:
+          # System namespaces (Kubernetes built-in)
+          - kube-system
+          - kube-public
+          - kube-node-lease
+          - default
+          # Infrastructure namespaces (pre-existing, non-corporate naming)
+          - cert-manager
+          - kyverno
+          - velero
+          - argocd-test
+          # Linkerd Service Mesh (GAP-011) — upstream Helm charts require these exact names
+          - linkerd
+          - linkerd-viz
+          - linkerd-jaeger
     validate:
       message: |
         ❌ Namespace naming violado (ADR-048).

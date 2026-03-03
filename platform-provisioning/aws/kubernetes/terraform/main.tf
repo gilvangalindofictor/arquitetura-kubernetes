@@ -92,3 +92,69 @@ module "argo_rollouts" {
   # Uncomment when argocd module is added to this file:
   # depends_on = [module.argocd]
 }
+
+# =============================================================================
+# DR Multi-Region — GAP-012 Phase 2 (ADR-090)
+# =============================================================================
+# Provisions VPC + RDS read replica in us-west-2 for disaster recovery.
+# Phase 1 (S3 CRR + Velero) is deployed via velero-dr module.
+#
+# >>> Uncomment when us-west-2 VPC approved by CTO <<<
+# >>> Prerequisites: Review ADR-090, confirm CIDR allocation, cost approval <<<
+#
+# provider "aws" {
+#   alias  = "dr"
+#   region = "us-west-2"
+#
+#   default_tags {
+#     tags = {
+#       Project      = "kubernetes-platform"
+#       ManagedBy    = "terraform"
+#       Repository   = "platform-provisioning-aws"
+#       Provisioning = "dr-multi-region"
+#     }
+#   }
+# }
+#
+# module "dr_multi_region" {
+#   source = "./modules/dr-multi-region"
+#
+#   providers = {
+#     aws    = aws
+#     aws.dr = aws.dr
+#   }
+#
+#   cluster_name         = var.cluster_name
+#   environment          = "staging"
+#   primary_region       = "us-east-1"
+#   dr_region            = "us-west-2"
+#
+#   # DR VPC — 10.1.0.0/16 (non-overlapping with primary 10.0.0.0/16)
+#   dr_vpc_cidr          = "10.1.0.0/16"
+#   enable_nat_gateway   = false  # Enable when EKS DR cluster is deployed
+#
+#   # VPC Peering — primary <-> DR
+#   enable_vpc_peering   = true
+#   primary_vpc_id       = module.vpc.vpc_id
+#   primary_vpc_cidr     = "10.0.0.0/16"
+#
+#   # RDS Read Replica — cross-region PostgreSQL
+#   enable_rds_replica       = true
+#   source_db_identifier     = "k8s-platform-prod-postgresql"
+#   replica_instance_class   = "db.t4g.medium"
+#   replica_max_allocated_storage   = 100
+#   replica_backup_retention_period = 7
+#
+#   # Monitoring
+#   enable_cloudwatch_alarms = true
+#   create_sns_topic         = true
+#   alert_email              = "gilvan.galindo@fctconsig.com.br"
+#
+#   common_tags = {
+#     GAP         = "GAP-012"
+#     Phase       = "Phase-2"
+#     Environment = "staging"
+#   }
+#
+#   depends_on = [module.vpc, module.eks]
+# }

@@ -276,44 +276,44 @@ output "waf_rules_summary" {
 
 #------------------------------------------------------------------------------
 # GAP-011: Linkerd Service Mesh Outputs
-# TEMPORARILY DISABLED (2026-02-26) — module.linkerd commented in main.tf
+# RE-ENABLED (2026-03-03) — dashboard blocker resolved, module uncommented
 #------------------------------------------------------------------------------
-#
-# output "linkerd_namespace" {
-#   description = "Kubernetes namespace where the Linkerd control plane is deployed."
-#   value       = module.linkerd.linkerd_namespace
-# }
-#
-# output "linkerd_viz_url" {
-#   description = "Internal cluster URL for the Linkerd dashboard (port-forward to access)."
-#   value       = module.linkerd.linkerd_viz_url
-# }
-#
-# output "linkerd_tap_api_url" {
-#   description = "Internal cluster URL for the Linkerd Tap API (real-time L7 traffic inspection)."
-#   value       = module.linkerd.linkerd_tap_api_url
-# }
-#
-# output "linkerd_proxy_injector_webhook_url" {
-#   description = "Internal URL of the Linkerd proxy-injector MutatingWebhookConfiguration endpoint."
-#   value       = module.linkerd.linkerd_proxy_injector_webhook_url
-# }
-#
-# output "linkerd_trust_anchor_certificate" {
-#   description = "PEM-encoded Linkerd trust anchor certificate. SENSITIVE — store in Vault at secret/linkerd/pki."
-#   value       = module.linkerd.trust_anchor_certificate
-#   sensitive   = true
-# }
-#
-# output "linkerd_control_plane_version" {
-#   description = "Deployed Linkerd control-plane Helm chart version."
-#   value       = module.linkerd.linkerd_control_plane_version
-# }
-#
-# output "linkerd_proxy_injected_namespaces" {
-#   description = "List of namespaces annotated for automatic Linkerd proxy injection."
-#   value       = module.linkerd.proxy_injected_namespaces
-# }
+
+output "linkerd_namespace" {
+  description = "Kubernetes namespace where the Linkerd control plane is deployed."
+  value       = module.linkerd.linkerd_namespace
+}
+
+output "linkerd_viz_url" {
+  description = "Internal cluster URL for the Linkerd dashboard (port-forward to access)."
+  value       = module.linkerd.linkerd_viz_url
+}
+
+output "linkerd_tap_api_url" {
+  description = "Internal cluster URL for the Linkerd Tap API (real-time L7 traffic inspection)."
+  value       = module.linkerd.linkerd_tap_api_url
+}
+
+output "linkerd_proxy_injector_webhook_url" {
+  description = "Internal URL of the Linkerd proxy-injector MutatingWebhookConfiguration endpoint."
+  value       = module.linkerd.linkerd_proxy_injector_webhook_url
+}
+
+output "linkerd_trust_anchor_certificate" {
+  description = "PEM-encoded Linkerd trust anchor certificate. SENSITIVE — store in Vault at secret/linkerd/pki."
+  value       = module.linkerd.trust_anchor_certificate
+  sensitive   = true
+}
+
+output "linkerd_control_plane_version" {
+  description = "Deployed Linkerd control-plane Helm chart version."
+  value       = module.linkerd.linkerd_control_plane_version
+}
+
+output "linkerd_proxy_injected_namespaces" {
+  description = "List of namespaces annotated for automatic Linkerd proxy injection."
+  value       = module.linkerd.proxy_injected_namespaces
+}
 
 #------------------------------------------------------------------------------
 # Argo Rollouts Outputs (CICD-005)
