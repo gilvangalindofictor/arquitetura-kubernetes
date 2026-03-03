@@ -98,6 +98,26 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.environment
   }
 
+  set {
+    name  = "prometheusOperator.podLabels.domain"
+    value = var.domain
+  }
+
+  set {
+    name  = "prometheusOperator.podLabels.owner"
+    value = var.owner
+  }
+
+  set {
+    name  = "prometheusOperator.podLabels.environment"
+    value = var.environment
+  }
+
+  set {
+    name  = "prometheusOperator.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   # nodeSelector removido: pods podem escalar em qualquer node disponível
   # (fix 2026-02-18: system nodes 17/17 pods bloqueavam scheduling)
 
@@ -800,6 +820,47 @@ resource "kubectl_manifest" "grafana_admin_externalsecret" {
       ]
     }
   })
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# -----------------------------------------------------------------------------
+# GAP-A: Grafana CloudWatch Datasource — ConfigMap (WAF Observability)
+# Resolve GAP-A: CloudWatch datasource para WAF Dashboard (AÇÃO-007)
+# Sidecar pattern: label grafana_datasource=1 → grafana-sc-datasources auto-reloads
+# authType=default → usa instance profile do node (CloudWatchReadForYACE IAM policy)
+# Deployed: 2026-03-03 — kubectl apply (Grafana sidecar confirmed: 200 OK reload)
+# -----------------------------------------------------------------------------
+
+resource "kubernetes_config_map" "grafana_datasource_cloudwatch" {
+  metadata {
+    name      = "grafana-datasource-cloudwatch"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+    labels = {
+      "grafana_datasource"        = "1"
+      "app.kubernetes.io/name"    = "grafana"
+      "app.kubernetes.io/part-of" = "observability"
+      "domain"                    = var.domain
+      "owner"                     = var.owner
+      "environment"               = var.environment
+    }
+  }
+
+  data = {
+    "cloudwatch-datasource.yaml" = <<-YAML
+      apiVersion: 1
+      datasources:
+        - name: CloudWatch
+          type: cloudwatch
+          uid: cloudwatch
+          access: proxy
+          jsonData:
+            authType: default
+            defaultRegion: us-east-1
+          isDefault: false
+          editable: true
+    YAML
+  }
 
   depends_on = [kubernetes_namespace.monitoring]
 }

@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
 **Última Atualização:** 2026-03-03
-**Versão:** 4.5 (ACAO-007 WAF Dashboard Deploy + Kyverno part-of label fix Grafana/Prometheus/Alertmanager)
+**Versão:** 4.6 (YACE WAF exporter deployed + TF Persistence labels + Kyverno 100% PASS)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---

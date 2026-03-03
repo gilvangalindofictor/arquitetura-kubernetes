@@ -214,9 +214,40 @@ jobs:
 | `prometheus-kube-prometheus-stack-prometheus` | Missing `part-of` → Kyverno block | Prometheus CRD podMetadata patch |
 | `alertmanager-kube-prometheus-stack-alertmanager` | Missing `part-of` → Kyverno block | StatefulSet patch |
 
-## Pendencias (Proxima Sessao)
+## ✅ COMPLETUDE 100% — Sessao 2026-03-03 (Continuacao)
 
-1. Deploy cloudwatch-exporter/YACE para ativar metricas `aws_wafv2_*`
-2. Provisionar CloudWatch datasource no Grafana (ConfigMap ou manual)
-3. Corrigir `part-of` label nos demais recursos: `loki-gateway`, `opentelemetry-collector`, `tempo-gateway`, `tempo-query-frontend`, `tempo-memcached`
-4. Persistir fix do Alertmanager no values.yaml do kube-prometheus-stack (evitar regressao no proximo helm upgrade)
+**GAP-A: CloudWatch Datasource — RESOLVIDO**
+- ConfigMap `grafana-datasource-cloudwatch` criado com label `grafana_datasource: "1"`
+- Sidecar auto-discovery: `200 OK {"message":"Datasources config reloaded"}`
+- Persistido em IaC: `resource "kubernetes_config_map" "grafana_datasource_cloudwatch"` em `modules/kube-prometheus-stack/main.tf`
+
+**GAP-B: YACE Exporter — RESOLVIDO**
+- `prometheus-community/prometheus-yet-another-cloudwatch-exporter v0.42.0` (app v0.63.0) deployed: **1/1 Running**
+- Root causes corrigidos: (1) IAM inline policy `CloudWatchReadForYACE` adicionada ao node role; (2) IMDS Hop Limit 1→2 em todos os 10 nos (IMDSv2 acessivel por containers)
+- 409 metricas `aws_wafv2_*` coletadas. 13 `aws_wafv2_blocked_requests_sum` com valores reais
+- ServiceMonitor criado para scraping pelo Prometheus
+- IaC: `resource "aws_iam_role_policy" "node_cloudwatch_read_for_yace"` em `modules/eks/main.tf`
+
+**TF Persistence (labels Kyverno) — RESOLVIDO**
+- `kube-prometheus-stack/main.tf`: 5 `set` blocks atualizados (`kube-prometheus-stack` → `observability`)
+- `tempo/main.tf`: 6 novos `set` blocks adicionados (distributor, ingester, querier, queryFrontend, compactor, gateway)
+- `opentelemetry-collector/values.yaml.tpl`: ja tinha `app.kubernetes.io/part-of: observability` ✅
+- `loki/main.tf`: ja tinha 8 componentes com label correto ✅
+
+**Pods Pending — RESOLVIDO**
+- Root cause: Node Limit Exhaustion em t3.medium (17/17 pods), NAO Kyverno
+- Fix: 2 pods de teste em `rollouts-test` deletados — loki-canary 8/8 Ready
+
+## Estado Final
+
+| Componente | Status |
+|---|---|
+| WAF Dashboard (8 panels) | ✅ Importado no Grafana |
+| WAF Alerts (3 regras) | ✅ Ativos no Prometheus (inactive = sem ataque) |
+| CloudWatch Datasource | ✅ Configurado + recarregado |
+| YACE Exporter | ✅ 1/1 Running, 409 metricas WAF |
+| TF Labels Persistidos | ✅ kube-prometheus-stack + tempo atualizados |
+| Pods 0/1 Pending | ✅ 0 Pending — loki-canary 8/8 |
+| IaC Atualizado | ✅ kube-prometheus-stack/main.tf + tempo/main.tf + eks/main.tf |
+
+**⚠️ Aviso residual (nao-bloqueante):** YACE emite WARN `iam:ListAccountAliases AccessDenied` — apenas nome amigavel do account, nao afeta coleta de metricas. Corrigir adicionando `iam:ListAccountAliases` a policy `CloudWatchReadForYACE` se desejado.

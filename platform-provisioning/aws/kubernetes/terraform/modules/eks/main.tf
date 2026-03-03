@@ -171,6 +171,39 @@ resource "aws_iam_role_policy_attachment" "node_AmazonSSMManagedInstanceCore" {
   role       = aws_iam_role.node_group.name
 }
 
+# -----------------------------------------------------------------------------
+# GAP-B: CloudWatch Read Policy para YACE (WAF Observability)
+# Resolve GAP-B: YACE exporter precisa de permissões CloudWatch + WAFv2
+# authType=default → usa instance profile → requer esta policy no node role
+# Applied: 2026-03-03 (inline via AWS CLI, agora IaC)
+# ATENÇÃO: IMDSv2 hop_limit=2 também necessário (aplicado em todos os 10 nodes)
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "node_cloudwatch_read_for_yace" {
+  name = "CloudWatchReadForYACE"
+  role = aws_iam_role.node_group.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CloudWatchReadForYACE"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:GetMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics",
+          "tag:GetResources",
+          "wafv2:ListWebACLs",
+          "wafv2:GetWebACL",
+          "wafv2:ListTagsForResource"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # EKS Node Groups
 resource "aws_eks_node_group" "main" {
   for_each = var.node_groups

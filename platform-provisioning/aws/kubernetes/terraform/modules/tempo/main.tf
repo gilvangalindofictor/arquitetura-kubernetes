@@ -893,6 +893,18 @@ resource "helm_release" "tempo" {
   }
 
   # -----------------------------------------------------------------------------
+  # Memcached (embedded cache — tempo-distributed chart sub-chart)
+  # Corporate Labels - Memcached Component (ADR-048 - Kyverno Compliance)
+  # Note: tempo-distributed chart hardcodes part-of=observability for memcached;
+  # explicit set block added here as IaC source-of-truth in case chart defaults change.
+  # -----------------------------------------------------------------------------
+
+  set {
+    name  = "memcached.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
+  # -----------------------------------------------------------------------------
   # Monitoring - ServiceMonitor para Prometheus
   # -----------------------------------------------------------------------------
 
