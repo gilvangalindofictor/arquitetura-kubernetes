@@ -191,7 +191,7 @@ variable "proxy_inject_namespaces" {
 
 variable "enable_grafana_dashboards" {
   description = <<-EOT
-    Deploy Linkerd Grafana dashboards into the 'monitoring' namespace as a
+    Deploy Linkerd Grafana dashboards into the monitoring namespace as a
     ConfigMap (auto-discovered by kube-prometheus-stack sidecar).
 
     Requires dashboard JSON files to be present under modules/linkerd/dashboards/.
@@ -204,4 +204,10 @@ variable "enable_grafana_dashboards" {
   EOT
   type        = bool
   default     = false
+}
+
+variable "grafana_dashboard_namespace" {
+  description = "Kubernetes namespace where Grafana dashboards ConfigMap is deployed (must match kube-prometheus-stack namespace)."
+  type        = string
+  default     = "monitoring"
 }

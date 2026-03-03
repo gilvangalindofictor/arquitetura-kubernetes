@@ -36,8 +36,25 @@
 #   - Harbor admin credentials
 #   - Trivy scanner already integrated in Harbor (default since Harbor 2.x)
 #
+# OIDC Auth Note (2026-03-03):
+#   When Harbor is in oidc_auth mode (Keycloak), the K8s secret
+#   harbor-admin-credentials may NOT work for all API endpoints.
+#   The correct admin password is the one set in the harbor-core pod env
+#   (HARBOR_ADMIN_PASSWORD). To retrieve it:
+#     kubectl exec -n harbor-system deploy/harbor-core -- \
+#       printenv HARBOR_ADMIN_PASSWORD
+#   Alternatively, run API calls from inside the cluster:
+#     kubectl exec -n harbor-system deploy/harbor-core -- \
+#       curl -s -u "admin:$PASS" http://harbor-core/api/v2.0/projects
+#
+# Applied Configuration (2026-03-03):
+#   - Trivy Scanner registered: uuid=82288804-170d-11f1-81cb-3a77f7c3897a
+#   - 5 projects configured: library, infrastructure, microservices,
+#     platform-apps, root (auto_scan=true, prevent_vul=true, severity=high)
+#   - Daily scan-all schedule: cron 0 0 0 * * * (midnight UTC)
+#
 # Author: Platform SRE Team
-# Date: 2026-02-26
+# Date: 2026-02-26 (updated 2026-03-03)
 # Demand: CICD-001
 # =============================================================================
 
