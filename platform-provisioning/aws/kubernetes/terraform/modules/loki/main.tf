@@ -251,6 +251,11 @@ resource "helm_release" "loki" {
     value = var.environment
   }
 
+  set {
+    name  = "global.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   # -----------------------------------------------------------------------------
   # Loki Configuration
   # -----------------------------------------------------------------------------
@@ -390,6 +395,11 @@ resource "helm_release" "loki" {
   }
 
   set {
+    name  = "read.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
+  set {
     name  = "read.resources.requests.cpu"
     value = "100m"
   }
@@ -472,6 +482,11 @@ resource "helm_release" "loki" {
   set {
     name  = "write.podLabels.environment"
     value = var.environment
+  }
+
+  set {
+    name  = "write.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   set {
@@ -575,6 +590,11 @@ resource "helm_release" "loki" {
   }
 
   set {
+    name  = "backend.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
+  set {
     name  = "backend.resources.requests.cpu"
     value = "100m"
   }
@@ -672,6 +692,11 @@ resource "helm_release" "loki" {
   set {
     name  = "gateway.podLabels.environment"
     value = var.environment
+  }
+
+  set {
+    name  = "gateway.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   set {
@@ -802,6 +827,11 @@ resource "helm_release" "loki" {
   set {
     name  = "lokiCanary.podLabels.environment"
     value = var.environment
+  }
+
+  set {
+    name  = "lokiCanary.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   # -----------------------------------------------------------------------------

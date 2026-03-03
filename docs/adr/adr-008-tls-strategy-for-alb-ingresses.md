@@ -446,6 +446,7 @@ variable "test_apps_enable_tls" {
 - [ADR-002: Estrutura de Domínios](adr-002-estrutura-de-dominios.md)
 - [ADR-003: Secrets Management](adr-003-secrets-management-strategy.md)
 - [ADR-004: Terraform vs Helm](adr-004-terraform-vs-helm-for-platform-services.md)
+- [ADR-098: DNS e Controle de Acesso Staging](adr-098-dns-access-control-staging-alvocard.md)
 
 ---
 

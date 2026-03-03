@@ -75,3 +75,15 @@ variable "deletion_protection" {
   type        = bool
   default     = false
 }
+
+variable "allow_major_version_upgrade" {
+  description = "Allow major version upgrades for RDS instance (INFRA-002). Required for PostgreSQL 14→16 upgrade. Set to true only during planned upgrade windows."
+  type        = bool
+  default     = false
+}
+
+variable "apply_immediately" {
+  description = "Apply RDS modifications immediately instead of during next maintenance window (INFRA-002). Set to true only during planned upgrade windows to avoid unexpected downtime."
+  type        = bool
+  default     = false
+}

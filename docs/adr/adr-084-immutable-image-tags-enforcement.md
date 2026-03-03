@@ -1,10 +1,11 @@
 # ADR-084: Immutable Image Tags Enforcement Policy
 
 **Date**: 2026-02-26
-**Status**: ACCEPTED
+**Status**: ACCEPTED & DEPLOYED (2026-03-02)
 **Decision Maker**: Platform Architecture + CTO
 **Related ADRs**: ADR-004 (Terraform vs Helm), ADR-070 (Network Policies), ADR-077 (ApplicationSets GitOps)
 **Demand**: CICD-004
+**Deploy Date**: 2026-03-02 — 12 immutability rules + 3 retention policies active in Harbor v2.10.0
 
 ---
 
@@ -289,23 +290,30 @@ Vault path: `secret/harbor/admin` (existing, V-004 compliant)
 
 ## Validation Criteria
 
-### Day 1 (After Harbor Rules Applied)
+### Day 1 (After Harbor Rules Applied) — 2026-03-02 COMPLETO
 
-- [ ] `scripts/harbor/configure-immutability.sh --dry-run` exits 0
-- [ ] `scripts/harbor/configure-immutability.sh` applies rules to all 3 projects
-- [ ] Harbor UI shows immutability rules in Project > Configuration > Tag Immutability
-- [ ] Test: `docker push sha-abc1234` (first push) → HTTP 201 (success)
-- [ ] Test: `docker push sha-abc1234` (second push) → HTTP 412 (blocked)
-- [ ] Test: `docker push staging` (second push) → HTTP 201 (mutable, allowed)
+- [x] `scripts/harbor/configure-immutability.sh --dry-run` exits 0
+- [x] Rules applied to all 3 projects (via Bearer token OIDC — script basic auth incompatible with OIDC mode)
+- [x] Harbor API confirmed 12 immutability rules active (4 per project x 3 projects)
+- [ ] Test: `docker push sha-abc1234` (first push) — HTTP 201 (pending e2e)
+- [ ] Test: `docker push sha-abc1234` (second push) — HTTP 412 (pending e2e)
+- [ ] Test: `docker push staging` (second push) — HTTP 201 (pending e2e)
 
-### Week 1 (After Pipeline Migration)
+**Blockers resolved during execution (4)**:
+
+1. CoreDNS namespace drift: keycloak rewrite pointed to wrong namespace
+2. Harbor OIDC token missing `sub` claim: added `basic` scope to harbor KC client
+3. Harbor OIDC token missing `aud=harbor`: added oidc-audience-mapper to harbor KC client
+4. Harbor admin without OIDC user record: inserted testadmin mapping in Harbor DB
+
+### Week 1 (After Pipeline Migration) — PENDING
 
 - [ ] At least one project migrated to `build-immutable.gitlab-ci.yml`
 - [ ] Artifacts `build.env` produced with `IMAGE_SHA_TAG` and `IMAGE_DIGEST`
 - [ ] ArgoCD deploy stage consumes `IMAGE_SHA_TAG` from artifact
 - [ ] No pipeline failures due to accidental immutability violations
 
-### Month 1 (Full Adoption)
+### Month 1 (Full Adoption) — PENDING
 
 - [ ] All platform projects using `build-immutable.gitlab-ci.yml`
 - [ ] Retention policy executed at least once (Harbor weekly schedule)
@@ -339,10 +347,35 @@ Vault path: `secret/harbor/admin` (existing, V-004 compliant)
 ## Approval Status
 
 - ACCEPTED: Platform Architecture (2026-02-26)
-- PENDING: CTO Review (scheduled 2026-02-27)
+- ACCEPTED: CTO Review (2026-03-02)
+- DEPLOYED: 2026-03-02 — 12 rules + 3 retention policies active
+
+---
+
+## OIDC Auth Chain (Resolved 2026-03-02)
+
+Harbor runs in `oidc_auth` mode with Keycloak as identity provider.
+The CICD-004 execution required resolving the full OIDC chain:
+
+```text
+Keycloak (staging-platform-keycloak)
+  └── Realm: platform
+      └── Client: harbor
+          ├── Scope: basic (sub claim)
+          ├── Mapper: oidc-audience-mapper (aud=harbor)
+          └── Token endpoint: /auth/realms/platform/protocol/openid-connect/token
+              └── Bearer token → Harbor API v2.0
+                  └── testadmin (sysadmin=true, oidc_user mapped)
+                      └── 12 immutability rules + 3 retention policies
+```
+
+**Key discovery**: `configure-immutability.sh` uses basic auth which is incompatible with
+Harbor OIDC mode. All write operations executed via Bearer token directly. Script needs
+update to support OIDC auth (non-blocking, tracked in pendentes).
 
 ---
 
 **Decision Finalized**: 2026-02-26
-**Implementation Target**: 2026-02-26 (environment offline — ready for deploy)
+**Deployed**: 2026-03-02 — 3 projects, 12 immutability rules, 3 retention policies
 **Migration Deadline**: 2026-03-10 (all pipelines migrated to immutable template)
+**Logbook**: `docs/logbook/2026-03-02-cicd-004-immutable-tags-execution.md`

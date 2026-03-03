@@ -333,7 +333,7 @@ aws lambda update-function-configuration \
 ---
 
 ## Related Documents
-- [ADR-086: FinOps Node Group Protection](/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/adr/adr-086-finops-node-group-protection.md)
+- [ADR-094: FinOps Node Group Protection](/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/adr/adr-094-finops-node-group-protection.md)
 - [Logbook: 2026-02-27 FinOps Protection](/home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/logbook/2026-02-27-finops-node-group-protection.md)
 - [Lambda Code: lambda_stop.py](/home/gilvangalindo/projects/Arquitetura/Kubernetes/platform-provisioning/aws/kubernetes/terraform/modules/finops-automation/lambda/lambda_stop.py)
 - [Terraform Variables](/home/gilvangalindo/projects/Arquitetura/Kubernetes/platform-provisioning/aws/kubernetes/terraform/modules/finops-automation/variables.tf)

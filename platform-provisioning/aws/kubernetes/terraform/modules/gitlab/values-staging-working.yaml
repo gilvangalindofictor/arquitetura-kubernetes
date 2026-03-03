@@ -9,6 +9,10 @@ global:
   hosts:
     domain: staging.internal
     https: false
+    # GitLab 18.x: OpenBao host required even when disabled (template references it)
+    openbao:
+      name: openbao.staging.internal
+      https: false
 
   # External PostgreSQL
   psql:
@@ -86,9 +90,39 @@ global:
     oidcProvider:
       openidIdTokenExpireInSeconds: 120
 
+    # GitLab 18.x: CI/CD ID token issuer URL must be explicitly set
+    ciIdTokens:
+      issuerUrl: "https://gitlab.staging.internal"
+
+    # GitLab 18.4+: relativeUrlRoot must be empty string (not nil)
+    # Without this, Go template produces %!s(<nil>) in external_url, causing
+    # KAS URI validation to fail: "gitlab.external_url: value must be a valid URI"
+    relativeUrlRoot: ""
+
   # Versão atual deployada — atualizar a cada upgrade step
-  # INFRA-001: 8.11.8 é o máximo até upgrade PostgreSQL 14→16 (INFRA-002)
-  gitlabVersion: "17.11.7"
+  # INFRA-001: 9.9.1 (v18.9.1) DEPLOYED Rev 36 (2026-03-03)
+  gitlabVersion: "18.9.1"
+
+  # GitLab 18.x compatibility overrides (discovered 2026-03-03 INFRA-001)
+  # OpenBao replaced HashiCorp Vault in 18.x — must be explicitly disabled if not used
+  openbao:
+    enabled: false
+  # Workspaces feature introduced in 18.x — disable to avoid subchart errors
+  workspaces:
+    enabled: false
+  # Gateway API introduced in 18.8.x — disable to avoid nil pointer in httproute.yaml template
+  # Also requires gatewayRef.name/namespace (9.9+) even when disabled — chart template bug
+  gatewayApi:
+    enabled: false
+    installEnvoy: false
+    gatewayRef:
+      name: ""
+      namespace: ""
+    class:
+      name: "gitlab-gw"
+
+# GitLab 18.x: explicit cert-manager disable (separate from certmanager.install)
+installCertmanager: false
 
 # Resources (staging optimized)
 gitlab:
@@ -130,6 +164,9 @@ gitlab:
 # Disable GitLab components
 postgresql:
   install: false
+  # GitLab 18.x: declare PG16 image tag to match RDS version (INFRA-002 completed)
+  image:
+    tag: "16.4"
 
 redis:
   install: false
@@ -146,8 +183,15 @@ certmanager-issuer:
 prometheus:
   install: false
 
+# GitLab 18.x: OpenBao subchart (replaced HashiCorp Vault) — disable to prevent template errors
+openbao:
+  install: false
+
 registry:
   enabled: false
+  # GitLab 18.x: registry metadata database (off — using Harbor instead)
+  database:
+    enabled: false
 
 gitlab-runner:
   install: true

@@ -1,10 +1,10 @@
 # 🏗️ Arquitetura Visual - Plataforma Kubernetes
 
-> **Última Atualização**: 2026-02-20
-> **Status**: 4/6 domínios implementados
+> **Última Atualização**: 2026-03-03
+> **Status**: 5/6 domínios implementados
 > **Conformidade SAD v1.2**: 89.6% média
 > **Tipo**: Diagramas evolutivos (atualizar conforme implementação)
-> **🎉 Novidade**: ArgoCD v2.10.0 com PKCE ativo (upgrade 2026-02-20)
+> **🎉 Novidade**: GitLab v18.9.1 (chart 9.9.1) + Linkerd Service Mesh DEPLOYED (2026-03-03)
 
 ---
 
@@ -136,7 +136,8 @@ graph TB
     class OTEL,PROM,GRAFANA,LOKI,TEMPO implemented
     class GITLAB,SONAR,HARBOR,ARGOCD,BACKSTAGE implemented
     class POSTGRES,REDIS,RABBITMQ,VELERO implemented
-    class VAULT,KYVERNO,FALCO,TRIVY pending
+    class VAULT pending
+    class KYVERNO,FALCO,TRIVY implemented
     class PROV,DEVS,OPS,USERS external
 ```
 
@@ -964,7 +965,7 @@ graph TB
 | **CI/CD Platform**     | 7.5         | 16          | 211            | ✅ Implementado   | 99.5%         |
 | **Data Services**      | 0.5         | 2           | 10 (operators) | ✅ Implementado   | 99.9%         |
 | **Security**           | 1.5         | 3           | 5              | ⚠️ ADR-002        | 99.9%         |
-| **TOTAL**              | **18.7**    | **41**      | **441**        | **67% Completo** | **99.7% Avg** |
+| **TOTAL**              | **18.7**    | **41**      | **441**        | **83% Completo** | **99.7% Avg** |
 
 **Nota**: Data Services storage é por operator. Instances criadas adicionam ~75Gi (30Gi PG + 15Gi Redis + 30Gi RabbitMQ) por aplicação.
 
@@ -1053,6 +1054,6 @@ git commit --no-verify
 ---
 
 **Autor**: System Architect
-**Versão**: 1.0
-**Data**: 2026-01-05
+**Versão**: 1.1 (GitLab v18.9.1 + Linkerd DEPLOYED + Kyverno ENFORCE)
+**Data**: 2026-03-03
 **Próxima Revisão**: Após deploy de cada domínio

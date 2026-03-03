@@ -46,6 +46,9 @@ resource "helm_release" "otel_collector" {
     loki_endpoint           = "http://${data.kubernetes_service.loki_gateway.metadata[0].name}.${data.kubernetes_service.loki_gateway.metadata[0].namespace}.svc.cluster.local:3100/loki/api/v1/push"
     enable_servicemonitor   = var.enable_servicemonitor
     servicemonitor_interval = var.servicemonitor_interval
+    environment             = var.environment
+    domain                  = var.domain
+    owner                   = var.owner
   })]
 }
 

@@ -1,12 +1,12 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-02-27
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 planejamento | Enterprise Assessment 3.8/5.0)
+> **Última Atualização**: 2026-03-03
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 planejamento | Enterprise Assessment 4.2/5.0)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
-> **Custo AWS (Feb/2026)**: ~$800/mês staging | FinOps Savings: R$ 56.424/ano realizados
-> **Recent Updates (2026-02-27)**: DEC-075 Namespace Standardization ✅ | ADR-086 FinOps Protection ✅ | CICD-003 Fix ✅
+> **Custo AWS (Feb/2026)**: ~$800/mês staging | FinOps Savings: R$ 56.546/ano realizados
+> **Recent Updates (2026-03-03)**: INFRA-001 GitLab v18.9.1 ✅ | GAP-011 Linkerd Deployed ✅ | INFRA-002 PostgreSQL 14→16 ✅ | 9 Breaking Changes Catalogued
 
 ---
 
@@ -20,7 +20,7 @@
 
 - **O quê**: Implementação prática e tipada para AWS
 - **Por quê**: Necessidade específica de entregar plataforma funcional rapidamente
-- **Status**: Marco 4 completo (100%), Marco 5 planejamento iniciado, Enterprise Assessment 3.8/5.0 (Advanced)
+- **Status**: Marco 4 completo (100%), Marco 5 planejamento iniciado, Enterprise Assessment 4.2/5.0 (Advanced+)
 - **Localização**: `/platform-provisioning/aws/kubernetes/`
 - **Documentação**: [aws-eks-gitlab-quickstart-REAL.md](docs/plan/quickstart/aws-eks-gitlab-quickstart-REAL.md)
 - **Características**:
@@ -68,8 +68,8 @@
 │  • Marco 1: Cluster EKS ✅                              │
 │  • Marco 2: Platform Services ✅                        │
 │  • Marco 3: Workloads ✅ (100% completo)               │
-│  • Marco 4: CI/CD Pipeline (em andamento)              │
-│  • Quickstart MVP: 80% (Nodes v1.34 ✅, OIDC ⏸️)      │
+│  • Marco 4: CI/CD Pipeline ✅                            │
+│  • Quickstart MVP: 90% (Nodes v1.34 ✅, GitLab v18.9.1 ✅, Linkerd ✅, OIDC ⏸️) │
 │                                                          │
 │  Pragmatismo: Usa AWS RDS, Secrets Manager              │
 │  Fundações Corretas: 75-80% já cloud-agnostic           │
@@ -80,10 +80,10 @@
 
 **SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
 
-- Marco atual: **Marco 5** (Production Readiness — Enterprise Assessment 3.8/5.0, Production Roadmap 14-19 semanas)
+- Marco atual: **Marco 5** (Production Readiness — Enterprise Assessment 4.2/5.0, Production Roadmap 10-14 semanas)
 - Marco 4: **✅ 100% completo** (8/8 GAPs — CI/CD end-to-end funcional)
 - CI/CD Enhancement: **49 artefatos preparados** (CICD-001 a CICD-005 — Security, Quality, Automation, Progressive Delivery)
-- Progresso Geral: **65%** (Marcos 0-4 completos, Marco 5 planejamento)
+- Progresso Geral: **75%** (Marcos 0-4 completos, Marco 5 em andamento — GitLab v18.9.1, Linkerd, PostgreSQL 16)
 - Próximo: Deploy CI/CD Enhancement (Phase 1: SAST/DAST + Immutable Tags + Quality Gate, Phase 2: Secret Rotation, Phase 3: Argo Rollouts)
 
 **NÃO me refiro:**
@@ -159,7 +159,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | PostgreSQL RDS            | ✅ Completo    | db.t3.medium Single-AZ, 500GB, Harbor+Keycloak database bootstrap, SG least privilege (ADR-040)                    |
 | Redis Operator            | ✅ Completo    | OT-Container-Kit v0.23.0, Redis 8.4.1-alpine, 1 replica staging (migrated from SpotaHome 2026-02-13)               |
 | RabbitMQ Operator         | ✅ Completo    | Official operator, 1 replica staging, namespace data-services                                                      |
-| GitLab CE Staging         | ✅ Completo    | Chart 8.7.0, App v17.7.0, 13 pods, IRSA S3 object storage                                                          |
+| GitLab CE Staging         | ✅ Completo    | Chart 9.9.1, App v18.9.1, 11 pods (Rev 36), IRSA S3 object storage, External PostgreSQL RDS + Redis                                                          |
 | Vault HA                  | ✅ Completo    | 3 replicas operational, KMS auto-unseal, 15h recovery 2026-02-06, VPC Endpoints fix (ADR-041, ADR-046)             |
 | VPC Endpoints             | ✅ Completo    | STS + EC2 Interface Endpoints, Private DNS enabled, 10-40x latency improvement, $28.90/mês (ADR-046)               |
 | External Secrets Operator | ✅ Operacional | ClusterSecretStore Vault backend, K8s auth configured, Keycloak secrets ready (ADR-032)                            |
@@ -430,14 +430,14 @@ product: ^[a-z0-9-]+$
 ### platform-core (Fundação)
 - **Kong** 2.35.0 - API Gateway (2 réplicas, PostgreSQL)
 - **Keycloak** 18.4.0 - Authentication OIDC (2 réplicas, PostgreSQL)
-- **Linkerd** 1.16.11 - Service Mesh mTLS (HA control plane)
+- **Linkerd** 1.16.11 - Service Mesh mTLS ✅ **DEPLOYED** (7/7 pods Running, 4 Grafana dashboards, 2026-03-03)
 - **cert-manager** 1.13.3 - TLS Certificates (Let's Encrypt HTTP-01)
 - **NGINX Ingress** 4.9.0 - Ingress Controller (2 réplicas, LoadBalancer)
 
 **Contratos Providos**: Authentication (99.95% SLA), Gateway (99.9%), Service Mesh (99.9%), Certificates (99.9%), Ingress (99.9%)
 
 ### cicd-platform (Esteira DevOps)
-- **GitLab CE** 7.7.0 - Git + CI (2 réplicas webservice, PostgreSQL, Redis, Minio S3)
+- **GitLab CE** 9.9.1 - Git + CI (v18.9.1, 1 réplica webservice staging, External PostgreSQL RDS, External Redis, S3 object storage)
 - **SonarQube** 10.3.0 - Code Quality (PostgreSQL, 20Gi storage)
 - **Harbor** 1.14.0 - Registry (100Gi, Trivy scanning, Chartmuseum)
 - **ArgoCD** v2.10.0 - GitOps (2 réplicas, Keycloak OIDC, ✅ PKCE active)
@@ -456,7 +456,7 @@ product: ^[a-z0-9-]+$
 **Contratos Providos**: Metrics Storage (99.9% SLA), Visualization, Log Aggregation, Trace Storage
 
 ### data-services (Operators)
-- **PostgreSQL RDS** 16.4 - AWS-managed (db.t3.medium Single-AZ staging)
+- **PostgreSQL RDS** 16.4 - AWS-managed ✅ **UPGRADED** (db.t3.medium Single-AZ staging, 14→16 completed 2026-03-03)
 - **OT-Container-Kit Redis Operator** 0.23.0 - Redis 8.4.1 (migrated from SpotaHome 2026-02-13, ADR-053-REVISION)
 - **RabbitMQ Cluster Operator** 2.19.0 - RabbitMQ 3.13-management (Official operator)
 - **Velero** 1.15.0 - Backup/DR com IRSA (zero credenciais estáticas, 2026-02-25)
@@ -628,6 +628,24 @@ Kubernetes/
   - ✅ Trace generator operacional
   - ✅ Helm REV 6 estável
   - 📝 Logbook: [2026-02-10-gap007-tempo-otlp.md](docs/logbook/2026-02-10-gap007-tempo-otlp.md)
+
+- [x] **GAP-011:** Linkerd Service Mesh ✅ COMPLETO (2026-03-03)
+  - ✅ Deployed via terraform apply -target=module.linkerd
+  - ✅ 7/7 pods Running (destination, identity, proxy-injector + viz: metrics-api, tap, tap-injector, web)
+  - ✅ 4 Grafana dashboards deployed (top-line, service-mesh, deployment, namespace)
+  - ✅ mTLS end-to-end — BACEN compliance ready
+
+- [x] **INFRA-001:** GitLab Upgrade Chain v17.11.7→v18.9.1 ✅ COMPLETO (2026-03-03)
+  - ✅ 9/9 upgrade steps executed (8.11.8→9.0.6→9.1.7→9.2.8→9.3.6→9.4.6→9.5.5→9.8.5→9.9.1)
+  - ✅ 9 breaking changes discovered and catalogued
+  - ✅ Root causes fixed permanently in values-staging-working.yaml
+  - ✅ Rev 36 deployed, all 11 pods Running
+
+- [x] **INFRA-002:** PostgreSQL 14→16 Upgrade ✅ COMPLETO (2026-03-03)
+  - ✅ RDS major version upgrade (allow_major_version_upgrade = true)
+  - ✅ GitLab chart image.tag set to "16.4" to match RDS
+  - ✅ ADR-093 created documenting 5-phase upgrade strategy
+
 - [ ] **GAP-008:** Monitoring & Dashboards Marco 4 (1h)
 
 ### Sprint+1: Remediação de Gaps
@@ -662,7 +680,7 @@ Kubernetes/
 - **Documentação**: 12 docs (READMEs, ADRs, logs)
 
 ### Cobertura
-- **Domínios Implementados**: 4/6 (67%) - observability, platform-core, cicd-platform, data-services
+- **Domínios Implementados**: 5/6 (83%) - observability, platform-core, cicd-platform, data-services, security
 - **Conformidade SAD v1.2**: 89.6% média
 - **Gaps Bloqueantes**: 0
 - **Gaps Não-Bloqueantes**: 6 (RBAC, Network Policies, HPA/VPA, Velero credentials, GitLab OIDC)
@@ -720,6 +738,6 @@ LEITURA OBRIGATÓRIA para CTO e Architecture Team:
 ---
 
 **Autor**: System Architect
-**Última Atualização**: 2026-02-13
-**Versão**: 1.1 (Staging nomenclature + Redis migration + AWS profile)
+**Última Atualização**: 2026-03-03
+**Versão**: 1.2 (Session 2026-03-03: GitLab v18.9.1 + Linkerd + PostgreSQL 16)
 **Status**: ✅ ATIVO

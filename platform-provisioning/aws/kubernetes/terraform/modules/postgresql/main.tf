@@ -132,6 +132,10 @@ resource "aws_db_instance" "postgresql" {
   monitoring_interval             = 60
   monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
 
+  # Major version upgrade (INFRA-002: PostgreSQL 14→16)
+  allow_major_version_upgrade = var.allow_major_version_upgrade
+  apply_immediately           = var.apply_immediately
+
   # Deletion protection (DT-004: parametrized per environment)
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.cluster_name}-postgresql-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"

@@ -147,6 +147,11 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.environment
   }
 
+  set {
+    name  = "prometheus.prometheusSpec.podMetadata.labels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   # Storage (EBS via EBS CSI Driver)
   set {
     name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]"
@@ -268,6 +273,11 @@ resource "helm_release" "kube_prometheus_stack" {
   set {
     name  = "grafana.podLabels.environment"
     value = var.environment
+  }
+
+  set {
+    name  = "grafana.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   # Admin credentials — V-001 remediation:
@@ -571,6 +581,11 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.environment
   }
 
+  set {
+    name  = "alertmanager.alertmanagerSpec.podMetadata.labels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   # Storage
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.accessModes[0]"
@@ -677,6 +692,11 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.environment
   }
 
+  set {
+    name  = "prometheus-node-exporter.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   # -----------------------------------------------------------------------------
   # Kube State Metrics
   # -----------------------------------------------------------------------------
@@ -700,6 +720,11 @@ resource "helm_release" "kube_prometheus_stack" {
   set {
     name  = "kube-state-metrics.podLabels.environment"
     value = var.environment
+  }
+
+  set {
+    name  = "kube-state-metrics.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   # nodeSelector removido: kube-state-metrics pode escalar em qualquer node disponível

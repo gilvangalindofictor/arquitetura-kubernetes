@@ -411,7 +411,7 @@ resource "kubernetes_config_map" "linkerd_grafana_dashboard" {
 
   metadata {
     name      = "linkerd-grafana-dashboards"
-    namespace = "monitoring"
+    namespace = var.grafana_dashboard_namespace
 
     labels = merge(local.module_labels, {
       # Label watched by Grafana sidecar (kube-prometheus-stack default)

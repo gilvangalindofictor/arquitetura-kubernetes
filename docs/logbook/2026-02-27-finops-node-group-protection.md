@@ -524,7 +524,7 @@ Estimated Savings:
 ---
 
 ## Related Documents
-- [ADR-086: FinOps Node Group Protection](../adr/adr-086-finops-node-group-protection.md)
+- [ADR-094: FinOps Node Group Protection](../adr/adr-094-finops-node-group-protection.md)
 - [ADR-076: FinOps PDB Optimization](../adr/adr-076-finops-pdb-optimization.md)
 - [ADR-024: FinOps Scheduler Implementation](../adr/adr-024-finops-scheduler-implementation.md)
 - [Logbook: 2026-02-27 AÇÃO-004 Kyverno Compliance](2026-02-27-acao-004-kyverno-compliance.md)
