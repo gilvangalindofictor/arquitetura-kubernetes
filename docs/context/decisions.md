@@ -1,7 +1,7 @@
 # 📋 Decisões Técnicas - Plataforma Kubernetes AWS
 
-**Última Atualização:** 2026-03-02
-**Versão:** 4.4 (DEC-076 ESO Namespace Consolidation + ADR-092 Loki FailedScheduling Fix)
+**Última Atualização:** 2026-03-03
+**Versão:** 4.5 (ACAO-007 WAF Dashboard Deploy + Kyverno part-of label fix Grafana/Prometheus/Alertmanager)
 **Framework:** Baseado em ADRs (Architecture Decision Records)
 
 ---
@@ -65,14 +65,19 @@
 | **DEC-068** | **ArgoCD Secrets via ESO + Auto-Generation (V-002)** | **2026-02-20** | **✅ Deployed** | **Alto** |
 | **DEC-069** | **PrometheusRule Alerting Infrastructure (DT-005)** | **2026-02-20** | **✅ Deployed** | **Alto** |
 | **DEC-075** | **Namespace Standardization - Observability Monitoring** | **2026-02-27** | **✅ Implementado** | **Alto** |
-| **ADR-086** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Código Pronto** | **Crítico** |
-| **ADR-087** | **Snapshot Lifecycle Management via DLM** | **2026-02-27** | **✅ Módulo Pronto** | **Alto** |
+| **ADR-094** | **FinOps Node Group Protection** | **2026-02-27** | **✅ Deployed (2026-02-28)** | **Crítico** |
+| **ADR-086** | **Linkerd Service Mesh mTLS Strategy** | **2026-03-03** | **✅ Deployed** | **Alto** |
+| **ADR-087** | **Snapshot Lifecycle Management via DLM** | **2026-02-27** | **✅ Deployed (2026-02-27)** | **Alto** |
 | **ADR-088** | **Node Group Rightsizing Strategy (T3 → R5)** | **2026-02-27** | **📊 Análise Completa** | **Alto** |
 | **ADR-089** | **Loki 3.6.5 Breaking Change Fix (shared_store → delete_request_store)** | **2026-02-27** | **✅ Implementado** | **Crítico** |
 | **ADR-090** | **Loki→Tempo Correlation via Derived Fields** | **2026-02-27** | **✅ Implementado** | **Alto** |
 | **ADR-091** | **RDS Availability Monitoring (Hybrid CloudWatch + Prometheus)** | **2026-02-27** | **✅ Validado** | **Alto** |
 | **DEC-076** | **ESO Namespace Consolidation (external-secrets-system → staging-security-externalsecrets)** | **2026-03-02** | **✅ Implementado** | **Crítico** |
 | **ADR-092** | **Loki FailedScheduling Fix (nodeSelector removed + chunksCache downsize)** | **2026-03-02** | **✅ Implementado** | **Crítico** |
+| **ADR-095** | **Entra ID Identity Federation via Keycloak OIDC Brokering** | **2026-03-03** | **📝 Planejado** | **Alto** |
+| **ADR-096** | **Keycloak Authorization Services Architecture** | **2026-03-03** | **📝 Planejado** | **Alto** |
+| **ADR-097** | **Role vs Group Strategy — Separação Identidade/Permissão** | **2026-03-03** | **📝 Planejado** | **Alto** |
+| **INFRA-003** | **Entra ID Federation + Keycloak Authorization Hub** | **2026-03-03** | **📝 Planejado** | **Alto** |
 
 ---
 

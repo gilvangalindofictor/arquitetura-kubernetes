@@ -105,3 +105,21 @@ variable "enable_network_policies" {
   type        = bool
   default     = true
 }
+
+variable "environment" {
+  description = "Environment name for corporate labeling (ADR-048)"
+  type        = string
+  default     = "staging"
+}
+
+variable "domain" {
+  description = "Domain label for corporate labeling (ADR-048)"
+  type        = string
+  default     = "observability"
+}
+
+variable "owner" {
+  description = "Owner label for corporate labeling (ADR-048)"
+  type        = string
+  default     = "platform-team"
+}

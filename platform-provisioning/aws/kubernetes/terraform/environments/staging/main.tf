@@ -333,7 +333,7 @@ module "gitlab_staging" {
 
   # GitLab configuration
   gitlab_edition         = "ce"
-  gitlab_version         = "8.11.8"  # INFRA-001: Updated 2026-03-02 (4/5 steps — v17.11.7 | blocked at 9.0.x: PG16 required — INFRA-002)
+  gitlab_version         = "9.9.1"  # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36)
   gitlab_replicas        = 1 # Cost-optimized for staging
   gitlab_runner_replicas = 1 # Cost-optimized for staging
 
@@ -1062,8 +1062,8 @@ module "kube_prometheus_stack_staging" {
   # Admin password now managed by: Vault KV (secret/grafana/admin) → ESO → K8s Secret → existingSecret
   grafana_admin_use_existing_secret = true
 
-  # Pin to deployed version (cluster is running 81.4.2 since 2026-02-05)
-  chart_version = "81.4.2"
+  # Pin to deployed version (cluster is running 82.4.0 since 2026-02-26)
+  chart_version = "82.4.0"
 
   # Grafana ALB Ingress
   grafana_ingress_enabled    = true

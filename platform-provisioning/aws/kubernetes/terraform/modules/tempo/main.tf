@@ -319,6 +319,12 @@ resource "helm_release" "tempo" {
     value = var.distributor_replicas
   }
 
+  # Corporate Labels - Distributor Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "distributor.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   set {
     name  = "distributor.resources.requests.cpu"
     value = "100m"
@@ -404,6 +410,12 @@ resource "helm_release" "tempo" {
   set {
     name  = "ingester.replicas"
     value = var.ingester_replicas
+  }
+
+  # Corporate Labels - Ingester Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "ingester.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   # Replication factor MUST match number of replicas (FinOps: 2 vs 3 default)
@@ -560,6 +572,12 @@ resource "helm_release" "tempo" {
     value = var.querier_replicas
   }
 
+  # Corporate Labels - Querier Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "querier.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   set {
     name  = "querier.resources.requests.cpu"
     value = "100m"
@@ -672,6 +690,12 @@ resource "helm_release" "tempo" {
     value = "2"
   }
 
+  # Corporate Labels - Query Frontend Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "queryFrontend.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
+  }
+
   set {
     name  = "queryFrontend.resources.requests.cpu"
     value = "50m"
@@ -741,6 +765,12 @@ resource "helm_release" "tempo" {
   set {
     name  = "compactor.replicas"
     value = var.compactor_replicas
+  }
+
+  # Corporate Labels - Compactor Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "compactor.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   set {
@@ -899,6 +929,12 @@ resource "helm_release" "tempo" {
   set {
     name  = "gateway.replicas"
     value = "2"
+  }
+
+  # Corporate Labels - Gateway Component (ADR-048 - Kyverno Compliance)
+  set {
+    name  = "gateway.podLabels.app\\.kubernetes\\.io/part-of"
+    value = "observability"
   }
 
   # Toleration for system nodes (ADR-042 pattern)

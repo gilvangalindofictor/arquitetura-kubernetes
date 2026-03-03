@@ -1,11 +1,11 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-03-03 BRT Session 3 (GAP-011 COMPLETO Linkerd 7/7 pods + 4 dashboards | INFRA-001 7/9 Steps v18.5.5 deployed | INFRA-002 COMPLETO PG16.4 | CICD-001 100% Harbor Trivy ENFORCING | 5/5 CI/CD COMPLETAS)
+> **Última Revisão**: 2026-03-03 BRT — Auditoria de consistência (backlog reconciliado com estado real do cluster)
 > **Fonte**: Confrontação cluster real vs documentação
 > **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%**
-> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ (0 CrashLoop) | Kyverno ✅ 100% (80/80 PASS) | GitLab ✅ v18.5.5 (chart 9.5.5, Rev 34) | RDS PG 16.4 ✅ | INFRA-002 COMPLETO | Linkerd ✅ 7/7 pods
-> **Session 2026-03-03 (S1+S2+S3)**: S1: 6 agents, 25+ files, 7 demands advanced | S2: INFRA-002 CLOSED (PG16.4), CICD-001 CLOSED (Trivy ENFORCING), kas CrashLoop fixed, GAP-011 TF applying, INFRA-001 upgrade agent running | S3: GAP-011 CLOSED (Linkerd 7/7 pods, 4 dashboards), INFRA-001 Steps 1-7 COMPLETE (v18.5.5 Rev 34), Step 8 in progress (9.8.5 envoy-gateway issue → 9.9.1)
+> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ (0 CrashLoop) | Kyverno ✅ 100% (80/80 PASS) | GitLab ✅ v18.9.1 (chart 9.9.1, Rev 36) | RDS PG 16.4 ✅ | INFRA-001 ✅ COMPLETO 9/9 | INFRA-002 ✅ COMPLETO | Linkerd ✅ 7/7 pods | FinOps Lambda ✅ (EXCLUDED_NODE_GROUPS=system)
+> **Session 2026-03-03**: INFRA-001 COMPLETO 9/9 steps (v17.7.0→v18.9.1, 9 breaking changes, Rev 36) | INFRA-002 COMPLETO (PG16.4) | GAP-011 COMPLETO (Linkerd 7/7 pods, 4 dashboards) | CICD-001 100% (Trivy ENFORCING) | ADR-086/093 criados | ADR-087 Snapshot DLM CONFIRMADO OPERACIONAL (3 policies ENABLED, drift-free, R$ 5.052/ano)
 
 ---
 
@@ -269,9 +269,9 @@ Deploy SonarQube Community Edition para análise de código com OIDC Keycloak.
 
 ---
 
-### ✅ GAP-005: GitLab CI/CD Integration [COMPLETO]
+### ✅ GAP-005: GitLab CI/CD Integration [DEPLOYED — validação E2E pendente]
 **Prioridade**: 🟡 ALTA → ✅ **CONCLUÍDO**
-**Status**: ✅ **DEPLOYED** (2026-02-19)
+**Status**: ✅ **DEPLOYED** (2026-02-19) — Runner, credentials, templates completos. 1 item pendente: E2E pipeline validation em browser (job real).
 **Duração Real**: ~1h
 **Custo**: $0
 
@@ -706,10 +706,15 @@ Implementar AWS WAF v2 com proteção DDoS para proteger iPaaS público contra a
   - ✅ S3 Log Bucket: aws-waf-logs-k8s-platform-prod-staging
   - ✅ ALB Association: arn:...loadbalancer/app/k8s-platformstaging-00e0ecf3b4/1ef072a48e958803
 - 📋 Testes de validação (simular rate limiting, blocked countries) - PENDENTE
-- 📋 Dashboard Grafana (WAF metrics) - PENDENTE
-- 📋 Alertas Prometheus (high blocked requests rate) - PENDENTE
-- ✅ Logbook: `docs/logbook/2026-02-26-gap010-waf-deployment.md` (a criar)
+- ✅ Dashboard Grafana (WAF metrics) — **DEPLOYADO** (ACAO-007, 2026-03-03): `domains/observability/infra/grafana/waf-dashboard-configmap.yaml` (8 panels, CloudWatch datasource). ConfigMap applied, sidecar importou `waf-security-dashboard.json` com sucesso.
+- ✅ Alertas Prometheus (3 alerts: WAFHighBlockRate, WAFGeoBlockSpike, WAFSQLInjectionAttempts) — **DEPLOYADO** (ACAO-007, 2026-03-03): PrometheusRule `waf-security-alerts` applied, 3 regras carregadas no Prometheus (state=inactive).
+- ✅ Runbook WAF: `docs/runbooks/waf-incident-response.md` (500+ lines, incident response procedures) — CRIADO (ACAO-007)
+- ✅ Logbook: `docs/logbook/2026-02-26-gap010-waf-deployment.md`
+- ✅ `kubectl apply` dos artefatos observability — COMPLETO (2026-03-03) via ACAO-007
+- ⚠️ CloudWatch datasource: NÃO provisionado — requer setup manual no Grafana UI ou adição em `kube-prometheus-stack-grafana-datasource` ConfigMap. Ver logbook `2026-03-03-waf-dashboard-deploy.md`.
+- ⚠️ cloudwatch-exporter: NÃO deployado — PrometheusRule usa métricas `aws_wafv2_*` que requerem YACE/cloudwatch-exporter. Alertas ficam `nodata` até deploy do exporter.
 - 📋 ADR-XXX: WAF Strategy for Public iPaaS - PENDENTE
+- 📋 Side-effect fix (2026-03-03): Kyverno `require-corporate-labels` bloqueava Grafana/Prometheus/Alertmanager. Fixado via `app.kubernetes.io/part-of` label em Grafana deployment + Prometheus CRD podMetadata. Ver logbook.
 
 **Requisitos Técnicos**:
 - WAF WebACL com 5 rules (rate limiting, geo blocking, OWASP, SQLi, bad inputs)
@@ -782,12 +787,12 @@ Implementar Linkerd Service Mesh com mTLS automático para comunicação segura 
 - ✅ Helm charts integration (linkerd2, linkerd-viz, linkerd-jaeger)
 - ✅ PKI completo via `tls` provider (trust anchor + issuer)
 - ✅ Integração `environments/staging/main.tf` (PRONTO)
-- 📋 Namespace annotation automation (proxy injection)
-- 📋 AuthorizationPolicy examples (identity-based)
-- 📋 ServiceProfile examples (observabilidade por rota)
+- 📋 Namespace annotation automation (proxy injection) — PENDENTE
+- 📋 AuthorizationPolicy examples (identity-based) — PENDENTE
+- 📋 ServiceProfile examples (observabilidade por rota) — PENDENTE
 - ✅ Grafana dashboards Linkerd (top-line, service-mesh, deployment, namespace) — 4 dashboards ConfigMap deployed in staging-observability-monitoring
-- 📋 Logbook: `2026-02-XX-linkerd-mesh-deployment.md`
-- 📋 ADR-XXX: Service Mesh Strategy (Linkerd vs Istio)
+- ✅ Runbook: `docs/runbooks/gap011-linkerd-deployment-quickstart.md` — CRIADO 2026-03-03
+- ✅ ADR-086: Service Mesh mTLS Strategy (Linkerd) — `docs/adr/adr-086-linkerd-service-mesh-mtls.md` CRIADO 2026-03-03
 
 **Requisitos Técnicos**:
 - Linkerd control plane HA (2 replicas para production)
@@ -979,9 +984,9 @@ Implementar Disaster Recovery multi-region para garantir SLA 99.9% do iPaaS púb
 
 ## 🔧 DÍVIDA TÉCNICA
 
-### ✅ DT-001: PostgreSQL em Subnet Pública (Temporário) [IMPLEMENTADO]
+### ✅ DT-001: PostgreSQL em Subnet Pública (Temporário) [IMPLEMENTADO — 3 itens pendentes]
 **Severidade**: 🔴 HIGH
-**Status**: ✅ **IMPLEMENTADO** (2026-02-20, agente DT-001)
+**Status**: ✅ **IMPLEMENTADO** (2026-02-20, agente DT-001) — Terraform code pronto. 3 itens pendentes: verificar subnet group, validar connectivity, logbook.
 **Impacto**: Exposição de banco (mitigado por SG restritivo)
 **Esforço**: M (depende de VPC endpoints funcionais)
 **Plano**: Migrar para subnet privada quando Vault 100% estável
@@ -1058,7 +1063,7 @@ Implementar Disaster Recovery multi-region para garantir SLA 99.9% do iPaaS púb
 
 ---
 
-### ✅ DT-003: Sem Testes Automatizados (IaC) [COMPLETO - EXECUTADO]
+### ✅ DT-003: Sem Testes Automatizados (IaC) [COMPLETO — 2 itens opcionais pendentes]
 **Severidade**: 🟡 MEDIUM
 **Status**: ✅ **COMPLETO** (Framework: 2026-02-20 | Execução: 2026-02-25)
 **Impacto**: Risco de regressão em mudanças Terraform
@@ -1117,9 +1122,9 @@ Implementar Disaster Recovery multi-region para garantir SLA 99.9% do iPaaS púb
 
 ---
 
-### ✅ DT-004: RDS Single-AZ (Staging) [IMPLEMENTADO]
+### ✅ DT-004: RDS Single-AZ (Staging) [IMPLEMENTADO — 1 ação pendente prod]
 **Severidade**: 🟢 LOW (staging only)
-**Status**: ✅ **IMPLEMENTADO** (2026-02-20, agente DT-004)
+**Status**: ✅ **IMPLEMENTADO** (2026-02-20, agente DT-004) — Staging OK. 1 item pendente: `terraform plan` para prod (pode gerar reboot RDS).
 **Impacto**: Sem HA em staging (aceitável)
 **Esforço**: S (flag Multi-AZ)
 **Plano**: Production será Multi-AZ desde o início
@@ -1199,9 +1204,9 @@ go test -v -run TestKMSKeyRotationEnabled
 
 ---
 
-### ✅ DT-005: Alertas Básicos (Observability) [IMPLEMENTADO]
+### ✅ DT-005: Alertas Básicos (Observability) [ARTEFATOS CRIADOS — 4 itens deploy pendentes]
 **Severidade**: 🟡 MEDIUM
-**Status**: ✅ **IMPLEMENTADO** (2026-02-20, agente DT-005)
+**Status**: ⚠️ **ARTEFATOS CRIADOS** (2026-02-20, agente DT-005) — PrometheusRule CRDs e Alertmanager config criados. 4 itens pendentes: Slack webhooks reais, kubectl apply, helm upgrade, validação Grafana.
 **Impacto**: Possível falha sem notificação rápida
 **Esforço**: M (definir alertas + routing)
 **Plano**: Marco 5 (observability completa)
@@ -1501,10 +1506,10 @@ Implementar e **enforcer** SAST (Static Application Security Testing) e DAST (Dy
 
 ---
 
-### ✅ CICD-004: Immutable Image Tags Enforcement [100% DEPLOYADO]
+### ✅ CICD-004: Immutable Image Tags Enforcement [DEPLOYADO — 3 itens doc pendentes]
 
 **Prioridade**: 🟡 ALTA
-**Status**: ✅ **100% COMPLETO** — Harbor immutability ATIVA (2026-03-02)
+**Status**: ✅ **DEPLOYADO** — Harbor immutability ATIVA (2026-03-02). 3 itens documentação/observability pendentes (CI template, dev guide, Prometheus metrics).
 **Esforço**: S (16h) | **Artefatos**: 6h | **Deploy**: 2h (resolução de blockers OIDC/DNS)
 **Impacto**: Security Specialist 4.5/5, Orchestrator 4/5
 **Executado**: 2026-03-02 | Harbor v2.10.0 | namespace: harbor-system
@@ -1787,10 +1792,10 @@ Esforço Restante: 0 (todas as demandas CI/CD deployadas)
 
 ## 🏗️ INFRAESTRUTURA — UPGRADES & MANUTENÇÃO
 
-### INFRA-001: GitLab Helm Chart Upgrade [⚠️ IN PROGRESS (7/9 Steps) | v18.5.5 deployed]
+### INFRA-001: GitLab Helm Chart Upgrade [✅ COMPLETO 9/9 Steps | v18.9.1 deployed Rev 36]
 
-**Prioridade**: 🟡 ALTA
-**Status**: ⚠️ **IN PROGRESS (7/9 Steps)** — v18.5.5 (chart 9.5.5) deployed Rev 34 | Step 8 in progress (9.8.5 envoy-gateway issue, jumping to 9.9.1) | Root cause: `relativeUrlRoot` nil → Go `%!s(<nil>)` → KAS URI validation failure — 2026-03-03 S3
+**Prioridade**: 🟡 ALTA → ✅ **CONCLUÍDO**
+**Status**: ✅ **COMPLETO (9/9 Steps)** — v18.9.1 (chart 9.9.1) deployed Rev 36, 11/11 pods Running — 2026-03-03. 9 breaking changes catalogados e resolvidos.
 **Esforço**: M (~8h) | **Risco**: MÉDIO (componentes stateful: PostgreSQL, Redis, Gitaly)
 **Executor**: Agente Terraform+AWS Specialist (sessão 2026-03-02)
 
@@ -1812,14 +1817,15 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
                 → [STEP 4 ✅] 8.11.8 (v17.11.7)
                 → [STEP 5 ✅] 9.0.6 (v18.0.6) — MAJOR VERSION CHANGE — PG16 confirmed (INFRA-002 COMPLETE)
                 → [STEP 6 ✅] 9.2.8 (v18.2.8) (2 retries: ciIdTokens + openbao fixes)
-                → [STEP 7 ✅] 9.5.5 (v18.5.5) ← ESTADO ATUAL Rev 34. Root cause KAS fix: relativeUrlRoot nil → Go %!s(<nil>) → URI validation failure
-                → [STEP 8 ⚠️ IN PROGRESS] 9.8.5 (v18.8.5) → envoy-gateway issue, jumping to 9.9.1. Additional breaking change: global.gatewayApi.enabled nil pointer in 9.8.x
-                → [STEP 9] 9.9.1 (v18.9.1) — TARGET (skipping 9.8.x)
+                → [STEP 7 ✅] 9.5.5 (v18.5.5) Root cause KAS fix: relativeUrlRoot nil → Go %!s(<nil>) → URI validation failure
+                → [STEP 8 ✅] 9.8.x SKIPPED (envoy-gateway nil pointer in 9.8.x) → jumped to 9.9.1
+                → [STEP 9 ✅] 9.9.1 (v18.9.1) ← ESTADO FINAL Rev 36. 11/11 pods Running. 9 breaking changes resolved.
 ```
 > Versão mais recente disponível em 2026-03-03: `9.9.1 (v18.9.1)`
-> ✅ Step 7 (9.5.5 / v18.5.5) COMPLETE: KAS root cause identified and fixed — `relativeUrlRoot` nil value caused Go `%!s(<nil>)` string interpolation → URI validation failure. Rev 34 deployed, 7/7 pods Running.
-> ⚠️ Step 8 (9.8.5 / v18.8.5) IN PROGRESS: `envoy-gateway` issue discovered + `global.gatewayApi.enabled` nil pointer dereference in 9.8.x. Plan: jump directly to 9.9.1 (v18.9.1).
-> PostgreSQL: CONFIRMED at 16.4 (INFRA-002 COMPLETE)
+> ✅ Step 7 (9.5.5 / v18.5.5) COMPLETE: KAS root cause identified and fixed — `relativeUrlRoot` nil value caused Go `%!s(<nil>)` string interpolation → URI validation failure.
+> ✅ Step 8 (9.8.x) SKIPPED: `envoy-gateway` issue + `global.gatewayApi.enabled` nil pointer dereference. Jumped directly to 9.9.1.
+> ✅ Step 9 (9.9.1 / v18.9.1) COMPLETE: Rev 36 deployed, 11/11 pods Running. 9 breaking changes resolved in values-staging-working.yaml.
+> ✅ PostgreSQL: CONFIRMED at 16.4 (INFRA-002 COMPLETE)
 
 **Resultado Step 1 (2026-03-02) — COMPLETO**:
 
@@ -1840,9 +1846,9 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
 
 **Arquivos Terraform Atualizados (2026-03-02 / 2026-03-03)**:
 
-- `platform-provisioning/aws/kubernetes/terraform/modules/gitlab/variables.tf` → default `"8.11.8"`
-- `platform-provisioning/aws/kubernetes/terraform/environments/staging/main.tf` → `gitlab_version = "8.11.8"`
-- `platform-provisioning/aws/kubernetes/terraform/modules/gitlab/values-staging-working.yaml` → v18.2.8 + 7 breaking change overrides (2026-03-03)
+- `platform-provisioning/aws/kubernetes/terraform/modules/gitlab/variables.tf` → default `"9.9.1"` (atualizado 2026-03-03)
+- `platform-provisioning/aws/kubernetes/terraform/environments/staging/main.tf` → `gitlab_version = "9.9.1"` (atualizado 2026-03-03)
+- `platform-provisioning/aws/kubernetes/terraform/modules/gitlab/values-staging-working.yaml` → v18.9.1 + 9 breaking change overrides (2026-03-03)
 
 > ✅ **DESBLOQUEADO**: PostgreSQL 14 → 16 COMPLETO (INFRA-002). RDS confirmado em PG 16.4. GitLab 18.x compatível.
 
@@ -1867,15 +1873,15 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
 - [x] Breaking changes documented: 7 overrides added to values-staging-working.yaml — 2026-03-03
 - [x] PostgreSQL: CONFIRMED at 16.4 (INFRA-002 COMPLETE)
 - [x] Step 7: helm upgrade 9.2.8 → 9.5.5 (v18.5.5) — COMPLETO 2026-03-03 S3 (Rev 34). Root cause: `relativeUrlRoot` nil → Go `%!s(<nil>)` → KAS URI validation failure. Fixed with explicit override.
-- ⚠️ **Step 8 IN PROGRESS**: helm upgrade 9.5.5 → 9.8.5 (v18.8.5) — `envoy-gateway` issue discovered + `global.gatewayApi.enabled` nil pointer dereference in 9.8.x. Jumping directly to 9.9.1.
-- [ ] Step 9: helm upgrade → 9.9.1 (v18.9.1) — TARGET (skipping 9.8.x due to envoy-gateway breaking change)
-- [ ] Validação pós-upgrade FINAL:
-  - [ ] Todos os pods Running (webservice, sidekiq, gitaly, kas, shell, registry, runner)
-  - [ ] GitLab UI acessível + login OIDC Keycloak funcional
-  - [ ] Runner id=115 online + job de smoke test executando
-  - [ ] Harbor push/pull funcional (robot$gitlab-ci)
-  - [ ] ArgoCD sincronizando repositórios GitLab
-- [ ] ADR-092: GitLab Version Upgrade Strategy
+- [x] **Step 8 SKIPPED**: 9.8.x bypassed — `envoy-gateway` issue + `global.gatewayApi.enabled` nil pointer dereference. Jumped directly to 9.9.1.
+- [x] Step 9: helm upgrade → 9.9.1 (v18.9.1) — COMPLETO 2026-03-03 (Rev 36, 11/11 pods Running)
+- [x] Validação pós-upgrade FINAL:
+  - [x] Todos os pods Running (webservice, sidekiq, gitaly, kas, shell, registry, runner) — 11/11 ✅
+  - [x] GitLab UI acessível + login OIDC Keycloak funcional
+  - [x] Runner id=115 online + job de smoke test executando
+  - [x] Harbor push/pull funcional (robot$gitlab-ci)
+  - [x] ArgoCD sincronizando repositórios GitLab
+- [ ] ADR-092: GitLab Version Upgrade Strategy (documentação pendente)
 - [x] Logbook: `docs/logbook/2026-03-02-infra-001-gitlab-upgrade.md` — criado e atualizado 2026-03-02
 
 **Dependências**:
@@ -1908,7 +1914,7 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
 - 2026-03-03 S1: Step 7 (9.5.5/v18.5.5) TIMEOUT — openbao subchart errors. Rolled back to 9.2.8. 7 breaking changes documented in values file.
 - 2026-03-03 S2: kas CrashLoopBackOff root cause identified: template bug `%!s(<nil>)` em `kas external_url` quando `global.hosts.https=false`. Rollback Rev 20 → Rev 23 stable. Agente dedicado retrying com overrides.
 - 2026-03-03 S3: Step 7 (Rev 24) Helm deployed but KAS v18.5.5 CrashLoopBackOff: `external_url` URI validation (`http://gitlab.staging.internal` rejected). Rolled back to 9.2.8 (Rev 25→26). Terraform apply triggered intermediate 9.3.6 (Rev 27 pending-upgrade).
-- **NEXT**: Verify 9.3.6 completes → investigate `external_url` fix for 9.5.5 (HTTPS or FQDN format) → Steps 8-9 → v18.9.1
+- **2026-03-03 S3 (final)**: Step 9 (9.9.1/v18.9.1) DEPLOYED Rev 36. All 9 breaking changes resolved. 11/11 pods Running. INFRA-001 ✅ COMPLETO.
 
 ---
 
@@ -2120,8 +2126,8 @@ helm upgrade gitlab gitlab/gitlab \
 
 | Documento | Localização | Tipo |
 |-----------|-------------|------|
-| `adr-093-rds-postgresql-14-to-16-upgrade.md` | `docs/adr/` | ADR (Doc Specialist) |
-| `<data>-infra-002-rds-pg16-upgrade.md` | `docs/logbook/` | Logbook execução |
+| `adr-093-rds-postgresql-14-to-16-upgrade.md` | `docs/adr/` | ✅ CRIADO 2026-03-03 |
+| `<data>-infra-002-rds-pg16-upgrade.md` | `docs/logbook/` | 📋 Logbook execução — PENDENTE |
 
 ### Estimativa de Execução
 
@@ -2160,6 +2166,83 @@ INFRA-002 ✅ → INFRA-001 Step 5 (chart 9.0.x / v18.0.x)
 - [ADR-051](docs/adr/adr-051-postgresql-rds-vs-operator.md) — RDS decision
 - [Runbook RDS](docs/runbooks/rds-monitoring-alerts-response.md) — incident response
 - Módulo TF: `platform-provisioning/aws/kubernetes/terraform/modules/postgresql/`
+
+---
+
+## 🟡 PLANEJADAS (Documentadas, Aguardando Momento Propício)
+
+### INFRA-003: Entra ID Federation + Keycloak Authorization Hub [📝 PLANEJADO]
+
+**Prioridade**: 🟡 ALTA — Habilitador para aplicações de negócio
+**Status**: 📝 **PLANEJADO** (2026-03-03) — Documentação completa, aguardando momento propício
+**Estimativa**: ~164h (5 fases, 6-8 semanas)
+**Custo Adicional**: $0/mês (OIDC Brokering não requer Azure AD Domain Services)
+
+**Descrição**:
+Federar identidades do Microsoft Entra ID (Azure AD) no Keycloak via OIDC Identity Brokering e construir camada rica de Authorization Services (roles, policies, permissions, UMA 2.0) para que aplicações de negócio consumam decisões de autorização via API do Keycloak.
+
+**Justificativa**:
+- Identidade corporativa unificada (Microsoft 365 credentials)
+- MFA enterprise-grade delegado ao Entra ID (Conditional Access)
+- Authorization Services fine-grained para apps de negócio (ABAC/RBAC/UMA)
+- Compliance BACEN BCB 85/2021 — audit trail centralizado
+- LGPD — data sovereignty preservada (dados no RDS próprio)
+
+**Pré-requisitos (IT Corporativo)**:
+- [ ] App Registration no Entra ID (Web app, redirect para Keycloak broker endpoint)
+- [ ] Security Groups criados e alinhados com ADR-049 (5 domain teams)
+- [ ] Client secret gerado e compartilhado para armazenamento no Vault
+
+**Entregáveis por Fase**:
+
+- **Phase 1: Entra ID Federation (~40h)**
+  - [ ] Módulo Terraform `modules/keycloak-federation/`
+  - [ ] `keycloak_oidc_identity_provider` (Microsoft Entra ID)
+  - [ ] Mappers: email, name, groups, department
+  - [ ] First-broker-login flow customizado (auto-link by email)
+  - [ ] Vault KV secret + ESO ExternalSecret
+  - [ ] Validação: login via "Microsoft" → Keycloak → Grafana
+
+- **Phase 2: Group Mapping + Roles (~24h)**
+  - [ ] Módulo Terraform `modules/keycloak-realm-roles/`
+  - [ ] Realm roles: platform-admin, platform-developer, platform-viewer, deploy-admin, deploy-viewer
+  - [ ] Group-to-role mappers (Entra ID groups → Keycloak roles)
+  - [ ] Protocol mappers atualizados nos 6 clients
+
+- **Phase 3: Authorization Services (~60h)**
+  - [ ] Módulo Terraform `modules/keycloak-authorization/`
+  - [ ] Pilot client com AuthZ Services habilitado
+  - [ ] Resources, Scopes, Policies, Permissions como IaC
+  - [ ] Guia de integração para devs (API de consumo UMA 2.0)
+
+- **Phase 4: Production Hardening (~24h)**
+  - [ ] Session lifetimes reduzidas (SSO idle 15min, max 4h)
+  - [ ] Backchannel logout em todos os 6 clients
+  - [ ] Break-glass accounts locais com MFA TOTP
+  - [ ] Audit logging habilitado → Loki
+  - [ ] PrometheusRule: broker errors, brute force, role escalation
+
+- **Phase 5 (Opcional): SCIM Lifecycle (~16h)**
+  - [ ] Keycloak SCIM SPI extension
+  - [ ] User lifecycle automatizado: create, update, disable
+
+**ADRs Criados**:
+- [ADR-095: Entra ID Identity Federation](docs/adr/adr-095-entra-id-identity-federation.md) — OIDC Brokering strategy
+- [ADR-096: Keycloak Authorization Services](docs/adr/adr-096-keycloak-authorization-services.md) — Fine-grained AuthZ
+- [ADR-097: Role vs Group Strategy](docs/adr/adr-097-role-vs-group-strategy.md) — Separação identidade/permissão
+
+**Riscos**:
+- 🔴 R-100: Sync lag deactivação (até 8-10h) — Mitigação: session max 4h + SCIM
+- 🟡 R-095: Keycloak SPOF (authN + authZ) — Mitigação: 3 replicas + cache
+- 🟡 R-098: Complexidade operacional — Mitigação: faseamento + runbooks
+
+**Dependências**:
+- ADR-046 (Keycloak SSO) ✅ Implementado
+- ADR-049 (Governança RBAC) ✅ Proposto
+- ADR-083 (Secret Rotation) ✅ Implementado
+- IT Corporativo: App Registration Entra ID
+
+**ROI**: Elimina duplicação de credenciais, habilita apps de negócio com AuthZ centralizada, compliance BACEN/LGPD
 
 ---
 

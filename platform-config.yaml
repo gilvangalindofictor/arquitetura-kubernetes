@@ -54,7 +54,7 @@ aws:
 # Kubernetes Cluster Configuration
 kubernetes:
   cluster_name: "k8s-platform-prod"
-  version: "1.31"
+  version: "1.34"
 
   # Node Groups
   node_groups:
@@ -88,6 +88,26 @@ kubernetes:
         - key: "workload"
           value: "database"
           effect: "NoSchedule"
+
+  # Service Versions (updated 2026-03-03)
+  services:
+    gitlab:
+      chart_version: "9.9.1"
+      app_version: "18.9.1"
+      helm_revision: 36
+    linkerd:
+      chart_version: "1.16.11"
+      status: "deployed"
+      pods: 7
+    kyverno:
+      status: "deployed"
+      mode: "enforce"
+    argocd:
+      app_version: "2.10.0"
+      status: "deployed"
+    postgresql_rds:
+      version: "16.4"
+      instance_class: "db.t3.medium"
 
 # Platform Services (Marco 2)
 platform_services:
@@ -176,3 +196,6 @@ documentation:
   diary: "docs/plan/aws-execution/diario-marco0-2026-01-23.md"
   execution_plan: "docs/plan/execution-plan.md"
   adr_directory: "docs/adr/"
+
+# Last Updated: 2026-03-03
+# Changes: EKS 1.31→1.34, added service versions section

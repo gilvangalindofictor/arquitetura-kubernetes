@@ -110,6 +110,13 @@ podAnnotations:
   prometheus.io/port: "8888"
   prometheus.io/path: "/metrics"
 
+podLabels:
+  domain: ${domain}
+  owner: ${owner}
+  environment: ${environment}
+  app.kubernetes.io/part-of: observability
+  app.kubernetes.io/name: opentelemetry-collector
+
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
