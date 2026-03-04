@@ -1,12 +1,42 @@
 # TASK-002: Implementar Terraform Keycloak Provider
 
-**Prioridade:** 🟡 ALTA
+**Prioridade:** ✅ CONCLUÍDA (era 🟡 ALTA)
 **Estimativa:** 3-4 horas
-**Responsável:** TBD
+**Esforço Real:** ~4h (import + 4 bug fixes)
+**Responsável:** Agente TF Specialist (executor-terraform.md framework)
 **Criado:** 2026-02-12
 **Devido:** 2026-02-15 (3 dias)
+**Concluído:** 2026-03-04
 **Dependências:** Nenhuma
 **Bloqueio para:** TASK-001 (ArgoCD upgrade - preferencial usar TF para PKCE)
+
+> ✅ **CONCLUÍDO 2026-03-04**: 11/11 recursos importados, zero drift. Módulo `module.keycloak_clients_staging`
+> re-enabled em `environments/staging/main.tf`. 4 bugs estruturais fixados.
+
+---
+
+## ✅ RESULTADO FINAL (2026-03-04)
+
+**11/11 recursos importados com zero drift:**
+1. `keycloak_realm.platform`
+2. `keycloak_openid_client.gitlab[0]`
+3. `keycloak_openid_client.argocd[0]` (com `pkce_code_challenge_method = "S256"`)
+4. `keycloak_openid_client.grafana[0]`
+5. `keycloak_openid_client.harbor[0]` (PKCE S256)
+6. `keycloak_openid_client.vault[0]` (PKCE S256)
+7. `keycloak_saml_client.sonarqube[0]`
+8. `keycloak_group.grafana_admins[0]`
+9. `keycloak_generic_protocol_mapper.grafana_groups[0]`
+10. `keycloak_saml_user_attribute_protocol_mapper.sonarqube_email[0]`
+11. `keycloak_saml_user_property_protocol_mapper.sonarqube_name[0]`
+
+**4 Bugs estruturais fixados:**
+1. **TF não inclui subdirs**: `.tf` files em `clients/` e `realms/` ignorados → symlinks criados no root do módulo
+2. **base_path errado**: `""` → `"/auth"` (keycloakx 7.1.7 requer `/auth` prefix)
+3. **SAML mapper type errado**: `keycloak_saml_user_attribute_protocol_mapper` para `email` (propriedade, não atributo) → `keycloak_saml_user_property_protocol_mapper`
+4. **Import format mappers**: deve ser `realm/client/{clientUUID}/{mapperUUID}` (não `realm/{clientUUID}/{mapperUUID}`)
+
+---
 
 ---
 

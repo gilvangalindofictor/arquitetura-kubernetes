@@ -1,21 +1,32 @@
 # TASK-001: Upgrade ArgoCD 2.9.3 → 2.12+ com PKCE Support
 
-**Prioridade:** ✅ CONCLUÍDA (era 🔴 CRÍTICA)
+**Prioridade:** ✅ CONCLUÍDA DEFINITIVAMENTE (era 🔴 CRÍTICA)
 **Estimativa:** 4-6 horas
-**Esforço Real:** ~1.5 horas (10:12-11:26, 2026-02-20)
+**Esforço Real:** ~1.5h (2026-02-20) + ~2h (TASK-001 redux 2026-03-04) = ~3.5h total
 **Responsável:** Orquestrador DevOps
 **Criado:** 2026-02-12
 **Devido:** 2026-02-19 (1 semana)
-**Concluído:** 2026-02-20 (**⚠️ Atrasado 1 dia**)
-**Versão Atingida:** v2.10.0 (target era v2.12+, PKCE suportado desde v2.10.0)
+**Concluído (definitivo):** 2026-03-04 — v2.10.9 + PKCE S256 + ingress via helm upgrade
+**Versão Atingida:** v2.10.9 (chart argo-cd-6.7.18) — PKCE S256 ativo + ingress funcional
 **Dependências:** Nenhuma
 **Bloqueios:** Nenhum
 
+> ⚠️ **NOTA**: Upgrade inicial (2026-02-20) via `kubectl set image` foi revertido pelo Helm state quando o
+> namespace foi recriado. Audit 2026-03-04 revelou v2.9.3 em produção. TASK-001 REDUX executada com
+> `helm upgrade` chart 6.7.18 + values completos para garantir persistência.
+
 ---
 
-## ✅ STATUS: CONCLUÍDO (2026-02-20)
+## ✅ STATUS: CONCLUÍDO DEFINITIVAMENTE (2026-03-04)
 
-**Resultado:** ArgoCD v2.9.3 → v2.10.0 (PKCE ativo)
+**Resultado Final:** ArgoCD v2.9.3 → v2.10.9 (chart argo-cd-6.7.18) + PKCE S256 + ingress
+**Método (redux):** helm upgrade com values file completo + ingress template (chart 5→6 migration)
+**Duração (redux):** ~2h
+**PKCE:** `enablePKCEAuthentication: true` no Keycloak client + Keycloak TF argocd.tf `pkce_code_challenge_method = "S256"`
+**Ingress:** Template chart 5.x→6.x requer `configs.cm` (não `server.config`) + nova estrutura ingress
+
+**Resultado (2026-02-20, primeira tentativa):**
+ArgoCD v2.9.3 → v2.10.0 (PKCE ativo) — via kubectl set image
 **Método:** kubectl set image (helm chart downloads blocked)
 **Duração:** 1h 14min (10:12-11:26)
 **Atraso:** 1 dia (deadline 2026-02-19)

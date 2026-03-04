@@ -23,17 +23,21 @@
 | Terraform Module | ✅ CRIADO | `modules/velero-dr/` (509 lines) |
 | RDS Replica Module | ✅ CRIADO | `modules/rds-replica/` (284 lines, count=0 aguardando Phase 2) |
 
-### Phase 2 — VPC DR + BSL + Schedules (ARTEFATOS CRIADOS 2026-03-04)
+### Phase 2 — VPC DR + BSL + Schedules
 
 | Item | Status | Artefato |
 |------|--------|----------|
 | VPC DR us-west-2 (TF module) | 📋 PRONTO PARA DEPLOY | `modules/vpc-dr/` (4 arquivos) |
 | BackupStorageLocation DR | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/backup-storage-location-dr.yaml` |
-| Schedule daily-full-backup | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/schedule-daily-full.yaml` |
-| Schedule hourly-incremental | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/schedule-hourly-incremental.yaml` |
-| Velero Helm values DR patch | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/velero-values-dr-update.yaml` |
+| **Schedule daily-full-backup** | **✅ ATIVO** | `kubectl get schedule -n velero daily-full-backup` → Scheduled |
+| **Schedule hourly-incremental** | **✅ ATIVO** | `kubectl get schedule -n velero hourly-incremental` → Scheduled |
+| **Velero Helm** | **✅ DEPLOYED** | Rev 7+ `deployed` — root causes IRSA ARN + role name + nodeSelector fixados |
 | Grafana Dashboard DR | 📋 PRONTO PARA DEPLOY | `domains/observability/infra/grafana/dr-replication-dashboard-configmap.yaml` |
 | RDS Replica ativação | ⏸️ BLOQUEADO | Aguarda VPC DR deploy + aprovação liderança |
+
+> ✅ **V-009 RESOLVIDO (2026-03-04)**: Schedules daily+hourly ativos. Helm deployed. Root causes:
+> IRSA ARN malformed (`:role:` → `/role/`), wrong role name (`velero-role` → `velero-dr-role`),
+> nodeSelector saturado (`platform` → `applications`), CPU request reduzido (100m → 50m).
 
 ### Deploy Sequence (Phase 2)
 

@@ -1,10 +1,10 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-03-04 BRT — AUDIT REAL kubectl executado (ver [CLUSTER-AUDIT-2026-03-04.md](CLUSTER-AUDIT-2026-03-04.md))
-> **Fonte**: Confrontação cluster real vs documentação — 6 discrepâncias identificadas
-> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%**
-> **Infrastructure Health (REAL 2026-03-04)**: WAF ✅ | **Velero ❌ HELM FAILED + ZERO SCHEDULES** | Loki ✅ (62 pods) | Kyverno ✅ ENFORCE (48% pods labeled) | GitLab ✅ v18.9.1 Rev 44 | RDS PG 16.4 ✅ | **Linkerd ⚠️ GitLab ✅ / Harbor ❌ SEM PROXY** | ArgoCD **❌ v2.9.3** (não v2.10.0) | EKS ✅ 1.34.2 / 12 nodes | ESO ✅ 16/16
+> **Última Revisão**: 2026-03-04 Sessão 3 BRT — 6/6 discrepâncias do Cluster Audit RESOLVIDAS ✅
+> **Fonte**: executor-terraform.md framework — 5 agentes especializados paralelos
+> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%** | **Cluster Audit: 6/6 ✅**
+> **Infrastructure Health (2026-03-04 Pós-Remediação)**: WAF ✅ | **Velero ✅ deployed + schedules daily+hourly** | Loki ✅ (62 pods) | Kyverno ✅ ENFORCE (~90%+ pods) | GitLab ✅ v18.9.1 Rev 11 `staging-platform-gitlab` | RDS PG 16.4 ✅ | **Linkerd ✅ GitLab 2/2+3/3 / Harbor 7/7 2/2 mTLS** | ArgoCD **✅ v2.10.9** PKCE S256 | EKS ✅ 1.34.2 / 12 nodes | ESO ✅ 16/16
 
 ---
 
@@ -27,7 +27,7 @@
 **Componentes Deployados (TODOS COMPLETOS)**:
 
 - ✅ Keycloak SSO (GAP-001)
-- ✅ ArgoCD GitOps (GAP-003) — UPGRADED v2.10.0 (2026-02-20, TASK-001)
+- ✅ ArgoCD GitOps (GAP-003) — UPGRADED v2.10.9 (chart 6.7.18, TASK-001 redux 2026-03-04) + PKCE S256 + ingress
 - ✅ SonarQube Code Quality (GAP-004)
 - ✅ GitLab CI/CD (GAP-002 + GAP-005) — runner id=115, templates, credentials ESO
 - ✅ ApplicationSets GitOps (GAP-006) — 7 apps auto-gerados (2026-02-24)
@@ -146,11 +146,11 @@ Corrigir falhas nos componentes GitLab que impediam funcionamento da pipeline CI
 
 ## 🟡 DEMANDAS ALTAS (Não-bloqueantes)
 
-### ✅ GAP-003: ArgoCD Deploy [COMPLETO] | 🎉 UPGRADED [v2.10.0 - 2026-02-20]
+### ✅ GAP-003: ArgoCD Deploy [COMPLETO] | 🎉 UPGRADED [v2.10.9 - 2026-03-04] + PKCE S256
 
 **Prioridade**: 🟡 ALTA → ✅ **CONCLUÍDO**
-**Status**: ✅ **DEPLOYED** (2026-02-06) + ✅ **UPGRADED v2.10.0** (2026-02-20)
-**Duração Real**: ~2h (deploy) + 1.5h (upgrade TASK-001)
+**Status**: ✅ **DEPLOYED** (2026-02-06) + ✅ **UPGRADED v2.10.9** (2026-02-20: v2.10.0 via kubectl | 2026-03-04: v2.10.9 chart 6.7.18 helm upgrade)
+**Duração Real**: ~2h (deploy) + 1.5h (upgrade TASK-001) + 2h (TASK-001 redux 2026-03-04)
 **Custo**: +$15/mês
 
 **Descrição**:
@@ -171,6 +171,15 @@ Deploy ArgoCD como plataforma GitOps para gerenciamento de aplicações Kubernet
   - ✅ PKCE ativo (mitigates auth code interception)
 - **Logbook:** [2026-02-20-argocd-upgrade-implementation.md](logbook/2026-02-20-argocd-upgrade-implementation.md)
 - **Task:** [TASK-001-argocd-upgrade-2.12.md](tasks/TASK-001-argocd-upgrade-2.12.md)
+
+**🆕 TASK-001 REDUX (2026-03-04) — v2.10.9 + PKCE + Ingress:**
+- **Contexto**: Audit revelou v2.9.3 em produção (kubectl set image havia sido revertido pelo Helm)
+- **Fix**: helm upgrade argo-cd 6.7.18 (app v2.10.9) + values completos
+- **PKCE**: `enablePKCEAuthentication: true` no Keycloak client argocd.tf
+- **Ingress**: Template migrado chart 5.x→6.x (`server.config` → `configs.cm`)
+- **OIDC**: `oidc.config` adicionado diretamente ao ConfigMap argocd-cm
+- **Breaking changes chart 5→6**: server.config ignorado → configs.cm; 6 categorias de nil pointers
+- **Resultado**: 8/8 pods Running, PKCE S256 ativo, ingress funcional
 
 **Entregáveis (Original - 2026-02-06):**
 - ✅ Completar módulo `modules/argocd/`
@@ -471,7 +480,7 @@ Integrar GitLab CI/CD com SonarQube e Harbor (pipeline completa).
 
 **Pendências**:
 - [ ] Teste de drain em janela de manutenção
-- [ ] Terraform import ou re-apply (fix keycloak-clients bug)
+- ✅ Terraform import + re-apply — RESOLVIDO 2026-03-04: 11/11 recursos importados, zero drift, módulo re-enabled. 4 bugs fixados: symlinks subdirs, base_path="/auth", SAML mapper type, import format.
 
 ---
 
@@ -507,6 +516,7 @@ Migrar 17 namespaces para naming convention determinística `{env}-{domain}-{pro
 11-17. ✅ Waves 4-6: todos migrados (2026-02-25) — incluindo gitlab-staging → staging-platform-gitlab
 
 > **Kyverno Compliance (2026-03-02):** 100% (80/80 PASS). DaemonSets remediados: loki-canary (9/9) + prometheus-node-exporter (11/11).
+> **Kyverno Compliance (2026-03-04):** staging-data-hatch resolvido (9/9 deployments Running + labels corretos). MutatingClusterPolicy `inject-corporate-labels-staging-platform-gitlab` criada (auto-inject labels GitLab namespace). Compliance geral ~90%+.
 
 **Contexto**:
 - ✅ **5 ClusterPolicies já definidas** em `/docs/governance/validation-rules.yaml`:
@@ -786,11 +796,11 @@ Implementar Linkerd Service Mesh com mTLS automático para comunicação segura 
 - ✅ Helm charts integration (linkerd2, linkerd-viz, linkerd-jaeger)
 - ✅ PKI completo via `tls` provider (trust anchor + issuer)
 - ✅ Integração `environments/staging/main.tf` (PRONTO)
-- ✅ Namespace annotation automation (proxy injection) — COMPLETO 2026-03-04 (Phase 1: keycloak/argocd/vault | Phase 2: harbor/gitlab)
-- 📋 AuthorizationPolicy gitlab→harbor (mTLS RBAC) — PENDENTE (gitlab-runner SA apenas)
+- ✅ Namespace annotation automation (proxy injection) — COMPLETO 2026-03-04 (Phase 1: keycloak/argocd/vault | Phase 2: harbor ✅ 7/7 2/2 + gitlab ✅ 11/11 2/2+3/3)
+- ✅ AuthorizationPolicy gitlab→harbor (mTLS RBAC) — RESOLVIDO 2026-03-04: apiVersion v1beta1/v1alpha1, 5 recursos em harbor-system
 - 📋 ServiceProfile Harbor + GitLab (observabilidade L7 por rota) — PENDENTE
 - 🚨 harbor-core OOMKill — memory limits insuficientes (410 restarts) — PENDENTE [ALTA]
-- 📋 Linkerd CNI plugin — reinstalar cniEnabled=true (eliminar PSA privileged em gitlab-staging) — PENDENTE [MÉDIA]
+- ✅ Linkerd CNI plugin — DEPLOYED (linkerd-cni DaemonSet 10/12 Running, 2 Pending em system nodes NodeAffinity — não bloqueador, wait=false)
 - 📋 ADR-048 labels harbor + gitlab Helm values.yaml.tpl — patches manuais perdem-se em helm upgrade — PENDENTE [MÉDIA]
 - ✅ Grafana dashboards Linkerd (top-line, service-mesh, deployment, namespace) — 4 dashboards ConfigMap deployed in staging-observability-monitoring
 - ✅ Runbook: `docs/runbooks/gap011-linkerd-deployment-quickstart.md` — CRIADO 2026-03-03
@@ -1391,7 +1401,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 **Concluídos (2026-02-25 noite - 5 agentes paralelos)**:
 5. ✅ **ADR-079 Fix**: Renumeração ADR-078/079/080 (3 duplicatas resolvidas, 9 arquivos atualizados)
 6. ✅ **OIDC Monitoring**: Script validação thumbprint + runbook (previne IRSA failures)
-7. ⚠️ **V-009**: Velero backup schedules — **AUDIT 2026-03-04: YAML templates criados mas SCHEDULES NÃO ESTÃO ATIVOS** (`kubectl get schedule -n velero` → VAZIO). Helm release em estado `failed`. Redeployar urgente.
+7. ✅ **V-009**: Velero backup schedules — **RESOLVIDO 2026-03-04**: schedules daily (02:00 UTC, 30d) + hourly (24h) ativos. Helm deployed. Root causes: IRSA ARN malformed + role name errado + nodeSelector saturado.
 8. ✅ **V-011**: Grafana dashboard Velero (15 painéis + 7 PrometheusRule alerts)
 9. ✅ **V-012**: Velero DR runbook (1,507 linhas, 5 cenários, RTO/RPO procedures)
 
@@ -1401,10 +1411,9 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 - ✅ **GAP-005**: Templates GitLab CI/CD completos (validação E2E manual pendente)
 - ✅ **GAP-006/007/008**: ApplicationSets, Network Policies, Monitoring
 
-**Pendente (Audit 2026-03-04)**:
+**Pendente (pós V-009 resolvido)**:
 
-- 🔴 **V-009 REDEPLOY**: `helm upgrade velero vmware-tanzu/velero -n velero --reuse-values` + aplicar schedules YAML
-- 🔴 **V-010**: BLOQUEADO — restore testing impossível até V-009 schedules ativos
+- 🟡 **V-010**: Restore testing — aguardar primeiro backup automático (02:00 UTC), depois testar restore em namespace `dr-test`
 
 ---
 

@@ -1,7 +1,7 @@
 # ADR-055: Desabilitar PKCE Enforcement para ArgoCD v2.9.3
 
-**Status**: 🔄 SUPERSEDED by ArgoCD v2.10.0 Upgrade (2026-02-20)
-**Date**: 2026-02-12 (Original) | 2026-02-20 (Superseded)
+**Status**: 🔄 SUPERSEDED by ArgoCD v2.10.9 Upgrade (2026-02-20 v2.10.0 → 2026-03-04 v2.10.9 definitivo)
+**Date**: 2026-02-12 (Original) | 2026-02-20 (Superseded v2.10.0) | 2026-03-04 (Final v2.10.9 helm)
 **Decision Makers**: Platform Team
 **Context**: Keycloak OIDC Integration - Marco 4 (CI/CD Platform)
 **Severity**: 🔴 CRITICAL (Production Blocker) → ✅ RESOLVED
@@ -12,12 +12,17 @@
 
 This ADR is now **SUPERSEDED** by the ArgoCD upgrade completed on 2026-02-20.
 
-**What Changed:**
-- ✅ ArgoCD upgraded: v2.9.3 → v2.10.0 (via kubectl set image)
-- ✅ PKCE Support: Now available natively (ArgoCD v2.10.0+)
-- ✅ PKCE Status: **Active by default** in v2.10.0+ (RFC 7636 compliant)
-- ✅ Keycloak Integration: Maintained (issuer: `http://keycloak.staging.internal/auth/realms/platform`)
-- ✅ All Pods: 8/8 Running with v2.10.0 images
+**What Changed (2026-02-20 — primeira tentativa):**
+- ✅ ArgoCD upgraded: v2.9.3 → v2.10.0 (via kubectl set image) — revertido pelo Helm state depois
+- ✅ PKCE Support: disponível em v2.10.0+
+
+**What Changed (2026-03-04 — definitivo via helm):**
+- ✅ ArgoCD v2.10.9 (chart argo-cd-6.7.18) via `helm upgrade` com values completos
+- ✅ PKCE S256: `enablePKCEAuthentication: true` + Keycloak client `pkce_code_challenge_method = "S256"`
+- ✅ Ingress funcional (chart 5.x→6.x: `server.config` → `configs.cm`)
+- ✅ OIDC `oidc.config` adicionado ao ConfigMap argocd-cm
+- ✅ Keycloak Integration: Mantida (issuer via Keycloak SSO realm platform)
+- ✅ All Pods: 8/8 Running com v2.10.9 images
 - ✅ Version Confirmed: `argocd version` → v2.10.0+2175939
 
 **Impact:**
