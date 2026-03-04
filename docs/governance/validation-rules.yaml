@@ -85,6 +85,7 @@ spec:
           - linkerd
           - linkerd-viz
           - linkerd-jaeger
+          - linkerd-cni
     validate:
       message: |
         ❌ Namespace naming violado (ADR-048).

@@ -6,18 +6,18 @@
 #
 # Caso de uso: Pipeline CI/CD
 #   1. gitlab-runner executa job: docker build
-#   2. Runner faz docker push para harbor.staging-data-services.svc
+#   2. Runner faz docker push para harbor.harbor-system.svc
 #   3. Harbor valida autorizacao via mTLS (identidade SPIFFE do runner)
 #   4. Harbor armazena imagem com imutabilidade de tag
 #
 # SPIFFE IDs envolvidos:
 #   GitLab Runner: spiffe://cluster.local/ns/gitlab-staging/sa/gitlab-runner
-#   Harbor Core:   spiffe://cluster.local/ns/staging-data-services/sa/harbor-core
+#   Harbor Core:   spiffe://cluster.local/ns/harbor-system/sa/harbor-core
 #
 # Compliance: BACEN BCB 85/2021 Art. 6 SS IV (criptografia) + Art. 15 (segregacao)
 #
 # NOTA CROSS-NAMESPACE:
-#   Esta policy protege o Harbor (staging-data-services) mas permite
+#   Esta policy protege o Harbor (harbor-system) mas permite
 #   conexoes de um SA em namespace diferente (gitlab-staging).
 #   O Linkerd suporta cross-namespace identity via SPIFFE.
 #
@@ -27,19 +27,19 @@
 # Como verificar:
 #   # Push de imagem de teste (via gitlab-runner pod)
 #   kubectl exec -n gitlab-staging deploy/gitlab-runner -- \
-#     docker push harbor.staging-data-services.svc/library/test:latest
+#     docker push harbor.harbor-system.svc/library/test:latest
 #
 #   # Verificar mTLS no tap
-#   linkerd viz tap deploy/harbor-core -n staging-data-services \
+#   linkerd viz tap deploy/harbor-core -n harbor-system \
 #     --from-namespace gitlab-staging
 # =============================================================================
 
 # --- Server: Harbor Core API (port 8080 — OCI Distribution API) -------------
-apiVersion: policy.linkerd.io/v1beta3
+apiVersion: policy.linkerd.io/v1beta1
 kind: Server
 metadata:
   name: harbor-core-api
-  namespace: staging-data-services
+  namespace: harbor-system
   labels:
     gap: "GAP-011"
     compliance: "bcb-85-2021"
@@ -55,11 +55,11 @@ spec:
 ---
 
 # --- Server: Harbor Registry (port 5000 — Docker registry v2 API) -----------
-apiVersion: policy.linkerd.io/v1beta3
+apiVersion: policy.linkerd.io/v1beta1
 kind: Server
 metadata:
   name: harbor-registry
-  namespace: staging-data-services
+  namespace: harbor-system
   labels:
     gap: "GAP-011"
     compliance: "bcb-85-2021"
@@ -75,11 +75,11 @@ spec:
 ---
 
 # --- MeshTLSAuthentication: identidades autorizadas a acessar Harbor --------
-apiVersion: policy.linkerd.io/v1beta3
+apiVersion: policy.linkerd.io/v1alpha1
 kind: MeshTLSAuthentication
 metadata:
   name: allow-gitlab-runner-to-harbor
-  namespace: staging-data-services
+  namespace: harbor-system
   labels:
     gap: "GAP-011"
     compliance: "bcb-85-2021"
@@ -91,17 +91,17 @@ spec:
     # GitLab Sidekiq (processamento async — deploy triggers)
     - "gitlab.gitlab-staging.serviceaccount.identity.linkerd.cluster.local"
     # Harbor componentes internos (core acessa registry internamente)
-    - "harbor-core.staging-data-services.serviceaccount.identity.linkerd.cluster.local"
-    - "harbor-jobservice.staging-data-services.serviceaccount.identity.linkerd.cluster.local"
+    - "harbor-core.harbor-system.serviceaccount.identity.linkerd.cluster.local"
+    - "harbor-jobservice.harbor-system.serviceaccount.identity.linkerd.cluster.local"
 
 ---
 
 # --- AuthorizationPolicy: GitLab → Harbor Core API --------------------------
-apiVersion: policy.linkerd.io/v1beta3
+apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
 metadata:
   name: allow-gitlab-to-harbor-core
-  namespace: staging-data-services
+  namespace: harbor-system
   annotations:
     bacen.compliance/article: "BCB 85/2021 Art. 6 SS IV, Art. 15 SS I"
     bacen.compliance/control: "cicd-registry-access-control"
@@ -126,11 +126,11 @@ spec:
 ---
 
 # --- AuthorizationPolicy: GitLab → Harbor Registry (docker push/pull) -------
-apiVersion: policy.linkerd.io/v1beta3
+apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
 metadata:
   name: allow-gitlab-to-harbor-registry
-  namespace: staging-data-services
+  namespace: harbor-system
   annotations:
     bacen.compliance/article: "BCB 85/2021 Art. 6 SS IV, Art. 15 SS I"
     bacen.compliance/control: "cicd-registry-access-control"

@@ -46,8 +46,10 @@ if [[ "$SKIP_GATE" != "--skip-gate" ]]; then
     echo "❌ Gate script não encontrado: $GATE_SCRIPT"
     exit 1
   fi
+  set +e
   bash "$GATE_SCRIPT"
   GATE_EXIT=$?
+  set -e
   if [[ $GATE_EXIT -eq 1 ]]; then
     echo "❌ Gate BLOQUEADO — abortando deploy"
     exit 1

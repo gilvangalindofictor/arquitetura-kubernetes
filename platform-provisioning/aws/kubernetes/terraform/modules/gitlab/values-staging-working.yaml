@@ -5,6 +5,12 @@
 global:
   edition: ce
 
+  # Linkerd CNI: skip PG/Redis/Gitaly ports during init containers (2026-03-04)
+  # Root cause: CNI sets iptables before init containers; proxy not running yet
+  # Ports: 5432=PostgreSQL, 6379=Redis, 8075=Gitaly
+  podAnnotations:
+    config.linkerd.io/skip-outbound-ports: "5432,6379,8075"
+
   # Hosts
   hosts:
     domain: staging.internal
@@ -207,7 +213,8 @@ gitlab-runner:
   # GAP-005: Inject CI/CD credentials into runner pod and job pods.
   # Secret gitlab-ci-credentials is managed by ESO (ExternalSecret from Vault).
   # Keys: HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD, SONAR_HOST_URL, SONAR_TOKEN
-  envFrom:
+  # NOTE: chart 0.86.0 uses extraEnvFromRefs (not envFrom) for secretRef injection.
+  extraEnvFromRefs:
     - secretRef:
         name: gitlab-ci-credentials
   resources:

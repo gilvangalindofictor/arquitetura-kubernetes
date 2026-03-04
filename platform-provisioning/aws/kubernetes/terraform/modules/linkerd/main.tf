@@ -291,6 +291,11 @@ resource "helm_release" "linkerd_cni" {
     value = "terraform"
   }
 
+  # wait=false: DaemonSet may have 2 pods Pending on system/fargate nodes
+  # that never become Ready (NodeAffinity + capacity constraints). CNI is
+  # fully operational on all worker nodes (10/12). Avoiding timeout on apply.
+  wait = false
+
   depends_on = [helm_release.linkerd_crds]
 }
 
