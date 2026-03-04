@@ -1,8 +1,18 @@
+# ArgoCD staging values — chart argo-cd-6.7.18 (appVersion v2.10.9)
+# Upgraded from argo-cd-5.51.6 (v2.9.3) on 2026-03-04
+# Revision 3: Ingress fix + PKCE S256 enabled (2026-03-04)
+#
+# This file is the authoritative source of truth for ArgoCD production values.
+# Apply with: helm upgrade argocd argo/argo-cd -n staging-platform-argocd \
+#   --values <this-file> --version 6.7.18 --wait --timeout 3m
+#
+# NOTE: server.config (chart 5.x path) is intentionally excluded — use configs.cm (chart 6.x path).
+
 global:
-  domain: argocd-test.platform.local
+  domain: argocd.staging.internal
 
 server:
-  replicas: 1
+  replicas: 2
   resources:
     requests:
       cpu: "250m"
@@ -14,10 +24,68 @@ server:
     enabled: true
     serviceMonitor:
       enabled: true
-  service:
-    type: ClusterIP
-  ingress:
+  # Chart 6.x required fields (were nil in 5.x, now required)
+  emptyDir:
+    sizeLimit: ""
+  clusterRoleRules:
     enabled: false
+    rules: []
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+  # PostgreSQL backend credentials (via K8s secrets)
+  env:
+    - name: ARGOCD_SERVER_POSTGRESQL_HOST
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: host
+    - name: ARGOCD_SERVER_POSTGRESQL_DATABASE
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: database
+    - name: ARGOCD_SERVER_POSTGRESQL_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: username
+    - name: ARGOCD_SERVER_POSTGRESQL_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: argocd-postgresql-credentials
+          key: password
+  envFrom:
+    - secretRef:
+        name: argocd-postgresql-credentials
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/group.name: platform-staging
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    hosts:
+      - argocd.staging.internal
+  # RBAC policy — Keycloak groups mapped to ArgoCD roles
+  rbacConfig:
+    policy.default: role:readonly
+    policy.csv: |
+      # Admin group from Keycloak
+      g, argocd-admins, role:admin
+
+      # No secret enumeration (security)
+      p, role:readonly, repositories, get, */*, deny
+      p, role:readonly, certificates, get, *, deny
+      p, role:readonly, accounts, get, *, deny
 
 controller:
   replicas: 1
@@ -32,9 +100,24 @@ controller:
     enabled: true
     serviceMonitor:
       enabled: true
+  # Chart 6.x required fields
+  emptyDir:
+    sizeLimit: ""
+  clusterRoleRules:
+    enabled: false
+    rules: []
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 repoServer:
-  replicas: 1
+  replicas: 2
   resources:
     requests:
       cpu: "250m"
@@ -42,13 +125,110 @@ repoServer:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  # Chart 6.x required fields
+  emptyDir:
+    sizeLimit: ""
+  existingVolumes: {}
+  useEphemeralHelmWorkingDir: true
+  clusterRoleRules:
+    enabled: false
+    rules: []
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
+applicationSet:
+  enabled: true
+  replicas: 2
+  # Chart 6.x required fields
+  ingress:
+    enabled: false
+  livenessProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+  emptyDir:
+    sizeLimit: ""
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
 
 redis:
   enabled: true
+  # Chart 6.x required fields
+  livenessProbe:
+    enabled: false
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe:
+    enabled: false
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+  tolerations:
+    - key: node-type
+      operator: Equal
+      value: system
+      effect: NoSchedule
+    - key: workload
+      operator: Equal
+      value: critical
+      effect: NoSchedule
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
 
 configs:
-  cm:
-    admin.enabled: "true"
-    url: "https://argocd-test.platform.local"
   params:
     server.insecure: "true"
+  # Chart 6.x required fields
+  secret:
+    azureDevops:
+      username: ""
+      password: ""
+    postgresPassword: "${argocd-postgresql-credentials:password}"
+  cm:
+    admin.enabled: "true"
+    url: "http://argocd.staging.internal"
+    # OIDC/PKCE config — PKCE S256 enabled (v2.10.x + Keycloak pkce_code_challenge_method=S256)
+    oidc.config: |
+      name: Keycloak
+      issuer: http://keycloak.staging.internal/auth/realms/platform
+      clientID: argocd
+      clientSecret: ${argocd-oidc-credentials:client-secret}
+      requestedScopes: ["openid", "profile", "email", "groups"]
+      enablePKCEAuthentication: true

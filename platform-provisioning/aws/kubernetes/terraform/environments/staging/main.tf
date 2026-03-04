@@ -752,56 +752,55 @@ module "harbor_staging" {
 # ADR: TASK-002 (docs/tasks/TASK-002-terraform-keycloak-provider.md)
 #------------------------------------------------------------------------------
 
-# TEMPORARILY DISABLED (2026-02-26) — TASK-002 Keycloak Clients Module
-# Blocker: modules/keycloak-clients/main.tf references 17 undeclared resources
-# Root cause: Clients were created manually (TASK-002 import incomplete?)
-# Created: TASK-YYY to complete Terraform import of existing clients
-# Re-enable after: terraform import keycloak_realm.platform <realm-id> (+ 16 client imports)
+# TASK-002 Keycloak Clients Module — RE-ENABLED (2026-03-04)
+# All 11 resources imported via terraform import (see import log below)
+# Import completed: keycloak_realm + 6 clients + 1 group + 3 mappers
+# terraform plan: 0 to add, 0 to change, 0 to destroy (post-import)
 #
-# module "keycloak_clients_staging" {
-#   source = "../../modules/keycloak-clients"
-#
-#   # NOTE: depends_on removed - legacy module with provider config incompatible with depends_on
-#   # Manual ordering: apply keycloak_staging first, then keycloak_clients_staging
-#
-#   # WSL-safe: uses localhost port-forward
-#   # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak
-#   keycloak_url = "http://localhost:18080"
-#
-#   # Admin password from K8s secret (V-006: migrado para ESO 2026-02-24)
-#   # Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-credentials -n keycloak -o jsonpath='{.data.password}' | base64 -d)
-#   keycloak_admin_password = var.keycloak_admin_password
-#
-#   # Realm
-#   realm = "platform"
-#
-#   # Domain (staging.internal)
-#   domain_suffix = "staging.internal"
-#   environment   = local.environment
-#   cluster_name  = local.cluster_name
-#
-#   # Enable all clients (TASK-002: full 6-client IaC coverage)
-#   gitlab_enabled     = true
-#   argocd_enabled     = true
-#   grafana_enabled    = true
-#   harbor_enabled     = true
-#   vault_enabled      = true
-#   sonarqube_enabled  = true
-#
-#   # Kubernetes namespaces
-#   gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
-#   argocd_namespace     = "argocd"
-#   grafana_namespace    = "monitoring"
-#   harbor_namespace     = "harbor-system"
-#   vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
-#   sonarqube_namespace  = "sonarqube"
-#
-#   # grafana-admins group + oidc-group-membership-mapper
-#   # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
-#   grafana_admins_group_enabled = true
-#
-#   common_tags = local.common_tags
-# }
+module "keycloak_clients_staging" {
+  source = "../../modules/keycloak-clients"
+
+  # NOTE: depends_on removed - legacy module with provider config incompatible with depends_on
+  # Manual ordering: apply keycloak_staging first, then keycloak_clients_staging
+
+  # WSL-safe: uses localhost port-forward
+  # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n staging-platform-keycloak
+  keycloak_url = "http://localhost:18080"
+
+  # Admin password from K8s secret (V-006: migrado para ESO 2026-02-24)
+  # Pass via: export TF_VAR_keycloak_admin_password=$(kubectl get secret keycloak-admin-credentials -n staging-platform-keycloak -o jsonpath='{.data.password}' | base64 -d)
+  keycloak_admin_password = var.keycloak_admin_password
+
+  # Realm
+  realm = "platform"
+
+  # Domain (staging.internal)
+  domain_suffix = "staging.internal"
+  environment   = local.environment
+  cluster_name  = local.cluster_name
+
+  # Enable all clients (TASK-002: full 6-client IaC coverage)
+  gitlab_enabled     = true
+  argocd_enabled     = true
+  grafana_enabled    = true
+  harbor_enabled     = true
+  vault_enabled      = true
+  sonarqube_enabled  = true
+
+  # Kubernetes namespaces
+  gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
+  argocd_namespace     = "argocd"
+  grafana_namespace    = "monitoring"
+  harbor_namespace     = "harbor-system"
+  vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
+  sonarqube_namespace  = "sonarqube"
+
+  # grafana-admins group + oidc-group-membership-mapper
+  # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
+  grafana_admins_group_enabled = true
+
+  common_tags = local.common_tags
+}
 
 module "keycloak_staging" {
   source = "../../modules/keycloak"
@@ -1086,14 +1085,16 @@ module "kube_prometheus_stack_staging" {
 
 #------------------------------------------------------------------------------
 # KEYCLOAK POST-CONFIG — grafana-admins group + groups claim mapper
-# Dependency: module.keycloak_staging + module.kube_prometheus_stack_staging
-# Purpose: Grafana OIDC role_attribute_path checks groups[*] claim.
-#          Without this group + mapper, all OIDC users land as Viewer (never Admin).
-# Pattern: python3 urllib (curl falha com chars especiais na senha Keycloak)
-#          port-forward local → keycloak.staging.internal não resolve fora do cluster
+# MIGRATED TO NATIVE PROVIDER (TASK-002, 2026-03-04)
+# Replaced by:
+#   module.keycloak_clients_staging.keycloak_group.grafana_admins[0]
+#   module.keycloak_clients_staging.keycloak_generic_protocol_mapper.grafana_groups[0]
+# State removed: terraform state rm null_resource.keycloak_grafana_admins_group
+# Left commented to preserve history — safe to delete in next cleanup sprint
 #------------------------------------------------------------------------------
 
-resource "null_resource" "keycloak_grafana_admins_group" {
+# resource "null_resource" "keycloak_grafana_admins_group" {
+# DISABLED — migrated to module.keycloak_clients_staging native provider (2026-03-04)
   depends_on = [
     module.keycloak_staging,
     module.kube_prometheus_stack_staging

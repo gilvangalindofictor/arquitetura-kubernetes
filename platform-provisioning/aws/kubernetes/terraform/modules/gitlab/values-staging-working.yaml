@@ -1,9 +1,20 @@
-# GitLab CE - Staging Restore
-# Minimal values to restore GitLab with existing secrets
+# GitLab CE - Staging
+# Namespace: staging-platform-gitlab (DEC-074 Wave 6 migration - 2026-03-04)
+# Previously in: gitlab-staging
 
 # Edition
 global:
   edition: ce
+
+  # ADR-048: Kyverno corporate label enforcement
+  # Required labels for all pods in staging-* namespaces
+  # These are injected via global.podLabels which GitLab chart propagates to all pod templates
+  podLabels:
+    domain: platform
+    owner: platform-team
+    environment: staging
+    app.kubernetes.io/name: gitlab
+    app.kubernetes.io/part-of: gitlab
 
   # Linkerd CNI: skip PG/Redis/Gitaly ports during init containers (2026-03-04)
   # Root cause: CNI sets iptables before init containers; proxy not running yet
@@ -209,7 +220,10 @@ gitlab-runner:
   runnerRegistrationToken: ""
   # Override computed URL (http://host:80) since nginx-ingress is disabled.
   # Runner must reach GitLab via workhorse port 8181 directly.
-  gitlabUrl: "http://gitlab.staging.internal:8181"
+  # NOTE: After namespace migration gitlab-staging → staging-platform-gitlab (2026-03-04),
+  # use in-namespace service URL. gitlab.staging.internal DNS only resolves inside cluster
+  # via split-horizon CoreDNS which may not cover staging-platform-gitlab namespace.
+  gitlabUrl: "http://gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local:8181"
   # GAP-005: Inject CI/CD credentials into runner pod and job pods.
   # Secret gitlab-ci-credentials is managed by ESO (ExternalSecret from Vault).
   # Keys: HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD, SONAR_HOST_URL, SONAR_TOKEN
@@ -232,7 +246,7 @@ gitlab-runner:
         request_concurrency = 2
         [runners.kubernetes]
           image = "ubuntu:22.04"
-          namespace = "gitlab-staging"
+          namespace = "staging-platform-gitlab"
           # ADR-048: Inject compliance labels into job pods
           pod_labels = ["domain=integration", "owner=platform-team", "environment=staging"]
           # GAP-005: Inject gitlab-ci-credentials secret into job pods as env vars

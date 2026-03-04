@@ -39,5 +39,8 @@ provider "keycloak" {
   tls_insecure_skip_verify = false
 
   # Base path includes /auth (keycloakx legacy config still enables it)
-  base_path = ""
+  # keycloakx 7.1.7 / Keycloak 26.5.1 still serves /auth prefix (legacy mode)
+  # Without this, provider appends /realms/... → 404
+  # With base_path="/auth", provider uses: http://localhost:18080/auth/realms/...
+  base_path = "/auth"
 }

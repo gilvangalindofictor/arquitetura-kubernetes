@@ -1,11 +1,10 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-03-04 BRT — Sessão de finalização de demandas + Linkerd Phase 2 completo
-> **Fonte**: Confrontação cluster real vs documentação
+> **Última Revisão**: 2026-03-04 BRT — AUDIT REAL kubectl executado (ver [CLUSTER-AUDIT-2026-03-04.md](CLUSTER-AUDIT-2026-03-04.md))
+> **Fonte**: Confrontação cluster real vs documentação — 6 discrepâncias identificadas
 > **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%**
-> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ | Kyverno ✅ ENFORCE PLENO (0 excludes) | GitLab ✅ v18.9.1 (Rev 36) | RDS PG 16.4 ✅ | Linkerd ✅ Phase 2 COMPLETO (18/18 proxies, Harbor+GitLab) | VPC TF ✅ zero-drift (17/17 imports) | ADR-048 ✅ 100% (keycloak+argocd+vault labels validados)
-> **Session 2026-03-04**: VPC TF Import 17/17 zero-drift ✅ | Linkerd Phase 2 completo (harbor 7/7 + gitlab 11/11, PSA privileged fix) ✅ | ADR-048 labels keycloak/argocd/vault + Kyverno excludes removidos ✅ | GAP-005 runner envFrom + ExternalSecret criados ✅ | harbor-core OOMKill detectado (ALTA pendência)
+> **Infrastructure Health (REAL 2026-03-04)**: WAF ✅ | **Velero ❌ HELM FAILED + ZERO SCHEDULES** | Loki ✅ (62 pods) | Kyverno ✅ ENFORCE (48% pods labeled) | GitLab ✅ v18.9.1 Rev 44 | RDS PG 16.4 ✅ | **Linkerd ⚠️ GitLab ✅ / Harbor ❌ SEM PROXY** | ArgoCD **❌ v2.9.3** (não v2.10.0) | EKS ✅ 1.34.2 / 12 nodes | ESO ✅ 16/16
 
 ---
 
@@ -1392,18 +1391,20 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 **Concluídos (2026-02-25 noite - 5 agentes paralelos)**:
 5. ✅ **ADR-079 Fix**: Renumeração ADR-078/079/080 (3 duplicatas resolvidas, 9 arquivos atualizados)
 6. ✅ **OIDC Monitoring**: Script validação thumbprint + runbook (previne IRSA failures)
-7. ✅ **V-009**: Velero backup schedules (daily 7d + weekly 30d retention, S3 Intelligent-Tiering)
+7. ⚠️ **V-009**: Velero backup schedules — **AUDIT 2026-03-04: YAML templates criados mas SCHEDULES NÃO ESTÃO ATIVOS** (`kubectl get schedule -n velero` → VAZIO). Helm release em estado `failed`. Redeployar urgente.
 8. ✅ **V-011**: Grafana dashboard Velero (15 painéis + 7 PrometheusRule alerts)
 9. ✅ **V-012**: Velero DR runbook (1,507 linhas, 5 cenários, RTO/RPO procedures)
 
 **Concluídos anteriormente**:
+
 - ✅ **DT-005**: Alertas PrometheusRule deployados (Slack webhooks manuais)
 - ✅ **GAP-005**: Templates GitLab CI/CD completos (validação E2E manual pendente)
 - ✅ **GAP-006/007/008**: ApplicationSets, Network Policies, Monitoring
 
-**Pendente**:
+**Pendente (Audit 2026-03-04)**:
 
-- 🟡 **V-010**: Restore testing (criar namespace teste → backup → delete → restore validation)
+- 🔴 **V-009 REDEPLOY**: `helm upgrade velero vmware-tanzu/velero -n velero --reuse-values` + aplicar schedules YAML
+- 🔴 **V-010**: BLOQUEADO — restore testing impossível até V-009 schedules ativos
 
 ---
 

@@ -66,8 +66,7 @@ locals {
 # so no explicit includes are needed.
 #
 # CLIENT SUMMARY (6 clients, 1 realm):
-#   OIDC (PKCE S256):  gitlab, grafana, harbor, vault
-#   OIDC (no PKCE):    argocd  (TODO: enable after TASK-001 ArgoCD upgrade)
+#   OIDC (PKCE S256):  gitlab, grafana, harbor, vault, argocd (enabled 2026-03-04)
 #   SAML 2.0:          sonarqube
 #
 # IMPORT ORDER (scripts/keycloak/import-clients.sh):

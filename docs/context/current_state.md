@@ -8,13 +8,25 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-03-04 (VPC TF zero-drift 17/17 ✅ | Linkerd Phase 2 completo 18/18 proxies ✅ | Kyverno excludes removidos ADR-048 labels corrigidos ✅ | GAP-005 ExternalSecret runner criado ✅ | Quickstart-REAL v4.0 atualizado ✅)
+**Última Atualização**: 2026-03-04 Sessão 3 — 6/6 discrepâncias do Cluster Audit RESOLVIDAS ✅
+**Audit doc**: [CLUSTER-AUDIT-2026-03-04.md](../CLUSTER-AUDIT-2026-03-04.md) — todas resolvidas
 
-**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + CI/CD Enhancement 5/5 DEPLOYED + Infraestrutura Upgrades (GitLab v18.9.1, PostgreSQL 16, Linkerd mTLS) + DNS Demand em planejamento
+**Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + CI/CD Enhancement 5/5 DEPLOYED + Infraestrutura Upgrades (GitLab v18.9.1, ArgoCD v2.10.9 PKCE, Linkerd mTLS Phase 2 completo) + Keycloak IaC 11/11 importados
 
 **Marco Atual**: Marco 4 - CI/CD Platform ✅ **100% COMPLETO** (8/8 GAPs) + FinOps Optimization (90% roadmap, R$ 56.424/ano savings) + Security Remediation (8/8 vulnerabilities FIXED) + **CI/CD Enhancement 5/5 DEPLOYED** + **INFRA-001/002 COMPLETOS**
 
 **Progresso Geral**: 65% ████████████████████░░░░░░░░ (Marco 0-4 completo, Marco 5 planejamento iniciado)
+
+**Enterprise Maturity**: 4.4/5.0 (Advanced++) — mTLS Phase 2 completo, PKCE ativo, Velero schedules restaurados
+
+> ✅ **CLUSTER AUDIT DISCREPÂNCIAS — TODAS RESOLVIDAS (2026-03-04 Sessão 3)**:
+>
+> - ✅ **Velero** — Helm deployed + schedules daily (02:00 UTC, 30d) + hourly (24h) ativos
+> - ✅ **Harbor Linkerd** — 7/7 pods 2/2 Running com mTLS proxy
+> - ✅ **ArgoCD** — v2.10.9 (chart 6.7.18) + PKCE S256 + ingress funcional + Keycloak OIDC
+> - ✅ **Kyverno** — staging-data-hatch 9/9 Running + MutatingPolicy GitLab inject labels
+> - ✅ **GitLab namespace** — `staging-platform-gitlab` (rev 11) | `gitlab-staging` DELETADO
+> - ✅ **VPA Day 7** — Report criado: R$1.170/ano net savings | gitlab-webservice WARNING (under-provisioned)
 
 ---
 
@@ -248,7 +260,7 @@
 | -------------- | ------------- | ------- | ----------- | ------------------------------------------- |
 | AWS VPC        | ✅ Operacional | —       | 10.0.0.0/16 | 2 subnets públicas, 2 privadas              |
 | VPC Endpoints  | ✅ Operacional | —       | STS + EC2   | ADR-046, custo +$28.90/mês                  |
-| EKS Cluster    | ✅ Operacional | 1.28    | 7 nodes     | 3 node groups (critical, system, workloads) |
+| EKS Cluster    | ✅ Operacional | **1.34.2** | **12 nodes** | 3 node groups (critical, system, workloads) |
 | EBS CSI Driver | ✅ Operacional | v1.26.1 | —           | Para persistent volumes                     |
 | VPC CNI        | ✅ Operacional | v1.16.0 | —           | Networking                                  |
 | CoreDNS        | ✅ Operacional | v1.10.1 | —           | DNS interno                                 |
