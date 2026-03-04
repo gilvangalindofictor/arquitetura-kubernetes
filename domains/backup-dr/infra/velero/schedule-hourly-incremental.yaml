@@ -1,0 +1,92 @@
+---
+# =============================================================================
+# Velero Schedule — Hourly Incremental (Metadata Only)
+# =============================================================================
+# Frequency : 0 * * * * (every hour at :00 UTC)
+# Retention : 24h (rolling 24-hour window)
+# Scope     : All namespaces (full metadata capture)
+# Volumes   : snapshotVolumes: false — metadata only (no EBS snapshots)
+#
+# Purpose: Captures Kubernetes resource state (Deployments, Services,
+# ConfigMaps, Secrets, CRDs, etc.) every hour. Enables point-in-time
+# recovery of resource configurations without the cost of EBS snapshots.
+#
+# For stateful data recovery, use the daily-full-backup (with EBS snapshots).
+#
+# GAP-012 Phase 2 | ADR-078 | RPO: 1h (metadata)
+#
+# Deploy: kubectl apply -f schedule-hourly-incremental.yaml
+# Verify: velero schedule get hourly-incremental-backup
+# List backups: velero backup get --selector frequency=hourly
+# =============================================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: hourly-incremental-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: schedule
+    app.kubernetes.io/part-of: backup-dr
+    environment: staging
+    backup-type: incremental
+    frequency: hourly
+    gap: gap-012
+  annotations:
+    description: "Hourly incremental backup — all namespaces metadata, NO volume snapshots"
+    adr: "ADR-078"
+    rpo: "1h"
+    note: "snapshotVolumes=false — use daily-full-backup for EBS snapshot-based recovery"
+    managed-by: "platform-team"
+spec:
+  # Cron: every hour at :00
+  schedule: "0 * * * *"
+  useOwnerReferencesInBackup: false
+  template:
+    # ---------------------------------------------------------------------------
+    # Storage
+    # ---------------------------------------------------------------------------
+    storageLocation: default
+    # Retention: 24 hours rolling window
+    ttl: 24h0m0s
+
+    # ---------------------------------------------------------------------------
+    # Scope — all namespaces (captures full cluster state every hour)
+    # ---------------------------------------------------------------------------
+    includedNamespaces:
+      - "*"
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+
+    includedResources:
+      - "*"
+    excludedResources:
+      - events
+      - events.events.k8s.io
+      # Exclude PVCs from incremental (no volume snapshot, avoid confusion)
+      - persistentvolumes
+      - persistentvolumeclaims
+
+    # ---------------------------------------------------------------------------
+    # Volumes — DISABLED for incremental (metadata only)
+    # ---------------------------------------------------------------------------
+    # Setting snapshotVolumes: false reduces:
+    #   - Backup duration (seconds vs minutes)
+    #   - EBS snapshot costs (zero per run)
+    #   - AWS API rate limit pressure
+    snapshotVolumes: false
+
+    labelSelector:
+      matchExpressions:
+        - key: velero.io/exclude-from-backup
+          operator: DoesNotExist
+
+    metadata:
+      labels:
+        backup-type: "incremental"
+        frequency: "hourly"
+        environment: "staging"
+        gap: "gap-012"
+        managed-by: "velero-schedule"

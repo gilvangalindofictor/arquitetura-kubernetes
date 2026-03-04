@@ -16,8 +16,8 @@
 4. [CI/CD Platform: Esteira DevOps](#4-cicd-platform-esteira-devops)
 5. [Observability: Monitoramento](#5-observability-monitoramento)
 6. [Data Services: Operators](#6-data-services-operators)
-7. [Secrets Management: Cofre](#7-secrets-management-cofre-pendente)
-8. [Security: Políticas](#8-security-políticas-pendente)
+7. [Secrets Management: Cofre](#7-secrets-management-cofre)
+8. [Security: Políticas](#8-security-políticas)
 9. [Comunicação Entre Domínios](#9-comunicação-entre-domínios)
 10. [Fluxo de Deploy Completo](#10-fluxo-de-deploy-completo)
 
@@ -156,7 +156,7 @@ graph TB
 graph LR
     START([Platform Provisioning<br/>AKS/EKS/GKE]) --> PC[#1 Platform-Core<br/>Kong, Keycloak, Linkerd<br/>cert-manager, NGINX]
 
-    PC --> SM[#2 Secrets-Management<br/>Vault HA Cluster<br/>⚠️ ADR-002 Pendente]
+    PC --> SM[#2 Secrets-Management<br/>Vault HA + ESO<br/>✅ 16/16 SecretSynced]
 
     SM --> OBS[#3 Observability<br/>OTEL, Prometheus<br/>Grafana, Loki, Tempo]
 
@@ -164,19 +164,17 @@ graph LR
 
     OBS --> DATA[#5 Data Services<br/>Postgres, Redis<br/>RabbitMQ Operators]
 
-    CICD --> SEC[#6 Security<br/>Kyverno, Falco, Trivy<br/>⚠️ ADR-002 Pendente]
+    CICD --> SEC[#6 Security<br/>Kyverno ENFORCE, Falco, Trivy<br/>✅ 80/80 PASS]
 
     DATA --> SEC
 
-    SEC --> READY([✅ Plataforma Completa<br/>Pronta para Workloads])
+    SEC --> READY([✅ Plataforma Completa<br/>6/6 Domínios Operacionais])
 
     %% Estilos
     classDef done fill:#4CAF50,stroke:#2E7D32,color:#fff
-    classDef pending fill:#FFC107,stroke:#F57C00,color:#000
     classDef milestone fill:#9C27B0,stroke:#6A1B9A,color:#fff
 
-    class PC,OBS,CICD,DATA done
-    class SM,SEC pending
+    class PC,OBS,CICD,DATA,SM,SEC done
     class START,READY milestone
 ```
 
@@ -602,106 +600,91 @@ graph TB
 
 ---
 
-## 7. Secrets Management: Cofre (Pendente)
+## 7. Secrets Management: Cofre
 
 ```mermaid
 graph TB
-    subgraph "SECRETS-MANAGEMENT (⚠️ ADR-002 Pendente)"
-        subgraph "Opção 1: Vault (Recomendado)"
-            VAULT_SERVER[Vault Server<br/>3 réplicas HA<br/>Auto-unsealing]
-            VAULT_CONSUL[(Consul Backend<br/>Raft consensus<br/>5Gi per pod)]
-            VAULT_INJECTOR[Vault Agent Injector<br/>Sidecar secrets]
+    subgraph "SECRETS-MANAGEMENT ✅ OPERACIONAL (ADR-031 + ADR-032)"
+        subgraph "vault namespace"
+            VAULT_SERVER[Vault Server HA<br/>3 réplicas<br/>KMS Auto-unseal]
+            VAULT_RAFT[(Raft Backend<br/>Integrated storage)]
+            VAULT_INJECTOR[Vault Agent Injector<br/>Sidecar injection]
         end
 
-        subgraph "Opção 2: ESO (Alternativa)"
-            ESO_CONTROLLER[External Secrets Operator<br/>Controller<br/>1 réplica]
-            ESO_WEBHOOK[ESO Webhook<br/>SecretStore CRD]
+        subgraph "external-secrets namespace"
+            ESO_CONTROLLER[External Secrets Operator<br/>Controller<br/>16/16 SecretSynced]
+            ESO_STORE[SecretStore<br/>vault-backend]
         end
     end
 
-    subgraph "SECRET STORES (Cloud-specific)"
-        AWS_SM[AWS Secrets Manager]
-        AZURE_KV[Azure Key Vault]
-        GCP_SM[GCP Secret Manager]
+    subgraph "SECRET STORES"
+        AWS_SM[AWS Secrets Manager<br/>staging/platform/*]
     end
 
     subgraph "CONTRATOS PROVIDOS"
         CONTRACT_STATIC[Static Secrets<br/>K8s Secret sync<br/>Auto-rotation]
         CONTRACT_DYNAMIC[Dynamic Secrets<br/>Database credentials<br/>TTL-based]
         CONTRACT_PKI[PKI/TLS<br/>Certificate generation<br/>Auto-renewal]
-        CONTRACT_ENCRYPTION[Encryption as a Service<br/>Transit encryption<br/>Key rotation]
+        CONTRACT_ENCRYPTION[Encryption as a Service<br/>Transit engine<br/>KMS key rotation]
     end
 
-    subgraph "CONSUMERS"
-        GITLAB_C[GitLab<br/>DB credentials]
-        HARBOR_C[Harbor<br/>Admin password]
-        ARGOCD_C[ArgoCD<br/>Git SSH keys]
-        APP_C[Applications<br/>API keys, passwords]
+    subgraph "CONSUMERS (16 ExternalSecrets)"
+        GITLAB_C[GitLab<br/>DB + SMTP + OIDC]
+        HARBOR_C[Harbor<br/>DB + Admin + OIDC]
+        ARGOCD_C[ArgoCD<br/>OIDC + Git keys]
+        APP_C[Keycloak + Vault<br/>DB credentials]
     end
 
-    %% Vault Option
-    VAULT_SERVER --> VAULT_CONSUL
-    VAULT_INJECTOR -.->|Inject secrets<br/>via sidecar| GITLAB_C
-    VAULT_INJECTOR -.->|Inject secrets<br/>via sidecar| HARBOR_C
-    VAULT_SERVER -->|Dynamic DB creds| APP_C
-    VAULT_SERVER -->|PKI engine| CONTRACT_PKI
-    VAULT_SERVER -->|Transit engine| CONTRACT_ENCRYPTION
-
-    %% ESO Option
-    ESO_CONTROLLER -.->|Sync from cloud| AWS_SM
-    ESO_CONTROLLER -.->|Sync from cloud| AZURE_KV
-    ESO_CONTROLLER -.->|Sync from cloud| GCP_SM
-    ESO_CONTROLLER -.->|Create K8s Secret| GITLAB_C
-
-    %% Contratos
-    VAULT_SERVER --> CONTRACT_STATIC
+    %% Vault flows
+    VAULT_SERVER --> VAULT_RAFT
     VAULT_SERVER --> CONTRACT_DYNAMIC
-    ESO_CONTROLLER -.-> CONTRACT_STATIC
+    VAULT_SERVER --> CONTRACT_PKI
+    VAULT_SERVER --> CONTRACT_ENCRYPTION
 
-    %% Decisão
-    DECISION{ADR-002<br/>Vault vs ESO?}
-    DECISION -->|Cloud-Agnostic Total| VAULT_SERVER
-    DECISION -.->|Simplicidade + Cloud KMS| ESO_CONTROLLER
+    %% ESO flows
+    ESO_CONTROLLER -->|Read secrets| AWS_SM
+    ESO_CONTROLLER -->|ClusterSecretStore| ESO_STORE
+    ESO_STORE -->|Create K8s Secret| GITLAB_C
+    ESO_STORE -->|Create K8s Secret| HARBOR_C
+    ESO_STORE -->|Create K8s Secret| ARGOCD_C
+    ESO_STORE -->|Create K8s Secret| APP_C
+
+    VAULT_INJECTOR -.->|Sidecar inject| GITLAB_C
+    VAULT_SERVER --> CONTRACT_STATIC
+    ESO_CONTROLLER -.-> CONTRACT_STATIC
 
     %% Estilos
     classDef vault fill:#4CAF50,stroke:#2E7D32,color:#fff
-    classDef eso fill:#FFC107,stroke:#F57C00,color:#000
+    classDef eso fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef cloud fill:#9E9E9E,stroke:#424242,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef consumer fill:#9C27B0,stroke:#6A1B9A,color:#fff
-    classDef decision fill:#F44336,stroke:#C62828,color:#fff
 
-    class VAULT_SERVER,VAULT_CONSUL,VAULT_INJECTOR vault
-    class ESO_CONTROLLER,ESO_WEBHOOK eso
-    class AWS_SM,AZURE_KV,GCP_SM cloud
+    class VAULT_SERVER,VAULT_RAFT,VAULT_INJECTOR vault
+    class ESO_CONTROLLER,ESO_STORE eso
+    class AWS_SM cloud
     class CONTRACT_STATIC,CONTRACT_DYNAMIC,CONTRACT_PKI,CONTRACT_ENCRYPTION contract
     class GITLAB_C,HARBOR_C,ARGOCD_C,APP_C consumer
-    class DECISION decision
 ```
 
-**Decisão Pendente (ADR-002)**:
-- **Vault ✅ Recomendado**: Cloud-agnostic total, dynamic secrets, PKI, encryption as a service (mais complexo)
-- **ESO ⚠️ Alternativa**: Simplicidade, depende de cloud KMS (menos features, vendor lock-in)
+**✅ Decisão Implementada (ADR-031 + ADR-032)**:
+- **Vault HA**: Secret engine primário — dynamic secrets (DB credentials), PKI, encryption as a service, KMS auto-unseal
+- **ESO**: Synchronizer — lê de AWS Secrets Manager e cria K8s Secrets (16/16 SecretSynced)
+- **Padrão híbrido**: Vault como storage authoritative + ESO como sync layer para cloud secrets
 
 **Responsabilidades Secrets Management**:
 - **Vault**: Storage seguro de secrets, dynamic secrets (DB credentials), PKI, encryption
-- **ESO**: Sync de secrets de cloud providers para Kubernetes Secrets
+- **ESO**: Sync de AWS Secrets Manager para Kubernetes Secrets (todos os componentes platform)
 
 ---
 
-## 8. Security: Políticas (Pendente)
+## 8. Security: Políticas
 
 ```mermaid
 graph TB
-    subgraph "SECURITY DOMAIN (⚠️ ADR-002 Pendente)"
-        subgraph "Policy Engine"
-            subgraph "Opção 1: Kyverno (Recomendado)"
-                KYVERNO[Kyverno Controller<br/>Policy validation<br/>Policy mutation<br/>Policy generation]
-            end
-
-            subgraph "Opção 2: OPA (Alternativa)"
-                OPA[OPA Gatekeeper<br/>Admission webhook<br/>Rego policies]
-            end
+    subgraph "SECURITY DOMAIN ✅ OPERACIONAL (ADR-043)"
+        subgraph "kyverno namespace"
+            KYVERNO[Kyverno Controller HA<br/>ENFORCE mode<br/>80/80 PASS]
         end
 
         subgraph "Runtime Security"
@@ -717,84 +700,67 @@ graph TB
         end
     end
 
-    subgraph "POLICY TYPES"
-        POL_ADMISSION[Admission Policies<br/>- Require labels<br/>- Disallow privileged<br/>- Enforce resource limits]
-        POL_MUTATION[Mutation Policies<br/>- Add default labels<br/>- Inject sidecars<br/>- Add NetworkPolicy]
-        POL_GENERATION[Generation Policies<br/>- Auto-create RBAC<br/>- Auto-create NetworkPolicy<br/>- Auto-create ConfigMap]
+    subgraph "POLICY TYPES (3 Políticas ENFORCE)"
+        POL_ADMISSION[Admission Policies<br/>- Require labels ADR-048<br/>- Disallow privileged<br/>- Enforce resource limits]
+        POL_MUTATION[Mutation Policies<br/>- Add default labels<br/>- Inject Linkerd sidecar<br/>- Add NetworkPolicy]
+        POL_GENERATION[Generation Policies<br/>- Auto-create RBAC<br/>- Auto-create NetworkPolicy]
     end
 
     subgraph "CONTRATOS PROVIDOS"
-        CONTRACT_POLICY[Policy Enforcement<br/>Admission webhook<br/>Audit mode + Enforce]
+        CONTRACT_POLICY[Policy Enforcement<br/>Admission webhook<br/>ENFORCE mode ativo]
         CONTRACT_RUNTIME[Runtime Security<br/>Real-time alerts<br/>Threat detection]
-        CONTRACT_VULN[Vulnerability Scanning<br/>CVE detection<br/>Image signing]
-        CONTRACT_NETWORK[Network Segmentation<br/>Zero-trust networking<br/>Namespace isolation]
+        CONTRACT_VULN[Vulnerability Scanning<br/>CVE detection<br/>Harbor Trivy integration]
+        CONTRACT_NETWORK[Network Segmentation<br/>mTLS via Linkerd<br/>Namespace isolation]
     end
 
     subgraph "MONITORED RESOURCES"
-        PODS[Pods<br/>Policy validation]
+        PODS[Pods<br/>80/80 PASS]
         IMAGES[Images<br/>CVE scanning]
         SYSCALLS[System Calls<br/>Runtime behavior]
         TRAFFIC[Network Traffic<br/>L3/L4 policies]
     end
 
-    %% Kyverno Option
     KYVERNO -->|Validate| POL_ADMISSION
     KYVERNO -->|Mutate| POL_MUTATION
     KYVERNO -->|Generate| POL_GENERATION
     KYVERNO -->|Webhook| PODS
 
-    %% OPA Option
-    OPA -.->|Validate: Rego| POL_ADMISSION
-    OPA -.->|Webhook| PODS
-
-    %% Falco Runtime
     FALCO -->|Monitor syscalls| SYSCALLS
     FALCO -->|Alert to| GRAFANA_EXT[Grafana<br/>observability]
 
-    %% Trivy Scanning
     TRIVY_OP -->|Scan| IMAGES
     TRIVY_OP -->|Report to| HARBOR_EXT[Harbor<br/>cicd-platform]
 
-    %% Network Policies
     NETPOL -->|Apply rules| TRAFFIC
     NETPOL -.->|Complement| LINKERD_EXT[Linkerd mTLS<br/>platform-core]
 
-    %% Contratos
     KYVERNO --> CONTRACT_POLICY
     FALCO --> CONTRACT_RUNTIME
     TRIVY_OP --> CONTRACT_VULN
     NETPOL --> CONTRACT_NETWORK
 
-    %% Decisão
-    DECISION{ADR-002<br/>Kyverno vs OPA?}
-    DECISION -->|YAML policies + Mutation/Generation| KYVERNO
-    DECISION -.->|Rego flexibility: Validation only| OPA
-
     %% Estilos
     classDef kyverno fill:#4CAF50,stroke:#2E7D32,color:#fff
-    classDef opa fill:#FFC107,stroke:#F57C00,color:#000
     classDef runtime fill:#FF5722,stroke:#D84315,color:#fff
     classDef contract fill:#2196F3,stroke:#1565C0,color:#fff
     classDef resource fill:#9C27B0,stroke:#6A1B9A,color:#fff
-    classDef decision fill:#F44336,stroke:#C62828,color:#fff
 
     class KYVERNO kyverno
-    class OPA opa
     class FALCO,TRIVY_OP,NETPOL runtime
     class CONTRACT_POLICY,CONTRACT_RUNTIME,CONTRACT_VULN,CONTRACT_NETWORK contract
     class PODS,IMAGES,SYSCALLS,TRAFFIC resource
-    class DECISION decision
 ```
 
-**Decisão Pendente (ADR-002)**:
-- **Kyverno ✅ Recomendado**: YAML policies, validation + mutation + generation (mais features, simples)
-- **OPA ⚠️ Alternativa**: Rego policies (flexibilidade máxima, curva de aprendizado)
+**✅ Decisão Implementada (ADR-043)**:
+
+- **Kyverno ENFORCE**: YAML policies, validation + mutation + generation — 80/80 PASS em todos os pods
 
 **Responsabilidades Security**:
-- **Kyverno/OPA**: Policy enforcement (admission webhooks), validation, mutation
+
+- **Kyverno**: Policy enforcement (admission webhooks) em modo ENFORCE — 3 políticas ativas (ADR-048 labels, privileged, resources)
 - **Falco**: Runtime security monitoring, threat detection, syscall analysis
-- **Trivy Operator**: Vulnerability scanning de imagens, CVE reports
-- **Network Policies**: L3/L4 firewall, namespace isolation, zero-trust
+- **Trivy Operator**: Vulnerability scanning de imagens, CVE reports integrado ao Harbor
+- **Network Policies**: L3/L4 firewall + Linkerd mTLS (zero-trust)
 
 ---
 
@@ -957,15 +923,15 @@ graph TB
 
 ## 📊 Resumo de Recursos por Domínio
 
-| Domínio                | CPU (cores) | Memory (Gi) | Storage (Gi)   | Status           | SLA           |
-| ---------------------- | ----------- | ----------- | -------------- | ---------------- | ------------- |
-| **Platform-Core**      | 4.2         | 8           | 20             | ✅ Implementado   | 99.9%         |
-| **Secrets-Management** | 2.0         | 4           | 15             | ⚠️ ADR-002        | 99.9%         |
-| **Observability**      | 3.0         | 8           | 180            | ✅ Implementado   | 99.9%         |
-| **CI/CD Platform**     | 7.5         | 16          | 211            | ✅ Implementado   | 99.5%         |
-| **Data Services**      | 0.5         | 2           | 10 (operators) | ✅ Implementado   | 99.9%         |
-| **Security**           | 1.5         | 3           | 5              | ⚠️ ADR-002        | 99.9%         |
-| **TOTAL**              | **18.7**    | **41**      | **441**        | **83% Completo** | **99.7% Avg** |
+| Domínio                | CPU (cores) | Memory (Gi) | Storage (Gi)   | Status              | SLA           |
+| ---------------------- | ----------- | ----------- | -------------- | ------------------- | ------------- |
+| **Platform-Core**      | 4.2         | 8           | 20             | Implementado ✅      | 99.9%         |
+| **Secrets-Management** | 2.0         | 4           | 15             | Vault HA + ESO ✅   | 99.9%         |
+| **Observability**      | 3.0         | 8           | 180            | Implementado ✅      | 99.9%         |
+| **CI/CD Platform**     | 7.5         | 16          | 211            | Implementado ✅      | 99.5%         |
+| **Data Services**      | 0.5         | 2           | 10 (operators) | Implementado ✅      | 99.9%         |
+| **Security**           | 1.5         | 3           | 5              | Kyverno ENFORCE ✅  | 99.9%         |
+| **TOTAL**              | **18.7**    | **41**      | **441**        | **100% Completo**   | **99.7% Avg** |
 
 **Nota**: Data Services storage é por operator. Instances criadas adicionam ~75Gi (30Gi PG + 15Gi Redis + 30Gi RabbitMQ) por aplicação.
 

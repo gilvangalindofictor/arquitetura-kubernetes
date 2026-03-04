@@ -1,0 +1,168 @@
+# =============================================================================
+# GitLab CI Template — Terratest (DT-003)
+#
+# Runs automated Terraform IaC tests on every change to the platform-provisioning
+# Terraform modules. Tests are split into two stages:
+#
+#   terratest:unit     — pure Go/HCL static checks, no AWS credentials, fast (~30s)
+#   terratest:validate — terraform fmt + validate per module, no AWS credentials (~5min)
+#   terratest:integration — terraform plan/apply, requires AWS credentials (manual)
+#
+# Usage: include this template in your root .gitlab-ci.yml:
+#   include:
+#     - local: 'domains/cicd-platform/infra/gitlab-ci/templates/terratest.gitlab-ci.yml'
+# =============================================================================
+
+variables:
+  TERRAFORM_VERSION: "1.14.3"
+  GO_VERSION: "1.22"
+  TERRATEST_DIR: "platform-provisioning/aws/kubernetes/terraform/test"
+  MODULES_DIR: "platform-provisioning/aws/kubernetes/terraform/modules"
+
+# --------------------------------------------------------------------------
+# Stage: terratest:unit
+# Pure Go unit tests — no AWS credentials, no terraform init, no network.
+# Checks: file structure, hardcoded credentials, naming, interface compliance.
+# --------------------------------------------------------------------------
+terratest-unit:
+  stage: validate
+  image: golang:1.22-alpine
+  before_script:
+    - apk add --no-cache git
+    - cd ${TERRATEST_DIR}
+    - go mod download
+  script:
+    - echo "=== go mod tidy ==="
+    - go mod tidy
+    - echo "=== Running unit tests (no AWS credentials needed) ==="
+    - go test -v -timeout 120s
+      -run "TestTerraformFilesExist|TestCriticalModulesHaveVariablesOrOutputs|TestNoHardcodedCredentials|TestModulesHaveVersionConstraints|TestResourceNamingConventions|TestVPCModuleStructure|TestVPCDNSConfiguration|TestVPCTagCompliance|TestVPCCIDRValidation|TestVPCVersionConstraints|TestVPCSubnetsModuleStructure|TestVPCSecurityGroupsModuleStructure|TestEKSModuleStructure|TestEKSClusterConfiguration|TestEKSIAMConfiguration|TestEKSSecurityGroupConfiguration|TestEKSNodeGroupConfiguration|TestEKSClusterEndpointConfiguration|TestEKSOutputs|TestEKSOIDCProvider|TestEKSTaggingCompliance|TestEKSNodeGroupDefaults|TestPostgreSQLModuleStructure|TestPostgreSQLSecurityGroupRules|TestPostgreSQLEncryption|TestPostgreSQLMonitoring|TestPostgreSQLBackupConfiguration|TestPostgreSQLSecretsManagement|TestPostgreSQLVariables|TestPostgreSQLOutputs|TestPostgreSQLVersionConstraints|TestS3BucketsModuleStructure|TestS3BucketsDefinitions|TestS3BucketsSecurityConfiguration|TestS3BucketsLifecycleRules|TestS3BucketsIAMPolicies|TestS3BucketsOutputs|TestS3BucketsVariables|TestS3BucketsFCTProposalsLGPDCompliance|TestIAMRolesFollowLeastPrivilege|TestKMSKeyRotationEnabled|TestRDSInstancesNotPubliclyAccessible|TestEKSClusterLogging|TestEKSPrivateEndpoint|TestVaultModuleSecurityBestPractices|TestS3BucketsPublicAccessBlocked|TestS3BucketsEncryptionEnabled|TestS3BucketsVersioningEnabled|TestSecurityGroupsHaveDescriptions"
+      ./...
+  rules:
+    - changes:
+        - platform-provisioning/aws/kubernetes/terraform/**/*
+        - platform-provisioning/aws/kubernetes/terraform/test/**/*
+  artifacts:
+    when: always
+    reports:
+      junit: ${TERRATEST_DIR}/unit-results.xml
+    expire_in: 7 days
+
+# --------------------------------------------------------------------------
+# Stage: terratest:fmt
+# Runs terraform fmt -check on all modules. Requires terraform binary only.
+# Fails the pipeline if any module has formatting issues.
+# --------------------------------------------------------------------------
+terratest-fmt:
+  stage: validate
+  image:
+    name: hashicorp/terraform:1.14.3
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache go git
+    - export GOPATH=/tmp/go
+    - export PATH=$PATH:/tmp/go/bin
+    - cd ${TERRATEST_DIR}
+    - go mod download
+  script:
+    - echo "=== Running terraform fmt checks ==="
+    - go test -v -timeout 120s -run "TestTerraformFmtAllModules" ./...
+  rules:
+    - changes:
+        - platform-provisioning/aws/kubernetes/terraform/**/*
+  artifacts:
+    when: on_failure
+    expire_in: 3 days
+
+# --------------------------------------------------------------------------
+# Stage: terratest:static
+# Static security analysis: S3 public access, encryption, IAM least privilege,
+# KMS rotation, security group descriptions. No AWS credentials needed.
+# --------------------------------------------------------------------------
+terratest-static:
+  stage: validate
+  image:
+    name: hashicorp/terraform:1.14.3
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache go git
+    - export GOPATH=/tmp/go
+    - export PATH=$PATH:/tmp/go/bin
+    - cd ${TERRATEST_DIR}
+    - go mod download
+  script:
+    - echo "=== Running static security analysis ==="
+    - go test -v -timeout 300s
+      -run "TestTFLintAllModules|TestS3BucketsPublicAccessBlocked|TestS3BucketsEncryptionEnabled|TestS3BucketsVersioningEnabled|TestSecurityGroupsHaveDescriptions|TestIAMRolesFollowLeastPrivilege|TestKMSKeyRotationEnabled|TestRDSInstancesNotPubliclyAccessible|TestEKSClusterLogging|TestEKSPrivateEndpoint|TestVaultModuleSecurityBestPractices"
+      ./...
+  rules:
+    - changes:
+        - platform-provisioning/aws/kubernetes/terraform/**/*
+  artifacts:
+    when: always
+    expire_in: 7 days
+
+# --------------------------------------------------------------------------
+# Stage: terratest:validate
+# Runs terraform validate on all modules. Downloads providers (network access).
+# Uses a longer timeout (20m) to allow provider downloads.
+# NOTE: Some modules with complex provider requirements are validated with
+#       init -backend=false only (see modulesRequiringFixtures in test code).
+# --------------------------------------------------------------------------
+terratest-validate:
+  stage: test
+  image:
+    name: hashicorp/terraform:1.14.3
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache go git
+    - export GOPATH=/tmp/go
+    - export PATH=$PATH:/tmp/go/bin
+    - cd ${TERRATEST_DIR}
+    - go mod download
+  script:
+    - echo "=== Running terraform validate on all modules ==="
+    - go test -v -timeout 20m -run "TestTerraformValidateAllModules" ./...
+  rules:
+    - changes:
+        - platform-provisioning/aws/kubernetes/terraform/**/*
+  cache:
+    key: terraform-providers-${CI_COMMIT_REF_SLUG}
+    paths:
+      - platform-provisioning/aws/kubernetes/terraform/modules/**/.terraform
+  artifacts:
+    when: always
+    expire_in: 7 days
+  allow_failure: false
+
+# --------------------------------------------------------------------------
+# Stage: terratest:integration
+# Full terraform plan/apply cycle. Requires AWS credentials.
+# Triggered manually or on tags only — never runs on MR by default.
+# --------------------------------------------------------------------------
+terratest-integration:
+  stage: deploy
+  image:
+    name: hashicorp/terraform:1.14.3
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache go git
+    - export GOPATH=/tmp/go
+    - export PATH=$PATH:/tmp/go/bin
+    - cd ${TERRATEST_DIR}
+    - go mod download
+  script:
+    - echo "=== Running integration tests (AWS credentials required) ==="
+    - RUN_INTEGRATION_TESTS=true go test -v -timeout 30m
+      -run "Integration|TerraformPlan"
+      ./...
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - if: '$RUN_TERRATEST_INTEGRATION == "true"'
+      when: manual
+  environment:
+    name: staging
+  artifacts:
+    when: always
+    expire_in: 30 days

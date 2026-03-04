@@ -1,0 +1,639 @@
+---
+# DT-005: Production Alerting — PrometheusRule
+# Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
+# Namespace: staging-observability-monitoring
+# Maintainer: Platform SRE Team
+# Last Updated: 2026-03-04
+#
+# Groups:
+#   1. dt005-kubernetes-platform  — 12 alerts  (Node, Pod, Deployment, PVC)
+#   2. dt005-data-services        — 10 alerts  (PostgreSQL, Redis, RabbitMQ)
+#   3. dt005-security-compliance  — 8  alerts  (Vault, cert-manager, ExternalSecrets)
+#   4. dt005-application-slo      — 7  alerts  (Latency, Error Rate, Saturation)
+#   Total: 37 alerts
+#
+# Label requirements for Prometheus discovery (values.yaml ruleSelector):
+#   prometheus: kube-prometheus-stack-prometheus
+#   role: alert-rules
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dt005-platform-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: dt005-platform-alerts
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    team: platform-sre
+    demand: dt005
+spec:
+  groups:
+
+    # ==========================================================================
+    # GROUP 1: Kubernetes Platform — Nodes, Pods, Deployments, PVCs
+    # 12 alerts
+    # ==========================================================================
+    - name: dt005-kubernetes-platform
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # Node Alerts
+        # -----------------------------------------------------------------------
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-not-ready.md
+          annotations:
+            summary: "Node {{ $labels.node }} is NOT Ready"
+            description: "Node {{ $labels.node }} has been in NotReady state for more than 5 minutes. Scheduled pods may be unschedulable or evicted."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-not-ready.md"
+
+        - alert: NodeMemoryPressure
+          expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-memory-pressure.md
+          annotations:
+            summary: "Node {{ $labels.node }} has MemoryPressure"
+            description: "Node {{ $labels.node }} is under memory pressure. The kubelet may start evicting pods to reclaim memory."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-memory-pressure.md"
+
+        - alert: NodeDiskPressure
+          expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-disk-pressure.md
+          annotations:
+            summary: "Node {{ $labels.node }} has DiskPressure"
+            description: "Node {{ $labels.node }} is under disk pressure. Pod scheduling will be blocked and running pods risk eviction."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-node-disk-pressure.md"
+
+        - alert: NodeHighCpuUsage
+          expr: |
+            (1 - avg by (node) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 > 85
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Node {{ $labels.node }} CPU usage above 85%"
+            description: "Node {{ $labels.node }} has sustained CPU usage of {{ $value | printf \"%.1f\" }}% for 15 minutes. Consider scaling the node group."
+
+        - alert: NodeHighMemoryUsage
+          expr: |
+            (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Node {{ $labels.instance }} memory usage above 85%"
+            description: "Node {{ $labels.instance }} has {{ $value | printf \"%.1f\" }}% memory utilization for 10 minutes. Risk of OOM evictions."
+
+        # -----------------------------------------------------------------------
+        # Pod Alerts
+        # -----------------------------------------------------------------------
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total[10m]) > 5
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pod-crash-looping.md
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping"
+            description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value | printf \"%.0f\" }} times in the last 10 minutes."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pod-crash-looping.md"
+
+        - alert: PodNotReady
+          expr: |
+            sum by (namespace, pod) (
+              max by (namespace, pod, condition) (
+                kube_pod_status_conditions{condition="Ready",status="false"}
+              )
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pod-not-ready.md
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been not-ready for 15 minutes"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not passing readiness checks for more than 15 minutes. Traffic may not be reaching this pod."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pod-not-ready.md"
+
+        - alert: PodOOMKilled
+          expr: |
+            increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was killed due to Out-of-Memory. Review memory limits and usage patterns."
+
+        # -----------------------------------------------------------------------
+        # Deployment Alerts
+        # -----------------------------------------------------------------------
+        - alert: DeploymentReplicasMismatch
+          expr: |
+            (kube_deployment_spec_replicas - kube_deployment_status_replicas_ready) > 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-deployment-replicas-mismatch.md
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has unavailable replicas"
+            description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value | printf \"%.0f\" }} unavailable replicas for 10 minutes. Desired: {{ with query \"kube_deployment_spec_replicas{deployment=\\\"\" }}{{ . | first | value | printf \"%.0f\" }}{{ end }}."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-deployment-replicas-mismatch.md"
+
+        - alert: DeploymentGenerationMismatch
+          expr: |
+            kube_deployment_status_observed_generation != kube_deployment_metadata_generation
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} is stalled"
+            description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has a generation mismatch. A rollout may be stuck. Check rollout status."
+
+        # -----------------------------------------------------------------------
+        # PVC / Storage Alerts
+        # -----------------------------------------------------------------------
+        - alert: PVCNearlyFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pvc-near-full.md
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | printf \"%.0f\" }}% full"
+            description: "PersistentVolumeClaim {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is {{ $value | printf \"%.1f\" }}% utilized. Expand the volume or clean up data before it fills completely."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pvc-near-full.md"
+
+        - alert: PVCCriticallyFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes /
+              kubelet_volume_stats_capacity_bytes
+            ) * 100 > 95
+          for: 2m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pvc-near-full.md
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is CRITICALLY full ({{ $value | printf \"%.0f\" }}%)"
+            description: "PVC {{ $labels.persistentvolumeclaim }} in {{ $labels.namespace }} is at {{ $value | printf \"%.1f\" }}% capacity. Immediate action required to prevent data loss or service interruption."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-pvc-near-full.md"
+
+    # ==========================================================================
+    # GROUP 2: Data Services — PostgreSQL, Redis, RabbitMQ
+    # 10 alerts
+    # ==========================================================================
+    - name: dt005-data-services
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # PostgreSQL Alerts
+        # -----------------------------------------------------------------------
+        - alert: PostgreSQLDown
+          expr: pg_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: postgresql
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-down.md
+          annotations:
+            summary: "PostgreSQL is DOWN on {{ $labels.instance }}"
+            description: "PostgreSQL instance {{ $labels.instance }} is not reachable by the postgres-exporter. This will cause service failures for any application using this database."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-down.md"
+
+        - alert: PostgreSQLConnectionsHigh
+          expr: |
+            sum by (instance) (pg_stat_activity_count{state!="idle"}) /
+            sum by (instance) (pg_settings_max_connections) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            service: postgresql
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-connections-high.md
+          annotations:
+            summary: "PostgreSQL {{ $labels.instance }} connection pool at {{ $value | printf \"%.0f\" }}%"
+            description: "PostgreSQL {{ $labels.instance }} is using {{ $value | printf \"%.1f\" }}% of max_connections. Applications may experience connection timeout errors. Consider PgBouncer tuning."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-connections-high.md"
+
+        - alert: PostgreSQLConnectionsCritical
+          expr: |
+            sum by (instance) (pg_stat_activity_count{state!="idle"}) /
+            sum by (instance) (pg_settings_max_connections) * 100 > 95
+          for: 2m
+          labels:
+            severity: critical
+            service: postgresql
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-connections-high.md
+          annotations:
+            summary: "PostgreSQL {{ $labels.instance }} connection pool CRITICAL ({{ $value | printf \"%.0f\" }}%)"
+            description: "PostgreSQL {{ $labels.instance }} is at {{ $value | printf \"%.1f\" }}% of max_connections. New connections will be refused. Immediate intervention required."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-postgresql-connections-high.md"
+
+        - alert: PostgreSQLReplicationLag
+          expr: pg_replication_lag > 300
+          for: 5m
+          labels:
+            severity: warning
+            service: postgresql
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "PostgreSQL replication lag is {{ $value | printf \"%.0f\" }}s on {{ $labels.instance }}"
+            description: "PostgreSQL replication lag on {{ $labels.instance }} is {{ $value | printf \"%.0f\" }} seconds (threshold: 300s). Replica may be behind and failover data loss risk is elevated."
+
+        # -----------------------------------------------------------------------
+        # Redis Alerts
+        # -----------------------------------------------------------------------
+        - alert: RedisDown
+          expr: redis_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: redis
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-redis-down.md
+          annotations:
+            summary: "Redis is DOWN on {{ $labels.instance }}"
+            description: "Redis instance {{ $labels.instance }} is not reachable. Cache operations will fail, causing potential latency spikes or errors in dependent applications."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-redis-down.md"
+
+        - alert: RedisHighMemoryUsage
+          expr: |
+            redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            service: redis
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-redis-high-memory.md
+          annotations:
+            summary: "Redis {{ $labels.instance }} memory at {{ $value | printf \"%.0f\" }}%"
+            description: "Redis {{ $labels.instance }} is using {{ $value | printf \"%.1f\" }}% of maxmemory. When full, Redis will apply the eviction policy (likely allkeys-lru). Review key TTLs and data volume."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-redis-high-memory.md"
+
+        # -----------------------------------------------------------------------
+        # RabbitMQ Alerts
+        # -----------------------------------------------------------------------
+        - alert: RabbitMQDown
+          expr: rabbitmq_up == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: rabbitmq
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-down.md
+          annotations:
+            summary: "RabbitMQ is DOWN on {{ $labels.instance }}"
+            description: "RabbitMQ instance {{ $labels.instance }} is unreachable. Message publishing and consumption will be fully blocked."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-down.md"
+
+        - alert: RabbitMQQueueDepthHigh
+          expr: rabbitmq_queue_messages > 10000
+          for: 10m
+          labels:
+            severity: warning
+            service: rabbitmq
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-queue-depth.md
+          annotations:
+            summary: "RabbitMQ queue {{ $labels.queue }} has {{ $value | printf \"%.0f\" }} messages"
+            description: "Queue {{ $labels.queue }} on vhost {{ $labels.vhost }} has {{ $value | printf \"%.0f\" }} messages (threshold: 10,000). Consumer lag is growing — check consumer health and processing rate."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-queue-depth.md"
+
+        - alert: RabbitMQQueueDepthCritical
+          expr: rabbitmq_queue_messages > 50000
+          for: 5m
+          labels:
+            severity: critical
+            service: rabbitmq
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-queue-depth.md
+          annotations:
+            summary: "RabbitMQ queue {{ $labels.queue }} CRITICAL depth: {{ $value | printf \"%.0f\" }} messages"
+            description: "Queue {{ $labels.queue }} has {{ $value | printf \"%.0f\" }} messages. At this depth memory pressure on the broker is likely. Consumers may need to be scaled up or dead-lettering investigated."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-rabbitmq-queue-depth.md"
+
+        - alert: RabbitMQNoConsumers
+          expr: |
+            rabbitmq_queue_consumers == 0 and rabbitmq_queue_messages > 0
+          for: 5m
+          labels:
+            severity: critical
+            service: rabbitmq
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "RabbitMQ queue {{ $labels.queue }} has no consumers but {{ $value | printf \"%.0f\" }} messages"
+            description: "Queue {{ $labels.queue }} on vhost {{ $labels.vhost }} has messages queued but zero active consumers. Message processing has stalled."
+
+    # ==========================================================================
+    # GROUP 3: Security & Compliance — Vault, cert-manager, External Secrets
+    # 8 alerts
+    # ==========================================================================
+    - name: dt005-security-compliance
+      interval: 60s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # Vault Alerts
+        # -----------------------------------------------------------------------
+        - alert: VaultSealed
+          expr: vault_core_unsealed == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: vault
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-vault-sealed.md
+          annotations:
+            summary: "Vault is SEALED on {{ $labels.instance }}"
+            description: "Vault instance {{ $labels.instance }} is sealed. All secret reads/writes are blocked. Applications depending on Vault (ExternalSecrets, cert-manager ACME, dynamic DB creds) will fail."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-vault-sealed.md"
+
+        - alert: VaultHighRequestErrors
+          expr: |
+            rate(vault_core_failed_auths_total[5m]) > 10
+          for: 5m
+          labels:
+            severity: warning
+            service: vault
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Vault {{ $labels.instance }} has high authentication failure rate"
+            description: "Vault {{ $labels.instance }} is experiencing {{ $value | printf \"%.1f\" }} auth failures/s. Possible causes: misconfigured Kubernetes auth roles, expired tokens, or a brute-force attempt."
+
+        # -----------------------------------------------------------------------
+        # cert-manager Alerts
+        # -----------------------------------------------------------------------
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+            service: cert-manager
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-certificate-expiring.md
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | printf \"%.0f\" }} days"
+            description: "TLS certificate {{ $labels.name }} in namespace {{ $labels.namespace }} will expire in {{ $value | printf \"%.0f\" }} days. cert-manager should auto-renew within 60 days of expiry. Check if renewal is stuck."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-certificate-expiring.md"
+
+        - alert: CertificateExpiryCritical
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 7
+          for: 30m
+          labels:
+            severity: critical
+            service: cert-manager
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-certificate-expiring.md
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | printf \"%.0f\" }} DAYS — CRITICAL"
+            description: "TLS certificate {{ $labels.name }} in {{ $labels.namespace }} expires in {{ $value | printf \"%.0f\" }} days. Services using this cert will begin showing TLS errors imminently. Manual renewal may be required."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-certificate-expiring.md"
+
+        - alert: CertificateRenewalFailed
+          expr: certmanager_certificate_ready_status{condition="False"} == 1
+          for: 30m
+          labels:
+            severity: warning
+            service: cert-manager
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} renewal is failing"
+            description: "cert-manager certificate {{ $labels.name }} in {{ $labels.namespace }} has a Ready=False condition. The renewal may be stuck due to DNS challenges, ACME rate limits, or misconfigured Issuer."
+
+        # -----------------------------------------------------------------------
+        # External Secrets Alerts
+        # -----------------------------------------------------------------------
+        - alert: ExternalSecretSyncFailed
+          expr: |
+            gotk_reconcile_condition{type="Ready",status="False",kind="ExternalSecret"} == 1
+          for: 10m
+          labels:
+            severity: critical
+            service: external-secrets
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-external-secret-sync-failure.md
+          annotations:
+            summary: "ExternalSecret {{ $labels.namespace }}/{{ $labels.name }} sync is failing"
+            description: "ExternalSecret {{ $labels.name }} in {{ $labels.namespace }} has been in a failed state for 10 minutes. The Kubernetes Secret will not be updated. Pods depending on this Secret may use stale or missing credentials."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-external-secret-sync-failure.md"
+
+        - alert: ExternalSecretStoreNotReady
+          expr: |
+            gotk_reconcile_condition{type="Ready",status="False",kind="ClusterSecretStore"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            service: external-secrets
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "ClusterSecretStore {{ $labels.name }} is NOT Ready"
+            description: "ClusterSecretStore {{ $labels.name }} is reporting Ready=False. All ExternalSecrets backed by this store will fail to sync. Likely cause: Vault connectivity issue or IRSA token problem."
+
+        - alert: KyvernoClusterPolicyFailures
+          expr: |
+            increase(kyverno_policy_results_total{result="fail"}[5m]) > 5
+          for: 5m
+          labels:
+            severity: warning
+            service: kyverno
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Kyverno policy {{ $labels.policy }} has {{ $value | printf \"%.0f\" }} failures"
+            description: "Kyverno policy {{ $labels.policy }} has registered {{ $value | printf \"%.0f\" }} failures in 5 minutes. In ENFORCE mode this means admission requests are being blocked. Review policy report."
+
+    # ==========================================================================
+    # GROUP 4: Application SLO — Latency, Error Rate, Saturation
+    # 7 alerts
+    # ==========================================================================
+    - name: dt005-application-slo
+      interval: 30s
+      rules:
+
+        # -----------------------------------------------------------------------
+        # HTTP Error Rate (nginx-ingress / NGINX)
+        # -----------------------------------------------------------------------
+        - alert: HighHTTP5xxRate
+          expr: |
+            sum by (ingress, namespace) (
+              rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+            ) /
+            sum by (ingress, namespace) (
+              rate(nginx_ingress_controller_requests[5m])
+            ) * 100 > 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+            runbook: https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-high-5xx-rate.md
+          annotations:
+            summary: "Ingress {{ $labels.namespace }}/{{ $labels.ingress }} 5xx rate is {{ $value | printf \"%.1f\" }}%"
+            description: "HTTP 5xx error rate for ingress {{ $labels.ingress }} in {{ $labels.namespace }} is {{ $value | printf \"%.2f\" }}% (threshold: 5%). SLO breach likely. Check backend pod health and recent deployments."
+            runbook_url: "https://github.com/org/k8s-platform/blob/main/docs/runbooks/dt005-high-5xx-rate.md"
+
+        - alert: HighHTTP4xxRate
+          expr: |
+            sum by (ingress, namespace) (
+              rate(nginx_ingress_controller_requests{status=~"4.."}[5m])
+            ) /
+            sum by (ingress, namespace) (
+              rate(nginx_ingress_controller_requests[5m])
+            ) * 100 > 20
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Ingress {{ $labels.namespace }}/{{ $labels.ingress }} 4xx rate is {{ $value | printf \"%.1f\" }}%"
+            description: "HTTP 4xx error rate for ingress {{ $labels.ingress }} in {{ $labels.namespace }} is {{ $value | printf \"%.2f\" }}% over the last 10 minutes. May indicate client errors, broken links, or a deployment issue."
+
+        # -----------------------------------------------------------------------
+        # Latency Alerts (nginx-ingress P95)
+        # -----------------------------------------------------------------------
+        - alert: HighP95Latency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le, ingress, namespace) (
+                rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])
+              )
+            ) > 2
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "P95 latency for {{ $labels.namespace }}/{{ $labels.ingress }} is {{ $value | printf \"%.2f\" }}s"
+            description: "95th percentile request latency for ingress {{ $labels.ingress }} in {{ $labels.namespace }} is {{ $value | printf \"%.3f\" }}s (threshold: 2s). Check backend pod performance and resource saturation."
+
+        - alert: CriticalP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le, ingress, namespace) (
+                rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])
+              )
+            ) > 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "P99 latency for {{ $labels.namespace }}/{{ $labels.ingress }} is {{ $value | printf \"%.2f\" }}s (CRITICAL)"
+            description: "99th percentile latency for ingress {{ $labels.ingress }} is {{ $value | printf \"%.3f\" }}s. This indicates severe backend slowness. Investigate immediately — SLO target is likely breached."
+
+        # -----------------------------------------------------------------------
+        # Saturation Alerts
+        # -----------------------------------------------------------------------
+        - alert: PodCpuThrottling
+          expr: |
+            sum by (namespace, pod, container) (
+              rate(container_cpu_cfs_throttled_seconds_total[5m])
+            ) /
+            sum by (namespace, pod, container) (
+              rate(container_cpu_cfs_periods_total[5m])
+            ) * 100 > 50
+          for: 15m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} CPU throttled {{ $value | printf \"%.0f\" }}%"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is CPU throttled {{ $value | printf \"%.1f\" }}% of the time. CPU requests/limits may need adjustment or horizontal scaling."
+
+        - alert: IngressRequestRateDrop
+          expr: |
+            (
+              sum by (ingress, namespace) (rate(nginx_ingress_controller_requests[5m]))
+              /
+              sum by (ingress, namespace) (rate(nginx_ingress_controller_requests[5m] offset 1h))
+            ) < 0.3
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Ingress {{ $labels.namespace }}/{{ $labels.ingress }} traffic dropped by >70% vs 1h ago"
+            description: "Request rate for ingress {{ $labels.ingress }} in {{ $labels.namespace }} has dropped to {{ $value | printf \"%.0f\" }}% of its 1-hour-ago baseline. Possible causes: deployment failure, DNS issue, upstream disruption."
+
+        - alert: KubernetesAPIServerLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le, verb) (
+                rate(apiserver_request_duration_seconds_bucket{verb!="WATCH"}[5m])
+              )
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+            team: platform-sre
+            demand: dt005
+          annotations:
+            summary: "Kubernetes API server P99 latency is {{ $value | printf \"%.2f\" }}s for verb {{ $labels.verb }}"
+            description: "API server P99 latency for {{ $labels.verb }} requests is {{ $value | printf \"%.3f\" }}s (threshold: 1s). High API server latency impacts all cluster control-plane operations including kubectl and controller reconciliation."

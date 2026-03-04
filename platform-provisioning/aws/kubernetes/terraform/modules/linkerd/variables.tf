@@ -186,6 +186,22 @@ variable "proxy_inject_namespaces" {
 }
 
 #------------------------------------------------------------------------------
+# CNI Plugin
+#------------------------------------------------------------------------------
+
+variable "cni_enabled" {
+  description = "Enable Linkerd CNI plugin (DaemonSet). Eliminates need for NET_ADMIN in init containers, allowing PSA restricted in all namespaces."
+  type        = bool
+  default     = false
+}
+
+variable "linkerd_cni_version" {
+  description = "Helm chart version for linkerd2-cni"
+  type        = string
+  default     = "30.12.2" # Compatible with Linkerd stable-2.14.x
+}
+
+#------------------------------------------------------------------------------
 # Grafana Dashboards
 #------------------------------------------------------------------------------
 

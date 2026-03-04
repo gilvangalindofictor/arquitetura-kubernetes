@@ -1,0 +1,73 @@
+---
+# =============================================================================
+# ConfigMap: Grafana CloudWatch Datasource Provisioning
+# GAP-010: Provision AWS CloudWatch datasource for WAF dashboard
+#
+# How it works:
+#   The kube-prometheus-stack Grafana deployment includes a sidecar container
+#   (grafana-sc-datasources) that watches for ConfigMaps with label
+#   grafana_datasource="1" and automatically loads them as datasource
+#   provisioning files. No Grafana restart required.
+#
+# Authentication:
+#   authType=default → uses the Grafana pod's AWS credentials chain:
+#   1. IRSA (EKS Pod Identity via grafana-sa-irsa-patch.yaml) — PREFERRED
+#   2. Instance profile (EC2 node IAM role) — fallback
+#   3. Environment variables — last resort
+#
+#   To use IRSA: apply grafana-sa-irsa-patch.yaml to annotate the Grafana SA
+#
+# Apply:
+#   kubectl apply -f cloudwatch-datasource-configmap.yaml
+#   # Sidecar detects within 60s — no manual restart needed
+#
+# Verify:
+#   kubectl logs -n staging-observability-monitoring \
+#     -l app.kubernetes.io/name=grafana -c grafana-sc-datasources
+#   # In Grafana UI: Configuration > Data Sources > CloudWatch > Test
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-cloudwatch-datasource
+  namespace: staging-observability-monitoring
+  labels:
+    # This label is required for the Grafana sidecar to auto-detect this ConfigMap
+    grafana_datasource: "1"
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    environment: staging
+    owner: platform-team
+    domain: operations
+    component: datasource
+    gap: "GAP-010"
+  annotations:
+    description: "CloudWatch datasource for WAF metrics — GAP-010"
+    deployed: "2026-03-04"
+    owner: "platform-team"
+data:
+  # The key name is arbitrary but must end in .yaml or .json
+  cloudwatch-datasource.yaml: |-
+    apiVersion: 1
+    datasources:
+      - name: CloudWatch
+        type: cloudwatch
+        uid: cloudwatch-aws-waf
+        access: proxy
+        # authType: default uses the credential chain (IRSA > node profile > env vars)
+        # This means the Grafana pod SA must have IAM permissions via IRSA annotation.
+        # See: grafana-sa-irsa-patch.yaml
+        jsonData:
+          authType: default
+          defaultRegion: us-east-1
+          # Expose custom WAF namespace in the metrics browser
+          customMetricsNamespaces: "AWS/WAFV2,CWAgent"
+          # Timeout for CloudWatch API calls (seconds)
+          timeoutSeconds: 60
+          # Enable cross-account observability (disabled — single account)
+          tracingDatasourceUid: ""
+          logsTimeout: "30s"
+        # No secureJsonData needed — auth via IRSA
+        isDefault: false
+        editable: true
+        version: 1

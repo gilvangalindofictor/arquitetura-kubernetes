@@ -9,6 +9,13 @@ injector:
   enabled: true
   replicas: 1
 
+  # ADR-048: Corporate labels obrigatórias — compliance Kyverno ENFORCE mode
+  podLabels:
+    app.kubernetes.io/part-of: k8s-platform
+    domain: platform
+    environment: staging
+    owner: platform-team
+
   resources:
     requests:
       memory: 256Mi
@@ -23,6 +30,15 @@ server:
     repository: "hashicorp/vault"
     tag: "1.15.4"
     pullPolicy: IfNotPresent
+
+  # ADR-048: Corporate labels obrigatórias — compliance Kyverno ENFORCE mode
+  # Fix: 2026-03-04 — labels propagadas para pods Vault
+  # NOTA: Vault restart manual necessário para activar (evitar sealed state)
+  podLabels:
+    app.kubernetes.io/part-of: k8s-platform
+    domain: platform
+    environment: staging
+    owner: platform-team
 
   resources:
     requests:

@@ -7,6 +7,14 @@
 # Replica count (HA enabled)
 replicas: ${replicas}
 
+# ADR-048: Corporate labels obrigatórias — compliance Kyverno ENFORCE mode
+# Fix: 2026-03-04 — labels propagadas para pods via podLabels
+podLabels:
+  app.kubernetes.io/part-of: k8s-platform
+  domain: platform
+  environment: staging
+  owner: platform-team
+
 # Quarkus runtime arguments
 command:
   - "/opt/keycloak/bin/kc.sh"

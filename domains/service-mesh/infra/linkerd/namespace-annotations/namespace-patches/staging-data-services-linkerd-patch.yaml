@@ -1,0 +1,37 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace staging-data-services
+# =============================================================================
+# Conteudo: PostgreSQL, Redis, RabbitMQ, Harbor
+# Fase: 2 (verificar latencia 24h apos Fase 1 antes de habilitar)
+# Impacto esperado: +<1ms P99 HTTP | TCP passthrough para Redis/PostgreSQL
+#
+# ATENCAO — Workloads TCP (Redis, PostgreSQL):
+#   O Linkerd proxy intercepta TCP opaco e adiciona mTLS automaticamente.
+#   Redis: Protocolo RESP2/3 — nao ha impacto (TCP transparente)
+#   PostgreSQL: Protocolo wire — nao ha impacto (TCP transparente)
+#   RabbitMQ: AMQP sobre TCP — nao ha impacto
+#
+# Como verificar latencia RabbitMQ antes de habilitar:
+#   # Baseline sem Linkerd:
+#   kubectl exec -n staging-data-services deploy/rabbitmq -- rabbitmq-diagnostics status
+#
+# Como aplicar:
+#   kubectl patch namespace staging-data-services \
+#     --patch-file staging-data-services-linkerd-patch.yaml
+#
+# Rollback:
+#   kubectl annotate namespace staging-data-services linkerd.io/inject- --overwrite
+#   kubectl rollout restart statefulset -n staging-data-services
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-data-services
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    environment: staging
+    team: platform
+    cost-center: "plataforma-k8s"
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

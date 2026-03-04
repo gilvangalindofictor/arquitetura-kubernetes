@@ -1,0 +1,50 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace staging-observability-monitoring
+# =============================================================================
+# Conteudo: Prometheus, Grafana, Loki, Tempo, AlertManager, OpenTelemetry
+# Fase: 3 (ultima — observabilidade pode funcionar sem mTLS entre si mesma)
+# Impacto esperado: Baixo risco — workloads stateless em sua maioria
+#
+# NOTA ESPECIAL — Prometheus scrape:
+#   O Linkerd proxy intercepta conexoes de scrape do Prometheus.
+#   Necessario adicionar annotation no Prometheus para que ele tambem
+#   passe pelo mTLS ao raspar endpoints dos proxies Linkerd:
+#     linkerd.io/inject: enabled   (no namespace do Prometheus)
+#   Os endpoints /metrics dos proxies Linkerd sao expostos em :4191
+#   e requerem que o Prometheus tambem tenha proxy injetado.
+#
+# Configuracao adicional para Prometheus scrape de proxies Linkerd:
+#   Adicionar ao values do kube-prometheus-stack:
+#     prometheus:
+#       prometheusSpec:
+#         additionalScrapeConfigs:
+#           - job_name: 'linkerd-proxy'
+#             kubernetes_sd_configs:
+#               - role: pod
+#             relabel_configs:
+#               - source_labels: [__meta_kubernetes_pod_container_name]
+#                 action: keep
+#                 regex: linkerd-proxy
+#             metrics_path: /metrics
+#             scheme: http
+#
+# Como aplicar:
+#   kubectl patch namespace staging-observability-monitoring \
+#     --patch-file staging-observability-monitoring-linkerd-patch.yaml
+#
+# Rollback:
+#   kubectl annotate namespace staging-observability-monitoring linkerd.io/inject- --overwrite
+#   kubectl rollout restart deployment -n staging-observability-monitoring
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-observability-monitoring
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    environment: staging
+    team: platform
+    cost-center: "plataforma-k8s"
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

@@ -1,0 +1,128 @@
+# =============================================================================
+# GAP-011: ServiceProfile — Keycloak (OpenID Connect / OAuth2)
+# =============================================================================
+# Service: keycloak.staging-platform.svc.cluster.local (port 8080)
+# Namespace do ServiceProfile: staging-platform (lado cliente)
+# Workloads que se beneficiam: ArgoCD, GitLab, Harbor (todos consomem Keycloak)
+#
+# Rotas mapeadas (OIDC core flows):
+#   1. POST /auth/realms/{realm}/protocol/openid-connect/token
+#      → Token exchange (login, refresh) — NAO retryable (side effects)
+#   2. GET /auth/realms/{realm}/.well-known/openid-configuration
+#      → Discovery document — retryable, cached
+#   3. GET /auth/realms/{realm}/protocol/openid-connect/certs
+#      → JWKS endpoint (verificacao de JWT) — retryable, cached
+#   4. POST /auth/realms/{realm}/protocol/openid-connect/logout
+#      → Logout — NAO retryable
+#   5. GET /auth/realms/{realm}
+#      → Realm info — retryable
+#
+# Compliance: BACEN BCB 85/2021 Art. 11 (rastreabilidade de autenticacoes)
+#
+# Como verificar metricas por rota:
+#   linkerd routes deploy/keycloak -n staging-platform
+#   linkerd routes -n staging-platform --to svc/keycloak deploy/argocd-server
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: keycloak.staging-platform.svc.cluster.local
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    service: keycloak
+spec:
+  routes:
+
+    # --- Token Exchange (login, refresh token) --------------------------------
+    # Critico para BACEN: cada token emitido e rastreavel via Linkerd metrics
+    - name: POST /auth/realms/{realm}/protocol/openid-connect/token
+      condition:
+        method: POST
+        pathRegex: /auth/realms/[^/]+/protocol/openid-connect/token
+      # NAO retryable: operacao de autenticacao tem side effects (sessao criada)
+      isRetryable: false
+      timeout: 10s
+      responseClasses:
+        # 401 = credenciais invalidas — nao e falha de infra, mas de negocio
+        - condition:
+            status:
+              min: 401
+              max: 401
+          isFailure: false
+        # 5xx = falha real do servidor Keycloak
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- OIDC Discovery Document ----------------------------------------------
+    # Alto volume, altamente cacheavel (TTL do keycloak ~1h)
+    - name: GET /auth/realms/{realm}/.well-known/openid-configuration
+      condition:
+        method: GET
+        pathRegex: /auth/realms/[^/]+/\.well-known/openid-configuration
+      isRetryable: true
+      timeout: 5s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- JWKS (JSON Web Key Set) — verificacao de JWT ------------------------
+    # Chamado por cada servico para verificar assinatura dos tokens JWT
+    - name: GET /auth/realms/{realm}/protocol/openid-connect/certs
+      condition:
+        method: GET
+        pathRegex: /auth/realms/[^/]+/protocol/openid-connect/certs
+      isRetryable: true
+      timeout: 5s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Logout ---------------------------------------------------------------
+    - name: POST /auth/realms/{realm}/protocol/openid-connect/logout
+      condition:
+        method: POST
+        pathRegex: /auth/realms/[^/]+/protocol/openid-connect/logout
+      isRetryable: false
+      timeout: 10s
+
+    # --- Realm Info -----------------------------------------------------------
+    - name: GET /auth/realms/{realm}
+      condition:
+        method: GET
+        pathRegex: /auth/realms/[^/]+$
+      isRetryable: true
+      timeout: 5s
+
+    # --- Admin API (ArgoCD + Harbor usam para criacao de clients) -------------
+    - name: GET /auth/admin/realms/{realm}/clients
+      condition:
+        method: GET
+        pathRegex: /auth/admin/realms/[^/]+/clients.*
+      isRetryable: true
+      timeout: 10s
+
+    - name: POST /auth/admin/realms/{realm}/clients
+      condition:
+        method: POST
+        pathRegex: /auth/admin/realms/[^/]+/clients
+      isRetryable: false
+      timeout: 10s
+
+    # --- Health Check ---------------------------------------------------------
+    - name: GET /auth/health
+      condition:
+        method: GET
+        pathRegex: /auth/health(/live|/ready|/started)?
+      isRetryable: true
+      timeout: 3s

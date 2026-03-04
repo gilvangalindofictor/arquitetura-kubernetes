@@ -1,0 +1,108 @@
+# =============================================================================
+# GAP-011: AuthorizationPolicy — Keycloak → ArgoCD (identity-based)
+# =============================================================================
+# Objetivo: Permitir que APENAS o ServiceAccount 'keycloak' do namespace
+#           staging-platform possa conectar ao ArgoCD server.
+#
+# Caso de uso: Keycloak e configurado como provedor OIDC do ArgoCD.
+#   - ArgoCD chama Keycloak (OIDC discovery, token exchange)
+#   - Keycloak NAO chama ArgoCD diretamente (fluxo unidirecional)
+#   - Esta policy protege o ArgoCD server port 8080 (HTTP API)
+#
+# SPIFFE IDs envolvidos:
+#   Keycloak:  spiffe://cluster.local/ns/staging-platform/sa/keycloak
+#   ArgoCD:    spiffe://cluster.local/ns/staging-platform/sa/argocd-server
+#
+# Compliance: BACEN BCB 85/2021 Art. 15 (segregacao de trafego por identidade)
+#
+# Pre-requisito: policy-deny-all.yaml aplicado primeiro.
+# Esta policy ADICIONA permissao especifica sobre a base deny-all.
+#
+# Como aplicar:
+#   kubectl apply -f policy-keycloak-to-argocd.yaml
+#
+# Como testar:
+#   # A partir de um pod com SA keycloak (deve funcionar)
+#   kubectl exec -n staging-platform deploy/keycloak -c keycloak -- \
+#     wget -qO- http://argocd-server.staging-platform.svc:8080/healthz
+#
+#   # A partir de um pod com SA diferente (deve ser bloqueado)
+#   kubectl run test-pod --image=busybox --rm -it --restart=Never \
+#     --serviceaccount=default -n staging-platform -- \
+#     wget -qO- http://argocd-server.staging-platform.svc:8080/healthz
+#   # Esperado: Connection refused ou timeout
+# =============================================================================
+
+# --- Server: Define a porta protegida do ArgoCD ------------------------------
+# O recurso Server especifica qual porta/protocolo esta sendo protegida.
+# Sem Server definido, a AuthorizationPolicy nao tem target granular.
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: argocd-server-api
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    app: argocd-server
+spec:
+  # Seleciona os pods do ArgoCD server
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  # Porta HTTP da API ArgoCD (nao HTTPS — TLS ja e feito pelo Linkerd)
+  port: 8080
+  proxyProtocol: HTTP/1
+
+---
+
+# --- MeshTLSAuthentication: apenas Keycloak SA autorizado -------------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: allow-keycloak-identity
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "identity-based"
+spec:
+  # Identidade SPIFFE especifica do Keycloak
+  # Formato: <serviceaccount>.<namespace>.serviceaccount.identity.linkerd.<trust-domain>
+  identities:
+    - "keycloak.staging-platform.serviceaccount.identity.linkerd.cluster.local"
+  # Tambem permitir o SA do ArgoCD application controller (sincronizacao interna)
+    - "argocd-application-controller.staging-platform.serviceaccount.identity.linkerd.cluster.local"
+  # ArgoCD repo server (busca de manifests)
+    - "argocd-repo-server.staging-platform.serviceaccount.identity.linkerd.cluster.local"
+
+---
+
+# --- AuthorizationPolicy: Keycloak → ArgoCD server port 8080 ----------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-keycloak-to-argocd
+  namespace: staging-platform
+  annotations:
+    bacen.compliance/article: "BCB 85/2021 Art. 15 SS I"
+    bacen.compliance/control: "identity-based-access-control"
+    bacen.compliance/source: "keycloak (OIDC provider)"
+    bacen.compliance/target: "argocd-server (GitOps)"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "identity-based"
+spec:
+  # Target: Server argocd-server-api definido acima (port 8080)
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: argocd-server-api
+
+  # Apenas a identidade Keycloak (e componentes internos ArgoCD) sao aceitos
+  requiredAuthenticationRefs:
+    - name: allow-keycloak-identity
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io

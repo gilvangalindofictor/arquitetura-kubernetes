@@ -1,0 +1,175 @@
+# =============================================================================
+# GAP-011: ServiceProfile — ArgoCD Server (GitOps API)
+# =============================================================================
+# Service: argocd-server.staging-platform.svc.cluster.local (port 8080)
+# Namespace do ServiceProfile: staging-platform
+# Workloads que se beneficiam: GitLab CI (deploy triggers), operadores humanos
+#
+# Rotas mapeadas (ArgoCD gRPC-Gateway / REST API v1):
+#   1. GET  /api/v1/applications          → Listar apps — retryable, frequente
+#   2. GET  /api/v1/applications/{name}   → Detalhes de app — retryable
+#   3. POST /api/v1/applications/{name}/sync → Sincronizar app — NAO retryable
+#   4. GET  /api/v1/applications/{name}/resource-tree → Status recursos
+#   5. GET  /api/v1/clusters              → Listar clusters — retryable
+#   6. GET  /api/v1/repos                 → Listar repositorios — retryable
+#   7. POST /api/v1/session               → Login (JWT) — NAO retryable
+#   8. GET  /healthz                      → Health check — retryable
+#
+# Compliance: BACEN BCB 85/2021 Art. 11 (rastreabilidade de deployments)
+#
+# NOTA SOBRE SINCRONIZACAO:
+#   O sync do ArgoCD pode envolver operacoes longas (apply de manifests grandes).
+#   Timeout de 120s e conservador — ajustar se aplicacoes complexas levarem mais.
+#
+# Como verificar metricas por rota:
+#   linkerd routes -n staging-platform --to svc/argocd-server deploy/argocd-server
+#   linkerd viz top deploy/argocd-server -n staging-platform
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: argocd-server.staging-platform.svc.cluster.local
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    service: argocd-server
+spec:
+  routes:
+
+    # --- Listar todas as aplicacoes -------------------------------------------
+    # Chamado frequentemente pelo ArgoCD UI e pelo GitLab CI para verificar status
+    - name: GET /api/v1/applications
+      condition:
+        method: GET
+        pathRegex: /api/v1/applications/?$
+      isRetryable: true
+      timeout: 5s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Detalhes de uma aplicacao especifica ---------------------------------
+    - name: GET /api/v1/applications/{name}
+      condition:
+        method: GET
+        pathRegex: /api/v1/applications/[^/]+$
+      isRetryable: true
+      timeout: 5s
+
+    # --- Sincronizar aplicacao (GitOps deploy) --------------------------------
+    # NAO retryable: cada sync cria recursos no cluster (side effects)
+    # Timeout longo: sync de apps com muitos recursos pode levar tempo
+    - name: POST /api/v1/applications/{name}/sync
+      condition:
+        method: POST
+        pathRegex: /api/v1/applications/[^/]+/sync
+      isRetryable: false
+      timeout: 120s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Resource tree (estado dos recursos K8s da aplicacao) ----------------
+    - name: GET /api/v1/applications/{name}/resource-tree
+      condition:
+        method: GET
+        pathRegex: /api/v1/applications/[^/]+/resource-tree
+      isRetryable: true
+      timeout: 10s
+
+    # --- Rollback de aplicacao -----------------------------------------------
+    - name: POST /api/v1/applications/{name}/rollback
+      condition:
+        method: POST
+        pathRegex: /api/v1/applications/[^/]+/rollback
+      isRetryable: false
+      timeout: 120s
+
+    # --- Listar clusters gerenciados -----------------------------------------
+    - name: GET /api/v1/clusters
+      condition:
+        method: GET
+        pathRegex: /api/v1/clusters.*
+      isRetryable: true
+      timeout: 5s
+
+    # --- Listar repositorios Git configurados --------------------------------
+    - name: GET /api/v1/repos
+      condition:
+        method: GET
+        pathRegex: /api/v1/repos.*
+      isRetryable: true
+      timeout: 5s
+
+    # --- Adicionar repositorio Git -------------------------------------------
+    - name: POST /api/v1/repos
+      condition:
+        method: POST
+        pathRegex: /api/v1/repos/?$
+      isRetryable: false
+      timeout: 30s
+
+    # --- Login (gerar sessao JWT) --------------------------------------------
+    - name: POST /api/v1/session
+      condition:
+        method: POST
+        pathRegex: /api/v1/session
+      isRetryable: false
+      timeout: 10s
+      responseClasses:
+        - condition:
+            status:
+              min: 401
+              max: 401
+          # 401 nao e falha de infra — e credencial invalida
+          isFailure: false
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Criar nova aplicacao ArgoCD -----------------------------------------
+    - name: POST /api/v1/applications
+      condition:
+        method: POST
+        pathRegex: /api/v1/applications/?$
+      isRetryable: false
+      timeout: 30s
+
+    # --- Health check ---------------------------------------------------------
+    - name: GET /healthz
+      condition:
+        method: GET
+        pathRegex: /healthz.*
+      isRetryable: true
+      timeout: 3s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Readiness check (usada por Kubernetes) -------------------------------
+    - name: GET /readyz
+      condition:
+        method: GET
+        pathRegex: /readyz.*
+      isRetryable: true
+      timeout: 3s
+
+    # --- ArgoCD metrics endpoint ----------------------------------------------
+    - name: GET /metrics
+      condition:
+        method: GET
+        pathRegex: /metrics
+      isRetryable: true
+      timeout: 5s

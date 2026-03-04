@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# BackupStorageLocation — DR Region (us-west-2) — ReadOnly
+# =============================================================================
+# This BSL points to the S3 CRR replica bucket in us-west-2.
+# AccessMode: ReadOnly — Velero can read from this location for DR restores,
+# but will NOT write backups to it (CRR replication handles writes).
+#
+# GAP-012 Phase 2 | ADR-078 | RTO: 4h | RPO: 24h (daily) / 1h (hourly)
+#
+# Deploy: kubectl apply -f backup-storage-location-dr.yaml
+# Verify: velero backup-location get
+# =============================================================================
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: dr-us-west-2
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup-storage-location
+    app.kubernetes.io/part-of: backup-dr
+    environment: staging
+    region: us-west-2
+    role: dr-replica
+    gap: gap-012
+  annotations:
+    description: "DR BackupStorageLocation — S3 CRR replica bucket us-west-2 (ReadOnly)"
+    adr: "ADR-078"
+    phase: "Phase 2"
+    managed-by: "platform-team"
+spec:
+  provider: aws
+  # ReadOnly: Velero will list/read backups but not create new ones here.
+  # New backups are created in the primary BSL (us-east-1) and replicated via S3 CRR.
+  accessMode: ReadOnly
+  objectStorage:
+    bucket: velero-backups-staging-891377105802-us-west-2
+    prefix: k8s-platform-prod
+  config:
+    region: us-west-2
+    # s3ForcePathStyle: "false" — use virtual-hosted style (default, correct for AWS)
+    s3ForcePathStyle: "false"
+    # checksumAlgorithm: empty string disables checksum (avoids compatibility issues)
+    checksumAlgorithm: ""
+  # credential: uses IRSA (eks.amazonaws.com/role-arn annotation on ServiceAccount)
+  # No static credentials needed. IAM policy grants read access to replica bucket.
+  default: false

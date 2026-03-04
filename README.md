@@ -1,48 +1,41 @@
 # Projeto Kubernetes - Plataforma Corporativa de Engenharia
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-03-04
 **Status:** Current
 **Owner:** Platform Team
-**Version:** 3.0 (Marco 3 Complete)
+**Version:** 4.0 (Marco 4 Complete + CI/CD Enhancement + INFRA Upgrades)
 
-> **🎯 PROJETO ATIVO:** AWS EKS GitLab Quickstart (Fase 1 - 8 semanas)
+> **🎯 PROJETO ATIVO:** AWS EKS GitLab Quickstart — Enterprise Assessment 4.0/5.0 (Advanced+)
 > **📋 VISÃO FUTURA:** Plataforma Cloud-Agnostic Completa (Fases 2-4)
 > **Metodologia**: AI-First (adaptado do projeto iPaaS)
-> **Status Atual**: Marco 3 EM ANDAMENTO (100% operacional) - Stage: Consolidação Multi-Environment
-> **Última Atualização**: 2026-02-12
+> **Status Atual**: Marco 4 ✅ COMPLETO | Marco 5 em planejamento (Production Readiness 10%)
+> **Última Atualização**: 2026-03-04
 
 ---
 
 ## 🎯 Hierarquia de Projetos
 
-### 🟢 Projeto Ativo (Fase 1): AWS EKS GitLab Quickstart
+### 🟢 Projeto Ativo: AWS EKS GitLab — Marco 4 ✅ COMPLETO
 
-**Status:** EM ANDAMENTO (Marco 3 100% operacional, estágio atual: consolidação)
-**Documento:** [aws-eks-gitlab-quickstart.md](docs/plan/quickstart/aws-eks-gitlab-quickstart.md)
-**Timeline:** 8 semanas (Marcos 0-3) - ✅ **COMPLETO**
-**Custo:** R$ 5.068/mês (USD $845) - Staging + FinOps automation
+**Status:** Marco 4 ✅ 100% COMPLETO | Marco 5 🚧 em planejamento (10%)
+**Documento:** [aws-eks-gitlab-quickstart-REAL.md](docs/plan/quickstart/aws-eks-gitlab-quickstart-REAL.md)
+**Enterprise Assessment:** 4.0/5.0 (Advanced+) — 85% production-ready
+**Custo:** ~$716/mês líquido (staging) | FinOps Savings: R$ 62.425/ano
 
-**Objetivo:** Entregar plataforma Kubernetes operacional na AWS com GitLab CI/CD, observabilidade completa e data services em **8 semanas**.
+**Objetivo:** Plataforma Kubernetes enterprise-grade na AWS com GitLab CI/CD, mTLS, WAF, DR e observabilidade completa.
 
-**Escopo:**
+**Escopo — Marcos Completos:**
 
-- ✅ Marco 0: Baseline Terraform (Completo)
-- ✅ Marco 1: Cluster EKS (Completo)
-- ✅ Marco 2: Platform Services 8/8 fases (Completo)
-  - AWS Load Balancer Controller
-  - Cert-Manager
-  - Kube-Prometheus-Stack
-  - Loki + Fluent Bit
-  - Network Policies (Calico)
-  - Cluster Autoscaler
-  - Test Applications
-  - FinOps Automation (IMPLEMENTADO)
-- ✅ Marco 3: Workloads + FinOps (Completo)
-  - PostgreSQL RDS + Redis Operator + RabbitMQ Operator (✅ Operacional)
-  - GitLab CE (Helm) (✅ Operacional)
-  - Vault HA (✅ Operacional)
-  - Harbor Registry (✅ Operacional)
-  - FinOps Automation Staging (✅ ATIVO - economia R$ 850/mês)
+- ✅ Marco 0: Baseline Terraform (backend S3 + DynamoDB)
+- ✅ Marco 1: Cluster EKS 1.34 Standard Support (17 namespaces DEC-074)
+- ✅ Marco 2: Platform Services — ALB, cert-manager, Prometheus stack, Loki, Autoscaler
+- ✅ Marco 3: Workloads — RDS PostgreSQL 16.4, Vault HA, Harbor, Keycloak OIDC 6 clients
+- ✅ Marco 4: CI/CD Platform — GitLab v18.9.1, ArgoCD, SonarQube, 8/8 GAPs
+  - CI/CD Enhancement: CICD-001→005 (SAST/DAST, Quality Gate, Secret Rotation, Immutable Tags, Argo Rollouts)
+  - iPaaS Public: GAP-010 AWS WAF v2 | GAP-011 Linkerd mTLS 18/18 proxies | GAP-012 Velero DR Phase 1
+  - INFRA: GitLab v17.7→v18.9.1 (INFRA-001) | PostgreSQL 14.8→16.4 (INFRA-002)
+  - Security: Kyverno ENFORCE 80/80 PASS | ESO 16/16 SecretSynced | 8/8 vulnerabilities fixed
+- 🚧 Marco 5: Production Readiness (planejamento — 8 gates, 2 em contagem)
 
 **Por que este é o projeto principal:**
 

@@ -204,6 +204,12 @@ gitlab-runner:
   # Override computed URL (http://host:80) since nginx-ingress is disabled.
   # Runner must reach GitLab via workhorse port 8181 directly.
   gitlabUrl: "http://gitlab.staging.internal:8181"
+  # GAP-005: Inject CI/CD credentials into runner pod and job pods.
+  # Secret gitlab-ci-credentials is managed by ESO (ExternalSecret from Vault).
+  # Keys: HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD, SONAR_HOST_URL, SONAR_TOKEN
+  envFrom:
+    - secretRef:
+        name: gitlab-ci-credentials
   resources:
     requests:
       cpu: 100m
@@ -216,8 +222,32 @@ gitlab-runner:
     # Do NOT set runners.locked or runners.tags here — causes FATAL registration error
     config: |
       [[runners]]
+        request_concurrency = 2
         [runners.kubernetes]
           image = "ubuntu:22.04"
+          namespace = "gitlab-staging"
+          # ADR-048: Inject compliance labels into job pods
+          pod_labels = ["domain=integration", "owner=platform-team", "environment=staging"]
+          # GAP-005: Inject gitlab-ci-credentials secret into job pods as env vars
+          # Exposes HARBOR_REGISTRY, HARBOR_USER, HARBOR_PASSWORD, SONAR_HOST_URL, SONAR_TOKEN
+          # in every CI job container. Requires Runner >= 15.7 (chart 9.9.1 uses Runner 18.x — OK).
+          [[runners.kubernetes.pod_spec]]
+            name = "inject-ci-credentials"
+            patch_type = "strategic"
+            patch = '''
+            {
+              "spec": {
+                "containers": [
+                  {
+                    "name": "build",
+                    "envFrom": [
+                      {"secretRef": {"name": "gitlab-ci-credentials"}}
+                    ]
+                  }
+                ]
+              }
+            }
+            '''
         [runners.cache]
           Type = "s3"
           Path = "gitlab-runner"

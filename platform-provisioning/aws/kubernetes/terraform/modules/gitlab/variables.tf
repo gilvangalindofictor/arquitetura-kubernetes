@@ -49,7 +49,7 @@ variable "gitlab_edition" {
 variable "gitlab_version" {
   description = "GitLab Helm chart version"
   type        = string
-  default     = "9.9.1"  # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36, 9 breaking changes resolved)
+  default     = "9.9.1" # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36, 9 breaking changes resolved)
 }
 
 variable "gitlab_replicas" {

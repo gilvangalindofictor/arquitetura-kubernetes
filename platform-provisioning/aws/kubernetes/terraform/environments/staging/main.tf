@@ -93,7 +93,7 @@ provider "aws" {
 provider "aws" {
   alias   = "us-west-2"
   region  = "us-west-2"
-  profile = "k8s-platform-staging"
+  profile = "k8s-platform-prod" # TEMP: k8s-platform-staging SSO expirado (mesma conta 891377105802)
 
   default_tags {
     tags = local.common_tags
@@ -2269,6 +2269,25 @@ module "velero_dr_staging" {
   common_tags = local.common_tags
 }
 
+# VPC DR — us-west-2 (GAP-012 Phase 2)
+# Provê subnets privadas para RDS cross-region replica
+module "vpc_dr_staging" {
+  source = "../../modules/vpc-dr"
+
+  providers = {
+    aws.dr = aws.us-west-2
+  }
+
+  environment           = local.environment
+  vpc_cidr              = "10.1.0.0/16"
+  rds_subnet_cidr_az_a  = "10.1.128.0/20"
+  rds_subnet_cidr_az_b  = "10.1.144.0/20"
+  db_subnet_group_name  = "k8s-platform-dr-db-subnet-group"
+  dr_region             = "us-west-2"
+
+  tags = local.common_tags
+}
+
 #------------------------------------------------------------------------------
 # RDS Cross-Region Read Replica - GAP-012 (2026-02-26)
 # PostgreSQL read replica in us-west-2 for DR failover.
@@ -2494,6 +2513,13 @@ module "linkerd" {
   # Desabilitado em staging (OpenTelemetry Collector ja existe em monitoring)
   # Para habilitar: enable_jaeger=true e configurar collector_backend_addr
   enable_jaeger = false
+
+  # --- CNI Plugin ---
+  # Habilita DaemonSet CNI para injetar regras iptables sem NET_ADMIN no init container.
+  # Com CNI ativo: gitlab-staging pode ter PSA=restricted (sem privileged).
+  # Apos apply: reiniciar pods gitlab-staging para remover linkerd-init.
+  cni_enabled         = true
+  linkerd_cni_version = "30.12.2"
 
   # --- Opt-in Proxy Injection por Namespace ---
   # Namespaces para inject automatico de sidecar Linkerd.

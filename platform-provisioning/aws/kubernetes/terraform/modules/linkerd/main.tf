@@ -223,6 +223,74 @@ resource "helm_release" "linkerd_control_plane" {
   YAML
   ]
 
+  # CNI integration: when CNI is enabled, disable init containers
+  dynamic "set" {
+    for_each = var.cni_enabled ? [1] : []
+    content {
+      name  = "cniEnabled"
+      value = "true"
+    }
+  }
+
+  depends_on = [helm_release.linkerd_crds]
+}
+
+# =============================================================================
+# 4a. Namespace — linkerd-cni (optional)
+# =============================================================================
+
+resource "kubernetes_namespace" "linkerd_cni" {
+  count = var.cni_enabled ? 1 : 0
+
+  metadata {
+    name = "linkerd-cni"
+
+    labels = merge(local.module_labels, {
+      "linkerd.io/cni-resource"     = "true"
+      "kubernetes.io/metadata.name" = "linkerd-cni"
+      domain                        = "platform"
+      managed-by                    = "terraform"
+    })
+
+    annotations = {
+      "linkerd.io/inject" = "disabled"
+    }
+  }
+}
+
+# =============================================================================
+# 4b. Helm Release — Linkerd CNI Plugin (optional)
+#     Enables iptables rules injection at the CNI level (DaemonSet).
+#     With CNI: init containers (linkerd-init) no longer need NET_ADMIN.
+#     Result: gitlab-staging PSA can drop 'privileged' requirement.
+#     Ref: https://linkerd.io/2/features/cni/
+# =============================================================================
+
+resource "helm_release" "linkerd_cni" {
+  count = var.cni_enabled ? 1 : 0
+
+  name             = "linkerd-cni"
+  repository       = "https://helm.linkerd.io/stable"
+  chart            = "linkerd2-cni"
+  version          = var.linkerd_cni_version
+  namespace        = kubernetes_namespace.linkerd_cni[0].metadata[0].name
+  create_namespace = false
+
+  set {
+    name  = "installNamespace"
+    value = "false"
+  }
+
+  # Corporate labels (ADR-048)
+  set {
+    name  = "commonLabels.domain"
+    value = "platform"
+  }
+  set {
+    name  = "commonLabels.managed-by"
+    value = "terraform"
+  }
+
   depends_on = [helm_release.linkerd_crds]
 }
 

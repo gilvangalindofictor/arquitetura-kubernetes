@@ -1,0 +1,161 @@
+# =============================================================================
+# GAP-011: AuthorizationPolicy — Prometheus Scrape (todos os namespaces)
+# =============================================================================
+# Objetivo: Permitir que o Prometheus (kube-prometheus-stack) raspe metricas
+#           de todos os pods nos namespaces com proxy Linkerd injetado.
+#
+# Problema sem esta policy:
+#   Apos enable de deny-all, o Prometheus nao consegue raspar /metrics
+#   porque nao tem a identidade autorizada no namespace alvo.
+#
+# Solucao:
+#   Uma AuthorizationPolicy por namespace (ou um Server por porta de metricas)
+#   que permite o ServiceAccount do Prometheus acessar a porta /metrics.
+#
+# SPIFFE ID do Prometheus:
+#   spiffe://cluster.local/ns/staging-observability-monitoring/sa/kube-prometheus-stack-prometheus
+#
+# Portas de metricas mais comuns:
+#   :9090 — Prometheus (auto-scrape)
+#   :8080 — varios workloads (management/metrics endpoint)
+#   :9091 — Pushgateway
+#   :4191 — Linkerd proxy metrics (handled separately by Linkerd)
+#
+# NOTA: Esta policy permite scrape cross-namespace.
+#       O Prometheus esta em staging-observability-monitoring mas
+#       raspa pods em staging-platform, staging-data-services, etc.
+#
+# Como aplicar (em CADA namespace que tem workloads com metrics):
+#   kubectl apply -f policy-prometheus-scrape.yaml -n staging-platform
+#   kubectl apply -f policy-prometheus-scrape.yaml -n staging-data-services
+#   kubectl apply -f policy-prometheus-scrape.yaml -n gitlab-staging
+#
+# Para aplicar em todos de uma vez (mudar namespace na linha de comando):
+#   for ns in staging-platform staging-data-services gitlab-staging; do
+#     kubectl apply -f policy-prometheus-scrape.yaml -n "$ns"
+#   done
+#
+# Como verificar:
+#   # Prometheus deve mostrar targets UP
+#   kubectl port-forward svc/kube-prometheus-stack-prometheus \
+#     -n staging-observability-monitoring 9090:9090 &
+#   curl http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | .health'
+# =============================================================================
+
+# --- Server: Porta de metricas generica (8080) --------------------------------
+# Criado em staging-platform como exemplo — replicar nos outros namespaces
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-port-8080
+  # NOTA: Mudar namespace ao aplicar em outros namespaces
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "prometheus-scrape"
+spec:
+  # Seleciona TODOS os pods do namespace (qualquer label)
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: Exists
+  port: 8080
+  proxyProtocol: HTTP/1
+
+---
+
+# --- Server: Porta de metricas alternativa (9090) ----------------------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-port-9090
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "prometheus-scrape"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: Exists
+  port: 9090
+  proxyProtocol: HTTP/1
+
+---
+
+# --- MeshTLSAuthentication: apenas Prometheus autorizado a raspar -----------
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: allow-prometheus-scrape
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "prometheus-scrape"
+spec:
+  identities:
+    # ServiceAccount principal do Prometheus (kube-prometheus-stack)
+    - "kube-prometheus-stack-prometheus.staging-observability-monitoring.serviceaccount.identity.linkerd.cluster.local"
+    # Prometheus Operator (cria/gerencia recursos)
+    - "kube-prometheus-stack-operator.staging-observability-monitoring.serviceaccount.identity.linkerd.cluster.local"
+    # AlertManager (para routing de alertas)
+    - "kube-prometheus-stack-alertmanager.staging-observability-monitoring.serviceaccount.identity.linkerd.cluster.local"
+
+---
+
+# --- AuthorizationPolicy: Prometheus → porta 8080 (metrics) -----------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-scrape-8080
+  namespace: staging-platform
+  annotations:
+    bacen.compliance/article: "BCB 85/2021 Art. 11 SS II"
+    bacen.compliance/control: "observability-metrics-collection"
+    bacen.compliance/source: "prometheus (observability)"
+    bacen.compliance/target: "all workloads metrics endpoints"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "prometheus-scrape"
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-port-8080
+
+  requiredAuthenticationRefs:
+    - name: allow-prometheus-scrape
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io
+
+---
+
+# --- AuthorizationPolicy: Prometheus → porta 9090 (metrics alternativa) -----
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-scrape-9090
+  namespace: staging-platform
+  annotations:
+    bacen.compliance/article: "BCB 85/2021 Art. 11 SS II"
+    bacen.compliance/control: "observability-metrics-collection"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "prometheus-scrape"
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-port-9090
+
+  requiredAuthenticationRefs:
+    - name: allow-prometheus-scrape
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io

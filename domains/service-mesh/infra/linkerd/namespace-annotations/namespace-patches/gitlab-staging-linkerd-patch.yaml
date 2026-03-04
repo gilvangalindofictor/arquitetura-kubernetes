@@ -1,0 +1,38 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace gitlab-staging
+# =============================================================================
+# Conteudo: GitLab v18.9.1 (11 pods: webservice, sidekiq, workhorse, kas, etc.)
+# Fase: 2 (paralelo com staging-data-services, apos Fase 1 validada)
+# Impacto esperado: +<1ms P99 | smoke test obrigatorio pos-inject
+#
+# ATENCAO — GitLab com muitos componentes:
+#   Reinicio de todos os 11 pods simultaneamente pode causar downtime.
+#   Recomendado: rollout com maxUnavailable=1 (default do GitLab Helm chart).
+#   Verificar apos inject: kubectl get pods -n gitlab-staging
+#
+# Smoke test pos-inject:
+#   # GitLab UI acessivel
+#   curl -k https://<gitlab-ingress>/users/sign_in
+#   # KAS (Kubernetes Agent Server) funcionando
+#   kubectl exec -n gitlab-staging deploy/gitlab-kas -- /usr/local/bin/gitlab-kas --version
+#
+# Como aplicar:
+#   kubectl patch namespace gitlab-staging \
+#     --patch-file gitlab-staging-linkerd-patch.yaml
+#
+# Rollback:
+#   kubectl annotate namespace gitlab-staging linkerd.io/inject- --overwrite
+#   kubectl rollout restart deployment -n gitlab-staging
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab-staging
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    environment: staging
+    team: platform
+    cost-center: "plataforma-k8s"
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

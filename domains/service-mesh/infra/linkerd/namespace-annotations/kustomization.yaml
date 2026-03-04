@@ -1,0 +1,35 @@
+# =============================================================================
+# GAP-011: Linkerd Namespace Annotations — Kustomization
+# =============================================================================
+# Uso: kubectl apply -k domains/service-mesh/infra/linkerd/namespace-annotations/
+#
+# ATENCAO: Este kustomization aplica TODOS os patches (todas as fases).
+# Para aplicar fase a fase, use o script:
+#   ./annotate-namespaces.sh --phase 1
+#
+# Deploy seletivo por fase via kubectl:
+#   # Fase 1 apenas:
+#   kubectl apply -f namespace-patches/staging-platform-linkerd-patch.yaml
+#
+#   # Fase 2:
+#   kubectl apply -f namespace-patches/staging-data-services-linkerd-patch.yaml
+#   kubectl apply -f namespace-patches/gitlab-staging-linkerd-patch.yaml
+#
+#   # Fase 3:
+#   kubectl apply -f namespace-patches/staging-observability-monitoring-linkerd-patch.yaml
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace patches (cada arquivo e um Namespace resource completo)
+resources:
+  - namespace-patches/staging-platform-linkerd-patch.yaml
+  - namespace-patches/staging-data-services-linkerd-patch.yaml
+  - namespace-patches/gitlab-staging-linkerd-patch.yaml
+  - namespace-patches/staging-observability-monitoring-linkerd-patch.yaml
+
+# Labels comuns aplicados a todos os recursos
+commonLabels:
+  gap: "GAP-011"
+  managed-by: "kustomize"
+  compliance: "bcb-85-2021"

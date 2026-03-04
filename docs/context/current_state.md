@@ -8,7 +8,7 @@
 
 ## Status Geral
 
-**Última Atualização**: 2026-03-03 (INFRA-001: GitLab v18.9.1 ✅ | INFRA-002: PostgreSQL 14→16 ✅ | GAP-011: Linkerd DEPLOYED ✅ | CICD-001 a 005: TODOS DEPLOYED ✅ | ADR-098 DNS alvocard.com.br: PLANEJADO)
+**Última Atualização**: 2026-03-04 (VPC TF zero-drift 17/17 ✅ | Linkerd Phase 2 completo 18/18 proxies ✅ | Kyverno excludes removidos ADR-048 labels corrigidos ✅ | GAP-005 ExternalSecret runner criado ✅ | Quickstart-REAL v4.0 atualizado ✅)
 
 **Estado do Projeto**: Desenvolvimento Ativo - Marco 4 CI/CD ✅ 100% COMPLETO + CI/CD Enhancement 5/5 DEPLOYED + Infraestrutura Upgrades (GitLab v18.9.1, PostgreSQL 16, Linkerd mTLS) + DNS Demand em planejamento
 
@@ -37,8 +37,8 @@
 
 **Total até Marco 3**: ~14 dias de trabalho efetivo | ~$700/mês staging
 **Marco 4 Completo**: 8/8 GAPs ✅ (100% CI/CD end-to-end) | +$100/mês | ~$800/mês total staging
-**Enterprise Maturity**: 3.8/5.0 (Advanced) - 75% production-ready
-**FinOps Savings Realizados**: R$ 56.424/ano (90% roadmap) + R$ 5.052/ano (Snapshot DLM projected) = R$ 61.476/ano total
+**Enterprise Maturity**: 4.0/5.0 (Advanced+) - 85% production-ready
+**FinOps Savings Realizados**: R$ 62.425/ano (todos os sprints + Snapshot DLM + KMS savings consolidados)
 
 ---
 
@@ -258,29 +258,29 @@
 
 ### Platform Services (Marco 2)
 
-| Componente                   | Status        | Versão | Réplicas | Namespace               | Notas                    |
-| ---------------------------- | ------------- | ------ | -------- | ----------------------- | ------------------------ |
-| Prometheus                   | ✅ Operacional | 2.48.0 | 1        | monitoring              | Metrics collection ok    |
-| Grafana                      | ✅ Operacional | 10.2.0 | 1        | monitoring              | Dashboards principais ok |
+| Componente                   | Status        | Versão | Réplicas | Namespace                        | Notas                                                                                                 |
+| ---------------------------- | ------------- | ------ | -------- | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Prometheus                   | ✅ Operacional | 2.48.0 | 1        | monitoring                       | Metrics collection ok                                                                                 |
+| Grafana                      | ✅ Operacional | 10.2.0 | 1        | monitoring                       | Dashboards principais ok                                                                              |
 | Loki                         | ✅ Operacional | 3.6.5  | 18 pods  | staging-observability-monitoring | SimpleScalable (backend×2, write×2, read×2, gateway×2, cache×2, canary×9) — Kyverno 100% (2026-03-02) |
-| Tempo                        | ✅ Operacional | 2.9.0  | Vários   | staging-observability-monitoring | Traces distribuídos, Loki→Tempo correlation ativo |
-| Cluster Autoscaler           | ✅ Operacional | 1.28.x | 1        | kube-system             | Auto-scaling nodes       |
-| Metrics Server               | ✅ Operacional | 0.6.4  | 1        | kube-system             | HPA support              |
-| AWS Load Balancer Controller | ✅ Operacional | 2.7.0  | 2        | kube-system             | Ingress ALB              |
-| External Secrets Operator    | ✅ Operacional | 0.12.1 | 1        | staging-security-externalsecrets | Vault integration — consolidado DEC-074 (2026-03-02) |
+| Tempo                        | ✅ Operacional | 2.9.0  | Vários   | staging-observability-monitoring | Traces distribuídos, Loki→Tempo correlation ativo                                                     |
+| Cluster Autoscaler           | ✅ Operacional | 1.28.x | 1        | kube-system                      | Auto-scaling nodes                                                                                    |
+| Metrics Server               | ✅ Operacional | 0.6.4  | 1        | kube-system                      | HPA support                                                                                           |
+| AWS Load Balancer Controller | ✅ Operacional | 2.7.0  | 2        | kube-system                      | Ingress ALB                                                                                           |
+| External Secrets Operator    | ✅ Operacional | 0.12.1 | 1        | staging-security-externalsecrets | Vault integration — consolidado DEC-074 (2026-03-02)                                                  |
 
 ---
 
 ### Workloads (Marco 3)
 
-| Aplicação        | Status        | Versão       | Réplicas                                  | Namespace      | Database                  | Notas                                                     |
-| ---------------- | ------------- | ------------ | ----------------------------------------- | -------------- | ------------------------- | --------------------------------------------------------- |
-| PostgreSQL RDS   | ✅ Operacional | **16.4**     | —                                         | —              | db.t3.medium Single-AZ    | Upgraded 14→16 (INFRA-002, 2026-03-03). Subnet privada.  |
-| Redis Standalone | ✅ Operacional | OT-Kit v0.23 | 1 (standalone)                            | data-services  | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted   |
-| RabbitMQ         | ✅ Operacional | Operator     | 1                                         | data-services  | —                         | Official operator                                         |
-| GitLab           | ✅ Operacional | **18.9.1** (Chart 9.9.1) | 11 pods (Rev 36)                          | staging-platform-gitlab | PostgreSQL RDS | INFRA-001 COMPLETO (2026-03-03). 9 breaking changes resolvidos. Runner id=115 online. |
-| Harbor           | ✅ Operacional | 2.10.0       | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system  | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging              |
-| Vault            | ✅ Operacional | 1.15.0       | 3 (HA)                                    | vault-system   | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running |
+| Aplicação        | Status        | Versão                   | Réplicas                                  | Namespace               | Database                  | Notas                                                                                 |
+| ---------------- | ------------- | ------------------------ | ----------------------------------------- | ----------------------- | ------------------------- | ------------------------------------------------------------------------------------- |
+| PostgreSQL RDS   | ✅ Operacional | **16.4**                 | —                                         | —                       | db.t3.medium Single-AZ    | Upgraded 14→16 (INFRA-002, 2026-03-03). Subnet privada.                               |
+| Redis Standalone | ✅ Operacional | OT-Kit v0.23             | 1 (standalone)                            | data-services           | —                         | OT-Container-Kit operator, AUTH enabled, PSS restricted                               |
+| RabbitMQ         | ✅ Operacional | Operator                 | 1                                         | data-services           | —                         | Official operator                                                                     |
+| GitLab           | ✅ Operacional | **18.9.1** (Chart 9.9.1) | 11 pods (Rev 36)                          | staging-platform-gitlab | PostgreSQL RDS            | INFRA-001 COMPLETO (2026-03-03). 9 breaking changes resolvidos. Runner id=115 online. |
+| Harbor           | ✅ Operacional | 2.10.0                   | 2 core + 2 portal + 1 reg + 1 job + 1 exp | harbor-system           | PostgreSQL RDS, S3 (IRSA) | Redeployado 2026-02-13, ALB platform-staging                                          |
+| Vault            | ✅ Operacional | 1.15.0                   | 3 (HA)                                    | vault-system            | Raft (EBS)                | KMS auto-unseal, OIDC SSO ativo (2026-02-18), 3/3 Running                             |
 
 ---
 
@@ -352,18 +352,18 @@
 
 **Status Migração para Vault — 10 ExternalSecrets (SecretSynced: True) — ATUALIZADO 2026-02-20**:
 
-| ExternalSecret                    | Namespace      | Vault Path                  | Status         | Deploy      |
-| --------------------------------- | -------------- | --------------------------- | -------------- | ----------- |
-| grafana-oidc-credentials          | monitoring     | secret/grafana/oidc         | ✅ SecretSynced | 2026-02-19  |
-| **grafana-admin-credentials**     | **monitoring** | **secret/grafana/admin**    | ✅ SecretSynced | **V-001 ✅** |
-| sonarqube-postgresql              | sonarqube      | secret/sonarqube/postgresql | ✅ SecretSynced | 2026-02-18  |
-| sonarqube-sp-saml                 | sonarqube      | secret/sonarqube/saml       | ✅ SecretSynced | 2026-02-18  |
-| harbor-postgresql-credentials     | harbor-system  | secret/harbor/postgresql    | ✅ SecretSynced | 2026-02-13  |
-| harbor-oidc-credentials           | harbor-system  | secret/harbor/oidc          | ✅ SecretSynced | 2026-02-13  |
-| keycloak-postgresql-credentials   | keycloak       | secret/keycloak/postgresql  | ✅ SecretSynced | 2026-02-06  |
-| gitlab-ci-credentials             | gitlab-staging | secret/gitlab/ci-variables  | ✅ SecretSynced | 2026-02-19  |
-| **argocd-postgresql-credentials** | **argocd**     | **secret/argocd/postgresql**| ✅ SecretSynced | **V-002 ✅** |
-| **argocd-oidc-credentials**       | **argocd**     | **secret/argocd/oidc**      | ✅ SecretSynced | **V-002 ✅** |
+| ExternalSecret                    | Namespace      | Vault Path                   | Status         | Deploy      |
+| --------------------------------- | -------------- | ---------------------------- | -------------- | ----------- |
+| grafana-oidc-credentials          | monitoring     | secret/grafana/oidc          | ✅ SecretSynced | 2026-02-19  |
+| **grafana-admin-credentials**     | **monitoring** | **secret/grafana/admin**     | ✅ SecretSynced | **V-001 ✅** |
+| sonarqube-postgresql              | sonarqube      | secret/sonarqube/postgresql  | ✅ SecretSynced | 2026-02-18  |
+| sonarqube-sp-saml                 | sonarqube      | secret/sonarqube/saml        | ✅ SecretSynced | 2026-02-18  |
+| harbor-postgresql-credentials     | harbor-system  | secret/harbor/postgresql     | ✅ SecretSynced | 2026-02-13  |
+| harbor-oidc-credentials           | harbor-system  | secret/harbor/oidc           | ✅ SecretSynced | 2026-02-13  |
+| keycloak-postgresql-credentials   | keycloak       | secret/keycloak/postgresql   | ✅ SecretSynced | 2026-02-06  |
+| gitlab-ci-credentials             | gitlab-staging | secret/gitlab/ci-variables   | ✅ SecretSynced | 2026-02-19  |
+| **argocd-postgresql-credentials** | **argocd**     | **secret/argocd/postgresql** | ✅ SecretSynced | **V-002 ✅** |
+| **argocd-oidc-credentials**       | **argocd**     | **secret/argocd/oidc**       | ✅ SecretSynced | **V-002 ✅** |
 
 **Vault Configuration (2026-02-20)**:
 - KV v2 engine at `secret/`

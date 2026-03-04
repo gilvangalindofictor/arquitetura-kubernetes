@@ -1,0 +1,36 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace staging-platform-argocd
+# =============================================================================
+# Conteudo: ArgoCD GitOps (server, repo-server, applicationset-controller,
+#           application-controller, redis, argo-rollouts)
+# Fase: 1 (deployments controlados — rollout seguro)
+# Impacto esperado: +<1ms P99 por hop (Linkerd2-proxy Rust overhead)
+# NOTA: argocd-application-controller (StatefulSet) — restart manual recomendado
+#
+# Como aplicar:
+#   kubectl patch namespace staging-platform-argocd --patch-file staging-platform-argocd-linkerd-patch.yaml
+#   # Ou via kustomize:
+#   kubectl apply -k ../
+#
+# Como verificar:
+#   kubectl get ns staging-platform-argocd -o jsonpath='{.metadata.annotations}'
+#   linkerd viz stat deploy -n staging-platform-argocd
+#
+# Rollback:
+#   kubectl annotate namespace staging-platform-argocd linkerd.io/inject- --overwrite
+#   kubectl rollout restart deployment -n staging-platform-argocd
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-platform-argocd
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    # Labels corporativos obrigatorios (Kyverno enforce)
+    environment: staging
+    team: platform
+    cost-center: "plataforma-k8s"
+    # Label de rastreabilidade GAP
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

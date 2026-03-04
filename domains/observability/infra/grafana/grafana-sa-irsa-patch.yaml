@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# Patch: Grafana ServiceAccount IRSA Annotation
+# GAP-010: Grant Grafana pod permission to query CloudWatch (WAF metrics)
+#
+# This patch adds the IRSA annotation to the Grafana ServiceAccount so that
+# the Grafana pod can assume the IAM role k8s-platform-grafana-cloudwatch-role
+# via EKS OIDC federation. This enables the CloudWatch datasource (authType=default)
+# to authenticate without static credentials.
+#
+# Prerequisites:
+#   - IAM role k8s-platform-grafana-cloudwatch-role must exist (terraform-grafana-iam.tf)
+#   - EKS OIDC provider must be configured
+#   - Grafana SA name: check with:
+#       kubectl get sa -n staging-observability-monitoring | grep grafana
+#
+# Apply:
+#   kubectl patch serviceaccount kube-prometheus-stack-grafana \
+#     -n staging-observability-monitoring \
+#     --patch-file grafana-sa-irsa-patch.yaml
+#
+#   # Then restart Grafana to pick up new IRSA token:
+#   kubectl rollout restart deployment kube-prometheus-stack-grafana \
+#     -n staging-observability-monitoring
+#
+# Verify IRSA is working:
+#   kubectl exec -n staging-observability-monitoring \
+#     deployment/kube-prometheus-stack-grafana -- \
+#     aws sts get-caller-identity
+#   # Should return: k8s-platform-grafana-cloudwatch-role
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-prometheus-stack-grafana
+  namespace: staging-observability-monitoring
+  annotations:
+    # IRSA annotation: EKS injects a projected token that Grafana uses for STS AssumeRoleWithWebIdentity
+    eks.amazonaws.com/role-arn: arn:aws:iam::891377105802:role/k8s-platform-grafana-cloudwatch-role
+    # Token expiry (default 86400s = 24h); shorter = more secure
+    eks.amazonaws.com/token-expiration: "86400"

@@ -1,0 +1,213 @@
+# =============================================================================
+# GAP-011: ServiceProfile — GitLab Webservice (Git HTTP + API v4)
+# =============================================================================
+# Referencia: GAP-011 (Linkerd mTLS Phase 2), ADR-086 (Linkerd Service Mesh mTLS)
+# Service: gitlab-webservice-default.gitlab-staging.svc.cluster.local (port 8080)
+# Namespace do ServiceProfile: gitlab-staging
+# Workloads que se beneficiam: GitLab Runner, ArgoCD, Harbor (webhook), clientes API v4
+#
+# Rotas mapeadas:
+#   1. GET  /namespace/repo.git/info/refs          → Git HTTP clone/fetch (smart HTTP) — retryable
+#   2. POST /namespace/repo.git/git-upload-pack    → Git clone/pull (envia pack) — NAO retryable
+#   3. POST /namespace/repo.git/git-receive-pack   → Git push (recebe pack) — NAO retryable
+#   4. GET  /api/v4/projects                       → Lista projetos — retryable
+#   5. POST /api/v4/projects/{id}/pipeline         → Dispara pipeline — NAO retryable
+#   6. GET  /api/v4/projects/{id}/pipelines        → Lista pipelines — retryable
+#   7. GET  /api/v4/jobs/{id}                      → Status de job — retryable
+#   8. GET  /api/v4/projects/{id}/registry/repositories → Registry API — retryable
+#   9. GET  /-/health                              → Health check — retryable
+#  10. GET  /-/readiness                           → Readiness probe — retryable
+#  11. GET  /-/kubernetes-agent                    → KAS (websocket) — retryable
+#
+# Compliance: BACEN BCB 85/2021 Art. 11 (rastreabilidade de comunicacoes CI/CD)
+#
+# NOTA SOBRE TIMEOUTS:
+#   git-upload-pack / git-receive-pack: operacoes de clone/push podem levar
+#   minutos em repositorios grandes. Timeout de 120s e conservador para
+#   repos tipicos de plataforma (<500MB). Ajustar para 300s se necessario.
+#
+# NOTA SOBRE NAMESPACE:
+#   O ServiceProfile DEVE residir no namespace do SERVIDOR (gitlab-staging),
+#   nao do cliente. Isso instrui o proxy sidecar do servidor a classificar
+#   requests incoming por rota para metricas.
+#   Ver: https://linkerd.io/2.16/reference/service-profiles/
+#
+# Como aplicar:
+#   kubectl apply -f serviceprofile-gitlab.yaml
+#
+# Como verificar metricas por rota (requer linkerd viz):
+#   # Do lado do runner → webservice
+#   linkerd routes -n gitlab-staging deploy/gitlab-runner \
+#     --to svc/gitlab-webservice-default
+#
+#   # Do lado do webservice (incoming)
+#   linkerd routes -n gitlab-staging deploy/gitlab-webservice-default
+#
+# Como verificar mTLS ativo:
+#   linkerd viz tap deploy/gitlab-webservice-default -n gitlab-staging \
+#     --from-namespace gitlab-staging
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: gitlab-webservice-default.gitlab-staging.svc.cluster.local
+  namespace: gitlab-staging
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    service: gitlab-webservice
+spec:
+  routes:
+
+    # --- Git HTTP: Smart HTTP discovery (clone/fetch inicial) ------------------
+    # GET /namespace/repo.git/info/refs?service=git-upload-pack
+    # Retorna capacidades do servidor git — seguro retentar
+    - name: GET /namespace/repo.git/info/refs
+      condition:
+        method: GET
+        pathRegex: /[^/]+/[^/]+\.git/info/refs.*
+      isRetryable: true
+      timeout: 30s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+        # 401 Unauthorized = credenciais invalidas (nao e falha de infra)
+        - condition:
+            status:
+              min: 401
+              max: 401
+          isFailure: false
+        # 403 Forbidden = repositorio privado sem acesso (nao e falha de infra)
+        - condition:
+            status:
+              min: 403
+              max: 403
+          isFailure: false
+
+    # --- Git HTTP: git-upload-pack (git clone / git pull) ---------------------
+    # POST envia pack de objetos para o cliente (download de commits)
+    # NAO retryable: transferencia de dados binarios — retry quebraria o protocolo
+    - name: POST /namespace/repo.git/git-upload-pack
+      condition:
+        method: POST
+        pathRegex: /[^/]+/[^/]+\.git/git-upload-pack
+      isRetryable: false
+      # Timeout generoso: clone de repos grandes pode levar minutos
+      timeout: 120s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Git HTTP: git-receive-pack (git push) --------------------------------
+    # POST recebe pack de objetos do cliente (upload de commits)
+    # NAO retryable: operacao de escrita nao idempotente
+    - name: POST /namespace/repo.git/git-receive-pack
+      condition:
+        method: POST
+        pathRegex: /[^/]+/[^/]+\.git/git-receive-pack
+      isRetryable: false
+      # Timeout generoso: push de branches grandes pode levar minutos
+      timeout: 120s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- GitLab API v4: listar projetos ---------------------------------------
+    # GET com paginacao — seguro retentar
+    - name: GET /api/v4/projects
+      condition:
+        method: GET
+        pathRegex: /api/v4/projects.*
+      isRetryable: true
+      timeout: 10s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- GitLab API v4: disparar pipeline ------------------------------------
+    # POST cria pipeline — NAO retryable (criaria duplicatas)
+    - name: POST /api/v4/projects/{id}/pipeline
+      condition:
+        method: POST
+        pathRegex: /api/v4/projects/[^/]+/pipeline
+      isRetryable: false
+      timeout: 30s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- GitLab API v4: listar pipelines -------------------------------------
+    # GET com paginacao — seguro retentar
+    - name: GET /api/v4/projects/{id}/pipelines
+      condition:
+        method: GET
+        pathRegex: /api/v4/projects/[^/]+/pipelines.*
+      isRetryable: true
+      timeout: 10s
+
+    # --- GitLab API v4: status de job ----------------------------------------
+    # GET consultado com alta frequencia pelo runner — retryable
+    - name: GET /api/v4/jobs/{id}
+      condition:
+        method: GET
+        pathRegex: /api/v4/jobs/[0-9]+
+      isRetryable: true
+      timeout: 5s
+
+    # --- GitLab API v4: Container Registry repositories ----------------------
+    # GET lista repositorios de imagem vinculados ao projeto
+    - name: GET /api/v4/projects/{id}/registry/repositories
+      condition:
+        method: GET
+        pathRegex: /api/v4/projects/[^/]+/registry/repositories.*
+      isRetryable: true
+      timeout: 10s
+
+    # --- Health Check ---------------------------------------------------------
+    # GET /-/health — usado por probes e monitoramento externo
+    - name: GET /-/health
+      condition:
+        method: GET
+        pathRegex: /-/health
+      isRetryable: true
+      timeout: 3s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Readiness Probe ------------------------------------------------------
+    # GET /-/readiness?token=... — verifica dependencias (DB, Redis, Gitaly)
+    - name: GET /-/readiness
+      condition:
+        method: GET
+        pathRegex: /-/readiness.*
+      isRetryable: true
+      timeout: 3s
+
+    # --- KAS: Kubernetes Agent Server (GitLab Agent) -------------------------
+    # Websocket upgrade via HTTP — retryable para estabelecimento inicial
+    # NOTA: apos upgrade para WS, Linkerd trata como TCP opaco
+    - name: GET /-/kubernetes-agent
+      condition:
+        method: GET
+        pathRegex: /-/kubernetes-agent.*
+      isRetryable: true
+      timeout: 10s

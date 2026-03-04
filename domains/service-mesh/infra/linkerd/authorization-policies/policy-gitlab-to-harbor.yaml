@@ -1,0 +1,153 @@
+# =============================================================================
+# GAP-011: AuthorizationPolicy — GitLab CI Runner → Harbor Registry
+# =============================================================================
+# Objetivo: Permitir que APENAS o GitLab Runner possa fazer push/pull de
+#           imagens no Harbor registry (OCI Distribution API).
+#
+# Caso de uso: Pipeline CI/CD
+#   1. gitlab-runner executa job: docker build
+#   2. Runner faz docker push para harbor.staging-data-services.svc
+#   3. Harbor valida autorizacao via mTLS (identidade SPIFFE do runner)
+#   4. Harbor armazena imagem com imutabilidade de tag
+#
+# SPIFFE IDs envolvidos:
+#   GitLab Runner: spiffe://cluster.local/ns/gitlab-staging/sa/gitlab-runner
+#   Harbor Core:   spiffe://cluster.local/ns/staging-data-services/sa/harbor-core
+#
+# Compliance: BACEN BCB 85/2021 Art. 6 SS IV (criptografia) + Art. 15 (segregacao)
+#
+# NOTA CROSS-NAMESPACE:
+#   Esta policy protege o Harbor (staging-data-services) mas permite
+#   conexoes de um SA em namespace diferente (gitlab-staging).
+#   O Linkerd suporta cross-namespace identity via SPIFFE.
+#
+# Como aplicar:
+#   kubectl apply -f policy-gitlab-to-harbor.yaml
+#
+# Como verificar:
+#   # Push de imagem de teste (via gitlab-runner pod)
+#   kubectl exec -n gitlab-staging deploy/gitlab-runner -- \
+#     docker push harbor.staging-data-services.svc/library/test:latest
+#
+#   # Verificar mTLS no tap
+#   linkerd viz tap deploy/harbor-core -n staging-data-services \
+#     --from-namespace gitlab-staging
+# =============================================================================
+
+# --- Server: Harbor Core API (port 8080 — OCI Distribution API) -------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: harbor-core-api
+  namespace: staging-data-services
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    app: harbor-core
+spec:
+  podSelector:
+    matchLabels:
+      component: core
+      app: harbor
+  port: 8080
+  proxyProtocol: HTTP/1
+
+---
+
+# --- Server: Harbor Registry (port 5000 — Docker registry v2 API) -----------
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: harbor-registry
+  namespace: staging-data-services
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    app: harbor-registry
+spec:
+  podSelector:
+    matchLabels:
+      component: registry
+      app: harbor
+  port: 5000
+  proxyProtocol: HTTP/1
+
+---
+
+# --- MeshTLSAuthentication: identidades autorizadas a acessar Harbor --------
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: allow-gitlab-runner-to-harbor
+  namespace: staging-data-services
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "cicd-access"
+spec:
+  identities:
+    # GitLab Runner (executor de CI/CD)
+    - "gitlab-runner.gitlab-staging.serviceaccount.identity.linkerd.cluster.local"
+    # GitLab Sidekiq (processamento async — deploy triggers)
+    - "gitlab.gitlab-staging.serviceaccount.identity.linkerd.cluster.local"
+    # Harbor componentes internos (core acessa registry internamente)
+    - "harbor-core.staging-data-services.serviceaccount.identity.linkerd.cluster.local"
+    - "harbor-jobservice.staging-data-services.serviceaccount.identity.linkerd.cluster.local"
+
+---
+
+# --- AuthorizationPolicy: GitLab → Harbor Core API --------------------------
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gitlab-to-harbor-core
+  namespace: staging-data-services
+  annotations:
+    bacen.compliance/article: "BCB 85/2021 Art. 6 SS IV, Art. 15 SS I"
+    bacen.compliance/control: "cicd-registry-access-control"
+    bacen.compliance/source: "gitlab-runner (CI/CD pipeline)"
+    bacen.compliance/target: "harbor-core (OCI registry)"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "cicd-access"
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: harbor-core-api
+
+  requiredAuthenticationRefs:
+    - name: allow-gitlab-runner-to-harbor
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io
+
+---
+
+# --- AuthorizationPolicy: GitLab → Harbor Registry (docker push/pull) -------
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gitlab-to-harbor-registry
+  namespace: staging-data-services
+  annotations:
+    bacen.compliance/article: "BCB 85/2021 Art. 6 SS IV, Art. 15 SS I"
+    bacen.compliance/control: "cicd-registry-access-control"
+    bacen.compliance/source: "gitlab-runner (docker push/pull)"
+    bacen.compliance/target: "harbor-registry (OCI distribution v2)"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "cicd-access"
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: harbor-registry
+
+  requiredAuthenticationRefs:
+    - name: allow-gitlab-runner-to-harbor
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io

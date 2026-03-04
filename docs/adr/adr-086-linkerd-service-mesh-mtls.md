@@ -1,7 +1,8 @@
 # ADR-086: Linkerd Service Mesh for mTLS End-to-End Encryption
 
-**Status**: ✅ ACCEPTED (Pending Deployment)
+**Status**: 🔄 IN PROGRESS — Phase 1 (Control Plane) COMPLETE, Phase 2 (Workload Injection) IN PROGRESS
 **Date**: 2026-02-26
+**Updated**: 2026-03-04 (GAP-011 Hardening — proxy injection automation + policies + profiles)
 **Context**: GAP-011: mTLS End-to-End | BACEN BCB 85/2021 Compliance
 **Deciders**: Platform Team, Security Team, Compliance Team
 **Supersedes**: None
@@ -517,4 +518,192 @@ GET /api/v1/health     100.0%   10   2ms          5ms
 - **Security Team**: ✅ APPROVED (compliance requirements met)
 - **Compliance Team**: ✅ APPROVED (BACEN BCB 85/2021 satisfied)
 
-**Status**: ✅ ACCEPTED — Ready for deployment when staging environment is online
+**Status**: ✅ ACCEPTED — Phase 1 COMPLETE (control plane Running), Phase 2 IN PROGRESS (workload injection)
+
+---
+
+## Roadmap de Habilitacao por Namespace (2026-03-04)
+
+### Visao Geral do Progresso
+
+| Fase | Namespaces | Status | Data |
+|------|-----------|--------|------|
+| Phase 1 — Control Plane | `linkerd` | ✅ COMPLETO | 2026-03-03 |
+| Phase 2 — Workload Injection | `staging-platform`, `staging-data-services`, `gitlab-staging` | 🔄 EM PROGRESSO | 2026-03-04 |
+| Phase 3 — Observability Stack | `staging-observability-monitoring` | ⏳ PENDENTE | — |
+
+### Estrategia de Rollout
+
+A habilitacao segue estrategia **opt-in gradual** por namespace, minimizando blast radius:
+
+**Fase 2a — staging-platform (Keycloak, Vault, ArgoCD)**
+
+- Menor risco: workloads de plataforma com latencia nao-critica para usuarios finais
+- Script: `./domains/service-mesh/infra/linkerd/namespace-annotations/annotate-namespaces.sh --phase 1`
+- Criterio de saida: 100% pods com `linkerd-proxy`, success rate > 99.5% por 24h
+
+**Fase 2b — staging-data-services + gitlab-staging**
+
+- Risco medio: Redis/RabbitMQ (TCP opaco, Linkerd encapsula com mTLS transparente)
+- GitLab: 11 pods reiniciados sequencialmente (maxUnavailable=1)
+- Script: `./domains/service-mesh/infra/linkerd/namespace-annotations/annotate-namespaces.sh --phase 2`
+
+**Fase 3 — staging-observability-monitoring**
+
+- Baixo risco: pilha de observabilidade separada dos servicos de negocio
+- Requer adicionar scrape config do Prometheus para metricas dos proxies Linkerd (`:4191`)
+- Script: `./domains/service-mesh/infra/linkerd/namespace-annotations/annotate-namespaces.sh --phase 3`
+
+### Artefatos Criados (2026-03-04)
+
+```
+domains/service-mesh/infra/linkerd/
+├── namespace-annotations/
+│   ├── annotate-namespaces.sh              # Script com fases 1/2/3 + rollback + status
+│   ├── kustomization.yaml                  # kubectl apply -k para todos os patches
+│   ├── rollout-strategy.md                 # Estrategia detalhada com comandos
+│   └── namespace-patches/
+│       ├── staging-platform-linkerd-patch.yaml
+│       ├── staging-data-services-linkerd-patch.yaml
+│       ├── gitlab-staging-linkerd-patch.yaml
+│       └── staging-observability-monitoring-linkerd-patch.yaml
+├── authorization-policies/
+│   ├── README.md                           # Guia de uso e padroes de policy
+│   ├── policy-deny-all.yaml                # MeshTLSAuthentication + AuthorizationPolicy baseline
+│   ├── policy-keycloak-to-argocd.yaml      # Identity-based: Keycloak → ArgoCD (porta 8080)
+│   ├── policy-gitlab-to-harbor.yaml        # Identity-based: GitLab Runner → Harbor (OCI v2)
+│   └── policy-prometheus-scrape.yaml       # Prometheus → todos os workloads (metricas)
+└── service-profiles/
+    ├── README.md                           # Guia de uso e observabilidade por rota
+    ├── serviceprofile-keycloak.yaml        # 8 rotas OIDC (token, discovery, JWKS, logout)
+    ├── serviceprofile-harbor.yaml          # 11 rotas OCI v2 + Harbor API v2.0
+    └── serviceprofile-argocd.yaml          # 13 rotas ArgoCD REST API v1
+```
+
+---
+
+## AuthorizationPolicies Criadas (2026-03-04)
+
+### 1. Deny-All Unauthenticated (baseline de seguranca)
+
+**Arquivo**: `domains/service-mesh/infra/linkerd/authorization-policies/policy-deny-all.yaml`
+
+Garante que apenas pods com proxy Linkerd (certificado mTLS valido) possam se comunicar
+dentro do namespace `staging-platform`. Base para todas as policies granulares.
+
+- `MeshTLSAuthentication`: `all-authenticated-staging-platform` (identities: `["*"]`)
+- `AuthorizationPolicy`: target = Namespace `staging-platform` inteiro
+
+### 2. Keycloak → ArgoCD (identity-based, Art. 15)
+
+**Arquivo**: `domains/service-mesh/infra/linkerd/authorization-policies/policy-keycloak-to-argocd.yaml`
+
+Restringe acesso ao ArgoCD server (port 8080) apenas a identidades autorizadas:
+
+- `keycloak.staging-platform.serviceaccount.identity.linkerd.cluster.local`
+- `argocd-application-controller.staging-platform.serviceaccount.identity.linkerd.cluster.local`
+- `argocd-repo-server.staging-platform.serviceaccount.identity.linkerd.cluster.local`
+
+### 3. GitLab Runner → Harbor (identity-based, CI/CD)
+
+**Arquivo**: `domains/service-mesh/infra/linkerd/authorization-policies/policy-gitlab-to-harbor.yaml`
+
+Restringe acesso ao Harbor (core API + registry) apenas ao GitLab Runner e componentes Harbor:
+
+- `gitlab-runner.gitlab-staging.serviceaccount.identity.linkerd.cluster.local`
+- `harbor-core.staging-data-services.serviceaccount.identity.linkerd.cluster.local`
+- `harbor-jobservice.staging-data-services.serviceaccount.identity.linkerd.cluster.local`
+
+### 4. Prometheus Scrape (observabilidade cross-namespace)
+
+**Arquivo**: `domains/service-mesh/infra/linkerd/authorization-policies/policy-prometheus-scrape.yaml`
+
+Permite que o `kube-prometheus-stack-prometheus` raspe metricas de todos os pods
+nos namespaces com proxy injetado (cross-namespace via SPIFFE identity).
+
+---
+
+## ServiceProfiles Disponiveis (2026-03-04)
+
+### Keycloak (`serviceprofile-keycloak.yaml`)
+
+8 rotas mapeadas:
+
+| Rota | Metodo | Retryable | Timeout |
+|------|--------|-----------|---------|
+| `/auth/realms/{realm}/protocol/openid-connect/token` | POST | Nao | 10s |
+| `/auth/realms/{realm}/.well-known/openid-configuration` | GET | Sim | 5s |
+| `/auth/realms/{realm}/protocol/openid-connect/certs` | GET | Sim | 5s |
+| `/auth/realms/{realm}/protocol/openid-connect/logout` | POST | Nao | 10s |
+| `/auth/realms/{realm}` | GET | Sim | 5s |
+| `/auth/admin/realms/{realm}/clients` | GET | Sim | 10s |
+| `/auth/admin/realms/{realm}/clients` | POST | Nao | 10s |
+| `/auth/health` | GET | Sim | 3s |
+
+### Harbor (`serviceprofile-harbor.yaml`)
+
+11 rotas mapeadas (OCI Distribution API v2 + Harbor API v2.0):
+
+| Rota | Metodo | Retryable | Timeout |
+|------|--------|-----------|---------|
+| `/v2/{repo}/blobs/uploads` | POST | Nao | 300s |
+| `/v2/{repo}/blobs/uploads/{uuid}` | PUT | Nao | 300s |
+| `/v2/{repo}/manifests/{ref}` | PUT | Nao | 60s |
+| `/v2/{repo}/manifests/{ref}` | GET | Sim | 10s |
+| `/v2/{repo}/blobs/{digest}` | GET | Sim | 120s |
+| `/api/v2.0/projects` | GET | Sim | 10s |
+| `/api/v2.0/projects` | POST | Nao | 10s |
+| `/api/v2.0/projects/{name}/repositories` | GET | Sim | 10s |
+| `/api/v2.0/projects/{name}/repositories/{repo}/artifacts` | GET | Sim | 10s |
+| `/api/v2.0/health` | GET | Sim | 3s |
+| `/v2/` | GET | Sim | 5s |
+
+### ArgoCD (`serviceprofile-argocd.yaml`)
+
+13 rotas mapeadas (ArgoCD REST API v1):
+
+| Rota | Metodo | Retryable | Timeout |
+|------|--------|-----------|---------|
+| `/api/v1/applications` | GET | Sim | 5s |
+| `/api/v1/applications/{name}` | GET | Sim | 5s |
+| `/api/v1/applications/{name}/sync` | POST | Nao | 120s |
+| `/api/v1/applications/{name}/resource-tree` | GET | Sim | 10s |
+| `/api/v1/applications/{name}/rollback` | POST | Nao | 120s |
+| `/api/v1/clusters` | GET | Sim | 5s |
+| `/api/v1/repos` | GET | Sim | 5s |
+| `/api/v1/repos` | POST | Nao | 30s |
+| `/api/v1/session` | POST | Nao | 10s |
+| `/api/v1/applications` | POST | Nao | 30s |
+| `/healthz` | GET | Sim | 3s |
+| `/readyz` | GET | Sim | 3s |
+| `/metrics` | GET | Sim | 5s |
+
+---
+
+## Validacao mTLS
+
+**Script de validacao**: `scripts/linkerd/validate-mtls.sh`
+
+```bash
+# Validacao completa (7 verificacoes)
+./scripts/linkerd/validate-mtls.sh
+
+# Namespace especifico
+./scripts/linkerd/validate-mtls.sh --namespace staging-platform
+
+# Apenas policies
+./scripts/linkerd/validate-mtls.sh --check-policies
+
+# Apenas ServiceProfiles
+./scripts/linkerd/validate-mtls.sh --check-profiles
+```
+
+O script valida:
+
+1. Linkerd control plane (pods Running, CRDs, MutatingWebhook)
+2. Namespace annotations (`linkerd.io/inject=enabled`)
+3. Pods com proxy injetado (contagem por namespace)
+4. Status mTLS via Linkerd CLI (se disponivel)
+5. Certificados PKI (trust anchor, expiry)
+6. AuthorizationPolicies criadas
+7. ServiceProfiles criados

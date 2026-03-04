@@ -1,0 +1,81 @@
+---
+# =============================================================================
+# GAP-011: Kyverno PolicyException — Phase 2 Namespaces (Harbor + GitLab)
+# =============================================================================
+# Motivo: Pods Harbor e GitLab sao gerenciados por Helm charts externos que
+#   nao seguem o padrao ADR-048 de labels corporativas. A excecao e temporaria
+#   ate migracao dos charts para incluir labels corporativas.
+#
+# Validade: 2026-09-04 (6 meses — revisao obrigatoria)
+# Issue: GAP-011 Linkerd mTLS Phase 2
+# Owner: platform-engineering
+# =============================================================================
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: linkerd-phase2-harbor-exception
+  namespace: staging-platform-harbor
+  labels:
+    gap: "GAP-011"
+    phase: "phase2"
+  annotations:
+    governance-exception-expires: "2026-09-04"
+    governance-exception-issue: GAP-011
+spec:
+  exceptions:
+  - policyName: require-corporate-labels
+    ruleNames:
+    - check-corporate-labels
+    - autogen-check-corporate-labels
+  - policyName: validate-label-values
+    ruleNames:
+    - check-label-domain
+    - check-label-owner
+    - check-label-environment
+    - autogen-check-label-domain
+    - autogen-check-label-owner
+    - autogen-check-label-environment
+  match:
+    any:
+    - resources:
+        kinds:
+        - Pod
+        - StatefulSet
+        - Deployment
+        namespaces:
+        - staging-platform-harbor
+---
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: linkerd-phase2-gitlab-exception
+  namespace: gitlab-staging
+  labels:
+    gap: "GAP-011"
+    phase: "phase2"
+  annotations:
+    governance-exception-expires: "2026-09-04"
+    governance-exception-issue: GAP-011
+spec:
+  exceptions:
+  - policyName: require-corporate-labels
+    ruleNames:
+    - check-corporate-labels
+    - autogen-check-corporate-labels
+  - policyName: validate-label-values
+    ruleNames:
+    - check-label-domain
+    - check-label-owner
+    - check-label-environment
+    - autogen-check-label-domain
+    - autogen-check-label-owner
+    - autogen-check-label-environment
+  match:
+    any:
+    - resources:
+        kinds:
+        - Pod
+        - StatefulSet
+        - Deployment
+        namespaces:
+        - gitlab-staging

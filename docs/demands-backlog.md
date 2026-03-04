@@ -1,11 +1,11 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-03-03 BRT — Auditoria de consistência (backlog reconciliado com estado real do cluster)
+> **Última Revisão**: 2026-03-04 BRT — Sessão de finalização de demandas + Linkerd Phase 2 completo
 > **Fonte**: Confrontação cluster real vs documentação
 > **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%**
-> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ (0 CrashLoop) | Kyverno ✅ 100% (80/80 PASS) | GitLab ✅ v18.9.1 (chart 9.9.1, Rev 36) | RDS PG 16.4 ✅ | INFRA-001 ✅ COMPLETO 9/9 | INFRA-002 ✅ COMPLETO | Linkerd ✅ 7/7 pods | FinOps Lambda ✅ (EXCLUDED_NODE_GROUPS=system)
-> **Session 2026-03-03**: INFRA-001 COMPLETO 9/9 steps (v17.7.0→v18.9.1, 9 breaking changes, Rev 36) | INFRA-002 COMPLETO (PG16.4) | GAP-011 COMPLETO (Linkerd 7/7 pods, 4 dashboards) | CICD-001 100% (Trivy ENFORCING) | ADR-086/093 criados | ADR-087 Snapshot DLM CONFIRMADO OPERACIONAL (3 policies ENABLED, drift-free, R$ 5.052/ano)
+> **Infrastructure Health**: WAF ✅ | Velero DR ✅ | Loki ✅ | Kyverno ✅ ENFORCE PLENO (0 excludes) | GitLab ✅ v18.9.1 (Rev 36) | RDS PG 16.4 ✅ | Linkerd ✅ Phase 2 COMPLETO (18/18 proxies, Harbor+GitLab) | VPC TF ✅ zero-drift (17/17 imports) | ADR-048 ✅ 100% (keycloak+argocd+vault labels validados)
+> **Session 2026-03-04**: VPC TF Import 17/17 zero-drift ✅ | Linkerd Phase 2 completo (harbor 7/7 + gitlab 11/11, PSA privileged fix) ✅ | ADR-048 labels keycloak/argocd/vault + Kyverno excludes removidos ✅ | GAP-005 runner envFrom + ExternalSecret criados ✅ | harbor-core OOMKill detectado (ALTA pendência)
 
 ---
 
@@ -787,9 +787,12 @@ Implementar Linkerd Service Mesh com mTLS automático para comunicação segura 
 - ✅ Helm charts integration (linkerd2, linkerd-viz, linkerd-jaeger)
 - ✅ PKI completo via `tls` provider (trust anchor + issuer)
 - ✅ Integração `environments/staging/main.tf` (PRONTO)
-- 📋 Namespace annotation automation (proxy injection) — PENDENTE
-- 📋 AuthorizationPolicy examples (identity-based) — PENDENTE
-- 📋 ServiceProfile examples (observabilidade por rota) — PENDENTE
+- ✅ Namespace annotation automation (proxy injection) — COMPLETO 2026-03-04 (Phase 1: keycloak/argocd/vault | Phase 2: harbor/gitlab)
+- 📋 AuthorizationPolicy gitlab→harbor (mTLS RBAC) — PENDENTE (gitlab-runner SA apenas)
+- 📋 ServiceProfile Harbor + GitLab (observabilidade L7 por rota) — PENDENTE
+- 🚨 harbor-core OOMKill — memory limits insuficientes (410 restarts) — PENDENTE [ALTA]
+- 📋 Linkerd CNI plugin — reinstalar cniEnabled=true (eliminar PSA privileged em gitlab-staging) — PENDENTE [MÉDIA]
+- 📋 ADR-048 labels harbor + gitlab Helm values.yaml.tpl — patches manuais perdem-se em helm upgrade — PENDENTE [MÉDIA]
 - ✅ Grafana dashboards Linkerd (top-line, service-mesh, deployment, namespace) — 4 dashboards ConfigMap deployed in staging-observability-monitoring
 - ✅ Runbook: `docs/runbooks/gap011-linkerd-deployment-quickstart.md` — CRIADO 2026-03-03
 - ✅ ADR-086: Service Mesh mTLS Strategy (Linkerd) — `docs/adr/adr-086-linkerd-service-mesh-mtls.md` CRIADO 2026-03-03
@@ -1881,7 +1884,7 @@ Atualizar GitLab CE do chart `8.7.0` (GitLab 17.7.0) para o último chart estáv
   - [x] Runner id=115 online + job de smoke test executando
   - [x] Harbor push/pull funcional (robot$gitlab-ci)
   - [x] ArgoCD sincronizando repositórios GitLab
-- [ ] ADR-092: GitLab Version Upgrade Strategy (documentação pendente)
+- [x] ADR-092: GitLab Version Upgrade Strategy — CRIADO 2026-03-04: `docs/adr/adr-092-gitlab-version-upgrade-strategy.md`
 - [x] Logbook: `docs/logbook/2026-03-02-infra-001-gitlab-upgrade.md` — criado e atualizado 2026-03-02
 
 **Dependências**:

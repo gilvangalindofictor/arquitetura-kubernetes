@@ -1,0 +1,193 @@
+# =============================================================================
+# YACE (Yet Another CloudWatch Exporter) - Helm values
+# GAP-010: WAF CloudWatch metrics → Prometheus
+#
+# Chart: nerdswords/yet-another-cloudwatch-exporter
+# Version: 0.37.0 (latest stable as of 2026-03-04)
+# Namespace: staging-observability-monitoring
+#
+# Purpose: Export AWS/WAFV2 CloudWatch metrics as Prometheus time series so
+#   that the PrometheusRules in waf-prometheus-rules.yaml resolve correctly.
+#   Without YACE, WAF alerts remain permanently in "nodata" state.
+#
+# IRSA: ServiceAccount annotated with IAM role ARN created by terraform-yace-iam.tf
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Replica & Resources
+# ---------------------------------------------------------------------------
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Service Account (IRSA — EKS Pod Identity alternative also works)
+# The IAM role must be created before deploying (terraform-yace-iam.tf)
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: yace-cloudwatch-exporter
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::891377105802:role/k8s-platform-yace-cloudwatch-role
+
+# ---------------------------------------------------------------------------
+# AWS Region
+# ---------------------------------------------------------------------------
+aws:
+  region: us-east-1
+
+# ---------------------------------------------------------------------------
+# Prometheus ServiceMonitor (auto-discovered by kube-prometheus-stack)
+# Labels must match the Prometheus CR serviceMonitorSelector.
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: true
+  namespace: staging-observability-monitoring
+  interval: 60s
+  scrapeTimeout: 30s
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 5000
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Deployment labels / annotations for Kyverno compliance
+# Kyverno ClusterPolicy requires environment + owner + domain labels
+# ---------------------------------------------------------------------------
+podLabels:
+  environment: staging
+  owner: platform-team
+  domain: operations
+  component: cloudwatch-exporter
+  gap: "GAP-010"
+
+# ---------------------------------------------------------------------------
+# YACE Configuration: AWS/WAFV2 metric discovery
+#
+# discovery mode scans all WAFV2 WebACLs in us-east-1 and exports metrics
+# tagged with their dimension values (WebACL name, Rule name, Region).
+#
+# Metric naming convention produced by YACE:
+#   aws_wafv2_<MetricName_lower>_<statistic>
+#   e.g. aws_wafv2_blocked_requests_sum
+#        aws_wafv2_allowed_requests_sum
+#        aws_wafv2_counted_requests_sum
+#
+# These metric names match the PromQL expressions in waf-prometheus-rules.yaml.
+# ---------------------------------------------------------------------------
+config:
+  discovery:
+    exportedTagsOnMetrics:
+      wafv2:
+        - Name
+        - Environment
+        - Owner
+    jobs:
+      # -------------------------------------------------------------------
+      # WAF v2 — aggregate metrics (Rule=ALL, WebACL=<name>)
+      # Used by: WAFHighBlockRate alert, WAF dashboard top-row stat panels
+      # -------------------------------------------------------------------
+      - type: AWS/WAFV2
+        regions:
+          - us-east-1
+        searchTags:
+          - key: Environment
+            value: staging
+        metrics:
+          - name: AllowedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+          - name: BlockedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+          - name: CountedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+          - name: PassedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+      # -------------------------------------------------------------------
+      # WAF v2 — per-rule metrics
+      # Used by: WAFGeoBlockSpike alert, WAFSQLInjectionAttempts alert,
+      #          "Blocked Requests by Rule" timeseries panel in dashboard
+      # Rules monitored:
+      #   - rate-limit-per-ip        (Priority 10)
+      #   - geo-block-high-risk-countries (Priority 20)
+      #   - aws-managed-owasp-common (Priority 30)
+      #   - aws-managed-sqli         (Priority 40)
+      #   - aws-managed-known-bad-inputs (Priority 50)
+      # -------------------------------------------------------------------
+      - type: AWS/WAFV2
+        regions:
+          - us-east-1
+        dimensionNameRequirements:
+          - WebACL
+          - Rule
+          - Region
+        metrics:
+          - name: BlockedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+          - name: AllowedRequests
+            statistics:
+              - Sum
+            period: 300
+            length: 300
+
+# ---------------------------------------------------------------------------
+# Log level: info for production; debug only for troubleshooting
+# ---------------------------------------------------------------------------
+logLevel: info
+
+# ---------------------------------------------------------------------------
+# Tolerations for system node group (if pods scheduled there)
+# ---------------------------------------------------------------------------
+tolerations:
+  - key: node-role
+    operator: Equal
+    value: system
+    effect: NoSchedule
+
+# ---------------------------------------------------------------------------
+# Node affinity: prefer workloads node group, fallback to system
+# ---------------------------------------------------------------------------
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 80
+        preference:
+          matchExpressions:
+            - key: eks.amazonaws.com/nodegroup
+              operator: In
+              values:
+                - workloads
+      - weight: 20
+        preference:
+          matchExpressions:
+            - key: eks.amazonaws.com/nodegroup
+              operator: In
+              values:
+                - system

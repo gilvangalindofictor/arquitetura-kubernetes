@@ -1,0 +1,79 @@
+# =============================================================================
+# Velero Helm Values — DR Update Patch (GAP-012 Phase 2)
+# =============================================================================
+# Adds the us-west-2 BackupStorageLocation (ReadOnly) to Velero's Helm release.
+# Merge this file with the existing values-staging-working.yaml when applying.
+#
+# Usage (Helm upgrade):
+#   helm upgrade velero vmware-tanzu/velero \
+#     --namespace velero \
+#     --reuse-values \
+#     --values velero-values-dr-update.yaml
+#
+# The primary BSL (us-east-1) remains the default for writes.
+# The DR BSL (us-west-2) is ReadOnly and used only for restore from replica.
+#
+# ADR-078 | GAP-012 Phase 2
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# BackupStorageLocations — primary (default) + DR replica
+# ---------------------------------------------------------------------------
+configuration:
+  backupStorageLocation:
+    # Primary BSL — us-east-1 (default, writes here)
+    - name: default
+      provider: aws
+      bucket: velero-backups-staging-891377105802-us-east-1
+      prefix: k8s-platform-prod
+      default: true
+      accessMode: ReadWrite
+      config:
+        region: us-east-1
+        s3ForcePathStyle: "false"
+        checksumAlgorithm: ""
+
+    # DR BSL — us-west-2 (read-only, populated by S3 CRR from primary)
+    - name: dr-us-west-2
+      provider: aws
+      bucket: velero-backups-staging-891377105802-us-west-2
+      prefix: k8s-platform-prod
+      default: false
+      accessMode: ReadOnly
+      config:
+        region: us-west-2
+        s3ForcePathStyle: "false"
+        checksumAlgorithm: ""
+
+  # ---------------------------------------------------------------------------
+  # VolumeSnapshotLocations — primary region only
+  # EBS snapshots remain in us-east-1; cross-region copy is a manual DR step
+  # ---------------------------------------------------------------------------
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: us-east-1
+
+# ---------------------------------------------------------------------------
+# ServiceAccount — IRSA annotation (must grant access to BOTH buckets)
+# IAM role: k8s-platform-prod-velero-dr-role (created by velero-dr TF module)
+# ---------------------------------------------------------------------------
+serviceAccount:
+  server:
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::891377105802:role/k8s-platform-prod-velero-dr-role"
+
+# ---------------------------------------------------------------------------
+# Credentials — IRSA (no static credentials)
+# ---------------------------------------------------------------------------
+credentials:
+  useSecret: false
+
+# ---------------------------------------------------------------------------
+# Schedules — defined via CRD (not Helm values) for GitOps compatibility
+# Apply separately:
+#   kubectl apply -f schedule-daily-full.yaml
+#   kubectl apply -f schedule-hourly-incremental.yaml
+# ---------------------------------------------------------------------------
+schedules: {}

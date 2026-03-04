@@ -1,0 +1,306 @@
+---
+# DT-005: AlertmanagerConfig CRD (Modern Format — monitoring.coreos.com/v1alpha1)
+# Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
+# Namespace: staging-observability-monitoring
+# Maintainer: Platform SRE Team
+# Last Updated: 2026-03-04
+#
+# This is the RECOMMENDED approach for managing Alertmanager routing.
+# AlertmanagerConfig is a namespaced CRD managed by the Prometheus Operator.
+# It gets merged as a sub-route under the global Alertmanager config.
+#
+# Advantages over ConfigMap/values.yaml approach:
+#   - GitOps-friendly: apply with kubectl, no helm upgrade required
+#   - Secret references: webhook URLs are read from K8s Secrets (no plaintext)
+#   - Namespace-scoped: alerts in this namespace route through this config
+#   - Operator reconciles automatically
+#
+# Prerequisites:
+#   - kube-prometheus-stack deployed (Prometheus Operator running)
+#   - alertmanager-values-patch.yaml applied (alertmanagerConfigSelector enabled)
+#   - Secret 'alertmanager-slack-webhooks' created by configure-slack-webhooks.sh
+#
+# Secret keys required in 'alertmanager-slack-webhooks':
+#   - slack-webhook-critical
+#   - slack-webhook-warning
+#   - slack-webhook-data
+#   - slack-webhook-security
+#
+# Routing strategy:
+#   All alerts in namespace 'staging-observability-monitoring' enter this config.
+#   Route tree:
+#     root (default: slack-warning)
+#       ├── severity=critical  → slack-critical  (repeat: 5m, groupWait: 10s)
+#       ├── service=postgresql|redis|rabbitmq → slack-data-services (repeat: 15m)
+#       ├── service=vault|cert-manager|external-secrets|kyverno → slack-security
+#       └── severity=warning   → slack-warning  (repeat: 30m, batched)
+#
+# Inhibit rules (4):
+#   1. critical inhibits warning (same alertname+namespace+service)
+#   2. NodeNotReady inhibits pod warnings (same node)
+#   3. VaultSealed inhibits ExternalSecretSyncFailed
+#   4. PostgreSQLDown inhibits connection-count alerts (same instance)
+
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: dt005-slack-routing
+  namespace: staging-observability-monitoring
+  labels:
+    app.kubernetes.io/name: dt005-slack-routing
+    app.kubernetes.io/component: alerting
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/managed-by: kubectl
+    team: platform-sre
+    demand: dt005
+    # This label must match alertmanagerConfigSelector in alertmanager-values-patch.yaml
+spec:
+
+  # ---------------------------------------------------------------------------
+  # Route: Root
+  # All alerts from this namespace enter here.
+  # Default receiver: slack-warning (low-noise batching)
+  # ---------------------------------------------------------------------------
+  route:
+    receiver: slack-warning
+    groupBy:
+      - namespace
+      - alertname
+      - severity
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+
+    routes:
+      # -----------------------------------------------------------------------
+      # Critical alerts: immediate, short repeat
+      # -----------------------------------------------------------------------
+      - receiver: slack-critical
+        matchers:
+          - name: severity
+            value: critical
+            matchType: "="
+        groupWait: 10s
+        groupInterval: 1m
+        repeatInterval: 5m
+        continue: false     # Do not fall through to other routes
+
+      # -----------------------------------------------------------------------
+      # Data services: dedicated channel
+      # -----------------------------------------------------------------------
+      - receiver: slack-data-services
+        matchers:
+          - name: service
+            value: "postgresql|redis|rabbitmq"
+            matchType: "=~"
+        groupBy:
+          - service
+          - alertname
+          - namespace
+        groupWait: 30s
+        groupInterval: 5m
+        repeatInterval: 15m
+        continue: false
+
+      # -----------------------------------------------------------------------
+      # Security/compliance: security channel
+      # -----------------------------------------------------------------------
+      - receiver: slack-security
+        matchers:
+          - name: service
+            value: "vault|cert-manager|external-secrets|kyverno"
+            matchType: "=~"
+        groupBy:
+          - service
+          - alertname
+        groupWait: 20s
+        groupInterval: 3m
+        repeatInterval: 10m
+        continue: false
+
+      # -----------------------------------------------------------------------
+      # Warning alerts: batched, reduced noise
+      # -----------------------------------------------------------------------
+      - receiver: slack-warning
+        matchers:
+          - name: severity
+            value: warning
+            matchType: "="
+        groupWait: 60s
+        groupInterval: 10m
+        repeatInterval: 30m
+        continue: false
+
+  # ---------------------------------------------------------------------------
+  # Receivers
+  # Webhook URLs are read from the K8s Secret 'alertmanager-slack-webhooks'.
+  # Secret must exist in the same namespace as this AlertmanagerConfig.
+  # ---------------------------------------------------------------------------
+  receivers:
+
+    # -----------------------------------------------------------------------
+    # slack-critical: #alerts-critical
+    # -----------------------------------------------------------------------
+    - name: slack-critical
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhooks
+            key: slack-webhook-critical
+          channel: "#alerts-critical"
+          sendResolved: true
+          iconEmoji: ":fire:"
+          username: "AlertManager [k8s-platform-prod]"
+          title: |-
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
+          titleLink: |-
+            {{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else }}https://grafana.k8s-platform-prod.internal{{ end }}
+          text: >-
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+
+            *Severity:* `{{ .Labels.severity }}`
+            *Namespace:* `{{ .Labels.namespace }}`
+            *Service:* `{{ .Labels.service }}`
+
+            *Description:* {{ .Annotations.description }}
+
+            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ end }}
+          actions:
+            - type: button
+              text: "Open Grafana"
+              url: "https://grafana.k8s-platform-prod.internal/dashboards"
+            - type: button
+              text: "Prometheus Alerts"
+              url: "https://prometheus.k8s-platform-prod.internal/alerts"
+
+    # -----------------------------------------------------------------------
+    # slack-warning: #alerts-warning
+    # -----------------------------------------------------------------------
+    - name: slack-warning
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhooks
+            key: slack-webhook-warning
+          channel: "#alerts-warning"
+          sendResolved: true
+          iconEmoji: ":warning:"
+          username: "AlertManager [k8s-platform-prod]"
+          title: |-
+            [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
+          text: >-
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+
+            *Severity:* `{{ .Labels.severity }}`
+            *Namespace:* `{{ .Labels.namespace }}`
+
+            {{ end }}
+
+    # -----------------------------------------------------------------------
+    # slack-data-services: #alerts-data-services
+    # -----------------------------------------------------------------------
+    - name: slack-data-services
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhooks
+            key: slack-webhook-data
+          channel: "#alerts-data-services"
+          sendResolved: true
+          iconEmoji: ":database:"
+          username: "AlertManager [k8s-platform-prod]"
+          title: |-
+            [{{ .Status | toUpper }}] {{ .CommonLabels.service | toUpper }}: {{ .CommonLabels.alertname }}
+          text: >-
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+
+            *Service:* `{{ .Labels.service }}`
+            *Instance:* `{{ .Labels.instance }}`
+            *Namespace:* `{{ .Labels.namespace }}`
+
+            *Description:* {{ .Annotations.description }}
+
+            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ end }}
+
+    # -----------------------------------------------------------------------
+    # slack-security: #alerts-security
+    # -----------------------------------------------------------------------
+    - name: slack-security
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack-webhooks
+            key: slack-webhook-security
+          channel: "#alerts-security"
+          sendResolved: true
+          iconEmoji: ":lock:"
+          username: "AlertManager [k8s-platform-prod] SECURITY"
+          title: |-
+            [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+          text: >-
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+
+            *Service:* `{{ .Labels.service }}`
+            *Namespace:* `{{ .Labels.namespace }}`
+
+            *Description:* {{ .Annotations.description }}
+
+            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ end }}
+
+  # ---------------------------------------------------------------------------
+  # Inhibit Rules
+  # Prevent alert spam when a root cause alert is already firing.
+  # ---------------------------------------------------------------------------
+  inhibitRules:
+
+    # Rule 1: Critical inhibits Warning for the same alert+namespace+service
+    - sourceMatch:
+        - name: severity
+          value: critical
+          matchType: "="
+      targetMatch:
+        - name: severity
+          value: warning
+          matchType: "="
+      equal:
+        - alertname
+        - namespace
+        - service
+
+    # Rule 2: NodeNotReady inhibits pod-level warnings on the same node
+    - sourceMatch:
+        - name: alertname
+          value: NodeNotReady
+          matchType: "="
+      targetMatch:
+        - name: severity
+          value: warning
+          matchType: "="
+      equal:
+        - node
+
+    # Rule 3: VaultSealed inhibits ExternalSecretSyncFailed (root cause first)
+    - sourceMatch:
+        - name: alertname
+          value: VaultSealed
+          matchType: "="
+      targetMatch:
+        - name: alertname
+          value: ExternalSecretSyncFailed
+          matchType: "="
+      equal: []
+
+    # Rule 4: PostgreSQLDown inhibits connection-count alerts on the same instance
+    - sourceMatch:
+        - name: alertname
+          value: PostgreSQLDown
+          matchType: "="
+      targetMatch:
+        - name: service
+          value: postgresql
+          matchType: "="
+      equal:
+        - instance

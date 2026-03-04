@@ -1,0 +1,45 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "YACECloudWatchReadMetrics",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics",
+        "cloudwatch:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "YACEWAFv2Discovery",
+      "Effect": "Allow",
+      "Action": [
+        "wafv2:ListWebACLs",
+        "wafv2:GetWebACL",
+        "wafv2:ListTagsForResource",
+        "wafv2:GetSampledRequests"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "YACETagDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "tag:GetResources",
+        "tag:GetTagKeys",
+        "tag:GetTagValues"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "YACEAutoScalingTagDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "autoscaling:DescribeAutoScalingGroups"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

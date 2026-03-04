@@ -1,0 +1,41 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace staging-security-vault
+# =============================================================================
+# Conteudo: HashiCorp Vault (vault-0 StatefulSet)
+# Fase: 1 — ATENCAO: restart manual obrigatorio (Vault sealed pos-restart)
+# Impacto esperado: +<1ms P99 por hop (Linkerd2-proxy Rust overhead)
+#
+# AVISO CRITICO: Vault sealed apos reinicializacao do pod.
+# Nao executar rollout restart automatico.
+# Processo de unseal deve estar disponivel antes de reiniciar.
+#
+# Como aplicar (annotation apenas — NAO reiniciar automaticamente):
+#   kubectl annotate namespace staging-security-vault linkerd.io/inject=enabled --overwrite
+#
+# Reiniciar SOMENTE quando unseal estiver disponivel:
+#   kubectl rollout restart statefulset/vault -n staging-security-vault
+#   # Em seguida, executar unseal:
+#   kubectl exec -n staging-security-vault vault-0 -- vault operator unseal <key>
+#
+# Como verificar:
+#   kubectl get ns staging-security-vault -o jsonpath='{.metadata.annotations}'
+#   linkerd viz stat deploy -n staging-security-vault
+#
+# Rollback:
+#   kubectl annotate namespace staging-security-vault linkerd.io/inject- --overwrite
+#   # Restart manual apos confirmar unseal disponivel
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-security-vault
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    # Labels corporativos obrigatorios (Kyverno enforce)
+    environment: staging
+    team: security
+    cost-center: "plataforma-k8s"
+    # Label de rastreabilidade GAP
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

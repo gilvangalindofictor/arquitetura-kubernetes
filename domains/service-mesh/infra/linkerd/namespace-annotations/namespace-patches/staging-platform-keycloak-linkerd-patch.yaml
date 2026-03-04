@@ -1,0 +1,34 @@
+# =============================================================================
+# GAP-011: Linkerd Proxy Injection — Patch Namespace staging-platform-keycloak
+# =============================================================================
+# Conteudo: Keycloak IdP (keycloak-keycloakx-0)
+# Fase: 1 (menor risco — autenticacao nao e latency-sensitive)
+# Impacto esperado: +<1ms P99 por hop (Linkerd2-proxy Rust overhead)
+#
+# Como aplicar:
+#   kubectl patch namespace staging-platform-keycloak --patch-file staging-platform-keycloak-linkerd-patch.yaml
+#   # Ou via kustomize:
+#   kubectl apply -k ../
+#
+# Como verificar:
+#   kubectl get ns staging-platform-keycloak -o jsonpath='{.metadata.annotations}'
+#   linkerd viz stat deploy -n staging-platform-keycloak
+#
+# Rollback:
+#   kubectl annotate namespace staging-platform-keycloak linkerd.io/inject- --overwrite
+#   kubectl rollout restart statefulset/keycloak-keycloakx -n staging-platform-keycloak
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-platform-keycloak
+  annotations:
+    linkerd.io/inject: "enabled"
+  labels:
+    # Labels corporativos obrigatorios (Kyverno enforce)
+    environment: staging
+    team: platform
+    cost-center: "plataforma-k8s"
+    # Label de rastreabilidade GAP
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"

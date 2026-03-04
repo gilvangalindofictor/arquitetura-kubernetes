@@ -1,0 +1,84 @@
+# =============================================================================
+# GAP-011: AuthorizationPolicy — Deny-All Unauthenticated (staging-platform)
+# =============================================================================
+# Objetivo: Garantir que APENAS pods com proxy Linkerd (mTLS valido) possam
+#           se comunicar dentro do namespace staging-platform.
+#
+# Comportamento:
+#   - Pods SEM proxy Linkerd: BLOQUEADOS (nao tem certificado mTLS)
+#   - Pods COM proxy Linkerd: PERMITIDOS (qualquer identidade autenticada)
+#   - Trafego externo (ingress, LoadBalancer): nao afetado por esta policy
+#     (o ingress controller tem anotacao linkerd.io/inject=disabled)
+#
+# Compliance: BACEN BCB 85/2021 Art. 6 SS IV/V (encryption + mutual auth)
+#
+# IMPORTANTE: Aplicar APENAS apos proxy injection ativa no namespace.
+#             Caso contrario, todos os pods existentes serao bloqueados.
+#
+# Como verificar antes de aplicar:
+#   kubectl get pods -n staging-platform \
+#     -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[*].name}{"\n"}{end}' \
+#     | grep linkerd-proxy
+#   (Esperado: todos os pods com linkerd-proxy)
+#
+# Como aplicar:
+#   kubectl apply -f policy-deny-all.yaml
+#
+# Como verificar apos aplicar:
+#   linkerd viz edges deploy -n staging-platform
+#   (Esperado: todas as edges com [tls])
+#
+# Rollback:
+#   kubectl delete -f policy-deny-all.yaml
+# =============================================================================
+
+# --- MeshTLSAuthentication: aceita qualquer identidade mTLS valida -----------
+# "identities: ['*']" significa: qualquer SPIFFE ID valido assinado pelo
+# trust anchor do Linkerd cluster.local
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: all-authenticated-staging-platform
+  namespace: staging-platform
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "deny-unauthenticated"
+spec:
+  # Wildcard: aceita qualquer identidade Linkerd (qualquer SA no cluster)
+  # Para restringir a um namespace especifico: "*.staging-platform.serviceaccount.identity.linkerd.cluster.local"
+  # Para um SA especifico: "keycloak.staging-platform.serviceaccount.identity.linkerd.cluster.local"
+  identities:
+    - "*"
+
+---
+
+# --- AuthorizationPolicy: target = Namespace inteiro --------------------------
+# Aplica a autenticacao a TODOS os services do namespace staging-platform.
+# Qualquer request que chegar sem certificado mTLS valido sera NEGADO.
+apiVersion: policy.linkerd.io/v1beta3
+kind: AuthorizationPolicy
+metadata:
+  name: deny-unauthenticated-staging-platform
+  namespace: staging-platform
+  annotations:
+    # Documentar intencao para auditoria BACEN
+    bacen.compliance/article: "BCB 85/2021 Art. 6 SS IV, Art. 6 SS V"
+    bacen.compliance/control: "mutual-tls-mandatory"
+    gap.ref: "GAP-011"
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    policy-type: "deny-unauthenticated"
+spec:
+  # Target: namespace inteiro (todos os services de staging-platform)
+  targetRef:
+    group: core
+    kind: Namespace
+    name: staging-platform
+
+  # Autenticacao requerida: apenas mTLS valido (referencia ao MeshTLSAuthentication acima)
+  requiredAuthenticationRefs:
+    - name: all-authenticated-staging-platform
+      kind: MeshTLSAuthentication
+      group: policy.linkerd.io

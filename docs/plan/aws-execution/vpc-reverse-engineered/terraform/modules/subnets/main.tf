@@ -6,6 +6,7 @@ variable "subnets" {
     availability_zone = string
     map_public_ip     = bool
     name              = string
+    extra_tags        = optional(map(string), {})
   }))
 }
 
@@ -17,9 +18,10 @@ resource "aws_subnet" "subnets" {
   availability_zone       = each.value.availability_zone
   map_public_ip_on_launch = each.value.map_public_ip
 
-  tags = {
-    Name = each.value.name
-  }
+  tags = merge(
+    { Name = each.value.name },
+    each.value.extra_tags
+  )
 }
 
 output "subnet_ids" { value = { for k, v in aws_subnet.subnets : k => v.id } }

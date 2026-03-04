@@ -1,0 +1,56 @@
+---
+# =============================================================================
+# HelmRelease: YACE CloudWatch Exporter
+# GAP-010: Deploy Yet Another CloudWatch Exporter for WAF metrics
+#
+# Deploy command (manual, no Flux/ArgoCD yet):
+#   helm repo add nerdswords https://nerdswords.github.io/yet-another-cloudwatch-exporter
+#   helm repo update
+#   helm upgrade --install yace-cloudwatch-exporter nerdswords/yet-another-cloudwatch-exporter \
+#     --namespace staging-observability-monitoring \
+#     --version 0.37.0 \
+#     -f values.yaml
+#
+# Verify:
+#   kubectl get pods -n staging-observability-monitoring -l app.kubernetes.io/name=yet-another-cloudwatch-exporter
+#   kubectl logs -n staging-observability-monitoring -l app.kubernetes.io/name=yet-another-cloudwatch-exporter
+#   kubectl port-forward svc/yace-cloudwatch-exporter 5000:5000 -n staging-observability-monitoring
+#   curl localhost:5000/metrics | grep aws_wafv2
+# =============================================================================
+#
+# This file serves as an ArgoCD Application manifest for future GitOps adoption.
+# Currently deployed manually via helm CLI (see Deploy command above).
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: yace-cloudwatch-exporter
+  namespace: argocd
+  labels:
+    environment: staging
+    owner: platform-team
+    domain: operations
+    component: cloudwatch-exporter
+    gap: "GAP-010"
+  annotations:
+    description: "YACE CloudWatch Exporter for WAF metrics — GAP-010"
+    gap: "GAP-010"
+    deployed: "2026-03-04"
+spec:
+  project: platform
+  source:
+    repoURL: https://nerdswords.github.io/yet-another-cloudwatch-exporter
+    chart: yet-another-cloudwatch-exporter
+    targetRevision: "0.37.0"
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging-observability-monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

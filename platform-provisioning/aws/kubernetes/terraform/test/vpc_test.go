@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,7 +72,9 @@ func TestVPCDNSConfiguration(t *testing.T) {
 	})
 
 	t.Run("enables_dns_support", func(t *testing.T) {
-		assert.Contains(t, content, "enable_dns_support = true",
+		// Normalize whitespace to handle HCL alignment (e.g., "enable_dns_support   = true")
+		normalizedContent := strings.Join(strings.Fields(content), " ")
+		assert.Contains(t, normalizedContent, "enable_dns_support = true",
 			"VPC must enable DNS support (required for service discovery)")
 	})
 }

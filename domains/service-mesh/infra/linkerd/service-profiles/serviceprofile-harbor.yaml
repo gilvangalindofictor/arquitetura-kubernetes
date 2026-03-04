@@ -1,0 +1,161 @@
+# =============================================================================
+# GAP-011: ServiceProfile — Harbor Registry (OCI Distribution API v2)
+# =============================================================================
+# Service: harbor-core.staging-data-services.svc.cluster.local (port 8080)
+# Namespace do ServiceProfile: staging-data-services
+# Workloads que se beneficiam: GitLab Runner (push/pull), ArgoCD Image Updater
+#
+# Rotas mapeadas (OCI Distribution API v2 + Harbor API v2.0):
+#   1. POST /v2/{repo}/blobs/uploads/*  → Upload de layer (docker push) — lento
+#   2. GET  /v2/{repo}/manifests/{tag}  → Pull de manifest — retryable
+#   3. PUT  /v2/{repo}/manifests/{tag}  → Push de manifest — NAO retryable
+#   4. GET  /v2/{repo}/blobs/{digest}   → Download de layer — retryable
+#   5. GET  /api/v2.0/projects          → Harbor API — retryable
+#   6. GET  /api/v2.0/health            → Health check — retryable
+#
+# Compliance: BACEN BCB 85/2021 Art. 11 (rastreabilidade de artefatos CI/CD)
+#
+# NOTA SOBRE TIMEOUTS:
+#   Upload de layers (blobs) pode levar minutos para imagens grandes.
+#   Timeout de 300s (5 min) para uploads e razoavel para imagens ate 2GB.
+#   Ajustar conforme tamanho das imagens da plataforma.
+#
+# Como verificar metricas por rota:
+#   linkerd routes -n staging-data-services --to svc/harbor-core deploy/gitlab-runner \
+#     --namespace gitlab-staging
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: harbor-core.staging-data-services.svc.cluster.local
+  namespace: staging-data-services
+  labels:
+    gap: "GAP-011"
+    compliance: "bcb-85-2021"
+    service: harbor-core
+spec:
+  routes:
+
+    # --- Docker Push: iniciar upload de blob (layer) --------------------------
+    # POST inicia o upload, retorna Location header com URL de upload
+    - name: POST /v2/{repository}/blobs/uploads
+      condition:
+        method: POST
+        pathRegex: /v2/[^/]+(?:/[^/]+)*/blobs/uploads/?
+      isRetryable: false
+      # Timeout longo: upload de layers grandes pode levar varios minutos
+      timeout: 300s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+        # 202 Accepted = upload iniciado com sucesso (nao e erro)
+        - condition:
+            status:
+              min: 202
+              max: 202
+          isFailure: false
+
+    # --- Docker Push: completar upload de blob --------------------------------
+    # PUT finaliza o upload do blob com o digest correto
+    - name: PUT /v2/{repository}/blobs/uploads/{uuid}
+      condition:
+        method: PUT
+        pathRegex: /v2/[^/]+(?:/[^/]+)*/blobs/uploads/[^/]+
+      isRetryable: false
+      timeout: 300s
+
+    # --- Docker Push: enviar manifest da imagem -------------------------------
+    # PUT manifest associa layers ao tag (operacao final do push)
+    - name: PUT /v2/{repository}/manifests/{reference}
+      condition:
+        method: PUT
+        pathRegex: /v2/[^/]+(?:/[^/]+)*/manifests/[^/]+
+      isRetryable: false
+      timeout: 60s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+
+    # --- Docker Pull: obter manifest ------------------------------------------
+    # GET manifest — altamente retryable (operacao de leitura)
+    - name: GET /v2/{repository}/manifests/{reference}
+      condition:
+        method: GET
+        pathRegex: /v2/[^/]+(?:/[^/]+)*/manifests/[^/]+
+      isRetryable: true
+      timeout: 10s
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+        # 404 = tag nao existe (nao e falha de infra)
+        - condition:
+            status:
+              min: 404
+              max: 404
+          isFailure: false
+
+    # --- Docker Pull: download de blob (layer) --------------------------------
+    - name: GET /v2/{repository}/blobs/{digest}
+      condition:
+        method: GET
+        pathRegex: /v2/[^/]+(?:/[^/]+)*/blobs/sha256:[a-f0-9]+
+      isRetryable: true
+      # Timeout longo para layers grandes
+      timeout: 120s
+
+    # --- Harbor API: listar projetos -----------------------------------------
+    - name: GET /api/v2.0/projects
+      condition:
+        method: GET
+        pathRegex: /api/v2\.0/projects.*
+      isRetryable: true
+      timeout: 10s
+
+    # --- Harbor API: criar projeto -------------------------------------------
+    - name: POST /api/v2.0/projects
+      condition:
+        method: POST
+        pathRegex: /api/v2\.0/projects
+      isRetryable: false
+      timeout: 10s
+
+    # --- Harbor API: repositorios -------------------------------------------
+    - name: GET /api/v2.0/projects/{name}/repositories
+      condition:
+        method: GET
+        pathRegex: /api/v2\.0/projects/[^/]+/repositories.*
+      isRetryable: true
+      timeout: 10s
+
+    # --- Harbor API: artifacts (tags) ----------------------------------------
+    - name: GET /api/v2.0/projects/{name}/repositories/{repo}/artifacts
+      condition:
+        method: GET
+        pathRegex: /api/v2\.0/projects/[^/]+/repositories/[^/]+/artifacts.*
+      isRetryable: true
+      timeout: 10s
+
+    # --- Harbor Health Check --------------------------------------------------
+    - name: GET /api/v2.0/health
+      condition:
+        method: GET
+        pathRegex: /api/v2\.0/health
+      isRetryable: true
+      timeout: 3s
+
+    # --- OCI v2 API root endpoint --------------------------------------------
+    - name: GET /v2/
+      condition:
+        method: GET
+        pathRegex: /v2/?$
+      isRetryable: true
+      timeout: 5s

@@ -1,10 +1,93 @@
-# ADR-078: Velero Backup/DR Implementation - GAP-003
+# ADR-078: Velero Backup/DR Implementation - GAP-003 / GAP-012
 
 **Date**: 2026-02-25
-**Status**: ✅ ACCEPTED
+**Updated**: 2026-03-04
+**Status**: ✅ IMPLEMENTADO — Phase 1 DEPLOYADO (2026-02-26) | Phase 2 PLANEJADO (aguardando deploy)
 **Decision Maker**: CTO + Platform Architecture
-**Related ADRs**: ADR-052 (Velero Deferral - SUPERSEDED), ADR-051 (PostgreSQL RDS)
+**Related ADRs**: ADR-052 (Velero Deferral - SUPERSEDED), ADR-051 (PostgreSQL RDS), ADR-090 (DR Multi-Region Strategy)
 **Supersedes**: ADR-052 (Strategy Changed: Implement Now vs Defer to Production)
+
+---
+
+## Implementation Status (2026-03-04)
+
+### Phase 1 — S3 CRR (DEPLOYADO 2026-02-26)
+
+| Item | Status | Detalhe |
+|------|--------|---------|
+| S3 Primary Bucket (us-east-1) | ✅ ATIVO | `velero-backups-staging-891377105802-us-east-1` |
+| S3 Replica Bucket (us-west-2) | ✅ ATIVO | `velero-backups-staging-891377105802-us-west-2` |
+| S3 CRR + RTC 15min SLA | ✅ ATIVO | `velero-backup-replication` rule, RTC enabled |
+| IAM IRSA Role | ✅ ATIVO | `k8s-platform-prod-velero-dr-role` (primary + replica) |
+| CloudWatch Alarms | ✅ ATIVOS | `velero-s3-crr-replication-failed-staging`, `velero-s3-crr-pending-bytes-high-staging` |
+| Terraform Module | ✅ CRIADO | `modules/velero-dr/` (509 lines) |
+| RDS Replica Module | ✅ CRIADO | `modules/rds-replica/` (284 lines, count=0 aguardando Phase 2) |
+
+### Phase 2 — VPC DR + BSL + Schedules (ARTEFATOS CRIADOS 2026-03-04)
+
+| Item | Status | Artefato |
+|------|--------|----------|
+| VPC DR us-west-2 (TF module) | 📋 PRONTO PARA DEPLOY | `modules/vpc-dr/` (4 arquivos) |
+| BackupStorageLocation DR | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/backup-storage-location-dr.yaml` |
+| Schedule daily-full-backup | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/schedule-daily-full.yaml` |
+| Schedule hourly-incremental | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/schedule-hourly-incremental.yaml` |
+| Velero Helm values DR patch | 📋 PRONTO PARA DEPLOY | `domains/backup-dr/infra/velero/velero-values-dr-update.yaml` |
+| Grafana Dashboard DR | 📋 PRONTO PARA DEPLOY | `domains/observability/infra/grafana/dr-replication-dashboard-configmap.yaml` |
+| RDS Replica ativação | ⏸️ BLOQUEADO | Aguarda VPC DR deploy + aprovação liderança |
+
+### Deploy Sequence (Phase 2)
+
+```bash
+# Step 1: Deploy VPC DR (Terraform)
+cd platform-provisioning/aws/kubernetes/terraform/environments/staging
+# Adicionar module "vpc_dr_staging" em main.tf (ver seção abaixo)
+terraform plan -target=module.vpc_dr_staging
+terraform apply -target=module.vpc_dr_staging
+
+# Step 2: Velero Helm upgrade (adiciona BSL us-west-2)
+helm upgrade velero vmware-tanzu/velero \
+  --namespace velero \
+  --reuse-values \
+  --values domains/backup-dr/infra/velero/velero-values-dr-update.yaml
+
+# Step 3: Apply BackupStorageLocation + Schedules
+kubectl apply -f domains/backup-dr/infra/velero/backup-storage-location-dr.yaml
+kubectl apply -f domains/backup-dr/infra/velero/schedule-daily-full.yaml
+kubectl apply -f domains/backup-dr/infra/velero/schedule-hourly-incremental.yaml
+
+# Step 4: Apply Grafana Dashboard
+kubectl apply -f domains/observability/infra/grafana/dr-replication-dashboard-configmap.yaml
+
+# Step 5 (gate de liderança): Ativar RDS Replica
+# terraform apply -target=module.rds_replica_staging (count = 1)
+
+# Verify
+velero backup-location get
+velero schedule get
+```
+
+### Terraform Module Addition (environments/staging/main.tf)
+
+```hcl
+# GAP-012 Phase 2: VPC DR us-west-2
+module "vpc_dr_staging" {
+  source = "../../modules/vpc-dr"
+  providers = {
+    aws.dr = aws.us-west-2
+  }
+
+  environment          = local.environment
+  name_prefix          = local.cluster_name
+  dr_region            = "us-west-2"
+  vpc_cidr             = "10.1.0.0/16"
+  rds_subnet_cidr_az_a = "10.1.128.0/20"
+  rds_subnet_cidr_az_b = "10.1.144.0/20"
+  db_subnet_group_name = "k8s-platform-dr-db-subnet-group"
+  tags                 = local.common_tags
+}
+```
+
+---
 
 ---
 

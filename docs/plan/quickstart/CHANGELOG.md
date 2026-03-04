@@ -1,5 +1,87 @@
 # Changelog - AWS EKS Quickstart
 
+---
+
+## [4.0.0] - 2026-03-04
+
+### 🎯 Estado: Marco 4 + CI/CD Enhancement + INFRA Upgrades — 100% Completo
+
+Revisão completa do quickstart-REAL refletindo o estado auditado do ambiente staging após conclusão de todos os marcos até Marco 4, incluindo iPaaS Public Readiness, CI/CD Enhancement e upgrades de infraestrutura críticos.
+
+### ✅ Mudanças Principais
+
+#### Infraestrutura e Upgrades
+- **INFRA-001**: GitLab v17.7 → **v18.9.1** (chart 9.9.1, Rev 36) — 9 breaking changes resolvidos
+- **INFRA-002**: PostgreSQL RDS **14.8 → 16.4** — upgrade in-place sem downtime
+- **kube-proxy** drift: v1.31.2 ≠ v1.34.x (registrado como dívida técnica T3)
+
+#### Namespace Migration (DEC-074) — 100%
+- **17 namespaces** migrados para o padrão `{env}-{domain}-{product}`
+- Enforcement Kyverno ativo — rejeita namespaces sem padrão
+- Segregação completa: `staging-platform-*` / `staging-security-*` / `staging-data-*` / `staging-observability-*` / `staging-governance-*`
+
+#### iPaaS Public Readiness (GAP-010/011/012) — 3/3 ✅
+- **GAP-010**: AWS WAF v2 deployado. WebACL com 5 managed rules (Rate Limit, Geo Block, OWASP, SQLi, Bad Inputs). S3 logging 90 dias.
+- **GAP-011**: Linkerd Service Mesh (mTLS automático). 7/7 pods Running. Phase 2 completo: 18/18 proxies injetados (harbor 7/7 + gitlab 11/11).
+- **GAP-012**: Velero DR Phase 1. S3 CRR us-east-1→us-west-2 com 15-min RTC SLA. Daily + Weekly schedules.
+
+#### CI/CD Enhancement (CICD-001 a 005) — 5/5 ✅
+- **CICD-001**: SAST/DAST pipeline enforcing — Harbor Trivy + SonarQube Quality Gate bloqueiam HIGH+CRITICAL
+- **CICD-002**: Quality Gate "Production" default — Coverage ≥80%, Bugs=0, Vulnerabilities=0
+- **CICD-003**: Secret rotation automática — CronJob quarterly (PostgreSQL + Keycloak + OIDC)
+- **CICD-004**: Immutable image tags — 12 regras de imutabilidade em 3 projetos Harbor
+- **CICD-005**: Argo Rollouts deployado — Canary + Blue-Green, 4 AnalysisTemplates
+
+#### Governance & Security
+- **Kyverno**: 100% compliance (80/80 PASS), 3 políticas em modo enforce
+- **ESO**: 16/16 ExternalSecrets em `SecretSynced`
+- **Vulnerabilidades**: V-001 a V-008 todos RESOLVIDOS (zero static credentials, IRSA completo)
+
+#### Segregação Staging/Production (nova seção)
+- **Staging**: documentado como estado operacional real
+- **Production**: seção nova com gating criteria, arquitetura planejada, custo projetado e plano de execução por marcos
+
+### 📊 Documentos Atualizados
+- ✅ [aws-eks-gitlab-quickstart-REAL.md](aws-eks-gitlab-quickstart-REAL.md) — v4.0 completo (9 seções)
+- ✅ [CHANGELOG.md](CHANGELOG.md) — este documento
+
+### 📈 Métricas da Plataforma (2026-03-04)
+
+| Métrica                 | Valor                    |
+| ----------------------- | ------------------------ |
+| Enterprise Maturity     | 4.0/5.0 (Advanced+)      |
+| Production Readiness    | 85%                      |
+| Kyverno Compliance      | 100% (80/80 PASS)        |
+| FinOps Savings          | R$ 62.425/ano            |
+| Custo staging (líquido) | ~$716/mês                |
+| Custo staging (diário)  | ~$13/dia (vs $50 sem. 1) |
+| ADR Coverage            | 99 ADRs documentados     |
+| Componentes core        | 30+ operacionais         |
+
+---
+
+## [3.0.0] - 2026-02-12
+
+### 🎯 Reconciliação Pós-Upgrade EKS 1.34
+
+Primeiro documento com dados reais do AWS CLI (reconciliação pós-upgrade v1.34). Verificação auditada de todos os recursos AWS vs estado Terraform.
+
+### ✅ Mudanças Principais
+- **EKS Version**: Real = 1.34 Standard (vs planejado 1.28). Custo EKS: $73/mês Standard (vs $378 Extended).
+- **Node Groups**: 3 grupos reais (system + workloads + critical) vs 1 grupo no TF.
+- **8 Load Balancers** inventariados (6 ALBs + 2 NLBs).
+- **14 volumes EBS / 555 GB** mapeados.
+- **FinOps Automation**: Lambda start/stop + EventBridge ativo. Economia: $177/mês.
+- **Marco 4 em andamento**: ~80% (GitLab OIDC Keycloak operacional, ArgoCD OIDC operacional).
+- **10 Terraform gaps** identificados (T1–T8 + orphan SGs + endpoints ausentes).
+- Custo staging efetivo: **~$716/mês** (vs $1.397/mês v2.0 = -49%).
+
+### 🔗 Referências
+- [QUICKSTART-RECONCILIATION-2026-02-12.md](../../infrastructure/QUICKSTART-RECONCILIATION-2026-02-12.md)
+- [AWS-TERRAFORM-DOC-RECONCILIATION-2026-02-12.md](../../infrastructure/AWS-TERRAFORM-DOC-RECONCILIATION-2026-02-12.md)
+
+---
+
 ## [2.0.0] - 2026-01-07
 
 ### 🎯 Decisão Estratégica: Arquitetura de 2 Ambientes
@@ -31,10 +113,10 @@ Após análise técnica e financeira documentada em [technical-roundtable.md](te
 
 #### Custos Atualizados
 
-| Componente | Antes (3 ambientes) | Depois (2 ambientes) | Economia |
-|------------|---------------------|----------------------|----------|
-| **Mensal** | R$ 5.100 | R$ 4.074 | **-R$ 1.026 (-20%)** |
-| **Anual** | R$ 61.200 | R$ 48.888 | **-R$ 12.312 (-20%)** |
+| Componente | Antes (3 ambientes) | Depois (2 ambientes) | Economia              |
+| ---------- | ------------------- | -------------------- | --------------------- |
+| **Mensal** | R$ 5.100            | R$ 4.074             | **-R$ 1.026 (-20%)**  |
+| **Anual**  | R$ 61.200           | R$ 48.888            | **-R$ 12.312 (-20%)** |
 
 **Com otimizações de start/stop em Staging**:
 - Custo otimizado: **R$ 3.624/mês** (R$ 43.488/ano)

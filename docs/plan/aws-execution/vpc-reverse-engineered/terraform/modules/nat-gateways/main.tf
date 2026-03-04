@@ -3,12 +3,17 @@ variable "nat_gateways" {
   type = list(object({
     subnet_id = string
     name      = string
+    eip_name  = optional(string, "")
   }))
 }
 
 resource "aws_eip" "nat_eip" {
   for_each = { for idx, ngw in var.nat_gateways : idx => ngw }
   domain   = "vpc"
+
+  tags = each.value.eip_name != "" ? {
+    Name = each.value.eip_name
+  } : {}
 }
 
 resource "aws_nat_gateway" "nat" {

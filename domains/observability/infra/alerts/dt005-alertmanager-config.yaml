@@ -1,0 +1,252 @@
+---
+# DT-005: Alertmanager Configuration (Legacy format — ConfigMap/Helm values)
+# Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
+# Namespace: staging-observability-monitoring
+# Maintainer: Platform SRE Team
+# Last Updated: 2026-03-04
+#
+# IMPORTANT: Webhook URLs are placeholders.
+# Use scripts/observability/configure-slack-webhooks.sh to inject real URLs
+# via a Kubernetes Secret (no plaintext credentials in YAML).
+#
+# Channel mapping:
+#   #alerts-critical      — severity=critical (PD-like immediacy)
+#   #alerts-warning       — severity=warning  (batched, low noise)
+#   #alerts-data-services — service=postgresql|redis|rabbitmq
+#   #alerts-security      — service=vault|cert-manager|external-secrets|kyverno
+#
+# Routing hierarchy:
+#   root (default: warning) → critical → data-services → security → warning
+#   Critical also fires to email-critical receiver (continue: true)
+#
+# Inhibit rules:
+#   - critical inhibits warning for same {alertname, namespace, service}
+#   - NodeNotReady inhibits pod-level warnings for same {node}
+#   - VaultSealed inhibits ExternalSecretSyncFailed (root cause suppression)
+#
+# NOTE: For CRD-based AlertmanagerConfig (modern approach), see:
+#   domains/observability/infra/alerts/dt005-alertmanager-config-crd.yaml
+
+global:
+  resolve_timeout: 5m
+
+  # SMTP — configure before enabling email-critical receiver
+  # smtp_smarthost: 'smtp.company.com:587'
+  # smtp_from: 'alertmanager@k8s-platform-prod.company.com'
+  # smtp_auth_username: 'alertmanager-smtp'
+  # smtp_auth_password: ''    # Inject via Secret — never commit
+  # smtp_require_tls: true
+
+route:
+  group_by: ["namespace", "alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+  receiver: "slack-warning"
+
+  routes:
+    # --- Critical alerts: immediate + continue to email ---
+    - matchers:
+        - severity = "critical"
+      receiver: "slack-critical"
+      repeat_interval: 5m
+      group_wait: 10s
+      group_interval: 1m
+      continue: true
+
+    # --- Critical email backup ---
+    - matchers:
+        - severity = "critical"
+      receiver: "email-critical"
+      repeat_interval: 15m
+      group_wait: 30s
+
+    # --- Data services: dedicated channel ---
+    - matchers:
+        - service =~ "postgresql|redis|rabbitmq"
+      receiver: "slack-data-services"
+      repeat_interval: 15m
+      group_wait: 30s
+      group_interval: 5m
+      group_by: ["service", "alertname", "namespace"]
+
+    # --- Security/compliance: security channel ---
+    - matchers:
+        - service =~ "vault|cert-manager|external-secrets|kyverno"
+      receiver: "slack-security"
+      repeat_interval: 10m
+      group_wait: 20s
+      group_interval: 3m
+      group_by: ["service", "alertname"]
+
+    # --- Warning: batched, low noise ---
+    - matchers:
+        - severity = "warning"
+      receiver: "slack-warning"
+      repeat_interval: 30m
+      group_wait: 60s
+      group_interval: 10m
+
+receivers:
+  # Null receiver — silenced alerts drop here
+  - name: "null"
+
+  # -----------------------------------------------------------------------
+  # Slack — #alerts-critical
+  # -----------------------------------------------------------------------
+  - name: "slack-critical"
+    slack_configs:
+      - api_url: "__SLACK_WEBHOOK_CRITICAL__"
+        channel: "#alerts-critical"
+        send_resolved: true
+        icon_emoji: ":fire:"
+        username: "AlertManager [k8s-platform-prod]"
+        title: |-
+          [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
+        title_link: |-
+          {{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else }}https://grafana.k8s-platform-prod.internal{{ end }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+
+          *Severity:* `{{ .Labels.severity }}`
+          *Namespace:* `{{ .Labels.namespace }}`
+          *Service:* `{{ .Labels.service }}`
+
+          *Description:* {{ .Annotations.description }}
+
+          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        actions:
+          - type: button
+            text: "Open Grafana"
+            url: "https://grafana.k8s-platform-prod.internal/dashboards"
+          - type: button
+            text: "Prometheus"
+            url: "https://prometheus.k8s-platform-prod.internal/alerts"
+
+  # -----------------------------------------------------------------------
+  # Slack — #alerts-warning
+  # -----------------------------------------------------------------------
+  - name: "slack-warning"
+    slack_configs:
+      - api_url: "__SLACK_WEBHOOK_WARNING__"
+        channel: "#alerts-warning"
+        send_resolved: true
+        icon_emoji: ":warning:"
+        username: "AlertManager [k8s-platform-prod]"
+        title: |-
+          [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+
+          *Severity:* `{{ .Labels.severity }}`
+          *Namespace:* `{{ .Labels.namespace }}`
+
+          {{ end }}
+
+  # -----------------------------------------------------------------------
+  # Slack — #alerts-data-services
+  # -----------------------------------------------------------------------
+  - name: "slack-data-services"
+    slack_configs:
+      - api_url: "__SLACK_WEBHOOK_DATA__"
+        channel: "#alerts-data-services"
+        send_resolved: true
+        icon_emoji: ":database:"
+        username: "AlertManager [k8s-platform-prod]"
+        title: |-
+          [{{ .Status | toUpper }}] {{ .CommonLabels.service | toUpper }}: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+
+          *Service:* `{{ .Labels.service }}`
+          *Instance:* `{{ .Labels.instance }}`
+          *Namespace:* `{{ .Labels.namespace }}`
+
+          *Description:* {{ .Annotations.description }}
+
+          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+
+  # -----------------------------------------------------------------------
+  # Slack — #alerts-security
+  # -----------------------------------------------------------------------
+  - name: "slack-security"
+    slack_configs:
+      - api_url: "__SLACK_WEBHOOK_SECURITY__"
+        channel: "#alerts-security"
+        send_resolved: true
+        icon_emoji: ":lock:"
+        username: "AlertManager [k8s-platform-prod] SECURITY"
+        title: |-
+          [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+
+          *Service:* `{{ .Labels.service }}`
+          *Namespace:* `{{ .Labels.namespace }}`
+
+          *Description:* {{ .Annotations.description }}
+
+          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+
+  # -----------------------------------------------------------------------
+  # Email — sre-team (critical backup)
+  # -----------------------------------------------------------------------
+  - name: "email-critical"
+    email_configs:
+      - to: "sre-team@company.com"
+        send_resolved: true
+        headers:
+          Subject: "[K8s CRITICAL] {{ .CommonLabels.alertname }} — {{ .CommonLabels.namespace }}"
+        html: |
+          <h2>CRITICAL Alert: {{ .CommonLabels.alertname }}</h2>
+          {{ range .Alerts }}
+          <p><b>Summary:</b> {{ .Annotations.summary }}</p>
+          <p><b>Severity:</b> {{ .Labels.severity }}</p>
+          <p><b>Namespace:</b> {{ .Labels.namespace }}</p>
+          <p><b>Description:</b> {{ .Annotations.description }}</p>
+          {{ if .Annotations.runbook_url }}<p><a href="{{ .Annotations.runbook_url }}">Runbook</a></p>{{ end }}
+          <hr/>
+          {{ end }}
+
+inhibit_rules:
+  # Critical suppresses warning for the same alert+namespace+service
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ["alertname", "namespace", "service"]
+
+  # NodeNotReady suppresses pod-level warnings on the same node
+  - source_matchers:
+      - alertname = "NodeNotReady"
+    target_matchers:
+      - severity = "warning"
+    equal: ["node"]
+
+  # VaultSealed suppresses ExternalSecretSyncFailed (root cause first)
+  - source_matchers:
+      - alertname = "VaultSealed"
+    target_matchers:
+      - alertname = "ExternalSecretSyncFailed"
+    equal: []
+
+  # PostgreSQLDown suppresses connection-count alerts on the same instance
+  - source_matchers:
+      - alertname = "PostgreSQLDown"
+    target_matchers:
+      - service = "postgresql"
+    equal: ["instance"]
+
+  # RabbitMQDown suppresses queue-depth alerts for the same instance
+  - source_matchers:
+      - alertname = "RabbitMQDown"
+    target_matchers:
+      - alertname =~ "RabbitMQQueueDepth.*|RabbitMQNoConsumers"
+    equal: ["instance"]

@@ -1,0 +1,89 @@
+---
+# =============================================================================
+# Velero Schedule — Daily Full Backup
+# =============================================================================
+# Frequency : 0 2 * * * (02:00 UTC = 23:00 BRT / off-peak window)
+# Retention : 720h (30 days)
+# Scope     : All namespaces (excludes kube-system, kube-public, kube-node-lease)
+# Volumes   : snapshotVolumes: true — creates EBS snapshots for PVCs
+#
+# GAP-012 Phase 2 | ADR-078 | RPO: 24h
+#
+# Deploy: kubectl apply -f schedule-daily-full.yaml
+# Verify: velero schedule get daily-full-backup
+# Trigger manually: velero backup create daily-full-test --from-schedule daily-full-backup
+# =============================================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: schedule
+    app.kubernetes.io/part-of: backup-dr
+    environment: staging
+    backup-type: full
+    frequency: daily
+    gap: gap-012
+  annotations:
+    description: "Daily full backup — all namespaces + EBS snapshots — 02:00 UTC"
+    adr: "ADR-078"
+    rpo: "24h"
+    rto: "4h"
+    managed-by: "platform-team"
+spec:
+  # Cron: 02:00 UTC daily (23:00 BRT — off-peak)
+  schedule: "0 2 * * *"
+  # useOwnerReferencesInBackup: false — prevents garbage collection on restore
+  useOwnerReferencesInBackup: false
+  template:
+    # ---------------------------------------------------------------------------
+    # Storage
+    # ---------------------------------------------------------------------------
+    # storageLocation: default (primary BSL us-east-1)
+    # Replicated to us-west-2 automatically via S3 CRR
+    storageLocation: default
+    # Retention: 30 days (720h)
+    ttl: 720h0m0s
+
+    # ---------------------------------------------------------------------------
+    # Scope — all namespaces except pure infrastructure/system namespaces
+    # ---------------------------------------------------------------------------
+    # includedNamespaces: empty = ALL namespaces
+    includedNamespaces:
+      - "*"
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+
+    # includedResources: empty = ALL resource types
+    includedResources:
+      - "*"
+    excludedResources:
+      - events
+      - events.events.k8s.io
+
+    # ---------------------------------------------------------------------------
+    # Volumes — full EBS snapshot (critical for stateful workloads)
+    # ---------------------------------------------------------------------------
+    snapshotVolumes: true
+    # volumeSnapshotLocations: uses default VolumeSnapshotLocation (aws us-east-1)
+    # EBS snapshots are created in us-east-1 and can be copied to us-west-2 for DR
+
+    # ---------------------------------------------------------------------------
+    # Labels — backup metadata for filtering and monitoring
+    # ---------------------------------------------------------------------------
+    labelSelector:
+      matchExpressions:
+        - key: velero.io/exclude-from-backup
+          operator: DoesNotExist
+
+    metadata:
+      labels:
+        backup-type: "full"
+        frequency: "daily"
+        environment: "staging"
+        gap: "gap-012"
+        managed-by: "velero-schedule"

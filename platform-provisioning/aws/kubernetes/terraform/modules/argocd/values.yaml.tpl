@@ -5,6 +5,14 @@
 global:
   domain: ${domain}
 
+  # ADR-048: Corporate labels obrigatórias — compliance Kyverno ENFORCE mode
+  # Fix: 2026-03-04 — labels propagadas para todos os pods via podLabels
+  podLabels:
+    app.kubernetes.io/part-of: k8s-platform
+    domain: platform
+    environment: staging
+    owner: platform-team
+
 # External PostgreSQL Configuration
 configs:
   secret:

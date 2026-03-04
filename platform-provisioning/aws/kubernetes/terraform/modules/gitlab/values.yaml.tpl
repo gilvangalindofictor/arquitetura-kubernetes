@@ -39,6 +39,10 @@ global:
     create: false
     name: ${service_account_name}
 
+  # ADR-048: Kyverno label enforcement (2026-03-04)
+  podLabels:
+    domain: integration
+
   # PostgreSQL (external - CloudNativePG)
   psql:
     host: ${postgresql_host}

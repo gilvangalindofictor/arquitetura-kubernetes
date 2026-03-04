@@ -1,0 +1,144 @@
+---
+# DT-005: Alertmanager Values Patch for Helm Upgrade
+# Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
+# Namespace: staging-observability-monitoring
+# Maintainer: Platform SRE Team
+# Last Updated: 2026-03-04
+#
+# PURPOSE:
+#   This file is a Helm values overlay (--values flag) to be applied on top of
+#   the base values.yaml when upgrading kube-prometheus-stack.
+#   It enables Alertmanager to discover AlertmanagerConfig CRDs in the
+#   staging-observability-monitoring namespace and configures storage + retention.
+#
+# USAGE:
+#   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     -n staging-observability-monitoring \
+#     -f domains/observability/infra/helm/kube-prometheus-stack/values.yaml \
+#     -f domains/observability/infra/helm/kube-prometheus-stack/alertmanager-values-patch.yaml \
+#     --reuse-values
+#
+# IMPORTANT:
+#   - Webhook URLs are NOT stored here. They live in:
+#       K8s Secret: alertmanager-slack-webhooks (created by configure-slack-webhooks.sh)
+#       AlertmanagerConfig CRD: dt005-alertmanager-config-crd.yaml
+#   - The config in values.yaml (alertmanager.config) acts as the global base config.
+#     AlertmanagerConfig CRDs are merged in as sub-routes by the Alertmanager Operator.
+
+alertmanager:
+  # ---------------------------------------------------------------------------
+  # Alertmanager Operator Configuration
+  # ---------------------------------------------------------------------------
+  alertmanagerSpec:
+    # Retention period for silences and notification log
+    retention: 120h
+
+    # Storage for Alertmanager state (silences, nflog)
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3          # Use gp3 (cost optimized vs gp2)
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+    # -------------------------------------------------------------------------
+    # AlertmanagerConfig Selector
+    # Alerts Alertmanager Operator to discover AlertmanagerConfig CRDs
+    # in namespaces matching the label selector below.
+    # -------------------------------------------------------------------------
+    alertmanagerConfigSelector:
+      matchLabels:
+        demand: dt005
+
+    # Namespace selector: discover AlertmanagerConfig CRDs in this namespace only
+    alertmanagerConfigNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: staging-observability-monitoring
+
+    # Route all unmatched alerts through the global base route (defined in values.yaml)
+    # AlertmanagerConfig sub-routes are merged under the root route automatically.
+    alertmanagerConfigMatcherStrategy:
+      type: OnNamespace
+
+    # Resource limits for Alertmanager pods
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # Anti-affinity: spread Alertmanager pods across nodes
+    podAntiAffinity: "soft"
+
+    # Replicas: 2 for HA (gossip protocol for deduplication)
+    replicas: 2
+
+    # ---------------------------------------------------------------------------
+    # External URL for Alertmanager (used in notification links)
+    # Update to your actual ALB/Ingress hostname if exposed externally.
+    # ---------------------------------------------------------------------------
+    externalUrl: "http://alertmanager.k8s-platform-prod.internal"
+
+    # ---------------------------------------------------------------------------
+    # Additional volumes: mount the Slack webhooks secret as env vars
+    # (used by legacy receivers in the base config — pre-CRD approach)
+    # ---------------------------------------------------------------------------
+    # NOTE: When using AlertmanagerConfig CRDs exclusively, these volumes
+    # are not required. Left here for reference if falling back to base config.
+    #
+    # volumes:
+    #   - name: slack-webhooks
+    #     secret:
+    #       secretName: alertmanager-slack-webhooks
+    #
+    # volumeMounts:
+    #   - name: slack-webhooks
+    #     mountPath: /etc/alertmanager/secrets/slack-webhooks
+    #     readOnly: true
+
+  # ---------------------------------------------------------------------------
+  # Service configuration
+  # ---------------------------------------------------------------------------
+  service:
+    type: ClusterIP
+    port: 9093
+
+  # ---------------------------------------------------------------------------
+  # Ingress (optional — expose Alertmanager UI via nginx-ingress)
+  # Uncomment and configure if UI access from outside cluster is needed.
+  # ---------------------------------------------------------------------------
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: "nginx"
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/auth-type: basic
+  #     nginx.ingress.kubernetes.io/auth-secret: alertmanager-basic-auth
+  #   hosts:
+  #     - alertmanager.k8s-platform-prod.internal
+  #   tls:
+  #     - secretName: alertmanager-tls
+  #       hosts:
+  #         - alertmanager.k8s-platform-prod.internal
+
+# ---------------------------------------------------------------------------
+# Prometheus: ensure ruleNamespaceSelector is broad enough to pick up
+# DT-005 PrometheusRule objects
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # Discover PrometheusRule CRDs in all namespaces (or restrict if needed)
+    ruleNamespaceSelector: {}
+
+    # Ensure the ruleSelector matches DT-005 labels
+    ruleSelector:
+      matchLabels:
+        prometheus: kube-prometheus-stack-prometheus
+        role: alert-rules
+
+    # Evaluate rules every 30s (default is 1m — tighter for production SLOs)
+    evaluationInterval: 30s
+    scrapeInterval: 30s

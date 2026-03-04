@@ -86,12 +86,15 @@ redis:
 core:
   serviceAccountName: ${service_account}
   replicas: 2
+  podLabels:
+    domain: platform
+    # ADR-048: Kyverno label enforcement (2026-03-04)
   resources:
     requests:
-      memory: 256Mi
+      memory: 512Mi  # OOMKill fix 2026-03-04
       cpu: 100m
     limits:
-      memory: 512Mi
+      memory: 1500Mi  # OOMKill fix 2026-03-04
       cpu: 500m
   tolerations:
     - key: node-type
@@ -108,12 +111,15 @@ jobservice:
   replicas: 1  # FIXED: RWO PVC doesn't support multiple replicas (ADR-039)
   strategy:
     type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
+  podLabels:
+    domain: platform
+    # ADR-048: Kyverno label enforcement (2026-03-04)
   resources:
     requests:
       memory: 256Mi
       cpu: 100m
     limits:
-      memory: 512Mi
+      memory: 768Mi  # OOMKill fix 2026-03-04
       cpu: 500m
   tolerations:
     - key: node-type
@@ -129,13 +135,16 @@ registry:
   serviceAccountName: ${service_account}
   strategy:
     type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
+  podLabels:
+    domain: platform
+    # ADR-048: Kyverno label enforcement (2026-03-04)
   registry:
     resources:
       requests:
         memory: 256Mi
         cpu: 100m
       limits:
-        memory: 512Mi
+        memory: 768Mi  # OOMKill fix 2026-03-04
         cpu: 500m
   controller:
     resources:
@@ -143,7 +152,7 @@ registry:
         memory: 256Mi
         cpu: 100m
       limits:
-        memory: 512Mi
+        memory: 768Mi  # OOMKill fix 2026-03-04
         cpu: 500m
   tolerations:
     - key: node-type
@@ -157,6 +166,9 @@ registry:
 
 portal:
   replicas: 2
+  podLabels:
+    domain: platform
+    # ADR-048: Kyverno label enforcement (2026-03-04)
   resources:
     requests:
       memory: 128Mi
@@ -180,13 +192,16 @@ trivy:
     enabled: true
     storageClass: ${storage_class}
     size: 5Gi
+  podLabels:
+    domain: platform
+    # ADR-048: Kyverno label enforcement (2026-03-04)
   resources:
     requests:
       cpu: 200m
       memory: 512Mi
     limits:
       cpu: 1
-      memory: 1Gi
+      memory: 2Gi  # OOMKill fix 2026-03-04
   tolerations:
     - key: node-type
       operator: Equal
