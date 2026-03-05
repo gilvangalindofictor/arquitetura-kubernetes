@@ -1,0 +1,39 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-slack-webhook
+  namespace: staging-observability-monitoring
+  labels:
+    app.kubernetes.io/managed-by: external-secrets
+    environment: staging
+    tier: monitoring
+  annotations:
+    # ADR-101: Secrets Migration to Vault + ExternalSecrets
+    # Migrated: 2026-03-05 from plain K8s Secret
+    # Vault path: secret/data/monitoring/alertmanager
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: alertmanager-slack-webhook
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  data:
+    - secretKey: critical-webhook-url
+      remoteRef:
+        key: secret/data/monitoring/alertmanager
+        property: critical_webhook_url
+    - secretKey: warning-webhook-url
+      remoteRef:
+        key: secret/data/monitoring/alertmanager
+        property: warning_webhook_url
+    - secretKey: data-services-webhook-url
+      remoteRef:
+        key: secret/data/monitoring/alertmanager
+        property: data_services_webhook_url
+    - secretKey: security-webhook-url
+      remoteRef:
+        key: secret/data/monitoring/alertmanager
+        property: security_webhook_url
