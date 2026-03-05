@@ -42,15 +42,4 @@ resource "helm_release" "promtail" {
   # Nao recriar se apenas metadata mudar (evita disrupcao dos pods)
   recreate_pods = false
 
-  # ---------------------------------------------------------------------------
-  # Lifecycle: ignorar campos que nao sao capturados no import do helm_release
-  # - metadata: computed pelo Helm (revision, timestamps, notes) - nao modificavel
-  # - values: o import nao captura os values do release existente no state
-  # - repository: o import nao captura a URL do repositorio no state
-  # Pos-import estes campos aparecem como +add mas sao identicos ao deployado
-  # Na proxima mudanca real (chart_version, etc.) o ignore e removido
-  # ---------------------------------------------------------------------------
-  lifecycle {
-    ignore_changes = [metadata, values, repository]
-  }
 }

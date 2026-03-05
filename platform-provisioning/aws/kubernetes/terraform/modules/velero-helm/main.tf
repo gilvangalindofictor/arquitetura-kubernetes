@@ -159,13 +159,4 @@ resource "helm_release" "velero" {
     })
   ]
 
-  lifecycle {
-    # NOTE (2026-03-05 import): helm_release import does not persist input `values` or
-    # `repository` in state. These attributes show as "+added" on plan after import,
-    # which is a known helm provider import limitation (not actual infrastructure drift).
-    # To achieve zero-drift post-import, both are ignored.
-    # SAFE TO REMOVE after first `terraform apply` on this module — at that point
-    # TF will own the values and drift detection will be meaningful.
-    ignore_changes = [metadata, values, repository]
-  }
 }
