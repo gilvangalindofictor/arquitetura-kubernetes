@@ -5,7 +5,7 @@
 | ID | SEC-MIG-001 |
 | Data | 2026-03-05 |
 | Prioridade | P0/P1/P2 misto |
-| Status | P1 PARCIALMENTE MIGRADO (alertmanager + velero ativos) |
+| Status | **100% MIGRADO** — SEC-MIG-001 COMPLETO (2026-03-05) |
 | ADR | ADR-101 |
 | Responsável | Agent-SecComp |
 | Sprint | 2026-03-05 |
@@ -61,7 +61,7 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
 | staging-platform-gitlab | gitlab-root-password | password | secret/gitlab/root-password | gitlab-root-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
 | staging-platform-gitlab | gitlab-minio-secret | accesskey, secretkey | secret/gitlab/minio-secret | gitlab-minio-secret.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
 | staging-platform-gitlab | gitlab-oidc-keycloak | provider | secret/gitlab/oidc-keycloak | gitlab-oidc-keycloak.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
-| data-services | redis-password | password | secret/redis/password | redis-password.yaml | Vault: OK, ExternalSecret: PENDENTE (requer restart Redis) |
+| data-services | redis-password | password | secret/redis/password | redis-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 13 (2026-03-05) |
 
 ---
 
@@ -69,11 +69,11 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
 
 | Namespace | Secret | Keys | Vault Path | ExternalSecret | Status |
 |-----------|--------|------|------------|----------------|--------|
-| staging-platform-gitlab | gitlab-rails-secret | secrets.yml | secret/gitlab/rails-secret | gitlab-internal-secrets.yaml | Vault: OK, ExternalSecret: PENDENTE |
-| staging-platform-gitlab | gitlab-gitaly-secret | token | secret/gitlab/gitaly-secret | gitlab-internal-secrets.yaml | Vault: OK, ExternalSecret: PENDENTE |
-| staging-platform-gitlab | gitlab-gitlab-kas-secret | kas_shared_secret | secret/gitlab/gitlab-kas-secret | gitlab-internal-secrets.yaml | Vault: OK, ExternalSecret: PENDENTE |
-| staging-platform-gitlab | gitlab-gitlab-shell-secret | secret | secret/gitlab/gitlab-shell-secret | gitlab-internal-secrets.yaml | Vault: OK, ExternalSecret: PENDENTE |
-| staging-platform-gitlab | gitlab-gitlab-workhorse-secret | shared_secret | secret/gitlab/gitlab-workhorse-secret | gitlab-internal-secrets.yaml | Vault: OK, ExternalSecret: PENDENTE |
+| staging-platform-gitlab | gitlab-rails-secret | secrets.yml | secret/gitlab/rails-secret | gitlab-internal-secrets.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 14 (2026-03-05) |
+| staging-platform-gitlab | gitlab-gitaly-secret | token | secret/gitlab/gitaly-secret | gitlab-internal-secrets.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 14 (2026-03-05) |
+| staging-platform-gitlab | gitlab-gitlab-kas-secret | kas_shared_secret | secret/gitlab/gitlab-kas-secret | gitlab-internal-secrets.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 14 (2026-03-05) |
+| staging-platform-gitlab | gitlab-gitlab-shell-secret | secret | secret/gitlab/gitlab-shell-secret | gitlab-internal-secrets.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 14 (2026-03-05) |
+| staging-platform-gitlab | gitlab-gitlab-workhorse-secret | shared_secret | secret/gitlab/gitlab-workhorse-secret | gitlab-internal-secrets.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 14 (2026-03-05) |
 
 ---
 
