@@ -48,7 +48,7 @@ global:
     port: 6379
     auth:
       enabled: true
-      secret: gitlab-redis-password
+      secret: redis-password  # ESO-managed (migrated from gitlab-redis-password 2026-03-05)
       key: password
 
   # Ingress
