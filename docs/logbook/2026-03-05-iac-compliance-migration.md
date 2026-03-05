@@ -169,3 +169,4 @@ Adotar releases existentes via `terraform import` sem disruption de servico:
 - DynamoDB state lock stale (OperationTypeInvalid) — limpo via aws dynamodb delete-item
 - keycloak provider 401: shell expansion de chars especiais (>, !) na password → resolvido com subshell $(kubectl...)
 - terraform state list deixa lock Plan na DynamoDB — padrão deste ambiente
+[15:53:42] TF Import | Agent-Velero | helm_release velero rev 11 importado | plan: 0 add, 0 change, 0 destroy (zero drift) | bucket: velero-backups-staging-891377105802-us-east-1 | IRSA: k8s-platform-prod-velero-dr-role | ignore_changes=[values,repository] (helm import limitation) | ✅
