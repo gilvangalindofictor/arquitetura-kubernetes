@@ -57,10 +57,10 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
 |-----------|--------|------|------------|----------------|--------|
 | staging-observability-monitoring | alertmanager-slack-webhook | critical-webhook-url, warning-webhook-url, data-services-webhook-url, security-webhook-url | secret/monitoring/alertmanager | alertmanager-slack-webhook.yaml | **MIGRADO E ATIVO** |
 | velero | velero-repo-credentials | repository-password | secret/velero/repo-credentials | velero-repo-credentials.yaml | **MIGRADO E ATIVO** |
-| staging-platform-gitlab | gitlab-postgresql-password | password | secret/gitlab/postgresql-password | gitlab-postgresql-password.yaml | Vault: OK, ExternalSecret: PENDENTE (requer helm upgrade) |
-| staging-platform-gitlab | gitlab-root-password | password | secret/gitlab/root-password | gitlab-root-password.yaml | Vault: OK, ExternalSecret: PENDENTE (requer helm upgrade) |
-| staging-platform-gitlab | gitlab-minio-secret | accesskey, secretkey | secret/gitlab/minio-secret | gitlab-minio-secret.yaml | Vault: OK, ExternalSecret: PENDENTE (requer helm upgrade) |
-| staging-platform-gitlab | gitlab-oidc-keycloak | provider | secret/gitlab/oidc-keycloak | gitlab-oidc-keycloak.yaml | Vault: OK, ExternalSecret: PENDENTE (requer helm upgrade) |
+| staging-platform-gitlab | gitlab-postgresql-password | password | secret/gitlab/postgresql-password | gitlab-postgresql-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
+| staging-platform-gitlab | gitlab-root-password | password | secret/gitlab/root-password | gitlab-root-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
+| staging-platform-gitlab | gitlab-minio-secret | accesskey, secretkey | secret/gitlab/minio-secret | gitlab-minio-secret.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
+| staging-platform-gitlab | gitlab-oidc-keycloak | provider | secret/gitlab/oidc-keycloak | gitlab-oidc-keycloak.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
 | data-services | redis-password | password | secret/redis/password | redis-password.yaml | Vault: OK, ExternalSecret: PENDENTE (requer restart Redis) |
 
 ---
