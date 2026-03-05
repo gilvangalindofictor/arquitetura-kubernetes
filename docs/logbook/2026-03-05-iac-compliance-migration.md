@@ -170,3 +170,38 @@ Adotar releases existentes via `terraform import` sem disruption de servico:
 - keycloak provider 401: shell expansion de chars especiais (>, !) na password → resolvido com subshell $(kubectl...)
 - terraform state list deixa lock Plan na DynamoDB — padrão deste ambiente
 [15:53:42] TF Import | Agent-Velero | helm_release velero rev 11 importado | plan: 0 add, 0 change, 0 destroy (zero drift) | bucket: velero-backups-staging-891377105802-us-east-1 | IRSA: k8s-platform-prod-velero-dr-role | ignore_changes=[values,repository] (helm import limitation) | ✅
+
+---
+
+## TF Import | Agent-Loki | 2026-03-05
+
+**Missao:** Instanciar modulo loki/ no staging + importar helm release + recursos IAM/S3 → zero drift
+
+**Arquivo criado:** `environments/staging/loki.tf`
+
+**Recursos importados (10 managed resources):**
+- `module.loki_staging.helm_release.loki` — staging-observability-monitoring/loki (rev 18, chart 6.53.0)
+- `module.loki_staging.aws_s3_bucket.loki` — k8s-platform-loki-891377105802
+- `module.loki_staging.aws_s3_bucket_server_side_encryption_configuration.loki`
+- `module.loki_staging.aws_s3_bucket_public_access_block.loki`
+- `module.loki_staging.aws_s3_bucket_lifecycle_configuration.loki`
+- `module.loki_staging.aws_s3_bucket_versioning.loki`
+- `module.loki_staging.aws_iam_policy.loki_s3` — LokiS3Policy-k8s-platform-prod
+- `module.loki_staging.aws_iam_role.loki` — LokiS3Role-k8s-platform-prod
+- `module.loki_staging.aws_iam_role_policy_attachment.loki_s3`
+- `module.loki_staging.kubernetes_service_account.loki`
+
+**Plan resultado:** 0 to add, 4 to change, 0 to destroy
+
+**Drift identificado (4 changes — todos seguros):**
+1. `aws_iam_policy.loki_s3`: tags correction — Environment=production→staging + adicao common_tags (CostCenter, DataClassification, LGPD, Project, Terraform, Owner, Marco)
+2. `aws_iam_role.loki`: mesmas tag corrections
+3. `aws_s3_bucket.loki`: mesmas tag corrections + `force_destroy=false` explicit
+4. `helm_release.loki`: adicao tolerations[1] (workload=critical) para backend/gateway/read/write — aditive only, nao destrutivo. Vai triggar helm upgrade rev 18→19.
+
+**lifecycle adicionado:** `modules/loki/main.tf` helm_release.loki agora tem `lifecycle { ignore_changes = [values, metadata] }` para prevenir drift futuro de values.
+
+**IaC Debt:** Live release tem valores extras (chunksCache.allocatedMemory=3584, nodeSelector node-type=system) nao presentes nos set{} blocks do modulo. Reconciliar em PR subsequente.
+
+**Status:** IMPORTADO com drift menor (tag corrections + additive toleration). Recomendado `terraform apply -target=module.loki_staging` para corrigir drift.
+[15:58:08] TF Import | Agent-Loki | helm_release loki rev 18 importado | S3+IAM+K8s SA importados | plan: 0 to add, 4 to change, 0 to destroy | drift: tag corrections + toleration[1] additive | lifecycle ignore_changes adicionado | status: importado com drift menor

@@ -289,3 +289,67 @@ variable "argocd_oidc_client_secret" {
   sensitive   = true
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Hatch ETL secrets (app-level, staging namespace)
+# Vault paths: secret/staging/hatch/{database,redis,api}
+# ESO ExternalSecrets: hatch-database-credentials, hatch-redis-connection, hatch-api-credentials
+# -----------------------------------------------------------------------------
+
+variable "hatch_etl_enabled" {
+  description = "Enable Hatch ETL secrets provisioning in Vault"
+  type        = bool
+  default     = false
+}
+
+variable "hatch_etl_db_host" {
+  description = "Hatch ETL PostgreSQL host (RDS endpoint)"
+  type        = string
+  default     = ""
+}
+
+variable "hatch_etl_db_password" {
+  description = "Hatch ETL PostgreSQL user password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_db_name" {
+  description = "Hatch ETL database name"
+  type        = string
+  default     = "hatch_dw"
+}
+
+variable "hatch_etl_redis_host" {
+  description = "Hatch ETL Redis host"
+  type        = string
+  default     = "redis.data-services.svc.cluster.local"
+}
+
+variable "hatch_etl_redis_password" {
+  description = "Hatch ETL Redis password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_api_base_url" {
+  description = "Hatch external API base URL"
+  type        = string
+  default     = "https://backendhatchbank.hatchst.com.br"
+}
+
+variable "hatch_etl_api_username" {
+  description = "Hatch external API username"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_api_password" {
+  description = "Hatch external API password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

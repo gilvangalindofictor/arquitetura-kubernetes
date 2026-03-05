@@ -2269,7 +2269,23 @@ Federar identidades do Microsoft Entra ID (Azure AD) no Keycloak via OIDC Identi
 
 ---
 
+---
+
+## IaC Compliance Migration (2026-03-05) — CONCLUIDO
+
+**ADR:** [ADR-100](docs/adr/adr-100-iac-compliance-terraform-helm-nodegroups.md)
+**Logbook:** [2026-03-05-iac-compliance-migration.md](docs/logbook/2026-03-05-iac-compliance-migration.md)
+
+| Item                      | Descricao                                                          | Status    |
+| ------------------------- | ------------------------------------------------------------------ | --------- |
+| IaC Debt: Promtail        | helm rev 8 manual -> `modules/promtail/` TF managed                | CONCLUIDO |
+| IaC Debt: Velero Helm     | helm rev 11 manual -> `modules/velero-helm/` TF managed            | CONCLUIDO |
+| IaC Debt: Loki module     | `modules/loki` nao instanciado -> `staging/loki.tf` TF managed     | CONCLUIDO |
+| IaC Debt: EKS Node Groups | AWS CLI -> `node-groups.tf` TF managed (system/workloads/critical) | CONCLUIDO |
+
+---
+
 ## Atualização
 
-Última atualização: 2026-03-02 | Fonte: Confrontação backlog × MEMORY × cluster real
-Correções: DEC-074 50%→100% ✅ | CICD-003/005 entregáveis marcados [x] | GAP-007 enforcement ⚠️ hoje | INFRA-001 adicionada | INFRA-001 step 2 em execução + runner fixes + PVC Gitaly resolvido
+Última atualização: 2026-03-05 | Fonte: Confrontação backlog × MEMORY × cluster real
+Correções: DEC-074 50%→100% ✅ | CICD-003/005 entregáveis marcados [x] | GAP-007 enforcement ⚠️ hoje | INFRA-001 adicionada | INFRA-001 step 2 em execução + runner fixes + PVC Gitaly resolvido | IaC Compliance Migration 4/4 ✅ (2026-03-05)

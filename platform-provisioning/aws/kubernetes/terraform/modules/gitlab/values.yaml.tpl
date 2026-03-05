@@ -211,10 +211,11 @@ gitlab:
     enabled: true
     replicaCount: 1
 
+    # staging-rightsize 2026-03-05: reduced requests for staging scheduling (limits unchanged)
     resources:
       requests:
-        cpu: 500m
-        memory: 1Gi
+        cpu: 200m
+        memory: 768Mi
       limits:
         cpu: 1500m
         memory: 2Gi

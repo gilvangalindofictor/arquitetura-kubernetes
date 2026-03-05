@@ -1095,133 +1095,133 @@ module "kube_prometheus_stack_staging" {
 
 # resource "null_resource" "keycloak_grafana_admins_group" {
 # DISABLED — migrated to module.keycloak_clients_staging native provider (2026-03-04)
-  depends_on = [
-    module.keycloak_staging,
-    module.kube_prometheus_stack_staging
-  ]
-
-  triggers = {
-    group_name   = "grafana-admins"
-    realm        = "platform"
-    mapper_claim = "groups"
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["python3", "-c"]
-    command     = <<-EOT
-      import json, subprocess, urllib.request, urllib.parse, urllib.error
-      import base64, sys, time
-
-      # Port-forward: keycloak.staging.internal nao resolve fora do cluster (WSL2)
-      pf = subprocess.Popen(
-        ["kubectl", "port-forward", "svc/keycloak-keycloakx-http",
-         "18080:80", "-n", "keycloak"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-      )
-      time.sleep(3)
-      base_url  = "http://localhost:18080/auth"
-      admin_api = "http://localhost:18080/auth/admin/realms/platform"
-
-      try:
-        # Admin password do K8s secret (random_password gerenciado pelo TF)
-        r = subprocess.run(
-          ["kubectl", "get", "secret", "keycloak-admin-password",
-           "-n", "keycloak", "-o", "jsonpath={.data.password}"],
-          capture_output=True, text=True, check=True
-        )
-        admin_password = base64.b64decode(r.stdout.strip()).decode()
-
-        # Token admin-cli (realm master)
-        token_data = urllib.parse.urlencode({
-          "client_id": "admin-cli",
-          "username":  "admin",
-          "password":  admin_password,
-          "grant_type": "password"
-        }).encode()
-        req = urllib.request.Request(
-          base_url + "/realms/master/protocol/openid-connect/token",
-          data=token_data, method="POST"
-        )
-        with urllib.request.urlopen(req) as resp:
-          token = json.loads(resp.read())["access_token"]
-
-        hdrs = {
-          "Authorization":  "Bearer " + token,
-          "Content-Type":   "application/json"
-        }
-
-        def api(url, data=None, method=None):
-          req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
-          try:
-            with urllib.request.urlopen(req) as r:
-              return r.status, r.read(), dict(r.headers)
-          except urllib.error.HTTPError as e:
-            return e.code, e.read(), {}
-
-        # --- 1. Criar grupo grafana-admins (realm platform) ---
-        status, body, resp_hdrs = api(
-          admin_api + "/groups",
-          data=json.dumps({"name": "grafana-admins"}).encode(),
-          method="POST"
-        )
-        if status == 201:
-          print("[OK] grafana-admins group created:", resp_hdrs.get("Location",""))
-        elif status == 409:
-          print("[OK] grafana-admins group already exists")
-        else:
-          print("[ERROR] creating group:", status, body)
-          sys.exit(1)
-
-        # --- 2. UUID do client grafana ---
-        status, body, _ = api(
-          admin_api + "/clients?clientId=grafana"
-        )
-        clients = json.loads(body)
-        if not clients:
-          print("[ERROR] grafana client not found in realm platform")
-          sys.exit(1)
-        client_uuid = clients[0]["id"]
-        print("[OK] grafana client UUID:", client_uuid)
-
-        # --- 3. Mapper oidc-group-membership (inclui groups claim no token) ---
-        status, body, _ = api(
-          admin_api + "/clients/" + client_uuid + "/protocol-mappers/models"
-        )
-        existing = json.loads(body) if status == 200 else []
-        if any(m.get("name") == "groups" for m in existing):
-          print("[OK] groups mapper already exists on grafana client")
-        else:
-          mapper = {
-            "name":            "groups",
-            "protocol":        "openid-connect",
-            "protocolMapper":  "oidc-group-membership-mapper",
-            "consentRequired": False,
-            "config": {
-              "full.path":           "false",
-              "id.token.claim":      "true",
-              "access.token.claim":  "true",
-              "claim.name":          "groups",
-              "userinfo.token.claim": "true"
-            }
-          }
-          status, body, _ = api(
-            admin_api + "/clients/" + client_uuid + "/protocol-mappers/models",
-            data=json.dumps(mapper).encode(),
-            method="POST"
-          )
-          if status == 201:
-            print("[OK] groups mapper added to grafana client")
-          else:
-            print("[WARN] mapper add returned:", status, body)
-
-        print("[DONE] Keycloak grafana-admins setup complete")
-
-      finally:
-        pf.terminate()
-        pf.wait()
-    EOT
-  }
-}
+#   depends_on = [
+#     module.keycloak_staging,
+#     module.kube_prometheus_stack_staging
+#   ]
+#
+#   triggers = {
+#     group_name   = "grafana-admins"
+#     realm        = "platform"
+#     mapper_claim = "groups"
+#   }
+#
+#   provisioner "local-exec" {
+#     interpreter = ["python3", "-c"]
+#     command     = <<-EOT
+#       import json, subprocess, urllib.request, urllib.parse, urllib.error
+#       import base64, sys, time
+#
+#       # Port-forward: keycloak.staging.internal nao resolve fora do cluster (WSL2)
+#       pf = subprocess.Popen(
+#         ["kubectl", "port-forward", "svc/keycloak-keycloakx-http",
+#          "18080:80", "-n", "keycloak"],
+#         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+#       )
+#       time.sleep(3)
+#       base_url  = "http://localhost:18080/auth"
+#       admin_api = "http://localhost:18080/auth/admin/realms/platform"
+#
+#       try:
+#         # Admin password do K8s secret (random_password gerenciado pelo TF)
+#         r = subprocess.run(
+#           ["kubectl", "get", "secret", "keycloak-admin-password",
+#            "-n", "keycloak", "-o", "jsonpath={.data.password}"],
+#           capture_output=True, text=True, check=True
+#         )
+#         admin_password = base64.b64decode(r.stdout.strip()).decode()
+#
+#         # Token admin-cli (realm master)
+#         token_data = urllib.parse.urlencode({
+#           "client_id": "admin-cli",
+#           "username":  "admin",
+#           "password":  admin_password,
+#           "grant_type": "password"
+#         }).encode()
+#         req = urllib.request.Request(
+#           base_url + "/realms/master/protocol/openid-connect/token",
+#           data=token_data, method="POST"
+#         )
+#         with urllib.request.urlopen(req) as resp:
+#           token = json.loads(resp.read())["access_token"]
+#
+#         hdrs = {
+#           "Authorization":  "Bearer " + token,
+#           "Content-Type":   "application/json"
+#         }
+#
+#         def api(url, data=None, method=None):
+#           req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
+#           try:
+#             with urllib.request.urlopen(req) as r:
+#               return r.status, r.read(), dict(r.headers)
+#           except urllib.error.HTTPError as e:
+#             return e.code, e.read(), {}
+#
+#         # --- 1. Criar grupo grafana-admins (realm platform) ---
+#         status, body, resp_hdrs = api(
+#           admin_api + "/groups",
+#           data=json.dumps({"name": "grafana-admins"}).encode(),
+#           method="POST"
+#         )
+#         if status == 201:
+#           print("[OK] grafana-admins group created:", resp_hdrs.get("Location",""))
+#         elif status == 409:
+#           print("[OK] grafana-admins group already exists")
+#         else:
+#           print("[ERROR] creating group:", status, body)
+#           sys.exit(1)
+#
+#         # --- 2. UUID do client grafana ---
+#         status, body, _ = api(
+#           admin_api + "/clients?clientId=grafana"
+#         )
+#         clients = json.loads(body)
+#         if not clients:
+#           print("[ERROR] grafana client not found in realm platform")
+#           sys.exit(1)
+#         client_uuid = clients[0]["id"]
+#         print("[OK] grafana client UUID:", client_uuid)
+#
+#         # --- 3. Mapper oidc-group-membership (inclui groups claim no token) ---
+#         status, body, _ = api(
+#           admin_api + "/clients/" + client_uuid + "/protocol-mappers/models"
+#         )
+#         existing = json.loads(body) if status == 200 else []
+#         if any(m.get("name") == "groups" for m in existing):
+#           print("[OK] groups mapper already exists on grafana client")
+#         else:
+#           mapper = {
+#             "name":            "groups",
+#             "protocol":        "openid-connect",
+#             "protocolMapper":  "oidc-group-membership-mapper",
+#             "consentRequired": False,
+#             "config": {
+#               "full.path":           "false",
+#               "id.token.claim":      "true",
+#               "access.token.claim":  "true",
+#               "claim.name":          "groups",
+#               "userinfo.token.claim": "true"
+#             }
+#           }
+#           status, body, _ = api(
+#             admin_api + "/clients/" + client_uuid + "/protocol-mappers/models",
+#             data=json.dumps(mapper).encode(),
+#             method="POST"
+#           )
+#           if status == 201:
+#             print("[OK] groups mapper added to grafana client")
+#           else:
+#             print("[WARN] mapper add returned:", status, body)
+#
+#         print("[DONE] Keycloak grafana-admins setup complete")
+#
+#       finally:
+#         pf.terminate()
+#         pf.wait()
+#     EOT
+#   }
+# }
 
 #------------------------------------------------------------------------------
 # FINOPS AUTOMATION (STAGING ONLY)

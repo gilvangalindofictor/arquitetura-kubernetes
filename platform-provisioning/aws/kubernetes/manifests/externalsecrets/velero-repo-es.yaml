@@ -1,0 +1,28 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: velero-repo-credentials
+  namespace: velero
+  labels:
+    app.kubernetes.io/managed-by: external-secrets
+    environment: staging
+    tier: backup
+  annotations:
+    # ADR-101: Secrets Migration to Vault + ExternalSecrets
+    # Migrated: 2026-03-05 from plain K8s Secret
+    # Vault path: secret/data/velero/repo-credentials
+    # IMPORTANT: Velero must be configured with existingSecret before deleting plain secret
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: velero-repo-credentials
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  data:
+    - secretKey: repository-password
+      remoteRef:
+        key: secret/data/velero/repo-credentials
+        property: repository_password

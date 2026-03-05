@@ -53,3 +53,12 @@ path "secret/data/argocd/*" {
 path "secret/metadata/argocd/*" {
   capabilities = ["read", "list"]
 }
+
+# Updated: 2026-03-05 — add staging/hatch/* (hatch-etl app secrets)
+path "secret/data/staging/hatch/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/staging/hatch/*" {
+  capabilities = ["read", "list"]
+}

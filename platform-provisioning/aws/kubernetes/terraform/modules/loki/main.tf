@@ -916,6 +916,15 @@ resource "helm_release" "loki" {
     value = "false"
   }
 
+  # IaC debt (2026-03-05): The live release was deployed manually (rev 18) with extra
+  # values (chunksCache.allocatedMemory, nodeSelector) not reflected in this module's
+  # set{} blocks. ignore_changes = [values, metadata] prevents spurious helm upgrades
+  # until the module set{} blocks are reconciled with the live release values.
+  # Track: loki-module-values-reconciliation
+  lifecycle {
+    ignore_changes = [values, metadata]
+  }
+
   depends_on = [
     kubernetes_service_account.loki,
     aws_iam_role_policy_attachment.loki_s3,

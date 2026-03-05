@@ -525,3 +525,105 @@ resource "vault_kv_secret_v2" "keycloak_admin" {
     }
   }
 }
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Hatch ETL Database credentials
+# Vault path: secret/staging/hatch/database
+# ESO ExternalSecret: hatch-database-credentials (staging-data-hatch)
+# Resolves: 3/3 SecretSyncedError 403 Forbidden (eso-reader policy gap)
+# -----------------------------------------------------------------------------
+resource "random_password" "hatch_etl_db" {
+  count            = var.hatch_etl_enabled && var.hatch_etl_db_password == "" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+locals {
+  hatch_db_password = var.hatch_etl_db_password != "" ? var.hatch_etl_db_password : (length(random_password.hatch_etl_db) > 0 ? random_password.hatch_etl_db[0].result : "")
+}
+
+resource "vault_kv_secret_v2" "hatch_etl_database" {
+  count      = var.hatch_etl_enabled ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "staging/hatch/database"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    host              = var.hatch_etl_db_host
+    port              = "5432"
+    username          = "hatch_user"
+    password          = local.hatch_db_password
+    database          = var.hatch_etl_db_name
+    connection_string = "postgresql://hatch_user:${local.hatch_db_password}@${var.hatch_etl_db_host}:5432/${var.hatch_etl_db_name}"
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "hatch-etl"
+      cluster    = var.cluster_name
+      namespace  = "staging-data-hatch"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Hatch ETL Redis credentials
+# Vault path: secret/staging/hatch/redis
+# ESO ExternalSecret: hatch-redis-connection (staging-data-hatch)
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "hatch_etl_redis" {
+  count      = var.hatch_etl_enabled ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "staging/hatch/redis"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    host                 = var.hatch_etl_redis_host
+    port                 = "6379"
+    password             = var.hatch_etl_redis_password
+    sentinel_master_name = "mymaster"
+    connection_string    = "redis://:${var.hatch_etl_redis_password}@${var.hatch_etl_redis_host}:6379"
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "hatch-etl"
+      cluster    = var.cluster_name
+      namespace  = "staging-data-hatch"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Hatch ETL external API credentials
+# Vault path: secret/staging/hatch/api
+# ESO ExternalSecret: hatch-api-credentials (staging-data-hatch)
+# Security: API_USERNAME/API_PASSWORD NEVER in ConfigMap — only via this Secret
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "hatch_etl_api" {
+  count      = var.hatch_etl_enabled && var.hatch_etl_api_username != "" ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "staging/hatch/api"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    base_url = var.hatch_etl_api_base_url
+    username = var.hatch_etl_api_username
+    password = var.hatch_etl_api_password
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "hatch-etl"
+      cluster    = var.cluster_name
+      namespace  = "staging-data-hatch"
+    }
+  }
+}

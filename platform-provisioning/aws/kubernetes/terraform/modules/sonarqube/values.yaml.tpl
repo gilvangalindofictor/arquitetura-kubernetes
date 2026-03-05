@@ -27,10 +27,11 @@ persistence:
   accessMode: ReadWriteOnce
 
 # Resources
+# staging-rightsize 2026-03-05: reduced requests for staging scheduling (limits unchanged)
 resources:
   requests:
-    cpu: 500m
-    memory: 2Gi
+    cpu: 200m
+    memory: 1Gi
   limits:
     cpu: 2000m
     memory: 4Gi
