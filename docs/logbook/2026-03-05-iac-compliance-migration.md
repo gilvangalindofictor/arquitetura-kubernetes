@@ -137,3 +137,35 @@ Adotar releases existentes via `terraform import` sem disruption de servico:
 - docs/adr/adr-101-secrets-migration-vault-externalsecrets.md
 
 **STATUS: 2/13 credenciais agora via Vault+ESO | 11/13 valores em Vault (pendentes aplicacao)**
+
+## [15:52:05] TF Import | Agent-NodeGroups
+
+**ARQUIVO CRIADO:** environments/staging/node-groups.tf
+
+**IMPORTS:**
+- aws_eks_node_group.system    → k8s-platform-prod:system    ✅
+- aws_eks_node_group.workloads → k8s-platform-prod:workloads ✅
+- aws_eks_node_group.critical  → k8s-platform-prod:critical  ✅
+
+**PLAN: 0 to add, 3 to change (tags only), 0 to destroy**
+
+**STATUS:** ✅ zero structural drift
+
+**TAG DRIFT (expected — node groups criados via AWS CLI sem tags corporativas):**
+- system/workloads/critical: +Environment=staging (tag explícita no TF, ausente no AWS)
+- tags_all: +DataClassification=Internal, +LGPD=Synthetic, +Terraform=true (provider default_tags)
+- Próximo apply adicionará estas tags — SEM modificação de infra (in-place tags update)
+
+**LIFECYCLE IGNORES aplicados:**
+- scaling_config[0].desired_size → cluster autoscaler gerencia
+- release_version → EKS managed updates alteram automaticamente
+
+**NOTA CRÍTICA — taint critical:**
+- platform-config.yaml: value="database" (INCORRETO)
+- AWS real: value="critical" (CORRETO — usado no node-groups.tf)
+- Divergência documentada no arquivo node-groups.tf
+
+**Obstacles encontrados:**
+- DynamoDB state lock stale (OperationTypeInvalid) — limpo via aws dynamodb delete-item
+- keycloak provider 401: shell expansion de chars especiais (>, !) na password → resolvido com subshell $(kubectl...)
+- terraform state list deixa lock Plan na DynamoDB — padrão deste ambiente
