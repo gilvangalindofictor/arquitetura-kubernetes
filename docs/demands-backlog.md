@@ -1216,11 +1216,12 @@ go test -v -run TestKMSKeyRotationEnabled
 
 ---
 
-### ✅ DT-005: Alertas Básicos (Observability) [ARTEFATOS CRIADOS — 4 itens deploy pendentes]
+### ✅ DT-005: Alertas Básicos (Observability) [PARCIALMENTE ATIVO — Slack webhooks pendentes]
+
 **Severidade**: 🟡 MEDIUM
-**Status**: ⚠️ **ARTEFATOS CRIADOS** (2026-02-20, agente DT-005) — PrometheusRule CRDs e Alertmanager config criados. 4 itens pendentes: Slack webhooks reais, kubectl apply, helm upgrade, validação Grafana.
-**Impacto**: Possível falha sem notificação rápida
-**Esforço**: M (definir alertas + routing)
+**Status**: ⚠️ **PARCIALMENTE ATIVO** (confrontação 2026-03-05) — 4 PrometheusRules ativas no cluster (6d3h), AlertmanagerConfig deployada, secret `alertmanager-slack-webhook` existe mas **todos os 4 valores são placeholders** (`REPLACE`). Routing configurado corretamente, falta apenas os webhooks reais.
+**Impacto**: Alertas disparam mas **não chegam ao Slack** (routing aponta para URLs REPLACE)
+**Esforço**: S (substituir 4 URLs no secret)
 **Plano**: Marco 5 (observability completa)
 
 **37 alertas implementados** em 4 grupos PrometheusRule:
@@ -1244,10 +1245,10 @@ go test -v -run TestKMSKeyRotationEnabled
 - [x] Configurar Alertmanager routing (4 canais Slack + inhibit rules)
 - [x] Criar runbooks para cada alerta (17 runbooks)
 - [x] PrometheusRule CRDs para Prometheus Operator
-- [ ] **ACAO REQUERIDA**: Criar Slack webhooks reais para #alerts-critical, #alerts-warning, #alerts-data-services, #alerts-security
-- [ ] `kubectl apply -f domains/observability/infra/alerts/`
-- [ ] Helm upgrade kube-prometheus-stack com values.yaml atualizado
-- [ ] Validar alertas disparando corretamente no Grafana
+- [ ] **ACAO REQUERIDA**: Substituir URLs no secret `alertmanager-slack-webhook` (4 chaves: critical/warning/data-services/security — todos com `REPLACE` placeholder)
+- [x] ~~`kubectl apply -f domains/observability/infra/alerts/`~~ — **ATIVO** (dt005-*-alerts 6d3h em staging-observability-monitoring)
+- [x] ~~Helm upgrade kube-prometheus-stack~~ — PrometheusRules operam via CRD independentemente
+- [ ] Validar alertas chegando no Slack após substituir webhooks
 
 ---
 
@@ -1345,7 +1346,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 - ✅ ~~P0: Verificar subnet group RDS antes de apply~~ — **COMPLETO** (DT-001, 2026-02-20)
 - ✅ ~~P0: Deploy alertas PrometheusRule (DT-005)~~ — **DEPLOYED** (2026-02-20)
 - P1: Rodar `make test-all` após `go mod tidy` — DT-003
-- P1: Configurar Slack webhooks reais — DT-005
+- P1: Configurar Slack webhooks reais — DT-005 (secret existe com REPLACE placeholders)
 - ✅ ~~P2: `terraform plan` para Multi-AZ prod + deletion_protection~~ — **COMPLETO** (DT-004, 2026-02-20)
 
 ---
@@ -1413,7 +1414,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 **Pendente (pós V-009 resolvido)**:
 
-- 🟡 **V-010**: Restore testing — aguardar primeiro backup automático (02:00 UTC), depois testar restore em namespace `dr-test`
+- 🟡 **V-010**: Restore testing — backup diário `daily-full-backup-20260305020022` disponível (2026-03-05 02:00 UTC). Namespace `dr-test` não existe. Ação: criar namespace e executar `velero restore create` a partir do backup diário.
 
 ---
 
@@ -2287,5 +2288,7 @@ Federar identidades do Microsoft Entra ID (Azure AD) no Keycloak via OIDC Identi
 
 ## Atualização
 
-Última atualização: 2026-03-05 | Fonte: Confrontação backlog × MEMORY × cluster real
-Correções: DEC-074 50%→100% ✅ | CICD-003/005 entregáveis marcados [x] | GAP-007 enforcement ⚠️ hoje | INFRA-001 adicionada | INFRA-001 step 2 em execução + runner fixes + PVC Gitaly resolvido | IaC Compliance Migration 4/4 ✅ (2026-03-05)
+Última atualização: 2026-03-05 (confrontação backlog × cluster real)
+
+- DEC-074 50%→100% ✅ | CICD-003/005 [x] | GAP-007 enforcement ⚠️ | INFRA-001 step 2 + runner + PVC Gitaly | IaC Compliance 4/4 ✅
+- Confrontação 2026-03-05: #1 helm upgrade gitlab FECHADO (rev 14, existingSecret ativo) | #4 lifecycle ignore_changes FECHADO (removidos commit 05f9d57) | DT-005 status atualizado (PrometheusRules ativas, Slack webhooks = REPLACE) | V-010 backup disponível (daily-full-backup-20260305020022) | Loki chunksCache TF não alinhado (só comentário no loki.tf)
