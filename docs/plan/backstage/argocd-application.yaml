@@ -1,0 +1,230 @@
+# =============================================================================
+# ArgoCD Application — Backstage IDP
+# Cluster:    k8s-platform-prod (EKS us-east-1, conta 891377105802)
+# Namespace:  staging-platform-backstage
+# Helm chart: backstage/backstage v2.6.3
+# Criado:     2026-03-06
+# ADR:        ADR-055
+#
+# Aplicar: kubectl apply -f argocd-application.yaml -n staging-platform-argocd
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backstage
+  namespace: staging-platform-argocd
+  labels:
+    environment: staging
+    domain: platform
+    owner: platform-team
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/part-of: platform-core
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    backstage.io/component-id: backstage-idp
+spec:
+  project: default
+
+  source:
+    repoURL: https://backstage.github.io/charts
+    chart: backstage
+    targetRevision: 2.6.3
+    helm:
+      releaseName: backstage
+      valueFiles: []
+      values: |
+        backstage:
+          image:
+            registry: harbor.staging.internal
+            repository: platform/backstage
+            tag: "1.48.0-oidc"
+            pullPolicy: Always
+            pullSecrets:
+              - harbor-registry-secret
+          extraEnvVars:
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: postgres-host
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: postgres-password
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: keycloak-client-id
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: keycloak-client-secret
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: gitlab-token
+            - name: VAULT_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: vault-addr
+            - name: ARGOCD_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: argocd-url
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: argocd-token
+            - name: SONARQUBE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: sonarqube-url
+            - name: SONARQUBE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: sonarqube-token
+            - name: AUTH_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: auth-session-secret
+            - name: EKS_CLUSTER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: eks-cluster-url
+          podAnnotations:
+            linkerd.io/inject: "enabled"
+            config.linkerd.io/proxy-await: "enabled"
+            config.linkerd.io/skip-outbound-ports: "443"
+          podLabels:
+            domain: platform
+            environment: staging
+            owner: platform-team
+            app.kubernetes.io/name: backstage
+            app.kubernetes.io/part-of: platform-core
+          args:
+            - "--config"
+            - "/app/app-config-from-configmap.yaml"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+          initContainers:
+            - name: install-oidc
+              image: node:22-bookworm-slim
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  cd /tmp
+                  printf '{"name":"tmp","version":"1.0.0"}' > package.json
+                  npm install @backstage/plugin-auth-backend-module-oidc-provider@0.4.13 openid-client@5 \
+                    --legacy-peer-deps --no-audit --no-fund --no-workspaces --prefix /tmp/oidc
+                  cp -r /tmp/oidc/node_modules/@backstage/plugin-auth-backend-module-oidc-provider/. /mnt/oidc-module/
+                  node -e "
+                  const fs = require('fs');
+                  const pkg = JSON.parse(fs.readFileSync('/mnt/oidc-module/package.json', 'utf8'));
+                  pkg.exports = {
+                    '.': { 'require': './dist/index.cjs.js', 'default': './dist/index.cjs.js' },
+                    './package.json': './package.json'
+                  };
+                  fs.writeFileSync('/mnt/oidc-module/package.json', JSON.stringify(pkg, null, 2));
+                  console.log('exports field added to package.json');
+                  "
+                  mkdir -p /mnt/oidc-module/node_modules
+                  cp -r /tmp/oidc/node_modules/openid-client /mnt/oidc-module/node_modules/openid-client
+                  for dep in jose lru-cache object-hash oidc-token-hash; do
+                    if [ -d /tmp/oidc/node_modules/$dep ]; then
+                      cp -r /tmp/oidc/node_modules/$dep /mnt/oidc-module/node_modules/$dep
+                    fi
+                  done
+                  echo 'Init complete. OIDC module + openid-client@5 + exports field.'
+              volumeMounts:
+                - name: oidc-module
+                  mountPath: /mnt/oidc-module
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 512Mi
+                limits:
+                  cpu: 500m
+                  memory: 1Gi
+          extraVolumes:
+            - name: oidc-module
+              emptyDir: {}
+            - name: patched-dist
+              configMap:
+                name: backstage-patched-index
+          extraVolumeMounts:
+            - name: oidc-module
+              mountPath: /app/node_modules/@backstage/plugin-auth-backend-module-oidc-provider
+            - name: patched-dist
+              mountPath: /app/packages/backend/dist/index.cjs.js
+              subPath: index.cjs.js
+        serviceAccount:
+          create: true
+          name: backstage
+          annotations:
+            eks.amazonaws.com/role-arn: "arn:aws:iam::891377105802:role/backstage-irsa-role"
+        ingress:
+          enabled: true
+          className: alb
+          annotations:
+            alb.ingress.kubernetes.io/scheme: internet-facing
+            alb.ingress.kubernetes.io/target-type: ip
+            alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+            alb.ingress.kubernetes.io/group.name: platform-staging
+            alb.ingress.kubernetes.io/healthcheck-path: /healthcheck
+          host: backstage.staging.internal
+          path: /
+        postgresql:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging-platform-backstage
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - Validate=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  revisionHistoryLimit: 3
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

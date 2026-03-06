@@ -1,0 +1,274 @@
+# =============================================================================
+# Helm values para backstage/backstage chart v2.6.3
+# Ambiente:   staging
+# Cluster:    k8s-platform-prod (EKS us-east-1, conta 891377105802)
+# Namespace:  staging-platform-backstage
+# Atualizado: 2026-03-05
+# ADR:        ADR-055
+#
+# Deploy:
+#   helm repo add backstage https://backstage.github.io/charts
+#   helm repo update
+#   helm upgrade --install backstage backstage/backstage \
+#     --version 2.6.3 \
+#     --namespace staging-platform-backstage \
+#     --values helm-values-staging.yaml
+#
+# ATENCAO: Substituir todos os placeholders <...> antes do deploy.
+#          Preferencialmente usar ExternalSecret + Vault para credenciais.
+# =============================================================================
+
+# =============================================================================
+# Labels obrigatorias Kyverno (ADR-048) — propagadas a todos os recursos
+# =============================================================================
+commonLabels:
+  domain: platform
+  environment: staging
+  owner: platform-team
+  app.kubernetes.io/name: backstage
+  app.kubernetes.io/part-of: platform-core
+
+backstage:
+  image:
+    registry: harbor.staging.internal
+    repository: platform/backstage
+    tag: "1.48.0"
+    pullPolicy: Always
+    pullSecrets:
+      - harbor-registry-secret
+
+  # ---------------------------------------------------------------------------
+  # app-config.yaml injetado via Helm
+  # ---------------------------------------------------------------------------
+  appConfig:
+    app:
+      baseUrl: https://backstage.staging.internal
+
+    backend:
+      baseUrl: https://backstage.staging.internal
+      listen:
+        port: 7007
+      cors:
+        origin: https://backstage.staging.internal
+      database:
+        client: pg
+        connection:
+          host: ${POSTGRES_HOST}
+          port: 5432
+          user: ${POSTGRES_USER}
+          password: ${POSTGRES_PASSWORD}
+          database: backstage
+          ssl:
+            require: true
+            rejectUnauthorized: false
+
+    # -------------------------------------------------------------------------
+    # Autenticacao — Keycloak OIDC (ADR-046)
+    # CRITICO (ALTO-3): Validar metadataUrl ANTES do deploy
+    # CRITICO: PKCE S256 deve estar habilitado no client Keycloak
+    # -------------------------------------------------------------------------
+    auth:
+      session:
+        secret: ${AUTH_SESSION_SECRET}
+      providers:
+        keycloak:
+          production:
+            metadataUrl: https://keycloak.staging.internal/realms/platform/.well-known/openid-configuration
+            clientId: ${KEYCLOAK_CLIENT_ID}
+            clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+            prompt: auto
+
+    # -------------------------------------------------------------------------
+    # Integracoes de Source Control
+    # CRITICO (ALTO-2): Usar Group Access Token — NAO OAuth token (issue #30650)
+    # -------------------------------------------------------------------------
+    integrations:
+      gitlab:
+        - host: gitlab.staging.internal
+          token: ${GITLAB_TOKEN}
+
+    # -------------------------------------------------------------------------
+    # Catalogo — Discovery automatico GitLab
+    # Schedule minimo 30min — rate limit GitLab 18.6+ (BAIXO-1)
+    # -------------------------------------------------------------------------
+    catalog:
+      providers:
+        gitlab:
+          selfHosted:
+            host: gitlab.staging.internal
+            schedule:
+              frequency:
+                minutes: 30
+              timeout:
+                minutes: 3
+
+    # -------------------------------------------------------------------------
+    # Kubernetes Plugin
+    # -------------------------------------------------------------------------
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: staging-eks
+              url: ${EKS_CLUSTER_URL}
+              authProvider: aws
+
+    # -------------------------------------------------------------------------
+    # Vault Plugin — read-only via Kubernetes Auth Method
+    # -------------------------------------------------------------------------
+    vault:
+      baseUrl: ${VAULT_ADDR}
+      secretEngine: secret
+      kvVersion: 2
+
+    # -------------------------------------------------------------------------
+    # ArgoCD Plugin
+    # -------------------------------------------------------------------------
+    argocd:
+      appLocatorMethods:
+        - type: config
+          instances:
+            - name: staging
+              url: ${ARGOCD_URL}
+              token: ${ARGOCD_TOKEN}
+
+    # -------------------------------------------------------------------------
+    # SonarQube Plugin
+    # ATENCAO: plugin @backstage-community/plugin-sonarqube (nao @backstage — DEPRECATED)
+    # -------------------------------------------------------------------------
+    sonarqube:
+      baseUrl: ${SONARQUBE_URL}
+      apiKey: ${SONARQUBE_TOKEN}
+
+  # ---------------------------------------------------------------------------
+  # Recursos do pod
+  # ---------------------------------------------------------------------------
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
+
+  # ---------------------------------------------------------------------------
+  # Labels do pod — obrigatorias Kyverno ADR-048
+  # ---------------------------------------------------------------------------
+  podLabels:
+    domain: platform
+    environment: staging
+    owner: platform-team
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/part-of: platform-core
+
+  # ---------------------------------------------------------------------------
+  # Anotacoes do pod
+  # CRITICO (ALTO-1): skip-outbound-ports 443 para Harbor + Linkerd mTLS workaround
+  # Harbor pode nao ter sidecar Linkerd — sem o skip, conexao falha.
+  # ---------------------------------------------------------------------------
+  podAnnotations:
+    linkerd.io/inject: "enabled"
+    config.linkerd.io/proxy-await: "enabled"
+    config.linkerd.io/skip-outbound-ports: "443"
+
+  # ---------------------------------------------------------------------------
+  # Variaveis de ambiente lidas do Secret backstage-secrets
+  # ---------------------------------------------------------------------------
+  extraEnvVars:
+    - name: POSTGRES_HOST
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: postgres-host
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: postgres-user
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: postgres-password
+    - name: KEYCLOAK_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: keycloak-client-id
+    - name: KEYCLOAK_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: keycloak-client-secret
+    - name: GITLAB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: gitlab-token
+    - name: VAULT_ADDR
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: vault-addr
+    - name: ARGOCD_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: argocd-url
+    - name: ARGOCD_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: argocd-token
+    - name: SONARQUBE_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: sonarqube-url
+    - name: SONARQUBE_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: sonarqube-token
+    - name: EKS_CLUSTER_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: eks-cluster-url
+    - name: AUTH_SESSION_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: auth-session-secret
+
+# =============================================================================
+# Service Account com IRSA — nivel top-level (fora de backstage)
+# =============================================================================
+serviceAccount:
+  create: true
+  name: backstage
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::891377105802:role/backstage-irsa-role
+
+# =============================================================================
+# Ingress — ALB interno
+# =============================================================================
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/group.name: platform-staging
+    alb.ingress.kubernetes.io/healthcheck-path: /healthcheck
+  host: backstage.staging.internal
+  path: /
+
+# =============================================================================
+# PostgreSQL — DESABILITADO (usa RDS externo existente)
+# =============================================================================
+postgresql:
+  enabled: false

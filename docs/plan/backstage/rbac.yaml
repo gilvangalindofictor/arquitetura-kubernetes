@@ -1,0 +1,84 @@
+# =============================================================================
+# Recursos Kubernetes para o Backstage IDP
+# Cluster:    k8s-platform-prod (EKS us-east-1, conta 891377105802)
+# Namespace:  staging-platform-backstage
+# Atualizado: 2026-03-05
+# ADR:        ADR-055
+#
+# Aplicar: kubectl apply -f rbac.yaml
+# =============================================================================
+
+---
+# Namespace para o Backstage
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging-platform-backstage
+  annotations:
+    linkerd.io/inject: enabled
+  labels:
+    environment: staging
+    domain: platform
+    product: backstage
+
+---
+# ClusterRole para o plugin Kubernetes
+# Concede acesso read-only a todos os recursos relevantes em todos os namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-kubernetes-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, configmaps, services, resourcequotas, limitranges, events, serviceaccounts]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods, nodes]
+    verbs: [get, list]
+  - apiGroups: [argoproj.io]
+    resources: [applications, rollouts, appprojects]
+    verbs: [get, list, watch]
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets, clustersecretstores]
+    verbs: [get, list, watch]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-kubernetes-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-kubernetes-reader
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: staging-platform-backstage
+
+---
+# PodDisruptionBudget — garante disponibilidade durante node drains e rolling updates
+# M1: minAvailable 1 com replicaCount 1 (staging inicial)
+# M4: aumentar replicaCount para 2 (HA)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backstage-pdb
+  namespace: staging-platform-backstage
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backstage

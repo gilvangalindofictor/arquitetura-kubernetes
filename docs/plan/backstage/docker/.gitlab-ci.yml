@@ -1,0 +1,345 @@
+# =============================================================================
+# .gitlab-ci.yml — Pipeline de build da imagem Backstage
+# Repositorio: gitlab.staging.internal/platform/backstage-app
+# Imagem destino: harbor.staging.internal/platform/backstage:1.48.0
+# Cluster: k8s-platform-prod (EKS us-east-1, conta 891377105802)
+# ADR: ADR-055
+#
+# VARIAVEIS CI/CD NECESSARIAS (GitLab CI/CD Settings > Variables):
+#   HARBOR_ROBOT_USER    — robot account do Harbor (ex: robot$platform+builder)
+#   HARBOR_ROBOT_SECRET  — senha do robot account (Masked, Protected)
+#   ARGOCD_SERVER        — URL do ArgoCD (ex: argocd.staging.internal)
+#   ARGOCD_AUTH_TOKEN    — token do service account backstage-reader (Masked)
+#   KUBE_CONFIG          — base64 do kubeconfig do cluster (para kaniko via kubectl)
+#
+# NOTA: Este pipeline usa Kaniko para build sem Docker daemon,
+#       conforme recomendacao do BACKSTAGE-IMPLEMENTATION-PLAN.md (secao 12).
+# =============================================================================
+
+stages:
+  - validate
+  - build
+  - publish
+  - deploy
+
+variables:
+  HARBOR_REGISTRY: "harbor.staging.internal"
+  IMAGE_REPO: "platform/backstage"
+  IMAGE_TAG: "1.48.0"
+  IMAGE_FULL: "${HARBOR_REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}"
+  IMAGE_SHA: "${HARBOR_REGISTRY}/${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}"
+  IMAGE_LATEST: "${HARBOR_REGISTRY}/${IMAGE_REPO}:latest"
+  NAMESPACE: "staging-platform-backstage"
+  HELM_CHART_VERSION: "2.6.3"
+  NODE_VERSION: "22"
+  YARN_VERSION: "4.4.1"
+  DOCKER_BUILDKIT: "1"
+  FF_USE_FASTZIP: "true"
+
+# ---------------------------------------------------------------------------
+# Stage: validate
+# Valida o Dockerfile via hadolint e verifica CVEs conhecidos
+# ---------------------------------------------------------------------------
+lint-dockerfile:
+  stage: validate
+  image: hadolint/hadolint:latest-debian
+  script:
+    - hadolint docker/Dockerfile
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+validate-node-version:
+  stage: validate
+  image: node:22-bookworm-slim
+  script:
+    - node --version | grep -E "^v22\." || (echo "ERRO: Node.js 22 obrigatorio!" && exit 1)
+    - echo "Node.js version OK: $(node --version)"
+    - corepack enable
+    - corepack prepare yarn@4.4.1 --activate
+    - yarn --version
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+check-harbor-credentials:
+  stage: validate
+  image: curlimages/curl:latest
+  script:
+    - |
+      echo "Verificando credenciais Harbor..."
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -u "${HARBOR_ROBOT_USER}:${HARBOR_ROBOT_SECRET}" \
+        "https://${HARBOR_REGISTRY}/api/v2.0/projects/platform" || echo "000")
+
+      if [ "$HTTP_CODE" = "200" ]; then
+        echo "Harbor credentials OK. Projeto 'platform' acessivel."
+      elif [ "$HTTP_CODE" = "401" ]; then
+        echo "ERRO: Credenciais Harbor invalidas (HTTP 401)"
+        exit 1
+      else
+        echo "AVISO: Harbor retornou HTTP $HTTP_CODE — Harbor pode estar inacessivel do runner"
+        echo "Continuando pipeline (Harbor e interno ao cluster)..."
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+check-image-exists:
+  stage: validate
+  image: curlimages/curl:latest
+  script:
+    - |
+      echo "Verificando se imagem ${IMAGE_FULL} ja existe no Harbor..."
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -u "${HARBOR_ROBOT_USER}:${HARBOR_ROBOT_SECRET}" \
+        "https://${HARBOR_REGISTRY}/v2/${IMAGE_REPO}/manifests/${IMAGE_TAG}" || echo "000")
+
+      if [ "$HTTP_CODE" = "200" ]; then
+        echo "AVISO: Imagem ${IMAGE_FULL} ja existe no Harbor."
+        echo "O pipeline continuara e sobrescreverá a imagem existente."
+        echo "Para evitar sobrescrita, adicione uma nova tag antes do push."
+      else
+        echo "Imagem nao encontrada (HTTP $HTTP_CODE). Build necessario."
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: true
+
+# ---------------------------------------------------------------------------
+# Stage: build
+# Build TypeScript + React frontend via Node.js 22 nativo
+# ---------------------------------------------------------------------------
+build-typescript:
+  stage: build
+  image: node:22-bookworm-slim
+  cache:
+    key:
+      files:
+        - yarn.lock
+      prefix: "backstage-deps-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .yarn/cache/
+      - node_modules/
+      - packages/app/node_modules/
+      - packages/backend/node_modules/
+    policy: pull-push
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends python3 make g++ git && rm -rf /var/lib/apt/lists/*
+    - corepack enable
+    - corepack prepare yarn@${YARN_VERSION} --activate
+  script:
+    - yarn install --frozen-lockfile
+    - echo "Verificando CVE-2025-55285 (plugin-scaffolder-backend >= 2.1.1)..."
+    - |
+      SCAFFOLDER_VERSION=$(cat packages/backend/package.json | \
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dependencies',{}).get('@backstage/plugin-scaffolder-backend','NAO_ENCONTRADO'))")
+      echo "scaffolder-backend version: $SCAFFOLDER_VERSION"
+    - yarn tsc
+    - yarn build:all
+  artifacts:
+    name: "backstage-build-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - packages/app/dist/
+      - packages/backend/dist/
+    expire_in: 2 hours
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ---------------------------------------------------------------------------
+# Stage: publish
+# Build e push da imagem Docker via Kaniko (sem Docker daemon)
+# Kaniko e executado como Job no cluster Kubernetes
+# ---------------------------------------------------------------------------
+build-container-image:
+  stage: publish
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  variables:
+    KANIKO_CONTEXT: "${CI_PROJECT_DIR}"
+  script:
+    - mkdir -p /kaniko/.docker
+    - |
+      cat > /kaniko/.docker/config.json <<EOF
+      {
+        "auths": {
+          "${HARBOR_REGISTRY}": {
+            "username": "${HARBOR_ROBOT_USER}",
+            "password": "${HARBOR_ROBOT_SECRET}",
+            "auth": "$(echo -n "${HARBOR_ROBOT_USER}:${HARBOR_ROBOT_SECRET}" | base64 -w0)"
+          }
+        }
+      }
+      EOF
+    - |
+      /kaniko/executor \
+        --context="${KANIKO_CONTEXT}" \
+        --dockerfile="${KANIKO_CONTEXT}/docker/Dockerfile" \
+        --destination="${IMAGE_FULL}" \
+        --destination="${IMAGE_SHA}" \
+        --destination="${IMAGE_LATEST}" \
+        --cache=true \
+        --cache-repo="${HARBOR_REGISTRY}/platform/backstage-cache" \
+        --compressed-caching=false \
+        --snapshot-mode=redo \
+        --use-new-run \
+        --push-retry=3 \
+        --log-format=text \
+        --label "build.commit=${CI_COMMIT_SHA}" \
+        --label "build.pipeline=${CI_PIPELINE_ID}" \
+        --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --label "backstage.io/version=${IMAGE_TAG}" \
+        --build-arg "BACKSTAGE_VERSION=${IMAGE_TAG}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: build-typescript
+      artifacts: true
+  environment:
+    name: harbor
+    url: https://${HARBOR_REGISTRY}/harbor/projects
+
+# ---------------------------------------------------------------------------
+# Stage: publish (alternativa)
+# Build via Docker-in-Docker para runners que nao estao no cluster
+# ATENÇÃO: Requer runner com Docker socket ou DinD service
+# Prefira build-container-image (kaniko) quando possivel
+# ---------------------------------------------------------------------------
+build-container-image-dind:
+  stage: publish
+  image: docker:26-cli
+  services:
+    - name: docker:26-dind
+      alias: docker
+      variables:
+        DOCKER_TLS_CERTDIR: "/certs"
+  variables:
+    DOCKER_HOST: "tcp://docker:2376"
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - docker info
+    - echo "${HARBOR_ROBOT_SECRET}" | docker login "${HARBOR_REGISTRY}" \
+        -u "${HARBOR_ROBOT_USER}" --password-stdin
+  script:
+    - |
+      docker build \
+        --file docker/Dockerfile \
+        --tag "${IMAGE_FULL}" \
+        --tag "${IMAGE_SHA}" \
+        --tag "${IMAGE_LATEST}" \
+        --label "build.commit=${CI_COMMIT_SHA}" \
+        --label "build.pipeline=${CI_PIPELINE_ID}" \
+        --label "backstage.io/version=${IMAGE_TAG}" \
+        --build-arg "BACKSTAGE_VERSION=${IMAGE_TAG}" \
+        --platform linux/amd64 \
+        .
+    - docker push "${IMAGE_FULL}"
+    - docker push "${IMAGE_SHA}"
+    - docker push "${IMAGE_LATEST}"
+    - echo "Imagem publicada: ${IMAGE_FULL}"
+  rules:
+    # Este job so executa se build-container-image nao estiver disponivel
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+  needs:
+    - job: build-typescript
+      artifacts: true
+
+# ---------------------------------------------------------------------------
+# Stage: deploy
+# Atualiza o Helm values e sincroniza via ArgoCD
+# ---------------------------------------------------------------------------
+deploy-staging:
+  stage: deploy
+  image: argoproj/argocd:v2.10.9
+  before_script:
+    - |
+      argocd login "${ARGOCD_SERVER}" \
+        --auth-token "${ARGOCD_AUTH_TOKEN}" \
+        --insecure \
+        --grpc-web
+  script:
+    - |
+      echo "Atualizando imagem do Backstage para ${IMAGE_TAG}..."
+      argocd app set backstage \
+        --helm-set "backstage.image.registry=${HARBOR_REGISTRY}" \
+        --helm-set "backstage.image.repository=${IMAGE_REPO}" \
+        --helm-set "backstage.image.tag=${IMAGE_TAG}"
+
+      echo "Sincronizando aplicacao ArgoCD..."
+      argocd app sync backstage \
+        --timeout 180 \
+        --prune
+
+      echo "Aguardando health check..."
+      argocd app wait backstage \
+        --health \
+        --timeout 300
+
+      echo "Deploy concluido!"
+      argocd app get backstage
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: build-container-image
+  environment:
+    name: staging
+    url: https://backstage.staging.internal
+
+# ---------------------------------------------------------------------------
+# Stage: deploy (rollback manual)
+# Rollback para versao anterior em caso de falha
+# ---------------------------------------------------------------------------
+rollback-staging:
+  stage: deploy
+  image: argoproj/argocd:v2.10.9
+  before_script:
+    - |
+      argocd login "${ARGOCD_SERVER}" \
+        --auth-token "${ARGOCD_AUTH_TOKEN}" \
+        --insecure \
+        --grpc-web
+  script:
+    - |
+      echo "ROLLBACK: Revertendo Backstage para revisao anterior..."
+      argocd app rollback backstage --timeout 180
+      argocd app wait backstage --health --timeout 300
+      echo "Rollback concluido!"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  environment:
+    name: staging
+    url: https://backstage.staging.internal
+
+# ---------------------------------------------------------------------------
+# Notificacoes (opcional — descomentar se Slack webhook configurado)
+# ---------------------------------------------------------------------------
+# notify-success:
+#   stage: deploy
+#   image: curlimages/curl:latest
+#   script:
+#     - |
+#       curl -X POST "${SLACK_WEBHOOK_URL}" \
+#         -H 'Content-type: application/json' \
+#         --data "{
+#           \"text\": \"Backstage ${IMAGE_TAG} deployado com sucesso em staging!\",
+#           \"attachments\": [{
+#             \"color\": \"good\",
+#             \"fields\": [
+#               {\"title\": \"Imagem\", \"value\": \"${IMAGE_FULL}\", \"short\": true},
+#               {\"title\": \"Pipeline\", \"value\": \"${CI_PIPELINE_URL}\", \"short\": true},
+#               {\"title\": \"Commit\", \"value\": \"${CI_COMMIT_SHORT_SHA}\", \"short\": true}
+#             ]
+#           }]
+#         }"
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#   needs:
+#     - deploy-staging

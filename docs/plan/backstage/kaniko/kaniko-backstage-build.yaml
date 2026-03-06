@@ -1,0 +1,174 @@
+---
+# =============================================================================
+# ConfigMap: Dockerfile minimalista para placeholder Backstage 1.48.0
+# Usa node:22-bookworm-slim + estrutura minima compativel com Helm chart
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-dockerfile
+  namespace: staging-platform-backstage
+  labels:
+    app.kubernetes.io/name: backstage-build
+    app.kubernetes.io/part-of: platform
+    domain: platform
+    owner: platform-team
+    environment: staging
+data:
+  # O Dockerfile usa COPY para pegar index.cjs e package.json do contexto (/workspace)
+  # que e o proprio ConfigMap montado — evita heredoc dentro de Dockerfile
+  Dockerfile: |
+    FROM node:22-bookworm-slim
+
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        dumb-init \
+        && rm -rf /var/lib/apt/lists/*
+
+    RUN groupadd --system --gid 1001 backstage && \
+        useradd --system --uid 1001 --gid backstage --shell /bin/bash --home-dir /app backstage
+
+    WORKDIR /app
+
+    RUN mkdir -p packages/backend/dist packages/app/dist node_modules
+
+    COPY package.json ./package.json
+    COPY index.cjs ./packages/backend/dist/index.cjs
+
+    RUN chown -R backstage:backstage /app
+
+    ENV NODE_ENV=production \
+        NODE_OPTIONS="--max-old-space-size=1024" \
+        LOG_LEVEL=info \
+        APP_CONFIG_app_baseUrl=https://backstage.staging.internal \
+        APP_CONFIG_backend_baseUrl=https://backstage.staging.internal \
+        APP_CONFIG_backend_listen_port=7007
+
+    EXPOSE 7007
+
+    USER backstage
+
+    ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+    CMD ["node", "packages/backend/dist/index.cjs"]
+
+    LABEL org.opencontainers.image.title="Backstage IDP" \
+          org.opencontainers.image.version="1.48.0" \
+          org.opencontainers.image.description="Backstage Internal Developer Platform - Platform Team" \
+          org.opencontainers.image.vendor="Platform Engineering" \
+          backstage.io/version="1.48.0" \
+          com.harbor.project="platform"
+
+  # Script Node.js placeholder — responde /health e porta 7007
+  index.cjs: |
+    const http = require('http');
+    const port = process.env.APP_CONFIG_backend_listen_port || 7007;
+    const server = http.createServer((req, res) => {
+      if (req.url === '/healthcheck' || req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', version: '1.48.0', timestamp: new Date().toISOString() }));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h1>Backstage IDP 1.48.0</h1><p>Placeholder - Deploy em progresso</p></body></html>');
+      }
+    });
+    server.listen(port, '0.0.0.0', () => {
+      console.log(JSON.stringify({ level: 'info', message: 'Backstage placeholder running', port, version: '1.48.0' }));
+    });
+    process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
+
+  # package.json minimo para resolucao de workspaces pelo Helm chart
+  package.json: |
+    {
+      "name": "backstage",
+      "version": "1.48.0",
+      "private": true,
+      "workspaces": ["packages/*"],
+      "engines": { "node": ">=22.0.0" }
+    }
+
+---
+# =============================================================================
+# Job: Kaniko Build — constroi e faz push da imagem Backstage para o Harbor
+# Nota: hostAliases aponta harbor.staging.internal para staging-platform-harbor
+#       (IP 172.20.30.111) pois harbor-system tem Linkerd com cert expirado
+#       bloqueando conexoes sem mTLS de fora da mesh.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-backstage-build
+  namespace: staging-platform-backstage
+  labels:
+    app.kubernetes.io/name: backstage-build
+    app.kubernetes.io/part-of: platform
+    domain: platform
+    owner: platform-team
+    environment: staging
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backstage-build
+        app.kubernetes.io/part-of: platform
+        domain: platform
+        owner: platform-team
+        environment: staging
+      annotations:
+        # Desabilita injecao do Linkerd proxy — Jobs nao terminam com sidecar ativo
+        linkerd.io/inject: disabled
+    spec:
+      restartPolicy: Never
+      # Desabilita automount do SA token — Kaniko nao precisa de acesso a API do cluster
+      automountServiceAccountToken: false
+      # Override harbor.staging.internal DNS para usar staging-platform-harbor
+      # (sem Linkerd policy bloqueando conexoes sem mTLS)
+      hostAliases:
+        - ip: "172.20.30.111"
+          hostnames:
+            - "harbor.staging.internal"
+      containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:v1.23.2
+          args:
+            - "--dockerfile=/workspace/Dockerfile"
+            - "--context=dir:///workspace"
+            - "--destination=harbor.staging.internal/platform/backstage:1.48.0"
+            - "--destination=harbor.staging.internal/platform/backstage:latest"
+            - "--skip-tls-verify"
+            - "--skip-tls-verify-pull"
+            - "--insecure"
+            - "--insecure-pull"
+            - "--cache=false"
+            - "--log-format=json"
+            - "--verbosity=info"
+          env:
+            - name: DOCKER_CONFIG
+              value: /kaniko/.docker
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+              ephemeral-storage: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+              ephemeral-storage: "8Gi"
+          volumeMounts:
+            - name: dockerfile-volume
+              mountPath: /workspace
+            - name: registry-credentials
+              mountPath: /kaniko/.docker
+              readOnly: true
+      volumes:
+        - name: dockerfile-volume
+          configMap:
+            name: backstage-dockerfile
+        - name: registry-credentials
+          secret:
+            secretName: harbor-registry-secret
+            items:
+              - key: .dockerconfigjson
+                path: config.json
