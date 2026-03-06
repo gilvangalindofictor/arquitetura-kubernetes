@@ -55,8 +55,8 @@ module "loki_staging" {
   # Tags AWS (padrao do ambiente)
   tags = local.common_tags
 
-  # lifecycle para evitar drift de values apos importacao
-  # O modulo usa set{} blocks internamente, mas o helm_release.values pode diferir
-  # pois o release real tem valores extras (nodeSelector, chunksCache.allocatedMemory, etc.)
-  # que nao estao no modulo — esses sao IaC debt para reconciliar em PR subsequente.
+  # chunksCache.allocatedMemory: usa default do modulo (1024 MB)
+  # Drift reconciliado 2026-03-06: valor ja estava ativo no cluster desde
+  # importacao em 2026-03-05. terraform plan confirma "No changes".
+  # chunks_cache_allocated_memory omitido pois usa o default do modulo (1024).
 }

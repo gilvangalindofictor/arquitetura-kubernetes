@@ -860,11 +860,12 @@ resource "helm_release" "loki" {
     value = "observability"
   }
 
-  # chunksCache memory (aligned with kubectl patch applied 2026-03-05: 9830Mi→1024Mi)
-  # allocatedMemory in MB (Memcached -m flag)
+  # chunksCache memory (IaC debt reconciliado 2026-03-06: drift corrigido)
+  # allocatedMemory em MB (Memcached -m flag) — variavel chunks_cache_allocated_memory
+  # Valor confirmado ativo no cluster desde importacao 2026-03-05 (helm rev 18)
   set {
     name  = "chunksCache.allocatedMemory"
-    value = "1024"
+    value = var.chunks_cache_allocated_memory
   }
 
   # -----------------------------------------------------------------------------

@@ -104,6 +104,22 @@ variable "tags" {
 }
 
 # -----------------------------------------------------------------------------
+# Cache Configuration
+# -----------------------------------------------------------------------------
+
+variable "chunks_cache_allocated_memory" {
+  description = <<-EOT
+    Memória alocada para o chunksCache do Loki (Memcached -m flag), em MB.
+    Valor real medido no cluster: 1024 MB → 1229Mi de uso observado.
+    Aumentar se Loki reportar cache misses frequentes (loki_cache_miss_total).
+    Drift identificado 2026-03-06 e reconciliado: valor ativo no cluster desde
+    importação do helm_release em 2026-03-05.
+  EOT
+  type        = number
+  default     = 1024
+}
+
+# -----------------------------------------------------------------------------
 # Corporate Labels (ADR-048)
 # -----------------------------------------------------------------------------
 
