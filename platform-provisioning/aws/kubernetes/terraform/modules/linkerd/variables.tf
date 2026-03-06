@@ -186,6 +186,50 @@ variable "proxy_inject_namespaces" {
 }
 
 #------------------------------------------------------------------------------
+# Control Plane Scheduling — Race Condition Mitigation (2026-03-06)
+# Ref: Incidente CrashLoopBackOff exit 95 (linkerd-network-validator)
+#      Root cause: cluster autoscaler cria novo no ANTES do CNI configurar iptables
+#------------------------------------------------------------------------------
+
+variable "control_plane_node_selector" {
+  description = <<-EOT
+    NodeSelector adicional para pods do Linkerd control plane.
+    Pinnar nos nos 'system' garante que CP roda apenas em nos de longa vida
+    onde o CNI ja estah configurado — evita race condition com scale-up events.
+
+    Em staging: { "eks.amazonaws.com/nodegroup" = "system" }
+    Em producao: ajustar conforme node groups existentes.
+
+    Nota: O chart sempre adiciona 'kubernetes.io/os: linux' automaticamente.
+    Nao eh necessario incluir aqui.
+  EOT
+  type        = map(string)
+  default     = { "eks.amazonaws.com/nodegroup" = "system" }
+}
+
+variable "enable_pod_disruption_budget" {
+  description = <<-EOT
+    Habilita criacao de PodDisruptionBudgets para os componentes do control plane
+    (identity, destination, proxy-injector) via flag nativa do chart.
+    Garante disponibilidade durante manutencao mesmo com ha_mode=false.
+    Recomendado: true em staging e producao.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "enable_pod_anti_affinity" {
+  description = <<-EOT
+    Habilita anti-affinity preferencial entre pods do control plane via flag nativa do chart.
+    Distribui identity, destination e proxy-injector em nos diferentes (dentro dos system nodes),
+    reduzindo impacto de falha de um unico no.
+    Recomendado: true em staging e producao.
+  EOT
+  type        = bool
+  default     = true
+}
+
+#------------------------------------------------------------------------------
 # CNI Plugin
 #------------------------------------------------------------------------------
 

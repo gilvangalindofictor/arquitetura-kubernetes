@@ -220,6 +220,36 @@ resource "helm_release" "linkerd_control_plane" {
       issuer:
         issuanceLifetime: "24h0m0s"
         clockSkewAllowance: "20s"
+
+    # ==========================================================================
+    # MITIGACAO RACE CONDITION CNI (2026-03-06) — Incidente exit 95
+    # Root cause: linkerd-network-validator schedulado em no novo ANTES do
+    # CNI (linkerd-cni DaemonSet) configurar regras iptables.
+    # Fix: pinnar CP nos nos 'system' (long-lived, CNI sempre estavel).
+    # Ref: docs/logbook/2026-03-06-linkerd-crashloop-fix.md
+    # ==========================================================================
+
+    # MITIGACAO 1 — nodeSelector: CP apenas nos nos 'system'
+    # Nos system (t3.medium, min=2) nunca sao criados do zero durante operacao normal.
+    # O CNI ja esta configurado nesses nos -> linkerd-network-validator nao falha.
+    # control_plane_node_selector eh configuravel via variavel (override em producao).
+    nodeSelector:
+      kubernetes.io/os: linux
+      %{~for k, v in var.control_plane_node_selector~}
+      ${k}: "${v}"
+      %{~endfor~}
+
+    # MITIGACAO 2 — PodDisruptionBudget via flag nativa do chart
+    # Garante minAvailable=1 para identity, destination e proxy-injector.
+    # Previne que operacoes de manutencao (drain/upgrade de no) derrubem o CP inteiro.
+    # Usa flag nativa do chart (mais idiomatico que kubernetes_manifest externo).
+    enablePodDisruptionBudget: ${var.enable_pod_disruption_budget}
+
+    # MITIGACAO 3 — podAntiAffinity preferencial entre componentes do CP
+    # Distribui identity, destination e proxy-injector em nos diferentes
+    # (dentro dos system nodes), reduzindo impacto de falha de no unico.
+    # Usa preferredDuringSchedulingIgnoredDuringExecution (nao bloqueante).
+    enablePodAntiAffinity: ${var.enable_pod_anti_affinity}
   YAML
   ]
 
