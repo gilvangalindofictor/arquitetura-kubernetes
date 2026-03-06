@@ -172,6 +172,13 @@ redis:
 # GitLab Shell (SSH for Git over SSH)
 gitlab-shell:
   enabled: true
+  # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes
+  %{~ if length(workload_node_selector) > 0 ~}
+  nodeSelector:
+    %{~ for k, v in workload_node_selector ~}
+    ${k}: ${v}
+    %{~ endfor ~}
+  %{~ endif ~}
   service:
     type: LoadBalancer
     annotations:
@@ -183,6 +190,14 @@ gitlab:
   webservice:
     enabled: true
     replicaCount: ${replicas}
+    # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes (t3.large)
+    # webservice consumes ~1.922 GiB — was saturating system nodes (t3.medium, 92% mem)
+    %{~ if length(workload_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in workload_node_selector ~}
+      ${k}: ${v}
+      %{~ endfor ~}
+    %{~ endif ~}
 
     resources:
       requests:
@@ -210,6 +225,13 @@ gitlab:
   sidekiq:
     enabled: true
     replicaCount: 1
+    # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes
+    %{~ if length(workload_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in workload_node_selector ~}
+      ${k}: ${v}
+      %{~ endfor ~}
+    %{~ endif ~}
 
     # staging-rightsize 2026-03-05: reduced requests for staging scheduling (limits unchanged)
     resources:
@@ -222,6 +244,23 @@ gitlab:
 
     metrics:
       enabled: ${enable_monitoring}
+
+  # GitLab Exporter (metrics scraping)
+  # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes
+  %{~ if length(workload_node_selector) > 0 ~}
+  gitlab-exporter:
+    nodeSelector:
+      %{~ for k, v in workload_node_selector ~}
+      ${k}: ${v}
+      %{~ endfor ~}
+
+  # GitLab Migrations (DB migration jobs)
+  migrations:
+    nodeSelector:
+      %{~ for k, v in workload_node_selector ~}
+      ${k}: ${v}
+      %{~ endfor ~}
+  %{~ endif ~}
 
   # Gitaly (Git repository storage)
   # Note: gitlab.gitaly.enabled moved to global.gitaly.enabled (chart v8.7.0)

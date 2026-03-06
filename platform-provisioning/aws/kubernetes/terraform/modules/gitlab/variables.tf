@@ -179,6 +179,16 @@ variable "enable_monitoring" {
 }
 
 # =============================================================================
+# Node Scheduling
+# =============================================================================
+
+variable "workload_node_selector" {
+  description = "nodeSelector for GitLab application components (webservice, sidekiq, shell, exporter, migrations). Use to route app pods to dedicated workload nodes and keep system nodes available for platform components."
+  type        = map(string)
+  default     = {}
+}
+
+# =============================================================================
 # Common Tags
 # =============================================================================
 

@@ -365,6 +365,14 @@ module "gitlab_staging" {
   enable_oidc        = true
   ingress_group_name = "gitlab-staging"
 
+  # Node scheduling (AGENTE-TF-EQUALIZATION 2026-03-06)
+  # Route app components (webservice/sidekiq/shell/exporter/migrations) to workload nodes (t3.large)
+  # This prevents saturation of system nodes (t3.medium, 92% memory usage observed 2026-03-06)
+  # node-type label is set on all EKS node groups (system/workloads/critical)
+  workload_node_selector = {
+    "node-type" = "workloads"
+  }
+
   # Tags
   common_tags = local.common_tags
 }
@@ -2530,4 +2538,90 @@ module "linkerd" {
   # Habilitado quando namespaces ipaas/integration forem criados:
   #   proxy_inject_namespaces = ["staging-integration-ipaas", "staging-integration-workers"]
   proxy_inject_namespaces = []
+}
+
+#------------------------------------------------------------------------------
+# BACKSTAGE IDP — Developer Portal (ADR-055)
+# Equalizado: 2026-03-06 (implantado manualmente em 2026-03-05)
+# Recursos: Namespace, ClusterRole RBAC, Kyverno PolicyException, PDB,
+#           Vault Policy/Role, Vault KV secrets, ExternalSecret, Helm Release
+#
+# PREREQ: kubectl port-forward -n staging-security-vault svc/vault 8200:8200
+# IMPORT (namespace existente):
+#   terraform import module.backstage_staging.kubernetes_namespace.backstage staging-platform-backstage
+# IMPORT (ClusterRole existente):
+#   terraform import module.backstage_staging.kubernetes_cluster_role.backstage_kubernetes_reader backstage-kubernetes-reader
+# IMPORT (ClusterRoleBinding existente):
+#   terraform import module.backstage_staging.kubernetes_cluster_role_binding.backstage_kubernetes_reader backstage-kubernetes-reader
+# IMPORT (PDB existente):
+#   terraform import module.backstage_staging.kubernetes_pod_disruption_budget_v1.backstage_pdb staging-platform-backstage/backstage-pdb
+# IMPORT (Helm release existente):
+#   terraform import module.backstage_staging.helm_release.backstage staging-platform-backstage/backstage
+#
+# Secrets (passar via TF_VAR_xxx ou CI/CD secrets):
+#   TF_VAR_backstage_db_password
+#   TF_VAR_backstage_keycloak_client_secret
+#   TF_VAR_backstage_gitlab_token
+#   TF_VAR_backstage_argocd_token
+#   TF_VAR_backstage_sonarqube_token
+#   TF_VAR_backstage_auth_session_secret
+#------------------------------------------------------------------------------
+
+module "backstage_staging" {
+  source = "../../modules/backstage"
+
+  depends_on = [
+    module.external_secrets_staging,
+    module.vault_config_staging,
+    module.argocd_staging,
+  ]
+
+  # Cluster info
+  cluster_name   = local.cluster_name
+  aws_account_id = var.aws_account_id
+  aws_region     = var.aws_region
+  namespace      = "staging-platform-backstage"
+
+  # Backstage chart + image
+  backstage_chart_version  = "2.6.3"
+  backstage_image_tag      = "1.48.0"
+  backstage_image_registry = "harbor.staging.internal"
+  replicas                 = 1 # Staging M1: 1 replica aceito. M4: aumentar para 2 (HA)
+
+  # External service hosts
+  keycloak_host = "keycloak.staging.internal"
+  gitlab_host   = "gitlab.staging.internal"
+
+  # PostgreSQL RDS (shared — backstage database)
+  backstage_db_host     = "postgresql-external.default.svc.cluster.local"
+  backstage_db_user     = "backstage_user"
+  backstage_db_password = var.backstage_db_password
+  backstage_db_port     = 5432
+
+  # Keycloak OIDC (ADR-046)
+  backstage_keycloak_client_id     = "backstage"
+  backstage_keycloak_client_secret = var.backstage_keycloak_client_secret
+
+  # GitLab (ALTO-2: Group Access Token obrigatório)
+  backstage_gitlab_token = var.backstage_gitlab_token
+
+  # ArgoCD plugin
+  backstage_argocd_url   = "http://argocd-server.staging-platform-argocd.svc.cluster.local"
+  backstage_argocd_token = var.backstage_argocd_token
+
+  # SonarQube plugin
+  backstage_sonarqube_url   = "http://sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+  backstage_sonarqube_token = var.backstage_sonarqube_token
+
+  # Vault plugin (endereço interno do cluster)
+  backstage_vault_addr = "http://vault.staging-security-vault.svc.cluster.local:8200"
+
+  # EKS Cluster URL (Kubernetes plugin)
+  backstage_eks_cluster_url = data.aws_eks_cluster.cluster.endpoint
+
+  # Session secret
+  backstage_auth_session_secret = var.backstage_auth_session_secret
+
+  # Tags
+  common_tags = local.common_tags
 }
