@@ -55,6 +55,17 @@ provider "aws" {
   }
 }
 
+# Provider for sa-east-1 (LGPD compliance - FCT proposals bucket TASK-004)
+provider "aws" {
+  alias   = "sa_east_1"
+  region  = "sa-east-1"
+  profile = "k8s-platform-prod"
+
+  default_tags {
+    tags = local.common_tags
+  }
+}
+
 # Get EKS cluster info (shared cluster from Marco 1)
 data "aws_eks_cluster" "cluster" {
   name = local.cluster_name
@@ -159,6 +170,11 @@ module "rabbitmq_prod" {
 # S3 Buckets - PROD (30d lifecycle)
 module "s3_buckets_prod" {
   source = "../../modules/s3-buckets"
+
+  providers = {
+    aws           = aws
+    aws.sa_east_1 = aws.sa_east_1
+  }
 
   cluster_name   = local.cluster_name
   aws_account_id = var.aws_account_id

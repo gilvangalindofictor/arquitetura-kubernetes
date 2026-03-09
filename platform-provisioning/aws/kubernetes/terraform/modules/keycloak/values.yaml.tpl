@@ -15,7 +15,17 @@ podLabels:
   environment: staging
   owner: platform-team
 
+# FIX (2026-03-09): skip-outbound-ports=5432 para que wait-for-db (init container) possa
+# conectar ao PostgreSQL antes do Linkerd proxy estar ativo.
+# Root cause dos 646 restarts: wait-for-db bloqueado por iptables Linkerd sem esta annotation.
+podAnnotations:
+  config.linkerd.io/skip-outbound-ports: "5432"
+
 # Quarkus runtime arguments
+# NOTE (2026-03-09): --optimized NÃO pode ser usado com imagem vanilla quay.io/keycloak/keycloak.
+# Requer imagem customizada com `RUN kc.sh build` no Dockerfile.
+# Com imagem vanilla, Keycloak faz augmentation (~39s) a cada restart — normal e esperado.
+# O startupProbe window (170s) cobre o augmentation com margem de 4x.
 command:
   - "/opt/keycloak/bin/kc.sh"
   - "start"
@@ -111,14 +121,20 @@ postgresql:
 # Health endpoints exposed on HTTP port 8080 (KC_HTTP_MANAGEMENT_HEALTH_ENABLED=false)
 # Paths: /auth/health/ready, /auth/health/live (inherit http-relative-path prefix)
 # Requires: --health-enabled=true in command args
+#
+# FIX (2026-03-09): Window ajustado para 170s (vs 330s anterior).
+# Fluxo: augmentation (~39s) + startup JVM (~21s) = ~60s total observado.
+# Window: initialDelaySeconds=20 + (5s * 30) = 170s (margem 2.8x sobre 60s observado).
+# Root cause dos 646 restarts: wait-for-db bloqueado por Linkerd CNI sem skip-outbound-ports.
+# Fix: annotation config.linkerd.io/skip-outbound-ports=5432 no pod (via podAnnotations).
 startupProbe: |
   httpGet:
     path: /auth/health/ready
     port: 8080
-  initialDelaySeconds: 30
+  initialDelaySeconds: 20
   periodSeconds: 5
   timeoutSeconds: 5
-  failureThreshold: 60
+  failureThreshold: 30
 
 # Liveness probe (startupProbe gates liveness, so no initialDelaySeconds needed)
 livenessProbe: |
@@ -128,7 +144,7 @@ livenessProbe: |
   initialDelaySeconds: 0
   periodSeconds: 30
   timeoutSeconds: 5
-  failureThreshold: 5
+  failureThreshold: 3
 
 # Readiness probe
 readinessProbe: |
@@ -138,20 +154,29 @@ readinessProbe: |
   initialDelaySeconds: 0
   periodSeconds: 10
   timeoutSeconds: 5
-  failureThreshold: 5
+  failureThreshold: 3
 
-# Resources (unchanged from 17.x)
+# Resources — alinhados com consumo real observado + margem para Quarkus JVM warmup.
+# FIX (2026-03-09): Cluster estava com drift (200m/681Mi) vs TF (1000m/2Gi).
+# Ajustado para refletir uso real (CPU idle=4m, Memory=850Mi) com margem adequada.
+# CPU request elevado para 500m para reduzir throttling durante startup JVM.
 resources:
   requests:
-    cpu: 1000m
-    memory: 2Gi
+    cpu: 500m
+    memory: 1Gi
   limits:
     cpu: 2000m
-    memory: 4Gi
+    memory: 2Gi
 
 # Service configuration
 service:
   type: ClusterIP
+  # Corporate labels for Kyverno compliance (ADR-048)
+  labels:
+    domain: platform
+    owner: platform-team
+    environment: staging
+    app.kubernetes.io/part-of: k8s-platform
 
 # Tolerations (ADR-042 pattern: prefer system, fallback to critical)
 tolerations:
@@ -171,7 +196,7 @@ metrics:
   enabled: true
 serviceMonitor:
   enabled: true
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     release: prometheus
 %{ endif ~}

@@ -353,3 +353,40 @@ variable "hatch_etl_api_password" {
   sensitive   = true
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Alertmanager Teams Webhook URLs
+# Vault path: secret/monitoring/alertmanager
+# ESO ExternalSecret: alertmanager-teams-webhook (staging-observability-monitoring)
+# Note: Values are REPLACE_ placeholders; real URLs must be set manually in Vault
+#       after TF import. lifecycle { ignore_changes = [data_json] } prevents
+#       Terraform from overwriting URLs set directly in Vault.
+# Added: 2026-03-09 — migrate from manual Vault secret to TF-managed (Teams rename)
+# -----------------------------------------------------------------------------
+variable "alertmanager_teams_webhook_critical" {
+  description = "Microsoft Teams webhook URL for CRITICAL alerts"
+  type        = string
+  sensitive   = true
+  default     = "REPLACE_TEAMS_WEBHOOK_URL_CRITICAL"
+}
+
+variable "alertmanager_teams_webhook_warning" {
+  description = "Microsoft Teams webhook URL for WARNING alerts"
+  type        = string
+  sensitive   = true
+  default     = "REPLACE_TEAMS_WEBHOOK_URL_WARNING"
+}
+
+variable "alertmanager_teams_webhook_data_services" {
+  description = "Microsoft Teams webhook URL for DATA_SERVICES alerts"
+  type        = string
+  sensitive   = true
+  default     = "REPLACE_TEAMS_WEBHOOK_URL_DATA_SERVICES"
+}
+
+variable "alertmanager_teams_webhook_security" {
+  description = "Microsoft Teams webhook URL for SECURITY alerts"
+  type        = string
+  sensitive   = true
+  default     = "REPLACE_TEAMS_WEBHOOK_URL_SECURITY"
+}

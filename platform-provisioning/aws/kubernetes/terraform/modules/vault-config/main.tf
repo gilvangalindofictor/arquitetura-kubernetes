@@ -627,3 +627,46 @@ resource "vault_kv_secret_v2" "hatch_etl_api" {
     }
   }
 }
+
+# -----------------------------------------------------------------------------
+# Vault KV v2 — Alertmanager Microsoft Teams Webhook URLs
+# Vault path: secret/monitoring/alertmanager
+# ESO ExternalSecret: alertmanager-teams-webhook (staging-observability-monitoring)
+# Keys match ExternalSecret remoteRef.property names exactly.
+# Note: lifecycle.ignore_changes prevents TF from overwriting real webhook URLs
+#       after they are set directly in Vault (placeholder → real URL workflow).
+# Migration: 2026-03-09 — renamed from alertmanager-slack-webhook (Slack→Teams)
+#            Values updated from REPLACE_slack_webhook_* to REPLACE_TEAMS_WEBHOOK_URL_*
+# Import: terraform import module.vault_config_staging.vault_kv_secret_v2.alertmanager_teams_webhook secret/monitoring/alertmanager
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "alertmanager_teams_webhook" {
+  mount      = vault_mount.kv.path
+  name       = "monitoring/alertmanager"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    critical_webhook_url      = var.alertmanager_teams_webhook_critical
+    warning_webhook_url       = var.alertmanager_teams_webhook_warning
+    data_services_webhook_url = var.alertmanager_teams_webhook_data_services
+    security_webhook_url      = var.alertmanager_teams_webhook_security
+  })
+
+  # IMPORTANT: ignore_changes prevents TF from overwriting real URLs set directly in Vault.
+  # Real Teams webhook URLs are set via: kubectl exec vault-0 -- vault kv patch ...
+  # This resource only manages initial creation and key structure.
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+
+  custom_metadata {
+    max_versions = 10
+    data = {
+      managed_by   = "terraform"
+      service      = "alertmanager"
+      cluster      = var.cluster_name
+      namespace    = "staging-observability-monitoring"
+      webhook_type = "microsoft-teams"
+      migrated_at  = "2026-03-09"
+    }
+  }
+}
