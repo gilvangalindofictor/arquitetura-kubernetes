@@ -250,6 +250,17 @@ resource "helm_release" "linkerd_control_plane" {
     # (dentro dos system nodes), reduzindo impacto de falha de no unico.
     # Usa preferredDuringSchedulingIgnoredDuringExecution (nao bloqueante).
     enablePodAntiAffinity: ${var.enable_pod_anti_affinity}
+
+    # ==========================================================================
+    # FIX networkValidator (2026-03-09) — race condition scale-up
+    # Root cause: linkerd-network-validator tenta conectar no proxy outbound
+    # antes do CNI estar pronto no novo no — resulta em connection refused.
+    # Fix: pinnar connectAddr no loopback (127.0.0.1:4140) para evitar timeout
+    # durante inicializacao antes do CNI configurar regras iptables.
+    # Ref: docs/logbook/2026-03-06-linkerd-crashloop-fix.md
+    # ==========================================================================
+    networkValidator:
+      connectAddr: "127.0.0.1:4140"
   YAML
   ]
 

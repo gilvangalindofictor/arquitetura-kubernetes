@@ -199,7 +199,8 @@ resource "helm_release" "harbor" {
     aws_iam_role_policy_attachment.harbor,
     kubectl_manifest.harbor_postgresql_externalsecret, # V-003
     kubectl_manifest.harbor_admin_externalsecret,      # V-004
-    kubectl_manifest.harbor_redis_externalsecret       # V-005
+    kubectl_manifest.harbor_redis_externalsecret,      # V-005
+    kubectl_manifest.harbor_exporter_externalsecret    # IaC drift fix 2026-03-09
   ]
 
   timeout = 600 # 10 minutes
@@ -435,6 +436,68 @@ resource "kubectl_manifest" "harbor_redis_externalsecret" {
           secretKey = "REDIS_PASSWORD" # Key required by Harbor chart
           remoteRef = {
             key      = "secret/data/harbor/redis"
+            property = "password"
+          }
+        }
+      ]
+    }
+  })
+}
+
+# -----------------------------------------------------------------------------
+# ExternalSecret: Harbor Exporter DB Password (IaC drift fix 2026-03-09)
+# Vault path: secret/data/harbor/postgresql
+# Keys: HARBOR_DATABASE_PASSWORD, password
+# Target: harbor-exporter (K8s Secret in harbor namespace)
+# Context: harbor-exporter was using a hardcoded secret (wrong password).
+#          Manually patched to HarborPGa1ebc3ec41e9806a95af598cSvc.
+#          This ESO ensures the secret is sourced from Vault (same path as
+#          harbor-postgresql-credentials) — eliminates all hardcoded values.
+# Related: V-003 (harbor postgresql migration, 2026-02-24)
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "harbor_exporter_externalsecret" {
+  depends_on = [kubernetes_namespace.harbor]
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "harbor-exporter"
+      namespace = kubernetes_namespace.harbor.metadata[0].name
+      labels = {
+        "app.kubernetes.io/name"       = "harbor-exporter"
+        "app.kubernetes.io/managed-by" = "terraform"
+      }
+      annotations = {
+        description = "Harbor exporter DB credentials from Vault KV v2 (IaC drift fix 2026-03-09)"
+      }
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "vault-backend"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name           = "harbor-exporter"
+        creationPolicy = "Owner"
+        deletionPolicy = "Retain"
+      }
+      data = [
+        {
+          # Harbor exporter reads DB password via HARBOR_DATABASE_PASSWORD env var
+          secretKey = "HARBOR_DATABASE_PASSWORD"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
+            property = "password"
+          }
+        },
+        {
+          # Secondary key alias used by some chart versions
+          secretKey = "password"
+          remoteRef = {
+            key      = "secret/data/harbor/postgresql"
             property = "password"
           }
         }

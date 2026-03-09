@@ -53,3 +53,7 @@ tolerations:
   key: node-type
   operator: Equal
   value: workload
+- effect: NoSchedule
+  key: workload
+  operator: Equal
+  value: critical

@@ -3,7 +3,7 @@
 # Descricao: DaemonSet logging agent que coleta logs dos nodes e envia para Loki
 # Chart: grafana/promtail v6.16.6 (Promtail 3.0.0)
 # Sem IRSA: Promtail nao acessa AWS diretamente
-# Toleracoes: system + workload nodes (exceto database:NoSchedule)
+# Toleracoes: system + workload + critical nodes (cobre todos os nodegroups)
 # ADR-048: Corporate labels em todos os pods
 # -----------------------------------------------------------------------------
 
