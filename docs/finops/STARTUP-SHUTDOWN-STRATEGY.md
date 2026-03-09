@@ -557,9 +557,9 @@ aws eks tag-resource \
 
 | Alerta | Condição | Ação |
 |--------|----------|------|
-| **Nodes não startaram** | `kube_node_info < 7` às 08:15 BRT | Slack + Email DevOps |
+| **Nodes não startaram** | `kube_node_info < 7` às 08:15 BRT | Teams + Email DevOps |
 | **Nodes não pararam** | `kube_node_info > 0` às 18:15 BRT | Email FinOps Team |
-| **RDS ainda running** | RDS status = "available" às 18:30 BRT | Slack alert |
+| **RDS ainda running** | RDS status = "available" às 18:30 BRT | Teams alert |
 | **Lambda failure** | Lambda errors > 0 | PagerDuty |
 
 ### 9.3 Métricas de Sucesso

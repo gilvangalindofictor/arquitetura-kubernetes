@@ -86,7 +86,7 @@ Grafana Dashboard (visualizes)
   ↓
 Alertmanager (routes alerts)
   ↓
-Slack (#security-incidents, #platform-alerts)
+Teams (security-incidents, platform-alerts channels)
 ```
 
 **Files Created**:
@@ -111,13 +111,13 @@ Slack (#security-incidents, #platform-alerts)
 2. **Kubernetes CronJob** (runtime monitoring)
    - Schedule: `0 2 * * *` (2 AM UTC daily)
    - RBAC: ServiceAccount, Role (read serviceaccounts/backupstoragelocations), RoleBinding
-   - Slack webhook integration (configurable via Secret)
+   - Teams webhook integration (configurable via Secret)
    - Drift report JSON output
 
 3. **Runbook** (400+ lines)
    - Integration guide (GitLab CI + K8s CronJob)
    - Configuration reference (expected IRSA ARN, bucket names)
-   - Troubleshooting (drift detected, CronJob fails, Slack alerts)
+   - Troubleshooting (drift detected, CronJob fails, Teams alerts)
    - Maintenance schedule (weekly/monthly/quarterly)
 
 **Files Created**:

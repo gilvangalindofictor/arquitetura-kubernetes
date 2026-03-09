@@ -603,7 +603,7 @@ Implementar backup automático daily de Keycloak realms (JSON export) com storag
           description: "No successful Keycloak backup in last 24h"
   ```
 
-- [ ] **5.3** Slack notification webhook
+- [ ] **5.3** Teams notification webhook
   ```yaml
   # k8s/keycloak/backup-notification.yaml
   apiVersion: v1
@@ -614,28 +614,31 @@ Implementar backup automático daily de Keycloak realms (JSON export) com storag
   data:
     notify.sh: |
       #!/bin/bash
-      SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL}"
+      TEAMS_WEBHOOK_URL="${TEAMS_WEBHOOK_URL}"
       STATUS="${1:-success}"
       BACKUP_FILE="${2:-unknown}"
 
       if [ "$STATUS" = "success" ]; then
-        COLOR="good"
-        EMOJI=":white_check_mark:"
+        COLOR="00FF00"
+        EMOJI="✅"
       else
-        COLOR="danger"
-        EMOJI=":x:"
+        COLOR="FF0000"
+        EMOJI="❌"
       fi
 
-      curl -X POST "${SLACK_WEBHOOK_URL}" \
+      curl -X POST "${TEAMS_WEBHOOK_URL}" \
         -H "Content-Type: application/json" \
         -d @- <<EOF
       {
-        "attachments": [{
-          "color": "${COLOR}",
-          "title": "${EMOJI} Keycloak Backup ${STATUS}",
-          "fields": [
-            {"title": "Backup File", "value": "${BACKUP_FILE}", "short": true},
-            {"title": "Timestamp", "value": "$(date)", "short": true}
+        "@type": "MessageCard",
+        "@context": "https://schema.org/extensions",
+        "themeColor": "${COLOR}",
+        "summary": "${EMOJI} Keycloak Backup ${STATUS}",
+        "sections": [{
+          "activityTitle": "${EMOJI} Keycloak Backup ${STATUS}",
+          "facts": [
+            {"name": "Backup File", "value": "${BACKUP_FILE}"},
+            {"name": "Timestamp", "value": "$(date)"}
           ]
         }]
       }

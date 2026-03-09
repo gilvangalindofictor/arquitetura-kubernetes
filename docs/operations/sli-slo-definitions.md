@@ -294,12 +294,12 @@ route:
     - match:
         severity: warning
         alert_type: slo_violation
-      receiver: 'slack-sre'
+      receiver: 'teams-sre'
 
     # Saturation warnings
     - match:
         alert_type: saturation
-      receiver: 'slack-capacity'
+      receiver: 'teams-capacity'
 ```
 
 ### Critical Alerts (10 Alertas Obrigatórios)

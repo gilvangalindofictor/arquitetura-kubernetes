@@ -118,7 +118,8 @@ Adotar releases existentes via `terraform import` sem disruption de servico:
 - NAO executar sem aprovacao explicita
 
 **P1 MIGRADOS (Vault + ExternalSecret ATIVO):**
-- alertmanager-slack-webhook: SecretSynced True, ownerReference ESO OK
+
+- alertmanager-slack-webhook: SecretSynced True, ownerReference ESO OK (renomear para alertmanager-teams-webhook — ADR-103)
 - velero-repo-credentials: SecretSynced True
 
 **P1 VAULT OK (ExternalSecret pendente de aplicacao coordenada):**

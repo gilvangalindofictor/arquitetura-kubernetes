@@ -358,7 +358,7 @@ terraform apply
 5. Schedule monthly cost review meetings
 6. Update MEMORY.md with realized savings
 
-**Communication Template (Slack #platform-staging):**
+**Communication Template (Teams canal platform-staging):**
 ```
 📢 Staging RDS Automation Enabled
 
@@ -409,7 +409,7 @@ aws dynamodb update-item \
 
 **Alarm Actions:**
 - SNS topic: `finops-notifications-staging`
-- Notification channels: Email, Slack (via SNS webhook)
+- Notification channels: Email, Teams (via SNS webhook)
 - PagerDuty escalation: Critical alarms only (circuit breaker open)
 
 ### 3. SNS Notifications
@@ -583,7 +583,7 @@ aws logs filter-log-events \
 
 | Role | Contact | Availability |
 |------|---------|-------------|
-| **Primary On-Call** | DevOps Team | Slack #platform-staging (24/7) |
+| **Primary On-Call** | DevOps Team | Teams canal platform-staging (24/7) |
 | **FinOps Lead** | devops-team@company.com | Business hours |
 | **Emergency Escalation** | PagerDuty | Critical incidents only |
 

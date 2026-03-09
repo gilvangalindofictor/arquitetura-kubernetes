@@ -207,7 +207,7 @@ cleanup-all-2026-02-12.json                # Consolidated report
 - **Documentação**: [scripts/finops/README.md](scripts/finops/README.md)
 - **Detalhes Técnicos**: [docs/finops/FINOPS-AUTOMATION-IMPLEMENTATION-2026-02-12.md](docs/finops/FINOPS-AUTOMATION-IMPLEMENTATION-2026-02-12.md)
 - **Issues**: GitHub issues
-- **Slack**: #finops-automation
+- **Teams**: canal finops-automation
 
 ---
 

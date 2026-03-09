@@ -296,7 +296,7 @@ O cluster EKS k8s-platform-prod está **59% acima do orçamento** projetado no q
 **FinOps Team:**
 - Responsável: DevOps Lead
 - Email: gilvan.galindo@fctconsig.com.br
-- Slack: #finops-optimization
+- Teams: canal finops-optimization
 
 **Aprovações Necessárias:**
 - CTO: Savings Plans commitment >$1,000

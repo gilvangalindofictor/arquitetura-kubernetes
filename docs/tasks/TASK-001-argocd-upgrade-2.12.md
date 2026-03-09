@@ -287,7 +287,7 @@ Upgrade ArgoCD de v2.9.3 para v2.12+ e habilitar PKCE no Keycloak client para me
   - Adicionar seção: "Post-Upgrade: PKCE Habilitado em 2026-02-XX"
 
 - [ ] **6.3** Comunicar sucesso
-  - [ ] Slack #devops: "ArgoCD upgrade v2.12 completo, PKCE habilitado"
+  - [ ] Teams canal devops: "ArgoCD upgrade v2.12 completo, PKCE habilitado"
   - [ ] Email CTO: Resumo upgrade + security improvements
   - [ ] Wiki: Atualizar página "Platform Services Versions"
 

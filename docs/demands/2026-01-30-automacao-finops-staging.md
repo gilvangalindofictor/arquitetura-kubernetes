@@ -119,7 +119,7 @@ Scripts manuais já foram validados ([shutdown-marco2.sh](../../scripts/finops/s
 │     - STOP: ASG → 0 replicas, RDS → pause                  │
 │     - START: RDS → resume, ASG → replicas originais         │
 │  4. Aguardar health checks (pods Ready)                     │
-│  5. Notificar Slack/SNS                                     │
+│  5. Notificar Teams/SNS                                     │
 │  6. Registrar métricas (CloudWatch)                         │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -225,7 +225,7 @@ Scripts manuais já foram validados ([shutdown-marco2.sh](../../scripts/finops/s
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |-------|--------------|---------|-----------|
-| **Falha no startup (RDS timeout)** | 🟡 Média | 🔴 Alto | Retry 3x com backoff exponencial, alertas Slack |
+| **Falha no startup (RDS timeout)** | 🟡 Média | 🔴 Alto | Retry 3x com backoff exponencial, alertas Teams |
 | **Feriados não detectados** | 🟢 Baixa | 🟡 Médio | Cache local de feriados, fallback para lista estática |
 | **GitLab job perdido durante shutdown** | 🟢 Baixa | 🔴 Alto | Health check: bloquear shutdown se jobs ativos |
 | **Lambda timeout (300s)** | 🟢 Baixa | 🟡 Médio | Operações assíncronas, StepFunctions para fluxos longos |
@@ -272,7 +272,7 @@ if startup_failures >= 3:
 
 | Condição | Severidade | Ação |
 |----------|-----------|------|
-| Startup duration > 15 min | 🟡 Warning | Slack #finops-alerts |
+| Startup duration > 15 min | 🟡 Warning | Teams canal finops-alerts |
 | Startup failed 3x consecutivas | 🔴 Critical | PagerDuty on-call + disable automation |
 | BrasilAPI unreachable | 🟢 Info | Fallback para lista estática, log warning |
 
@@ -462,7 +462,8 @@ aws events disable-rule --name finops-startup-staging
 aws events disable-rule --name finops-shutdown-staging
 
 # Notificar equipe
-slack-cli send "#finops" "FinOps automation disabled - manual intervention required"
+# Notify via Teams (use curl with Teams webhook or teams-cli)
+# teams-notify canal finops "FinOps automation disabled - manual intervention required"
 ```
 
 ---

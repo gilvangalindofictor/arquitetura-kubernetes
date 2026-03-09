@@ -77,7 +77,7 @@ We will implement **multi-layer monitoring** for RDS PostgreSQL availability com
 │  │ - High Read/Write Latency (>50ms)                        │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │      ↓ SNS Topic (staging-rds-alerts)                           │
-│  Email / Slack / PagerDuty                                      │
+│  Email / Teams / PagerDuty                                      │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -94,7 +94,7 @@ We will implement **multi-layer monitoring** for RDS PostgreSQL availability com
 │  │ - PostgreSQLExporterDown (monitoring gap)                │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │      ↓ Alertmanager                                             │
-│  Slack / Email                                                  │
+│  Teams / Email                                                  │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -122,7 +122,7 @@ We will implement **multi-layer monitoring** for RDS PostgreSQL availability com
 
 **Resources:**
 - `aws_sns_topic`: Notification topic for RDS alerts
-- `aws_sns_topic_subscription`: Email subscriptions (expandable to Slack, PagerDuty)
+- `aws_sns_topic_subscription`: Email subscriptions (expandable to Teams, PagerDuty)
 - `aws_cloudwatch_metric_alarm` (6 alarms):
   - `staging-rds-instance-stopped` (CRITICAL)
   - `staging-rds-high-cpu` (WARNING)
@@ -255,17 +255,19 @@ kubectl apply -f domains/observability/infra/grafana/rds-monitoring-dashboard-co
 
 ### Design Decisions
 
-#### 1. SNS Topic Instead of Direct Slack Integration
+#### 1. SNS Topic Instead of Direct Integration
 
-**Decision:** Use SNS topic + email subscriptions (expandable to Slack/PagerDuty)
+**Decision:** Use SNS topic + email subscriptions (expandable to Teams/PagerDuty)
+
+> **Update 2026-03-06:** Platform notification strategy migrated from Slack to Microsoft Teams (ADR-103). SNS abstraction layer validates this design — no Terraform changes required to redirect to Teams via AWS Chatbot.
 
 **Rationale:**
 - SNS provides abstraction layer (change notification targets without Terraform changes)
-- Email subscriptions work immediately (no Slack app configuration required)
-- SNS → Slack integration can be added later via AWS Chatbot
+- Email subscriptions work immediately (no additional app configuration required)
+- SNS → Teams integration can be added later via AWS Chatbot
 - Cost-effective (1,000 free emails/month)
 
-**Alternative Considered:** Direct CloudWatch → Slack (Lambda)
+**Alternative Considered:** Direct CloudWatch → Teams (Lambda)
 - Rejected: Additional Lambda maintenance, cost, complexity
 
 #### 2. Threshold Values

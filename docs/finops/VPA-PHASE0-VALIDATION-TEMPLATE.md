@@ -244,17 +244,18 @@ vpa_recommendation_applied / vpa_recommendation_count
 sum(kube_pod_container_resource_requests_cpu_cores) / sum(vpa_recommendation_target_cpu)
 ```
 
-### Slack Notifications
+### Teams Notifications
 
-The script can send results to Slack for visibility:
+The script can send results to Microsoft Teams for visibility:
 
 ```bash
 # Set webhook URL before running
-SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." \
+TEAMS_WEBHOOK_URL="https://outlook.office.com/webhook/..." \
   bash scripts/finops/vpa-phase0-validation.sh
 ```
 
-Slack message includes:
+Teams message includes:
+
 - Status (success/warning/error)
 - Actual vs target savings
 - Link to full report
@@ -352,7 +353,7 @@ kubectl create job --from=cronjob/vpa-phase0-validation \
 - CronJob triggers automated validation
 - `vpa-phase0-validation.sh` runs
 - Report generated: `vpa-phase0-validation-report-20260227.md`
-- Slack notification sent
+- Teams notification sent
 
 ### Post-Validation (2026-02-27 to 2026-03-03)
 - Platform team reviews report

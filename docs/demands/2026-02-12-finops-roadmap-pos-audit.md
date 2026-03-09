@@ -140,12 +140,12 @@ aws configservice put-config-rule --config-rule '{
   }
 }'
 
-# 3. Create SNS Topic + Subscription (Slack webhook)
+# 3. Create SNS Topic + Subscription (Teams webhook)
 aws sns create-topic --name finops-orphan-alerts
 aws sns subscribe \
   --topic-arn arn:aws:sns:us-east-1:891377105802:finops-orphan-alerts \
   --protocol lambda \
-  --notification-endpoint arn:aws:lambda:us-east-1:891377105802:function:slack-notifier
+  --notification-endpoint arn:aws:lambda:us-east-1:891377105802:function:teams-notifier
 
 # 4. EventBridge Rule (Config compliance change → SNS)
 aws events put-rule \
@@ -169,7 +169,7 @@ aws events put-targets \
 **Critério Sucesso:**
 - [ ] Config Rule active
 - [ ] SNS topic configured
-- [ ] Test alert: Create dummy volume, wait 8 days, verify Slack notification
+- [ ] Test alert: Create dummy volume, wait 8 days, verify Teams notification
 
 **Savings:** Prevenção de R$ 1.000/ano futuros (baseado em taxa crescimento orphans)
 
@@ -182,7 +182,7 @@ aws events put-targets \
 **Problema:** R$ 31.024/ano salvos SEM comunicação formal ao CTO/CFO
 
 **Ação:**
-1. **Email/Slack CTO** com subject: "FinOps Wins: R$ 31.024/ano economizados"
+1. **Email/Teams CTO** com subject: "FinOps Wins: R$ 31.024/ano economizados"
 2. **Anexar:** [AWS-AUDIT-2026-02-11.md](../finops/AWS-AUDIT-2026-02-11.md)
 3. **Destacar:**
    - ✅ EKS 1.34 desde Dia 1 = R$ 25.920/ano
@@ -536,7 +536,7 @@ aws lambda add-permission \
 - EventBridge cron: Shutdown staging Segunda-Sexta 18:00 BRT
 - EventBridge cron: Startup staging Segunda-Sexta 08:00 BRT
 - Lambda health checks: Nodes Ready, RDS Available, GitLab /health
-- SNS notifications: Slack #finops-automation
+- SNS notifications: Teams canal finops-automation
 - Feriados Brasil: BrasilAPI integration
 
 **Workflow:**

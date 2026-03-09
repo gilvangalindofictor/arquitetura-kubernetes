@@ -94,7 +94,7 @@ Exceções (não migrar):
 ```
 secret/
   monitoring/
-    alertmanager         # Slack webhook URLs por canal
+    alertmanager         # Teams webhook URLs por canal
   velero/
     repo-credentials     # Restic repository encryption password
   gitlab/
@@ -159,7 +159,7 @@ ServiceAccount: `external-secrets-system/external-secrets` (via Kubernetes auth 
 | Secret | Prioridade | Vault | ExternalSecret Criado | ExternalSecret Aplicado | Observação |
 |--------|-----------|-------|----------------------|------------------------|------------|
 | vault-root-token | P0 | N/A | N/A | N/A | REVOGAR — não migrar |
-| alertmanager-slack-webhook | P1 | OK | OK | **ATIVO** | SecretSynced True |
+| alertmanager-teams-webhook | P1 | OK | OK | **ATIVO** | SecretSynced True |
 | velero-repo-credentials | P1 | OK | OK | **ATIVO** | SecretSynced True |
 | gitlab-postgresql-password | P1 | OK | OK | Pendente | Requer helm upgrade GitLab |
 | gitlab-root-password | P1 | OK | OK | Pendente | Requer helm upgrade GitLab |

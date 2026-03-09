@@ -93,7 +93,7 @@ Implementar a **automação de start/stop do ambiente Staging** conforme planeja
 - [ ] Prometheus Targets: ≥90% up
 
 **Rollback Automático se Falha:**
-- Notificar Slack/SNS com erro detalhado
+- Notificar Teams/SNS com erro detalhado
 - Manter nodes ligados para troubleshooting manual
 - Criar incident ticket automático (PagerDuty/Jira)
 
@@ -110,7 +110,7 @@ Lambda Function (shutdown/startup)
   ├─ Verificar exceções (workloads críticos)
   ├─ Executar AWS CLI (scale node groups, stop RDS)
   ├─ Aguardar health checks (startup)
-  └─ Notificar resultado (SNS → Slack)
+  └─ Notificar resultado (SNS → Teams)
 ```
 
 **Custo:** ~$0.50/mês (Lambda invocations + EventBridge)
@@ -213,7 +213,7 @@ Custom Controller (Go/Python)
 | **Node Critical Always-On** | +$15.00 | 1× t3.small 24/7 (GitLab, etc) |
 | **Lambda Executions** | +$0.50 | 44 invocations/mês (2×/dia × 22 dias) |
 | **CloudWatch Logs** | +$2.00 | Retention 7 dias |
-| **SNS Notifications** | +$0.10 | Alertas Slack |
+| **SNS Notifications** | +$0.10 | Alertas Teams |
 | **TOTAL ECONOMIA MENSAL** | **-$315.01** | |
 | **TOTAL ECONOMIA ANUAL** | **-$3.780.12** | |
 
@@ -241,7 +241,7 @@ Custom Controller (Go/Python)
 - [ ] Lambda function criada (Python 3.12)
 - [ ] EventBridge rules configurados (2 regras: shutdown 18:00, startup 08:00)
 - [ ] Health checks implementados (nodes, RDS, GitLab)
-- [ ] Notificações Slack configuradas (success + failure)
+- [ ] Notificações Teams configuradas (success + failure)
 - [ ] Teste manual: shutdown sexta 18:00 → startup segunda 08:00
 - [ ] Documentação: runbook troubleshooting
 

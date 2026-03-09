@@ -219,7 +219,7 @@ watch kubectl get pods -A | grep -E "(gitlab|keycloak|sonar)"
 
 ### Phase 5: Production Rollout (After Pilot Success)
 - Document lessons learned
-- Announce to dev team (Slack)
+- Announce to dev team (Teams)
 - Set up Grafana dashboard
 - Update MEMORY.md with realized savings
 
@@ -235,7 +235,7 @@ watch kubectl get pods -A | grep -E "(gitlab|keycloak|sonar)"
 - Startup duration > 5 min
 - Startup failures (any error)
 - Shutdown failures (any error)
-- Notifications: SNS → Email + Slack
+- Notifications: SNS → Email + Teams
 
 ### 3. SNS Notifications
 - Successful start/stop (daily)
@@ -361,7 +361,7 @@ terraform apply -var="enable_automation=false"
 | Role | Contact | Availability |
 |------|---------|-------------|
 | **Author** | FinOps Automation Team | devops-team@company.com |
-| **Primary On-Call** | DevOps Team | Slack #platform-staging (24/7) |
+| **Primary On-Call** | DevOps Team | Teams canal platform-staging (24/7) |
 | **Emergency Escalation** | PagerDuty | Critical incidents only |
 
 ---

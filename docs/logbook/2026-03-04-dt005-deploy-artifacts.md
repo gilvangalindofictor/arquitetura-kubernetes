@@ -5,14 +5,14 @@
 **Demanda**: DT-005 — Production Alerting
 **Cluster**: k8s-platform-prod (EKS 1.34, us-east-1)
 **Namespace**: staging-observability-monitoring
-**Status**: ARTEFATOS PRONTOS — aguardando Slack webhooks reais + deploy
+**Status**: ARTEFATOS PRONTOS — aguardando Teams webhooks reais + deploy (decisão 2026-03-06: Teams substituiu Slack, ADR-103)
 
 ---
 
 ## Resumo da Sessão
 
 Criação completa dos artefatos de deploy para a demanda DT-005. O objetivo é ativar
-37 alertas Prometheus + roteamento Slack com 4 canais no cluster de produção.
+37 alertas Prometheus + roteamento Teams com 4 canais no cluster de produção (ADR-103).
 
 Os artefatos de alerts YAML (`dt005-prometheus-rules.yaml`, `dt005-alertmanager-config.yaml`)
 estavam referenciados no contexto do projeto mas ainda não existiam no repositório.
@@ -30,7 +30,7 @@ Todos foram criados do zero nesta sessão.
 | `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` | ~200 | Config Alertmanager (referência/legado, com placeholders) |
 | `domains/observability/infra/alerts/dt005-alertmanager-config-crd.yaml` | ~250 | AlertmanagerConfig CRD (DEPLOY THIS — refs Secret para webhooks) |
 | `domains/observability/infra/helm/kube-prometheus-stack/alertmanager-values-patch.yaml` | ~95 | Helm overlay: CRD discovery, HA 2 replicas, gp3 storage |
-| `scripts/observability/configure-slack-webhooks.sh` | ~220 | Script interativo para configurar 4 Slack webhooks via K8s Secret |
+| `scripts/observability/configure-teams-webhooks.sh` | ~220 | Script interativo para configurar 4 Teams webhooks via K8s Secret |
 | `scripts/observability/deploy-dt005-alerts.sh` | ~200 | Script completo de deploy (validação + apply + verificação) |
 | `docs/runbooks/dt005-alerts-deployment.md` | ~350 | Runbook passo-a-passo: deploy, teste, troubleshooting, rollback |
 
@@ -124,15 +124,15 @@ root (default: slack-warning)
 
 ## Comandos Prontos para Deploy
 
-### Sequencia completa (quando Slack webhooks estiverem disponíveis)
+### Sequencia completa (quando Teams webhooks estiverem disponíveis — ADR-103)
 
 ```bash
-# 1. Configurar webhooks (substituir pelas URLs reais)
-./scripts/observability/configure-slack-webhooks.sh \
-  "https://hooks.slack.com/services/T.../B.../CRITICAL_TOKEN" \
-  "https://hooks.slack.com/services/T.../B.../WARNING_TOKEN" \
-  "https://hooks.slack.com/services/T.../B.../DATA_TOKEN" \
-  "https://hooks.slack.com/services/T.../B.../SECURITY_TOKEN"
+# 1. Configurar webhooks (substituir pelas URLs reais do Teams Incoming Webhook)
+./scripts/observability/configure-teams-webhooks.sh \
+  "https://outlook.office.com/webhook/TENANT/.../CRITICAL_URL" \
+  "https://outlook.office.com/webhook/TENANT/.../WARNING_URL" \
+  "https://outlook.office.com/webhook/TENANT/.../DATA_URL" \
+  "https://outlook.office.com/webhook/TENANT/.../SECURITY_URL"
 
 # 2. Deploy alertas
 ./scripts/observability/deploy-dt005-alerts.sh
@@ -149,7 +149,7 @@ kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n staging-o
 # http://localhost:9090/alerts -> buscar por dt005
 
 kubectl port-forward svc/kube-prometheus-stack-alertmanager 9093:9093 -n staging-observability-monitoring
-# http://localhost:9093 -> receivers: slack-critical, slack-warning, slack-data-services, slack-security
+# http://localhost:9093 -> receivers: teams-critical, teams-warning, teams-data-services, teams-security
 ```
 
 ### Apply individual (ja pode ser feito agora, sem webhooks)
@@ -160,7 +160,7 @@ NAMESPACE="staging-observability-monitoring"
 # PrometheusRules (nao requer webhooks)
 kubectl apply -f domains/observability/infra/alerts/dt005-prometheus-rules.yaml -n ${NAMESPACE}
 
-# AlertmanagerConfig CRD (requer Secret alertmanager-slack-webhooks)
+# AlertmanagerConfig CRD (requer Secret alertmanager-teams-webhooks)
 kubectl apply -f domains/observability/infra/alerts/dt005-alertmanager-config-crd.yaml -n ${NAMESPACE}
 ```
 
@@ -170,12 +170,12 @@ kubectl apply -f domains/observability/infra/alerts/dt005-alertmanager-config-cr
 
 | Item | Responsavel | Status |
 |---|---|---|
-| Criar 4 Slack apps/incoming webhooks no workspace da empresa | Eng. Plataforma / Slack Admin | Pendente |
-| Executar `configure-slack-webhooks.sh` com URLs reais | Eng. Plataforma | Pendente |
+| Criar 4 Teams Incoming Webhooks nos canais de alertas | Eng. Plataforma / Teams Admin | Pendente |
+| Executar `configure-teams-webhooks.sh` com URLs reais | Eng. Plataforma | Pendente |
 | Executar `deploy-dt005-alerts.sh` | Eng. Plataforma | Pendente |
 | Helm upgrade com `alertmanager-values-patch.yaml` | Eng. Plataforma | Pendente |
 | Validar alertas ativos no Prometheus UI | QA / SRE | Pendente |
-| Testar notificacao Slack via alerta simulado | SRE | Pendente |
+| Testar notificacao Teams via alerta simulado | SRE | Pendente |
 
 ---
 
@@ -198,4 +198,4 @@ kubectl apply -f domains/observability/infra/alerts/dt005-alertmanager-config-cr
 - PrometheusRules: `domains/observability/infra/alerts/dt005-prometheus-rules.yaml`
 - AlertmanagerConfig CRD: `domains/observability/infra/alerts/dt005-alertmanager-config-crd.yaml`
 - Helm patch: `domains/observability/infra/helm/kube-prometheus-stack/alertmanager-values-patch.yaml`
-- Scripts: `scripts/observability/configure-slack-webhooks.sh`, `scripts/observability/deploy-dt005-alerts.sh`
+- Scripts: `scripts/observability/configure-teams-webhooks.sh`, `scripts/observability/deploy-dt005-alerts.sh`

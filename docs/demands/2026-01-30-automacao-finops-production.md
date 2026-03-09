@@ -284,7 +284,7 @@ aws rds describe-db-snapshots \
 |-------|----------------------|------------|--------------------------|
 | **Falha startup** | 🟡 5% prob, R$ 3.600/ano | 🔴 10% prob, R$ 18.000/ano | Retry 5× (vs 3×), timeout 10 min (vs 5 min), alerta PagerDuty imediato |
 | **Data loss** | 🟢 2% prob, R$ 1.200/ano | 🔴 1% prob, R$ 50.000/ano | Snapshot RDS PRÉ-shutdown (RPO < 1h), health checks rigorosos (transações) |
-| **Shutdown bloqueado** | 🟢 5% prob (jobs GitLab) | 🟡 15% prob (transações ativas) | Grace period 15 min (vs 5 min), notificação Slack 30 min antes |
+| **Shutdown bloqueado** | 🟢 5% prob (jobs GitLab) | 🟡 15% prob (transações ativas) | Grace period 15 min (vs 5 min), notificação Teams 30 min antes |
 | **Uptime SLA breach** | 🟢 99.5% target | 🔴 99.9% target (43 min/mês) | Rollback automático < 5 min, circuit breaker 2 falhas (vs 3), monitoramento Synthetics |
 
 ### Plano de Contingência PROD
@@ -316,7 +316,7 @@ def automatic_rollback():
         send_pagerduty_alert(severity="critical", message="PROD startup failed - manual intervention required")
 
         # 4. Escalar para gerência (SLA breach iminente)
-        send_slack_escalation(channel="#prod-incidents", escalation_level="P1")
+        send_teams_escalation(channel="prod-incidents", escalation_level="P1")
 
         # 5. Preparar comunicação externa (clientes)
         prepare_status_page_update(status="investigating", eta="15 min")
@@ -349,7 +349,7 @@ aws rds restore-db-instance-from-db-snapshot \
 |---------|-------------------|------|
 | `finops.prod.startup.duration` | > 10 min | Rollback automático + PagerDuty |
 | `finops.prod.sla.availability` | < 99.9% (43 min/mês) | Escalar gerência + disable automation |
-| `finops.prod.transactions.blocked` | > 0 (shutdown bloqueado) | Alerta Slack + investigar carga noturna |
+| `finops.prod.transactions.blocked` | > 0 (shutdown bloqueado) | Alerta Teams + investigar carga noturna |
 | `finops.prod.revenue.impact` | > R$ 1.000 (downtime × taxa) | Comunicação externa + status page |
 
 ### Dashboard Grafana "PROD FinOps Critical"

@@ -1222,11 +1222,11 @@ go test -v -run TestKMSKeyRotationEnabled
 **Status**: PENDENTE — Aguardando configuração de webhook Teams
 **Prioridade:** P2
 **Decisão:** ~~Slack~~ -> **Microsoft Teams** (decisão 2026-03-06) | **Referência:** ADR-103
-**Bloqueador:** URL do webhook Teams não configurada (secret `alertmanager-slack-webhook` tem valores `REPLACE`)
+**Bloqueador:** URL do webhook Teams não configurada (secret `alertmanager-teams-webhook` tem valores `REPLACE`)
 **Esforço**: S (atualizar secret + AlertmanagerConfig receiver)
 **Plano**: Marco 5 (observability completa)
 
-**Contexto (confrontação 2026-03-05):** 4 PrometheusRules ativas no cluster (6d3h), AlertmanagerConfig deployada, secret `alertmanager-slack-webhook` existe com 4 chaves (critical/warning/data-services/security) — todos com valor `REPLACE`. Routing configurado corretamente; falta apenas a URL real do Teams.
+**Contexto (confrontação 2026-03-05):** 4 PrometheusRules ativas no cluster (6d3h), AlertmanagerConfig deployada, secret `alertmanager-teams-webhook` existe com 4 chaves (critical/warning/data-services/security) — todos com valor `REPLACE`. Routing configurado corretamente; falta apenas a URL real do Teams.
 
 **37 alertas implementados** em 4 grupos PrometheusRule:
 
@@ -1240,7 +1240,7 @@ go test -v -run TestKMSKeyRotationEnabled
 
 **Arquivos existentes**:
 - `domains/observability/infra/alerts/dt005-prometheus-rules.yaml` — PrometheusRule CRDs (4 grupos)
-- `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` — Alertmanager routing (atualizar: receiver slack -> msteams webhook)
+- `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` — Alertmanager routing (atualizar: receiver para webhook_configs HTTP Teams)
 - `domains/observability/infra/helm/kube-prometheus-stack/values.yaml` — Atualizado
 - 17 runbooks em `domains/observability/docs/runbooks/`
 
@@ -1251,8 +1251,8 @@ go test -v -run TestKMSKeyRotationEnabled
 - [x] PrometheusRule CRDs para Prometheus Operator
 - [x] ~~`kubectl apply -f domains/observability/infra/alerts/`~~ — ATIVO (dt005-*-alerts 6d3h em staging-observability-monitoring)
 - [ ] Obter URL do webhook do canal Teams de alertas (equipe responsável)
-- [ ] Atualizar secret `alertmanager-slack-webhook` com URL real Teams (ou criar `alertmanager-teams-webhook`)
-- [ ] Atualizar AlertmanagerConfig: receiver `slack_api_url` -> `webhook_configs` HTTP Teams
+- [ ] Criar secret `alertmanager-teams-webhook` com URL real Teams (remover `alertmanager-slack-webhook` legado)
+- [ ] Atualizar AlertmanagerConfig: substituir receiver por `webhook_configs` HTTP apontando para URL Teams
 - [ ] Validar entrega de alertas financeiros (WAFHighBlockRate, etc.) no canal Teams
 **Impacto:** Alertas de plataforma e financeiros não chegam a nenhum destino enquanto pendente
 

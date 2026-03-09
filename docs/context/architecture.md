@@ -487,7 +487,7 @@ Lambda finops-scheduler-{environment}
   ├─ 4. START: RDS resume, ASG restore, wait for Ready
   ├─ 5. Circuit breaker (DynamoDB state, PROD: 2 falhas, STAGING: 3 falhas)
   ├─ 6. Snapshot RDS (PROD: pré-shutdown, STAGING: não)
-  └─ 7. Métricas CloudWatch + notificações Slack/PagerDuty
+  └─ 7. Métricas CloudWatch + notificações Teams/PagerDuty
          ↓
 AWS Resources (environment-specific)
   ├─ Auto Scaling Groups (node groups regular/production)
@@ -509,7 +509,7 @@ AWS Resources (environment-specific)
 | **SLA**               | 99.5% (8h-18h)        | 99.9% (7h-0h)                              |
 | **Circuit Breaker**   | 3 falhas              | 2 falhas (mais sensível)                   |
 | **Snapshot RDS**      | Não                   | Sim (pré-shutdown, RPO < 1h)               |
-| **Notificação Falha** | Slack                 | PagerDuty + Slack                          |
+| **Notificação Falha** | Teams                 | PagerDuty + Teams                          |
 
 ---
 
@@ -661,7 +661,7 @@ def production_health_checks():
 2. **FinOps PROD Critical:** SLA 99.9%, revenue impact, startup duration, rollback automático
 
 **Alertas:**
-- STAGING: Startup > 15min (warning), 3 falhas consecutivas (critical + Slack)
+- STAGING: Startup > 15min (warning), 3 falhas consecutivas (critical + Teams)
 - PROD: Startup > 10min (PagerDuty), 2 falhas (rollback automático + PagerDuty P1)
 
 ---

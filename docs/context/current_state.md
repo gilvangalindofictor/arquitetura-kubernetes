@@ -159,7 +159,7 @@
 
 **Próximos passos (manual)**:
 - go mod tidy && make test-all (DT-003 validação)
-- Configurar Slack webhooks reais para alertas (DT-005)
+- Configurar Teams webhooks reais para alertas (DT-005 — decisão 2026-03-06: Teams substituiu Slack, ADR-103)
 - Testar login Grafana com nova senha via port-forward
 
 **Grafana Pod Pending 18h + Cluster Autoscaler Fix (2026-02-20)**:
@@ -345,12 +345,13 @@
 | Data Services  | 12      | 6 (PostgreSQLDown, PostgreSQLConnectionsHigh, RedisDown, RabbitMQDown, etc.) | 6       |
 | Security       | 6       | 3 (CertificateExpiring, VaultSealed, ExternalSecretSyncFailure)              | 3       |
 
-**Alertmanager Routing**: ✅ 4 canais Slack (#alerts-critical, #alerts-warning, #alerts-data-services, #alerts-security) — webhooks placeholder
+**Alertmanager Routing**: ✅ 4 canais Teams (alerts-critical, alerts-warning, alerts-data-services, alerts-security) — webhooks placeholder (decisão 2026-03-06: Teams substituiu Slack, ADR-103)
 **Runbooks**: ✅ 17 documentos em `domains/observability/docs/runbooks/` (template: Triage > Diagnostic > Mitigation > Post-Mortem)
 **ruleSelector Fix**: ✅ BUG CRITICAL corrigido — label `kube-prometheus-stack-prometheus` (sem esse fix: 0/34 alertas descobertos)
 
 **Pendente**:
-- [ ] Configurar Slack webhooks reais (substituir placeholders)
+
+- [ ] Configurar Teams webhooks reais (substituir placeholders) — ADR-103
 - [ ] Validar primeiro disparo de alertas
 
 ---
@@ -538,7 +539,7 @@ go mod tidy && make test-all
 
 5. ✅ **Alertas Básicos (Observability)** - Severidade: MEDIUM — **IMPLEMENTADO (DT-005, 2026-02-20)**
    - 37 alertas PrometheusRule + 17 runbooks
-   - **Pendente**: Configurar Slack webhooks + `kubectl apply`
+   - **Pendente**: Configurar Teams webhooks + `kubectl apply` (ADR-103)
 
 ---
 
@@ -549,7 +550,7 @@ go mod tidy && make test-all
 - [ ] **V-002 HIGH**: Criar ExternalSecrets para ArgoCD PostgreSQL + OIDC
 - [ ] DT-001: Verificar subnet group RDS → `terraform apply`
 - [ ] DT-003: `cd test/ && go mod tidy && make test-all`
-- [ ] DT-005: Configurar Slack webhooks → `kubectl apply -f domains/observability/infra/alerts/`
+- [ ] DT-005: Configurar Teams webhooks → `kubectl apply -f domains/observability/infra/alerts/` (ADR-103)
 - [ ] DT-004: `terraform plan` para Multi-AZ production
 
 **Marco 4 - CI/CD Completa** (98% completo):

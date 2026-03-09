@@ -1357,7 +1357,7 @@ Ambiente **PRODUCTION** (quando em operação) precisa estar disponível durante
 | **SLA**               | 99.5% (8h-18h)       | 99.9% (7h-0h)                              |
 | **Circuit Breaker**   | 3 falhas             | 2 falhas (mais sensível)                   |
 | **Snapshot RDS**      | Não                  | Sim (pré-shutdown, RPO < 1h)               |
-| **Notificação Falha** | Slack                | PagerDuty + Slack                          |
+| **Notificação Falha** | Teams                | PagerDuty + Teams                          |
 
 **Node Groups Strategy PROD:**
 
@@ -1490,7 +1490,7 @@ def production_pre_shutdown_health_checks():
     pending_messages = check_rabbitmq_queue_depth()
     if pending_messages > 100:
         logger.warning(f"{pending_messages} pending messages in RabbitMQ - POSTPONING shutdown")
-        notify_slack(channel="#prod-alerts", message=f"PROD shutdown postponed: {pending_messages} pending messages")
+        notify_teams(channel="prod-alerts", message=f"PROD shutdown postponed: {pending_messages} pending messages")
         return False
 
     # 4. Verificar jobs GitLab CI/CD
@@ -1589,8 +1589,8 @@ def production_automatic_rollback():
         )
 
         # 4. Escalar para gerência (SLA breach iminente)
-        send_slack_escalation(
-            channel="#prod-incidents",
+        send_teams_escalation(
+            channel="prod-incidents",
             message="PRODUCTION startup failed 2×. Manual recovery in progress. ETA 15 min.",
             mention=["@oncall", "@tech-lead", "@product-owner"]
         )
@@ -2051,7 +2051,7 @@ Mesmo com shutdown completo (ASG scale to 0), estes custos persistem:
 **Workflows Planejados:**
 - `.github/workflows/infra-shutdown.yml` → Cron: 22:00 UTC (19h BRT) Mon-Fri
 - `.github/workflows/infra-startup.yml` → Cron: 11:00 UTC (8h BRT) Mon-Fri
-- Notifications: Slack `#infrastructure` channel
+- Notifications: Teams `Infrastructure` channel
 - Fallback: Manual trigger via `workflow_dispatch`
 
 **Economia Automação Q2 2026:** $324.21/mês ($3,890.52/ano) com 8h/dia uptime

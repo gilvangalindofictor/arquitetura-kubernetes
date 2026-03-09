@@ -809,7 +809,7 @@ jobs:
           role-to-assume: arn:aws:iam::891377105802:role/GithubActionsRole
           aws-region: us-east-1
       - run: ./scripts/down.sh
-      - uses: actions/slack-notification@v1  # Notificar equipe
+      - uses: actions/teams-notification@v1  # Notificar equipe
         with:
           message: "☑️ Infraestrutura desligada - Economia: $16.77/dia"
 
@@ -830,7 +830,7 @@ jobs:
           aws-region: us-east-1
       - run: ./scripts/up.sh
       - run: ./scripts/health-check.sh
-      - uses: actions/slack-notification@v1
+      - uses: actions/teams-notification@v1
         with:
           message: "✅ Infraestrutura operacional - Grafana: http://..."
 ```
@@ -870,7 +870,7 @@ jobs:
 
 #### Fase 2 - Produção (GitHub Actions Automatizado)
 - ✅ **Automação completa:** Workflows scheduled (startup 8h, shutdown 19h)
-- ✅ **Notificações:** Slack/Email quando infraestrutura sobe/desce
+- ✅ **Notificações:** Teams/Email quando infraestrutura sobe/desce
 - ✅ **Auditoria:** GitHub Actions logs centralizados
 - ✅ **Fallback:** Manual trigger via workflow_dispatch
 - ✅ **Economia produção:** $176.84/mês (24/5 com shutdown noturno)
@@ -936,7 +936,7 @@ cd platform-provisioning/aws/kubernetes/terraform
 - Workflow: `.github/workflows/infra-shutdown.yml` (cron: 22:00 UTC)
 - Workflow: `.github/workflows/infra-startup.yml` (cron: 11:00 UTC)
 - IAM Role: `GithubActionsRole` com policies `AmazonEKSClusterPolicy`, `AutoScalingFullAccess`
-- Notifications: Slack webhook `#infrastructure` channel
+- Notifications: Teams Incoming Webhook `Infrastructure` channel
 
 ### Custos Fixos Inevitáveis (Always On)
 
@@ -966,7 +966,7 @@ Mesmo com shutdown completo, custos que persistem:
 **Q2 2026 (Fase 2 - Automação):**
 - [ ] GitHub Actions workflows (startup/shutdown)
 - [ ] IAM Role para GitHub Actions (OIDC)
-- [ ] Slack notifications integradas
+- [ ] Teams notifications integradas
 - [ ] Fallback automático (health check failure → rollback)
 - [ ] Dashboard economia (CloudWatch metrics)
 
@@ -1086,7 +1086,7 @@ Adotar **Kubernetes Operators** (Spotahome Redis Operator + RabbitMQ Cluster Ope
 **Mitigações:**
 - ✅ Documentação oficial excelente (ambos Operators)
 - ✅ POC em ambiente dev antes Sprint 1 (4h validação)
-- ✅ Comunidades ativas (Slack, GitHub Discussions)
+- ✅ Comunidades ativas (GitHub Discussions, fóruns oficiais)
 - ✅ Runbooks operacionais (failover, backups, troubleshooting)
 
 ### Impacto no Planejamento Quickstart
@@ -1339,7 +1339,7 @@ TOTAL:       R$ 60.408/ano desperdiçados ❌
 
 4. **Circuit Breaker:**
    - Threshold: 3 falhas consecutivas
-   - Notificação: Slack #finops-alerts
+   - Notificação: Teams canal finops-alerts
    - Recovery: Manual via runbook
 
 ---
@@ -1364,7 +1364,7 @@ TOTAL:       R$ 60.408/ano desperdiçados ❌
 
 4. **Circuit Breaker:**
    - Threshold: 2 falhas consecutivas (mais sensível que STAGING)
-   - Notificação: PagerDuty P1 + Slack #prod-incidents
+   - Notificação: PagerDuty P1 + Teams canal prod-incidents
    - Recovery: Rollback AUTOMÁTICO (< 5 min)
 
 5. **Rollback Automático:**
@@ -1387,7 +1387,7 @@ TOTAL:       R$ 60.408/ano desperdiçados ❌
 | **SLA**             | 99.5% (8h-18h)        | 99.9% (7h-0h)                               |
 | **Circuit Breaker** | 3 falhas              | 2 falhas (mais sensível)                    |
 | **Snapshot RDS**    | Não                   | Sim (pré-shutdown, RPO < 1h)                |
-| **Notificação**     | Slack                 | PagerDuty P1 + Slack                        |
+| **Notificação**     | Teams                 | PagerDuty P1 + Teams                        |
 | **Investimento**    | R$ 3.000 (10h dev)    | R$ 1.500 (5h incremental)                   |
 | **Economia Anual**  | R$ 4.320              | R$ 9.360                                    |
 | **ROI Year 1**      | 44%                   | 521%                                        |
@@ -1415,7 +1415,7 @@ TOTAL:       R$ 60.408/ano desperdiçados ❌
 2. **Integração Nativa AWS:**
    - IAM roles (IRSA pattern consistente)
    - CloudWatch Logs/Metrics (observabilidade zero-config)
-   - SNS notifications (Slack/PagerDuty)
+   - SNS notifications (Teams/PagerDuty)
 
 3. **Simplicidade Operacional:**
    - Zero infraestrutura adicional (sem EC2, containers)
@@ -1474,7 +1474,7 @@ ECONOMIA BRL (taxa 6.0):              R$ 4.320/ano
 │     STOP:  ASG min=0, RDS pause, scale operators to 0       │
 │     START: RDS resume, ASG restore min=2, wait Ready        │
 │  4. Circuit breaker tracking (DynamoDB)                     │
-│  5. Métricas CloudWatch + notificação Slack/PagerDuty       │
+│  5. Métricas CloudWatch + notificação Teams/PagerDuty       │
 │  6. Timeout: 300s (5 min max execution)                     │
 └─────────────────────────────────────────────────────────────┘
          │                  │                  │
@@ -1587,12 +1587,12 @@ ECONOMIA BRL (taxa 6.0):              R$ 4.320/ano
 
 **Alertas:**
 
-| Condição                       | Severidade | Destino              | Ação                                                        |
-| ------------------------------ | ---------- | -------------------- | ----------------------------------------------------------- |
-| Startup duration > 15 min      | 🟡 Warning  | Slack #finops-alerts | Investigar performance RDS/nodes                            |
-| Startup failed 3× consecutivas | 🔴 Critical | PagerDuty on-call    | Circuit breaker ativado, disable automation, startup manual |
-| BrasilAPI unreachable          | 🟢 Info     | CloudWatch Logs      | Fallback para lista estática, continuar operação            |
-| Cost savings < $2/dia          | 🟡 Warning  | Slack #finops        | Validar uptime real vs esperado                             |
+| Condição                       | Severidade  | Destino                   | Ação                                                        |
+| ------------------------------ | ----------- | ------------------------- | ----------------------------------------------------------- |
+| Startup duration > 15 min      | 🟡 Warning  | Teams canal finops-alerts | Investigar performance RDS/nodes                            |
+| Startup failed 3× consecutivas | 🔴 Critical | PagerDuty on-call         | Circuit breaker ativado, disable automation, startup manual |
+| BrasilAPI unreachable          | 🟢 Info     | CloudWatch Logs           | Fallback para lista estática, continuar operação            |
+| Cost savings < $2/dia          | 🟡 Warning  | Teams canal finops        | Validar uptime real vs esperado                             |
 
 ### Custo-Benefício Detalhado
 
@@ -7240,7 +7240,8 @@ Implementar **34 alertas** em 4 grupos PrometheusRule:
 | Security       | 6       | 3 Critical     | CertificateExpiring, VaultSealed              |
 
 **Alertmanager Routing**:
-- 4 canais Slack: `#alerts-critical`, `#alerts-warning`, `#alerts-data-services`, `#alerts-security`
+
+- 4 canais Teams: alerts-critical, alerts-warning, alerts-data-services, alerts-security (ADR-103)
 - Inhibit rules: Warning suppressed por Critical do mesmo recurso
 - Repeat interval: Critical 4h, Warning 12h
 
@@ -7267,7 +7268,7 @@ Implementar **34 alertas** em 4 grupos PrometheusRule:
 ```bash
 kubectl apply -f domains/observability/infra/alerts/
 alertmanagerconfig.monitoring.coreos.com/dt005-alertmanager-config created
-secret/alertmanager-slack-webhook created
+secret/alertmanager-teams-webhook created
 prometheusrule.monitoring.coreos.com/dt005-application-alerts created
 prometheusrule.monitoring.coreos.com/dt005-data-services-alerts created
 prometheusrule.monitoring.coreos.com/dt005-infrastructure-alerts created
@@ -7289,14 +7290,16 @@ dt005-security-alerts         2m
 - ✅ MTTR target: <5min (alerting automático)
 - ✅ Coverage: 34 alertas críticos/warning
 - ✅ Runbooks: playbooks operacionais prontos
-- ✅ Slack integration: notificação em tempo real (webhooks placeholder)
+- ✅ Teams integration: notificação em tempo real (webhooks placeholder — ADR-103)
 
 **Negativas**:
-- ⚠️ Slack webhooks: placeholders (requer configuração real)
+
+- ⚠️ Teams webhooks: placeholders (requer configuração real — ADR-103)
 - ⚠️ Alert tuning: thresholds podem gerar false positives (ajustar após 7 dias observação)
 
 **Próximos Passos**:
-1. Configurar Slack webhooks reais
+
+1. Configurar Teams webhooks reais (ADR-103)
 2. Observar alertas por 7 dias (tuning)
 3. Adicionar alerts para GAP-005/006/007 (GitLab CI/CD, ApplicationSets)
 

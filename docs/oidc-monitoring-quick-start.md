@@ -8,7 +8,7 @@
 
 ## What Is This?
 
-A monitoring system that continuously watches your Keycloak, GitLab, and ArgoCD logs for OIDC authentication errors and alerts you via Slack when problems are detected.
+A monitoring system that continuously watches your Keycloak, GitLab, and ArgoCD logs for OIDC authentication errors and alerts you via Microsoft Teams when problems are detected.
 
 **Detects:**
 - Login failures
@@ -20,7 +20,8 @@ A monitoring system that continuously watches your Keycloak, GitLab, and ArgoCD 
 - And more...
 
 **Alerts:**
-- Slack notifications when errors exceed threshold (default: 10/hour)
+
+- Microsoft Teams notifications when errors exceed threshold (default: 10/hour)
 - Detailed JSON reports with error samples
 - Daily summary reports
 
@@ -28,26 +29,27 @@ A monitoring system that continuously watches your Keycloak, GitLab, and ArgoCD 
 
 ## Installation (3 Steps)
 
-### Step 1: Get Slack Webhook (Optional, 2 minutes)
+### Step 1: Get Teams Incoming Webhook (Optional, 2 minutes)
 
-1. Go to https://api.slack.com/messaging/webhooks
-2. Click "Create New Webhook"
-3. Select channel (e.g., `#platform-alerts`)
-4. Copy webhook URL: `https://hooks.slack.com/services/YOUR/WEBHOOK/URL`
+1. Open Microsoft Teams and navigate to the target channel (e.g., `Platform Alerts`)
+2. Click the `...` (More options) next to the channel name → **Connectors**
+3. Search for **Incoming Webhook** and click **Configure**
+4. Give the webhook a name (e.g., `OIDC Monitor`) and click **Create**
+5. Copy the generated webhook URL: `https://outlook.office.com/webhook/<tenant-id>/...`
 
-Skip this step if you don't want Slack alerts (monitoring will still work and save reports).
+Skip this step if you don't want Teams alerts (monitoring will still work and save reports).
 
 ### Step 2: Deploy (1 minute)
 
 ```bash
 cd /home/gilvangalindo/projects/Arquitetura/Kubernetes
 
-# With Slack alerts
+# With Teams alerts
 ./scripts/deploy-oidc-monitor.sh \
-  --slack-webhook https://hooks.slack.com/services/YOUR/WEBHOOK/URL \
+  --teams-webhook https://outlook.office.com/webhook/YOUR/WEBHOOK/URL \
   --test
 
-# Without Slack (configure later)
+# Without Teams (configure later)
 ./scripts/deploy-oidc-monitor.sh --test
 ```
 
@@ -130,11 +132,11 @@ kubectl patch cronjob oidc-monitor-hourly -n monitoring \
   -p '{"spec":{"schedule":"0 */4 * * *"}}'
 ```
 
-### Update Slack Webhook
+### Update Teams Webhook
 
 ```bash
-kubectl create secret generic oidc-monitor-slack \
-  --from-literal=webhook-url='https://hooks.slack.com/services/NEW/WEBHOOK/URL' \
+kubectl create secret generic oidc-monitor-teams \
+  --from-literal=webhook-url='https://outlook.office.com/webhook/NEW/WEBHOOK/URL' \
   --namespace=monitoring \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
@@ -171,11 +173,11 @@ kubectl logs -n monitoring job/$LAST_JOB
 - RBAC permissions issue
 - PVC not mounted
 
-### Slack Alerts Not Working
+### Teams Alerts Not Working
 
 **Test webhook:**
 ```bash
-WEBHOOK=$(kubectl get secret -n monitoring oidc-monitor-slack -o jsonpath='{.data.webhook-url}' | base64 -d)
+WEBHOOK=$(kubectl get secret -n monitoring oidc-monitor-teams -o jsonpath='{.data.webhook-url}' | base64 -d)
 curl -X POST -H 'Content-type: application/json' --data '{"text":"Test"}' "$WEBHOOK"
 ```
 
@@ -220,7 +222,7 @@ kubectl set env cronjob/oidc-monitor-hourly -n monitoring \
 
 ---
 
-## Sample Slack Alert
+## Sample Teams Alert
 
 When errors exceed the threshold, you'll receive an alert like this:
 
@@ -396,7 +398,7 @@ Then update the ConfigMap:
 
 **Questions?** Check the [troubleshooting section](#troubleshooting) above.
 
-**Found a bug?** Contact Platform Team in `#platform-team` Slack channel.
+**Found a bug?** Contact Platform Team in the `Platform Team` Microsoft Teams channel.
 
 **Urgent issues?** Follow incident response procedures and escalate to on-call engineer.
 

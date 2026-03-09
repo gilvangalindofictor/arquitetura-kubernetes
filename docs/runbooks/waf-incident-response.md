@@ -18,7 +18,7 @@ This runbook provides step-by-step procedures for responding to AWS WAF security
 2. **CloudWatch Metrics**: Published to namespace `AWS/WAFV2` (AllowedRequests, BlockedRequests)
 3. **Prometheus**: Scrapes CloudWatch metrics via cloudwatch-exporter
 4. **Grafana**: Dashboard [waf-security-dashboard](/d/waf-security-dashboard)
-5. **Alertmanager**: Routes alerts to Slack (#security-incidents, #platform-alerts)
+5. **Alertmanager**: Routes alerts to Teams (security-incidents, platform-alerts channels)
 
 ---
 
@@ -126,7 +126,7 @@ This runbook provides step-by-step procedures for responding to AWS WAF security
    ```
 
 3. **Escalate to Security Team**
-   - Slack: #security-incidents
+   - Teams: security-incidents channel
    - Include: Block rate, top triggered rule, attacker IPs, sample payloads
    - Security team will coordinate with AWS Support if needed
 
@@ -223,7 +223,7 @@ This runbook provides step-by-step procedures for responding to AWS WAF security
 
 1. **Escalate to Security Team** (DO NOT delay)
    ```
-   Slack: #security-incidents
+   Teams: security-incidents channel
    Message Template:
 
    🚨 CRITICAL: SQL injection attack detected by WAF
@@ -528,4 +528,4 @@ sum(increase(aws_wafv2_blocked_requests_sum{
 **Last Updated**: 2026-02-27
 **Runbook Version**: 1.0
 **Owner**: Platform Team + Security Team
-**Contact**: #platform-team, #security-incidents (Slack)
+**Contact**: Teams channels — platform-team, security-incidents

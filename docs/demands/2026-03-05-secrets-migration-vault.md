@@ -55,7 +55,7 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
 
 | Namespace | Secret | Keys | Vault Path | ExternalSecret | Status |
 |-----------|--------|------|------------|----------------|--------|
-| staging-observability-monitoring | alertmanager-slack-webhook | critical-webhook-url, warning-webhook-url, data-services-webhook-url, security-webhook-url | secret/monitoring/alertmanager | alertmanager-slack-webhook.yaml | **MIGRADO E ATIVO** |
+| staging-observability-monitoring | alertmanager-teams-webhook | critical-webhook-url, warning-webhook-url, data-services-webhook-url, security-webhook-url | secret/monitoring/alertmanager | alertmanager-teams-webhook.yaml | **MIGRADO E ATIVO** |
 | velero | velero-repo-credentials | repository-password | secret/velero/repo-credentials | velero-repo-credentials.yaml | **MIGRADO E ATIVO** |
 | staging-platform-gitlab | gitlab-postgresql-password | password | secret/gitlab/postgresql-password | gitlab-postgresql-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
 | staging-platform-gitlab | gitlab-root-password | password | secret/gitlab/root-password | gitlab-root-password.yaml | **MIGRADO E ATIVO** — SecretSynced True, helm rev 12 (2026-03-05) |
@@ -86,7 +86,7 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
 3. **Auth methods verificados:** kubernetes/ e oidc/ ativos — root token desnecessário para ops normais
 4. **Inventário completo:** 15 ExternalSecrets existentes + 13 plain secrets críticos identificados
 5. **Vault KV paths criados:**
-   - `secret/monitoring/alertmanager` — 4 Slack webhook URLs
+   - `secret/monitoring/alertmanager` — 4 Teams webhook URLs
    - `secret/velero/repo-credentials` — repository-password
    - `secret/gitlab/postgresql-password` — password
    - `secret/gitlab/root-password` — password
@@ -100,7 +100,7 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
    - `secret/gitlab/gitlab-workhorse-secret` — shared_secret
 6. **eso-reader policy atualizada** para incluir monitoring/*, velero/*, redis/* paths
 7. **ExternalSecret YAMLs criados** (7 arquivos em manifests/externalsecrets/):
-   - alertmanager-slack-webhook.yaml
+   - alertmanager-teams-webhook.yaml
    - velero-repo-credentials.yaml
    - gitlab-postgresql-password.yaml
    - gitlab-root-password.yaml
@@ -109,7 +109,7 @@ Um erro aqui (revogar antes de validar auth methods) pode impedir acesso ao Vaul
    - redis-password.yaml
    - gitlab-internal-secrets.yaml (5 P2 secrets)
 8. **ExternalSecrets aplicados e validados:**
-   - `alertmanager-slack-webhook` em staging-observability-monitoring: SecretSynced True, ownerReference OK
+   - `alertmanager-teams-webhook` em staging-observability-monitoring: SecretSynced True, ownerReference OK
    - `velero-repo-credentials` em velero: SecretSynced True
 
 ---
@@ -174,7 +174,7 @@ kubectl delete secret gitlab-rails-secret gitlab-gitaly-secret \
 ## Critérios de Conclusão (100%)
 
 - [ ] vault-root-token: aprovação de revogação + execução
-- [x] alertmanager-slack-webhook: ExternalSecret ativo, SecretSynced True
+- [x] alertmanager-teams-webhook: ExternalSecret ativo, SecretSynced True
 - [x] velero-repo-credentials: ExternalSecret ativo, SecretSynced True
 - [ ] gitlab-postgresql-password: ExternalSecret ativo + helm upgrade executado
 - [ ] gitlab-root-password: ExternalSecret ativo + helm upgrade executado
@@ -190,7 +190,7 @@ kubectl delete secret gitlab-rails-secret gitlab-gitaly-secret \
 
 ```
 platform-provisioning/aws/kubernetes/manifests/externalsecrets/
-  alertmanager-slack-webhook.yaml      # P1 — ATIVO
+  alertmanager-teams-webhook.yaml      # P1 — ATIVO
   velero-repo-credentials.yaml         # P1 — ATIVO
   gitlab-postgresql-password.yaml      # P1 — pendente helm upgrade
   gitlab-root-password.yaml            # P1 — pendente helm upgrade

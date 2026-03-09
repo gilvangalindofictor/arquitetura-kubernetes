@@ -32,7 +32,7 @@ Successfully implemented automated validation infrastructure for VPA FASE 0 base
 - Analyzes baseline vs. target resource requests
 - Calculates annual savings: freed_cpu_millicores × R$ 0.03/year
 - Generates detailed markdown reports with actionable recommendations
-- Slack webhook integration for visibility
+- Teams webhook integration for visibility
 - Three exit codes for automated decision-making
 
 **Usage**:
@@ -40,8 +40,8 @@ Successfully implemented automated validation infrastructure for VPA FASE 0 base
 # Manual execution
 bash scripts/finops/vpa-phase0-validation.sh
 
-# With Slack notification
-SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." \
+# With Teams notification
+TEAMS_WEBHOOK_URL="https://outlook.office.com/webhook/..." \
   bash scripts/finops/vpa-phase0-validation.sh
 ```
 
@@ -204,7 +204,7 @@ kubectl logs -n finops -l app=vpa-phase0-validator --tail=100
 - [x] `vpa-phase0-validation.sh` created and tested
 - [x] Exit codes 0, 1, 2 implemented
 - [x] Markdown report generation working
-- [x] Slack notification support enabled
+- [x] Teams notification support enabled
 - [x] Error handling for missing dependencies
 - [x] Executable permissions set
 
@@ -252,7 +252,7 @@ vpa-phase0-validation.sh
     ↓
 Report File: docs/finops/vpa-phase0-validation-report-YYYYMMDD.md
     ↓
-Slack Webhook (optional)
+Teams Webhook (optional)
     └─ Notification with exit code
 ```
 
@@ -311,9 +311,9 @@ Basis:
    - Metrics from Prometheus
    - Cluster autoscaler tags
 
-4. **Slack Channels**
-   - #finops-automation: Notifications
-   - #platform-alerts: Error notifications (optional)
+4. **Teams Channels**
+   - finops-automation: Notifications
+   - platform-alerts: Error notifications (optional)
 
 ### Monitoring & Alerting
 
@@ -378,7 +378,7 @@ Basis:
 - [ ] Check job pods for completion
 - [ ] Verify report file generated
 - [ ] Review report for savings achievement
-- [ ] Send Slack notification to team
+- [ ] Send Teams notification to team
 
 ### Post-Execution (2026-02-27 to 2026-02-28)
 - [ ] Review generated report
@@ -402,7 +402,7 @@ Basis:
 2. VPA recommendations queried
 3. Savings calculated
 4. Report generated: vpa-phase0-validation-report-20260227.md
-5. Slack notification sent (if configured)
+5. Teams notification sent (if configured)
 
 ### Decision Point (2026-02-28)
 - **If Exit Code 0 (≥R$ 15k/ano)**: Proceed to FASE 1 rightsizing

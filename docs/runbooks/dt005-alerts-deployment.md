@@ -1,11 +1,11 @@
 # DT-005: Alertas Deploy Runbook
 
-**Version**: 1.0
-**Last Updated**: 2026-03-04
+**Version**: 1.1
+**Last Updated**: 2026-03-09
 **Owner**: Platform SRE Team
 **Cluster**: k8s-platform-prod (EKS 1.34, us-east-1)
 **Namespace**: staging-observability-monitoring
-**Status**: Production Ready — Artefatos criados, aguardando Slack webhooks reais
+**Status**: Production Ready — Artefatos criados, aguardando Teams webhooks reais (ADR-103)
 
 ---
 
@@ -14,7 +14,7 @@
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
 3. [Deploy Sequence](#deploy-sequence)
-4. [Step 1: Configure Slack Webhooks](#step-1-configure-slack-webhooks)
+4. [Step 1: Configure Teams Webhooks](#step-1-configure-teams-webhooks)
 5. [Step 2: Apply PrometheusRules](#step-2-apply-prometheusrules)
 6. [Step 3: Apply AlertmanagerConfig CRD](#step-3-apply-alertmanagerconfig-crd)
 7. [Step 4: Helm Upgrade (Alertmanager)](#step-4-helm-upgrade-alertmanager)
@@ -27,22 +27,23 @@
 
 ## Overview
 
-DT-005 deploys 37 Prometheus alerting rules across 4 groups, plus Slack-based Alertmanager routing:
+DT-005 deploys 37 Prometheus alerting rules across 4 groups, plus Teams-based Alertmanager routing (ADR-103):
 
 | Group | Alerts | Channel |
 |---|---|---|
-| dt005-kubernetes-platform | 12 | #alerts-critical, #alerts-warning |
-| dt005-data-services | 10 | #alerts-data-services |
-| dt005-security-compliance | 8 | #alerts-security |
-| dt005-application-slo | 7 | #alerts-critical, #alerts-warning |
+| dt005-kubernetes-platform | 12 | alerts-critical, alerts-warning |
+| dt005-data-services | 10 | alerts-data-services |
+| dt005-security-compliance | 8 | alerts-security |
+| dt005-application-slo | 7 | alerts-critical, alerts-warning |
 | **Total** | **37** | **4 channels** |
 
 **Artifacts:**
+
 - `domains/observability/infra/alerts/dt005-prometheus-rules.yaml`
 - `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` (reference)
 - `domains/observability/infra/alerts/dt005-alertmanager-config-crd.yaml` (deploy this)
 - `domains/observability/infra/helm/kube-prometheus-stack/alertmanager-values-patch.yaml`
-- `scripts/observability/configure-slack-webhooks.sh`
+- `scripts/observability/configure-teams-webhooks.sh`
 - `scripts/observability/deploy-dt005-alerts.sh`
 - 17 runbooks in `domains/observability/docs/runbooks/`
 
@@ -77,10 +78,10 @@ kubectl get crd | grep monitoring.coreos.com
 ## Deploy Sequence
 
 ```
-1. Get Slack webhook URLs (from Slack admin)
+1. Get Teams Incoming Webhook URLs (from Teams channel admin)
        |
        v
-2. configure-slack-webhooks.sh  →  K8s Secret: alertmanager-slack-webhooks
+2. configure-teams-webhooks.sh  →  K8s Secret: alertmanager-teams-webhooks
        |
        v
 3. kubectl apply dt005-prometheus-rules.yaml
@@ -97,58 +98,67 @@ kubectl get crd | grep monitoring.coreos.com
 
 ---
 
-## Step 1: Configure Slack Webhooks
+## Step 1: Configure Teams Webhooks
 
-### Create Slack Webhooks
+### Create Teams Incoming Webhooks
 
-In your Slack workspace, create 4 incoming webhook integrations:
+In Microsoft Teams, create 4 Incoming Webhook connectors across the designated alert channels:
 
 | Channel | Purpose |
 |---|---|
-| #alerts-critical | severity=critical (node down, pod crashing, 5xx spike) |
-| #alerts-warning | severity=warning (batched, low-noise) |
-| #alerts-data-services | PostgreSQL, Redis, RabbitMQ events |
-| #alerts-security | Vault, cert-manager, ExternalSecrets, Kyverno |
+| alerts-critical | severity=critical (node down, pod crashing, 5xx spike) |
+| alerts-warning | severity=warning (batched, low-noise) |
+| alerts-data-services | PostgreSQL, Redis, RabbitMQ events |
+| alerts-security | Vault, cert-manager, ExternalSecrets, Kyverno |
 
-Slack docs: https://api.slack.com/messaging/webhooks
+**Teams Incoming Webhook setup** (per channel):
+
+1. Open the target Teams channel → click `...` → **Connectors**
+2. Search for **Incoming Webhook** → **Configure**
+3. Name it (e.g., `alerts-critical`) → **Create**
+4. Copy the webhook URL: `https://outlook.office.com/webhook/<tenant>/...`
+
+Teams docs: [Add Incoming Webhook to Teams channel](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook)
 
 ### Run the webhook configuration script
 
 ```bash
 cd /path/to/k8s-platform-repo
 
-./scripts/observability/configure-slack-webhooks.sh \
-  "https://hooks.slack.com/services/TXXXXXXX/BXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXXX" \
-  "https://hooks.slack.com/services/TXXXXXXX/BYYYYYYY/YYYYYYYYYYYYYYYYYYYYYYYY" \
-  "https://hooks.slack.com/services/TXXXXXXX/BZZZZZZZ/ZZZZZZZZZZZZZZZZZZZZZZZZ" \
-  "https://hooks.slack.com/services/TXXXXXXX/BWWWWWWW/WWWWWWWWWWWWWWWWWWWWWWWW"
+./scripts/observability/configure-teams-webhooks.sh \
+  "https://outlook.office.com/webhook/TENANT/alerts-critical-url" \
+  "https://outlook.office.com/webhook/TENANT/alerts-warning-url" \
+  "https://outlook.office.com/webhook/TENANT/alerts-data-services-url" \
+  "https://outlook.office.com/webhook/TENANT/alerts-security-url"
 ```
 
 **Order of arguments:**
+
 1. critical channel webhook
 2. warning channel webhook
 3. data-services channel webhook
 4. security channel webhook
 
 The script will:
-- Validate URL format (`https://hooks.slack.com/services/...`)
+
+- Validate URL format (`https://outlook.office.com/webhook/...`)
 - Send a test ping to each webhook
-- Create K8s Secret `alertmanager-slack-webhooks` in `staging-observability-monitoring`
+- Create K8s Secret `alertmanager-teams-webhooks` in `staging-observability-monitoring`
 - Apply Kyverno-compliant labels to the Secret
 
 ### Verify the Secret
 
 ```bash
-kubectl get secret alertmanager-slack-webhooks \
+kubectl get secret alertmanager-teams-webhooks \
   -n staging-observability-monitoring \
   -o jsonpath='{.data}' | \
   python3 -c "import sys,json; [print(k) for k in json.load(sys.stdin).keys()]"
 
 # Expected output:
-# slack-webhook-critical
-# slack-webhook-data
-# slack-webhook-security
-# slack-webhook-warning
+# teams-webhook-critical
+# teams-webhook-data
+# teams-webhook-security
+# teams-webhook-warning
 ```
 
 ---
@@ -168,6 +178,7 @@ kubectl get prometheusrule -n ${NAMESPACE}
 ```
 
 The PrometheusRule contains labels required for Prometheus to pick it up:
+
 ```yaml
 labels:
   prometheus: kube-prometheus-stack-prometheus
@@ -191,17 +202,18 @@ kubectl apply \
 
 # Verify
 kubectl get alertmanagerconfig -n ${NAMESPACE}
-# Expected: dt005-slack-routing   READY
+# Expected: dt005-teams-routing   READY
 
 # Check CRD status
-kubectl describe alertmanagerconfig dt005-slack-routing -n ${NAMESPACE}
+kubectl describe alertmanagerconfig dt005-teams-routing -n ${NAMESPACE}
 ```
 
 The AlertmanagerConfig CRD uses Secret references for webhook URLs:
+
 ```yaml
-apiURL:
-  name: alertmanager-slack-webhooks
-  key: slack-webhook-critical
+url:
+  name: alertmanager-teams-webhooks
+  key: teams-webhook-critical
 ```
 
 No plaintext URLs are stored in the YAML file.
@@ -237,6 +249,7 @@ kubectl rollout status statefulset/alertmanager-kube-prometheus-stack-alertmanag
 ```
 
 Key changes in `alertmanager-values-patch.yaml`:
+
 - `alertmanagerConfigSelector.matchLabels: {demand: dt005}` — discovers our CRD
 - `alertmanagerConfigNamespaceSelector` — scoped to our namespace
 - `retention: 120h` — 5 days of silence/notification history
@@ -293,7 +306,7 @@ curl -s http://localhost:9093/api/v2/status | \
 # List receivers
 curl -s http://localhost:9093/api/v2/receivers | python3 -m json.tool
 
-# Expected receivers: slack-critical, slack-warning, slack-data-services, slack-security, null
+# Expected receivers: teams-critical, teams-warning, teams-data-services, teams-security, null
 
 kill %1  # Stop port-forward
 ```
@@ -330,7 +343,7 @@ kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 \
   -n staging-observability-monitoring
 # http://localhost:9090/alerts  -> PodCrashLooping should appear
 
-# Check Slack #alerts-critical for the notification
+# Check Teams alerts-critical channel for the notification
 
 # Cleanup
 kubectl delete pod crash-test -n staging-observability-monitoring
@@ -363,7 +376,7 @@ curl -X POST http://localhost:9093/api/v2/alerts \
     }
   ]'
 
-# Check #alerts-critical in Slack for the test notification
+# Check Teams alerts-critical channel for the test notification
 # Then silence/resolve via UI: http://localhost:9093
 
 kill %1
@@ -395,6 +408,7 @@ kubectl delete pod cpu-stress -n staging-observability-monitoring
 **Symptom**: Applied PrometheusRule, but alert not visible at `http://localhost:9090/alerts`.
 
 **Check 1**: Verify PrometheusRule labels match ruleSelector.
+
 ```bash
 kubectl get prometheusrule dt005-platform-alerts \
   -n staging-observability-monitoring \
@@ -406,6 +420,7 @@ kubectl get prometheusrule dt005-platform-alerts \
 ```
 
 **Check 2**: Check Prometheus Operator logs for reconciliation errors.
+
 ```bash
 kubectl logs -n staging-observability-monitoring \
   -l app.kubernetes.io/name=kube-prometheus-stack-operator \
@@ -413,6 +428,7 @@ kubectl logs -n staging-observability-monitoring \
 ```
 
 **Check 3**: Check ruleNamespaceSelector.
+
 ```bash
 kubectl get prometheus -n staging-observability-monitoring \
   kube-prometheus-stack-prometheus \
@@ -422,42 +438,46 @@ kubectl get prometheus -n staging-observability-monitoring \
 
 ---
 
-### Slack notifications not firing
+### Teams notifications not firing
 
-**Symptom**: Alert appears in Prometheus, Alertmanager shows it as active, but no Slack message.
+**Symptom**: Alert appears in Prometheus, Alertmanager shows it as active, but no Teams message.
 
 **Check 1**: Verify Secret exists with correct keys.
+
 ```bash
-kubectl get secret alertmanager-slack-webhooks \
+kubectl get secret alertmanager-teams-webhooks \
   -n staging-observability-monitoring \
   -o jsonpath='{.data}' | python3 -c \
   "import sys,json; [print(k) for k in json.load(sys.stdin).keys()]"
 ```
 
 **Check 2**: Check AlertmanagerConfig is Ready.
+
 ```bash
-kubectl get alertmanagerconfig dt005-slack-routing \
+kubectl get alertmanagerconfig dt005-teams-routing \
   -n staging-observability-monitoring -o yaml | grep -A5 "status:"
 ```
 
 **Check 3**: Check Alertmanager logs for webhook errors.
+
 ```bash
 kubectl logs -n staging-observability-monitoring \
   -l app.kubernetes.io/name=alertmanager \
-  --tail=100 | grep -i "error\|failed\|slack"
+  --tail=100 | grep -i "error\|failed\|teams\|webhook"
 ```
 
 **Check 4**: Verify webhook URL is valid.
+
 ```bash
 # Decode and test the secret
-WEBHOOK=$(kubectl get secret alertmanager-slack-webhooks \
+WEBHOOK=$(kubectl get secret alertmanager-teams-webhooks \
   -n staging-observability-monitoring \
-  -o jsonpath='{.data.slack-webhook-critical}' | base64 -d)
+  -o jsonpath='{.data.teams-webhook-critical}' | base64 -d)
 
 curl -s -X POST "${WEBHOOK}" \
   -H "Content-Type: application/json" \
   -d '{"text":"[TEST] Direct webhook test from troubleshooting runbook"}'
-# Expected: "ok"
+# Expected: 1 (Teams returns "1" on success)
 ```
 
 ---
@@ -467,8 +487,8 @@ curl -s -X POST "${WEBHOOK}" \
 | Code | Cause | Fix |
 |---|---|---|
 | 400 | Invalid JSON payload | Check Alertmanager template for syntax errors |
-| 403 | Revoked or invalid token | Regenerate webhook in Slack admin panel |
-| 404 | Wrong workspace/channel | Verify T/B/TOKEN path in Slack app settings |
+| 403 | Connector disabled or expired | Regenerate Incoming Webhook in Teams channel settings |
+| 404 | Wrong tenant/connector URL | Verify URL from Teams channel connector settings |
 | 429 | Rate limited | Increase groupInterval/repeatInterval in AlertmanagerConfig |
 
 ---
@@ -478,6 +498,7 @@ curl -s -X POST "${WEBHOOK}" \
 **Symptom**: `kubectl get alertmanagerconfig` shows the object but Alertmanager doesn't use it.
 
 **Check**: Verify `alertmanagerConfigSelector` is set in Alertmanager spec.
+
 ```bash
 kubectl get alertmanager -n staging-observability-monitoring \
   kube-prometheus-stack-alertmanager \
@@ -486,6 +507,7 @@ kubectl get alertmanager -n staging-observability-monitoring \
 ```
 
 If missing, the helm upgrade with `alertmanager-values-patch.yaml` was not applied. Re-run:
+
 ```bash
 helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   -n staging-observability-monitoring \
@@ -520,14 +542,14 @@ kubectl delete prometheusrule dt005-platform-alerts \
 ### Remove AlertmanagerConfig (reverts to base values.yaml routing)
 
 ```bash
-kubectl delete alertmanagerconfig dt005-slack-routing \
+kubectl delete alertmanagerconfig dt005-teams-routing \
   -n staging-observability-monitoring
 ```
 
-### Remove Slack webhooks Secret
+### Remove Teams webhooks Secret
 
 ```bash
-kubectl delete secret alertmanager-slack-webhooks \
+kubectl delete secret alertmanager-teams-webhooks \
   -n staging-observability-monitoring
 ```
 
@@ -550,4 +572,4 @@ helm rollback kube-prometheus-stack <REVISION> -n staging-observability-monitori
 - [dt005-vault-sealed.md](../../../domains/observability/docs/runbooks/dt005-vault-sealed.md)
 - [dt005-certificate-expiring.md](../../../domains/observability/docs/runbooks/dt005-certificate-expiring.md)
 - [dt005-external-secret-sync-failure.md](../../../domains/observability/docs/runbooks/dt005-external-secret-sync-failure.md)
-- ADR for alerting strategy: `docs/adr/` (search for DT-005)
+- ADR-103: Alertas via Microsoft Teams — `docs/adr/adr-103-teams-alertas-plataforma.md`
