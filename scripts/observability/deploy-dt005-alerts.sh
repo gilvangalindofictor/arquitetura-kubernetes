@@ -10,7 +10,7 @@
 # Prerequisites:
 #   - kubectl configured and pointing to k8s-platform-prod
 #   - AWS session active (EKS auth)
-#   - Slack webhooks configured via configure-slack-webhooks.sh
+#   - Teams webhooks configured via configure-teams-webhooks.sh
 #   - kube-prometheus-stack already deployed
 #
 # What this script does:
@@ -130,13 +130,13 @@ else
   log_success "kube-prometheus-stack-operator running."
 fi
 
-# Check Slack webhooks Secret
-if kubectl get secret alertmanager-slack-webhooks -n "${NAMESPACE}" &>/dev/null; then
-  log_success "Secret 'alertmanager-slack-webhooks' found. Webhooks configured."
+# Check Teams webhooks Secret
+if kubectl get secret alertmanager-teams-webhooks -n "${NAMESPACE}" &>/dev/null; then
+  log_success "Secret 'alertmanager-teams-webhooks' found. Webhooks configured."
 else
-  log_warn "Secret 'alertmanager-slack-webhooks' NOT found."
-  log_warn "Run: scripts/observability/configure-slack-webhooks.sh <critical> <warning> <data> <security>"
-  log_warn "Continuing deploy — alerting will work but Slack notifications will not fire."
+  log_warn "Secret 'alertmanager-teams-webhooks' NOT found."
+  log_warn "Run: scripts/observability/configure-teams-webhooks.sh <critical> <warning> <data> <security>"
+  log_warn "Continuing deploy — alerting will work but Teams notifications will not fire."
 fi
 
 # Check alert files exist
@@ -170,15 +170,15 @@ fi
 # =============================================================================
 # STEP 3: Apply AlertmanagerConfig CRD
 # =============================================================================
-log_step "STEP 3: Applying AlertmanagerConfig CRD (dt005-slack-routing)"
+log_step "STEP 3: Applying AlertmanagerConfig CRD (dt005-teams-routing)"
 
 kubectl_apply "${ALERTS_DIR}/dt005-alertmanager-config-crd.yaml"
 
 if [[ "${DRY_RUN}" == "false" ]]; then
   log_success "AlertmanagerConfig applied."
 
-  if kubectl get alertmanagerconfig dt005-slack-routing -n "${NAMESPACE}" &>/dev/null; then
-    log_success "AlertmanagerConfig 'dt005-slack-routing' confirmed in cluster."
+  if kubectl get alertmanagerconfig dt005-teams-routing -n "${NAMESPACE}" &>/dev/null; then
+    log_success "AlertmanagerConfig 'dt005-teams-routing' confirmed in cluster."
   else
     log_warn "AlertmanagerConfig not found yet. Alertmanager Operator may take a few seconds."
   fi
@@ -277,7 +277,7 @@ else
   echo -e "${GREEN}================================================================${NC}"
   echo ""
   echo "  PrometheusRules:    dt005-platform-alerts (37 alerts, 4 groups)"
-  echo "  AlertmanagerConfig: dt005-slack-routing   (4 Slack receivers)"
+  echo "  AlertmanagerConfig: dt005-teams-routing   (4 Teams receivers)"
   echo "  Namespace:          ${NAMESPACE}"
   echo ""
   echo -e "${CYAN}VALIDATION COMMANDS:${NC}"
@@ -295,8 +295,8 @@ else
   echo "  # Check Alertmanager config is loaded"
   echo "  kubectl get alertmanagerconfig -n ${NAMESPACE}"
   echo ""
-  echo -e "${CYAN}IF SLACK WEBHOOKS NOT YET CONFIGURED:${NC}"
-  echo "  scripts/observability/configure-slack-webhooks.sh \\"
+  echo -e "${CYAN}IF TEAMS WEBHOOKS NOT YET CONFIGURED:${NC}"
+  echo "  scripts/observability/configure-teams-webhooks.sh \\"
   echo "    <critical-url> <warning-url> <data-url> <security-url>"
   echo ""
   echo -e "${CYAN}HELM UPGRADE (if needed):${NC}"

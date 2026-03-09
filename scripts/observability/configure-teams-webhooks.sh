@@ -1,16 +1,16 @@
 #!/bin/bash
 # =============================================================================
-# DT-005: Configure Slack Webhooks for Alertmanager
+# DT-005: Configure Microsoft Teams Webhooks for Alertmanager
 # =============================================================================
 # Usage:
-#   ./configure-slack-webhooks.sh <critical-url> <warning-url> <data-url> <security-url>
+#   ./configure-teams-webhooks.sh <critical-url> <warning-url> <data-url> <security-url>
 #
 # Example:
-#   ./configure-slack-webhooks.sh \
-#     "https://hooks.slack.com/services/T000/B111/XXXX" \
-#     "https://hooks.slack.com/services/T000/B222/YYYY" \
-#     "https://hooks.slack.com/services/T000/B333/ZZZZ" \
-#     "https://hooks.slack.com/services/T000/B444/WWWW"
+#   ./configure-teams-webhooks.sh \
+#     "https://outlook.office.com/webhook/T000/B111/XXXX" \
+#     "https://outlook.office.com/webhook/T000/B222/YYYY" \
+#     "https://outlook.office.com/webhook/T000/B333/ZZZZ" \
+#     "https://outlook.office.com/webhook/T000/B444/WWWW"
 #
 # What this script does:
 #   1. Validates all 4 webhook URLs (format + reachability)
@@ -24,7 +24,7 @@
 #   - curl available (for webhook validation)
 #
 # Output:
-#   - K8s Secret: alertmanager-slack-webhooks (namespace: staging-observability-monitoring)
+#   - K8s Secret: alertmanager-teams-webhooks (namespace: staging-observability-monitoring)
 #   - No plaintext URLs are written to any YAML file
 # =============================================================================
 
@@ -32,11 +32,11 @@ set -euo pipefail
 
 # --- Constants ----------------------------------------------------------------
 NAMESPACE="staging-observability-monitoring"
-SECRET_NAME="alertmanager-slack-webhooks"
+SECRET_NAME="alertmanager-teams-webhooks"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ALERTMANAGER_CONFIG="${REPO_ROOT}/domains/observability/infra/alerts/dt005-alertmanager-config.yaml"
-LOG_PREFIX="[$(date +%H:%M:%S)] configure-slack-webhooks |"
+LOG_PREFIX="[$(date +%H:%M:%S)] configure-teams-webhooks |"
 
 # --- Colors -------------------------------------------------------------------
 RED='\033[0;31m'
@@ -57,19 +57,19 @@ usage() {
 Usage: $(basename "$0") <critical-url> <warning-url> <data-url> <security-url>
 
 Arguments:
-  critical-url   Slack webhook for #alerts-critical  (severity=critical)
-  warning-url    Slack webhook for #alerts-warning   (severity=warning)
-  data-url       Slack webhook for #alerts-data-services (postgresql/redis/rabbitmq)
-  security-url   Slack webhook for #alerts-security  (vault/cert-manager/external-secrets)
+  critical-url   Teams webhook for #alerts-critical  (severity=critical)
+  warning-url    Teams webhook for #alerts-warning   (severity=warning)
+  data-url       Teams webhook for #alerts-data-services (postgresql/redis/rabbitmq)
+  security-url   Teams webhook for #alerts-security  (vault/cert-manager/external-secrets)
 
-All URLs must match: https://hooks.slack.com/services/<T>/<B>/<TOKEN>
+All URLs must match: https://*.webhook.office.com/... or https://outlook.office.com/webhook/...
 
 Example:
   $(basename "$0") \\
-    "https://hooks.slack.com/services/T000/B111/XXXX" \\
-    "https://hooks.slack.com/services/T000/B222/YYYY" \\
-    "https://hooks.slack.com/services/T000/B333/ZZZZ" \\
-    "https://hooks.slack.com/services/T000/B444/WWWW"
+    "https://outlook.office.com/webhook/T000/B111/XXXX" \\
+    "https://outlook.office.com/webhook/T000/B222/YYYY" \\
+    "https://outlook.office.com/webhook/T000/B333/ZZZZ" \\
+    "https://outlook.office.com/webhook/T000/B444/WWWW"
 EOF
   exit 1
 }
@@ -78,12 +78,12 @@ EOF
 validate_webhook_url() {
   local label="$1"
   local url="$2"
-  local pattern="^https://hooks\.slack\.com/services/[A-Z0-9]+/[A-Z0-9]+/[A-Za-z0-9]+$"
+  local pattern="^https://.*\.webhook\.office\.com|^https://outlook\.office\.com/webhook"
 
   log_info "Validating ${label}: ${url:0:50}..."
 
   if [[ ! "$url" =~ $pattern ]]; then
-    log_error "Invalid webhook URL for ${label}.\n  Expected format: https://hooks.slack.com/services/T.../B.../TOKEN\n  Got: ${url}"
+    log_error "Invalid webhook URL for ${label}.\n  Expected format: https://outlook.office.com/webhook/... or https://*.webhook.office.com/...\n  Got: ${url}"
   fi
 
   log_success "${label} URL format valid."
@@ -96,7 +96,7 @@ validate_webhook_reachable() {
 
   log_info "Testing reachability for ${label}..."
 
-  # Send a dry-run payload — Slack returns 200 even for test payloads
+  # Send a dry-run payload — Teams returns 200 for valid webhook requests
   # We only check HTTP connectivity (not 200 response code for real payloads)
   local http_code
   http_code=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -104,7 +104,7 @@ validate_webhook_reachable() {
     --max-time 10 \
     -X POST \
     -H "Content-Type: application/json" \
-    -d '{"text":"[DT-005] Alertmanager webhook validation — ignore this message"}' \
+    -d '{"@type":"MessageCard","@context":"http://schema.org/extensions","summary":"DT-005 validation","themeColor":"00FF00","title":"DT-005 Alertmanager webhook validation","text":"ignore this message"}' \
     "$url" 2>/dev/null || echo "000")
 
   if [[ "$http_code" == "000" ]]; then
@@ -161,10 +161,10 @@ create_or_update_secret() {
 
   kubectl create secret generic "${SECRET_NAME}" \
     --namespace="${NAMESPACE}" \
-    --from-literal=slack-webhook-critical="${critical_url}" \
-    --from-literal=slack-webhook-warning="${warning_url}" \
-    --from-literal=slack-webhook-data="${data_url}" \
-    --from-literal=slack-webhook-security="${security_url}" \
+    --from-literal=teams-webhook-critical="${critical_url}" \
+    --from-literal=teams-webhook-warning="${warning_url}" \
+    --from-literal=teams-webhook-data="${data_url}" \
+    --from-literal=teams-webhook-security="${security_url}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
   log_success "Secret '${SECRET_NAME}' created successfully."
@@ -172,9 +172,9 @@ create_or_update_secret() {
   # Add labels for Kyverno compliance
   kubectl label secret "${SECRET_NAME}" \
     -n "${NAMESPACE}" \
-    app.kubernetes.io/name=alertmanager-slack-webhooks \
+    app.kubernetes.io/name=alertmanager-teams-webhooks \
     app.kubernetes.io/component=alerting \
-    app.kubernetes.io/managed-by=configure-slack-webhooks \
+    app.kubernetes.io/managed-by=configure-teams-webhooks \
     team=platform-sre \
     demand=dt005 \
     --overwrite
@@ -184,11 +184,11 @@ create_or_update_secret() {
 
 # --- Patch Alertmanager to use the Secret ------------------------------------
 patch_alertmanager_secret_ref() {
-  log_info "Patching Alertmanager StatefulSet to mount slack webhook secret..."
+  log_info "Patching Alertmanager StatefulSet to mount Teams webhook secret..."
 
   # Check if AlertmanagerConfig CRD exists
-  if kubectl get alertmanagerconfig dt005-slack-routing -n "${NAMESPACE}" &>/dev/null; then
-    log_info "AlertmanagerConfig 'dt005-slack-routing' found. Secret reference is already configured via CRD."
+  if kubectl get alertmanagerconfig dt005-teams-routing -n "${NAMESPACE}" &>/dev/null; then
+    log_info "AlertmanagerConfig 'dt005-teams-routing' found. Secret reference is already configured via CRD."
     return 0
   fi
 
@@ -238,7 +238,7 @@ print_next_steps() {
   cat <<EOF
 
 ${GREEN}========================================================================${NC}
-${GREEN} DT-005: Slack Webhooks Configured Successfully                         ${NC}
+${GREEN} DT-005: Teams Webhooks Configured Successfully                         ${NC}
 ${GREEN}========================================================================${NC}
 
 Secret created: ${SECRET_NAME}
@@ -281,30 +281,30 @@ if [[ $# -ne 4 ]]; then
   usage
 fi
 
-WEBHOOK_CRITICAL="$1"
-WEBHOOK_WARNING="$2"
-WEBHOOK_DATA="$3"
-WEBHOOK_SECURITY="$4"
+TEAMS_WEBHOOK_URL_CRITICAL="$1"
+TEAMS_WEBHOOK_URL_WARNING="$2"
+TEAMS_WEBHOOK_URL_DATA="$3"
+TEAMS_WEBHOOK_URL_SECURITY="$4"
 
 SKIP_REACH_CHECK="${SKIP_REACH_CHECK:-false}"
 
 echo ""
-log_info "DT-005 Slack Webhook Configuration"
+log_info "DT-005 Teams Webhook Configuration"
 log_info "Cluster: k8s-platform-prod | Namespace: ${NAMESPACE}"
 echo ""
 
 # Step 1: Validate URL formats
-validate_webhook_url "critical" "${WEBHOOK_CRITICAL}"
-validate_webhook_url "warning"  "${WEBHOOK_WARNING}"
-validate_webhook_url "data"     "${WEBHOOK_DATA}"
-validate_webhook_url "security" "${WEBHOOK_SECURITY}"
+validate_webhook_url "critical" "${TEAMS_WEBHOOK_URL_CRITICAL}"
+validate_webhook_url "warning"  "${TEAMS_WEBHOOK_URL_WARNING}"
+validate_webhook_url "data"     "${TEAMS_WEBHOOK_URL_DATA}"
+validate_webhook_url "security" "${TEAMS_WEBHOOK_URL_SECURITY}"
 
 # Step 2: Validate reachability (optional, skip if curl missing)
 if [[ "${SKIP_REACH_CHECK}" != "true" ]]; then
-  validate_webhook_reachable "critical" "${WEBHOOK_CRITICAL}"
-  validate_webhook_reachable "warning"  "${WEBHOOK_WARNING}"
-  validate_webhook_reachable "data"     "${WEBHOOK_DATA}"
-  validate_webhook_reachable "security" "${WEBHOOK_SECURITY}"
+  validate_webhook_reachable "critical" "${TEAMS_WEBHOOK_URL_CRITICAL}"
+  validate_webhook_reachable "warning"  "${TEAMS_WEBHOOK_URL_WARNING}"
+  validate_webhook_reachable "data"     "${TEAMS_WEBHOOK_URL_DATA}"
+  validate_webhook_reachable "security" "${TEAMS_WEBHOOK_URL_SECURITY}"
 fi
 
 # Step 3: Check cluster prerequisites
@@ -312,10 +312,10 @@ check_prerequisites
 
 # Step 4: Create K8s Secret
 create_or_update_secret \
-  "${WEBHOOK_CRITICAL}" \
-  "${WEBHOOK_WARNING}" \
-  "${WEBHOOK_DATA}" \
-  "${WEBHOOK_SECURITY}"
+  "${TEAMS_WEBHOOK_URL_CRITICAL}" \
+  "${TEAMS_WEBHOOK_URL_WARNING}" \
+  "${TEAMS_WEBHOOK_URL_DATA}" \
+  "${TEAMS_WEBHOOK_URL_SECURITY}"
 
 # Step 5: Patch Alertmanager reference
 patch_alertmanager_secret_ref

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./vpa-phase0-validation.sh                    # Run validation
-#   SLACK_WEBHOOK_URL="https://..." ./vpa-phase0-validation.sh  # With Slack notification
+#   TEAMS_WEBHOOK_URL="https://..." ./vpa-phase0-validation.sh  # With Teams notification
 #
 # Exit Codes:
 #   0 = Success: Target achieved (≥R$ 15.000/ano)
@@ -32,8 +32,8 @@ WARNING_THRESHOLD_BRL=12000
 VALIDATION_DATE=$(date +%Y%m%d)
 REPORT_FILE="$REPORT_DIR/vpa-phase0-validation-report-${VALIDATION_DATE}.md"
 
-# Slack integration (optional)
-SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+# Teams integration (optional)
+TEAMS_WEBHOOK_URL="${TEAMS_WEBHOOK_URL:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -61,38 +61,23 @@ log_success() {
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] SUCCESS: $*${NC}"
 }
 
-send_slack_notification() {
+send_teams_notification() {
     local message="$1"
     local status="$2"  # success, warning, error
 
-    if [ -z "$SLACK_WEBHOOK_URL" ]; then
+    if [ -z "$TEAMS_WEBHOOK_URL" ]; then
         return 0
     fi
 
-    local color="good"
+    local color="00FF00"
     case "$status" in
-        warning) color="warning" ;;
-        error) color="danger" ;;
+        warning) color="FFA500" ;;
+        error)   color="FF0000" ;;
     esac
 
-    local payload=$(cat <<EOF
-{
-    "attachments": [
-        {
-            "color": "$color",
-            "title": "VPA FASE 0 Validation Report",
-            "text": "$message",
-            "footer": "VPA Automation",
-            "ts": $(date +%s)
-        }
-    ]
-}
-EOF
-)
-
-    curl -X POST -H 'Content-type: application/json' \
-        --data "$payload" \
-        "$SLACK_WEBHOOK_URL" 2>/dev/null || log_warn "Failed to send Slack notification"
+    curl -s -X POST -H 'Content-Type: application/json' \
+        -d "{\"@type\":\"MessageCard\",\"@context\":\"http://schema.org/extensions\",\"summary\":\"VPA FASE 0 Validation Report\",\"themeColor\":\"$color\",\"title\":\"VPA FASE 0 Validation Report\",\"text\":\"$message\"}" \
+        "$TEAMS_WEBHOOK_URL" 2>/dev/null || log_warn "Failed to send Teams notification"
 }
 
 # ============================================================================
@@ -403,7 +388,7 @@ main() {
     # Check prerequisites
     if ! check_prerequisites; then
         log_error "Prerequisites check failed"
-        send_slack_notification "Prerequisites check failed" "error"
+        send_teams_notification "Prerequisites check failed" "error"
         return 2
     fi
 
@@ -435,15 +420,15 @@ main() {
     if [ "$(echo "$savings > 0" | bc)" = "1" ]; then
         if (( $(echo "$savings >= $TARGET_SAVINGS_BRL" | bc -l) )); then
             log_success "Target achieved!"
-            send_slack_notification "VPA FASE 0 validation PASSED: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "success"
+            send_teams_notification "VPA FASE 0 validation PASSED: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "success"
             exit_code=0
         elif (( $(echo "$savings >= $WARNING_THRESHOLD_BRL" | bc -l) )); then
             log_warn "Below target but acceptable"
-            send_slack_notification "VPA FASE 0 validation PARTIAL: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "warning"
+            send_teams_notification "VPA FASE 0 validation PARTIAL: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "warning"
             exit_code=1
         else
             log_error "Below warning threshold"
-            send_slack_notification "VPA FASE 0 validation BELOW THRESHOLD: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "error"
+            send_teams_notification "VPA FASE 0 validation BELOW THRESHOLD: R\$ ${savings}/ano (target: R\$ ${TARGET_SAVINGS_BRL}/ano)" "error"
             exit_code=2
         fi
     elif [ "$vpa_count" -ge 8 ]; then

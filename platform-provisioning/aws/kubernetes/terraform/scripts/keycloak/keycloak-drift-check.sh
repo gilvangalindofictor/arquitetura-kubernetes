@@ -24,8 +24,8 @@
 #   KEYCLOAK_AUTO_PORTFORWARD=true   Start port-forward automatically (default: true)
 #   TF_VAR_keycloak_admin_password   Override admin password (auto-read from K8s if unset)
 #   AWS_PROFILE                      Override AWS profile (default: k8s-platform-staging)
-#   NOTIFY_SLACK=true                Send Slack notification on drift (requires SLACK_WEBHOOK_URL)
-#   SLACK_WEBHOOK_URL                Slack incoming webhook URL for drift notifications
+#   NOTIFY_TEAMS=true                Send Teams notification on drift (requires TEAMS_WEBHOOK_URL)
+#   TEAMS_WEBHOOK_URL                Teams incoming webhook URL for drift notifications
 #
 # Recommended: Run daily via cron or GitHub Actions scheduled workflow
 #   cron: 0 9 * * 1-5 /path/to/keycloak-drift-check.sh
@@ -76,33 +76,33 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-notify_slack() {
+notify_teams() {
     local status="$1"
     local message="$2"
 
-    if [[ "${NOTIFY_SLACK:-false}" == "true" && -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+    if [[ "${NOTIFY_TEAMS:-false}" == "true" && -n "${TEAMS_WEBHOOK_URL:-}" ]]; then
         local color
         case "${status}" in
-            ok)    color="#36a64f" ;;
-            drift) color="#ff0000" ;;
-            error) color="#ff8800" ;;
-            *)     color="#cccccc" ;;
+            ok)    color="00FF00" ;;
+            drift) color="FF0000" ;;
+            error) color="FFA500" ;;
+            *)     color="cccccc" ;;
         esac
 
         python3 - <<PYEOF
 import json, urllib.request
 
 payload = json.dumps({
-    "attachments": [{
-        "color": "${color}",
-        "title": "Keycloak Terraform Drift Check",
-        "text":  "${message}",
-        "footer": "keycloak-drift-check.sh | $(date -u '+%Y-%m-%d %H:%M UTC')"
-    }]
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "summary": "Keycloak Terraform Drift Check",
+    "themeColor": "${color}",
+    "title": "Keycloak Terraform Drift Check",
+    "text": "${message}"
 }).encode()
 
 req = urllib.request.Request(
-    "${SLACK_WEBHOOK_URL}",
+    "${TEAMS_WEBHOOK_URL}",
     data=payload,
     method="POST",
     headers={"Content-Type": "application/json"}
@@ -110,7 +110,7 @@ req = urllib.request.Request(
 try:
     urllib.request.urlopen(req)
 except Exception as e:
-    pass  # Slack notification failure must not fail the drift check
+    pass  # Teams notification failure must not fail the drift check
 PYEOF
     fi
 }
@@ -161,7 +161,7 @@ except:
 
         if ! kill -0 "${PF_PID}" 2>/dev/null; then
             log_error "Port-forward failed. Check: kubectl get svc -n keycloak"
-            notify_slack "error" "Port-forward to Keycloak failed. Drift check aborted."
+            notify_teams "error" "Port-forward to Keycloak failed. Drift check aborted."
             exit 2
         fi
         log_ok "Port-forward active (PID: ${PF_PID})"
@@ -185,7 +185,7 @@ if [[ -z "${TF_VAR_keycloak_admin_password:-}" ]]; then
 
     if [[ -z "${TF_VAR_keycloak_admin_password:-}" ]]; then
         log_error "Could not retrieve admin password. Set TF_VAR_keycloak_admin_password manually."
-        notify_slack "error" "Could not retrieve Keycloak admin password. Drift check aborted."
+        notify_teams "error" "Could not retrieve Keycloak admin password. Drift check aborted."
         exit 2
     fi
 fi
@@ -230,7 +230,7 @@ case "${PLAN_EXIT_CODE}" in
     0)
         log_ok "=== NO DRIFT DETECTED ==="
         log_ok "Keycloak configuration matches Terraform state."
-        notify_slack "ok" "No drift detected. Keycloak clients match Terraform state."
+        notify_teams "ok" "No drift detected. Keycloak clients match Terraform state."
         exit 0
         ;;
 
@@ -251,7 +251,7 @@ case "${PLAN_EXIT_CODE}" in
         DESTROYS=$(grep -c "^  - " "${LOG_FILE}" 2>/dev/null || echo 0)
 
         DRIFT_MSG="DRIFT: +${ADDS} add, ~${CHANGES} change, -${DESTROYS} destroy in Keycloak clients."
-        notify_slack "drift" "${DRIFT_MSG}\nLog: ${LOG_FILE}"
+        notify_teams "drift" "${DRIFT_MSG}\nLog: ${LOG_FILE}"
 
         if [[ "${FIX_MODE}" == "true" ]]; then
             log_warn "FIX MODE enabled — running terraform apply..."
@@ -264,7 +264,7 @@ case "${PLAN_EXIT_CODE}" in
                     "${PLAN_FILE}" \
                     | tee -a "${LOG_FILE}"
                 log_ok "Drift corrected via terraform apply."
-                notify_slack "ok" "Drift corrected via terraform apply. ${DRIFT_MSG}"
+                notify_teams "ok" "Drift corrected via terraform apply. ${DRIFT_MSG}"
             else
                 log_warn "Apply cancelled by user."
             fi
@@ -276,7 +276,7 @@ case "${PLAN_EXIT_CODE}" in
     *)
         log_error "=== TERRAFORM PLAN FAILED (exit code: ${PLAN_EXIT_CODE}) ==="
         log_error "See log: ${LOG_FILE}"
-        notify_slack "error" "Terraform plan failed (exit ${PLAN_EXIT_CODE}). Check: ${LOG_FILE}"
+        notify_teams "error" "Terraform plan failed (exit ${PLAN_EXIT_CODE}). Check: ${LOG_FILE}"
         exit 1
         ;;
 esac

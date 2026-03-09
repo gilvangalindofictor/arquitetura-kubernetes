@@ -75,27 +75,27 @@ update_configmap() {
     log_success "ConfigMap updated"
 }
 
-configure_slack() {
+configure_teams() {
     local webhook_url="$1"
 
     if [[ -z "$webhook_url" ]]; then
-        log_warn "No Slack webhook URL provided. Skipping Slack configuration."
+        log_warn "No Teams webhook URL provided. Skipping Teams configuration."
         log_info "To configure later, run:"
-        echo "  kubectl create secret generic oidc-monitor-slack \\"
+        echo "  kubectl create secret generic oidc-monitor-teams \\"
         echo "    --from-literal=webhook-url='YOUR_WEBHOOK_URL' \\"
         echo "    --namespace=$NAMESPACE \\"
         echo "    --dry-run=client -o yaml | kubectl apply -f -"
         return
     fi
 
-    log_info "Configuring Slack webhook..."
+    log_info "Configuring Teams webhook..."
 
-    kubectl create secret generic oidc-monitor-slack \
+    kubectl create secret generic oidc-monitor-teams \
         --from-literal=webhook-url="$webhook_url" \
         --namespace="$NAMESPACE" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-    log_success "Slack webhook configured"
+    log_success "Teams webhook configured"
 }
 
 deploy_resources() {
@@ -123,7 +123,7 @@ verify_deployment() {
 
     echo ""
     log_info "Secrets:"
-    kubectl get secret -n "$NAMESPACE" oidc-monitor-slack 2>/dev/null || log_warn "Slack secret not configured"
+    kubectl get secret -n "$NAMESPACE" oidc-monitor-teams 2>/dev/null || log_warn "Teams secret not configured"
 
     log_success "Deployment verification complete"
 }
@@ -160,16 +160,16 @@ OIDC Monitor Deployment Script
 Usage: $0 [OPTIONS]
 
 Options:
-  -s, --slack-webhook URL   Slack webhook URL for alerts
+  -s, --teams-webhook URL   Teams webhook URL for alerts
   -t, --test                Run a manual test after deployment
   -u, --update-only         Only update ConfigMap (skip full deployment)
   -h, --help                Show this help message
 
 Examples:
-  # Full deployment with Slack
-  $0 --slack-webhook https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+  # Full deployment with Teams
+  $0 --teams-webhook https://outlook.office.com/webhook/YOUR/WEBHOOK/URL
 
-  # Deployment without Slack
+  # Deployment without Teams
   $0
 
   # Update ConfigMap only
@@ -182,15 +182,15 @@ EOF
 }
 
 main() {
-    local slack_webhook=""
+    local teams_webhook=""
     local run_test=false
     local update_only=false
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -s|--slack-webhook)
-                slack_webhook="$2"
+            -s|--teams-webhook)
+                teams_webhook="$2"
                 shift 2
                 ;;
             -t|--test)
@@ -230,7 +230,7 @@ main() {
 
     create_namespace
     update_configmap
-    configure_slack "$slack_webhook"
+    configure_teams "$teams_webhook"
     deploy_resources
     verify_deployment
 

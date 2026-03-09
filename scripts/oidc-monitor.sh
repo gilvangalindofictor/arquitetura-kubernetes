@@ -17,7 +17,7 @@ REPORT_DIR="${REPORT_DIR:-/var/log/oidc-monitor/reports}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="${LOG_DIR}/oidc-monitor-${TIMESTAMP}.log"
 REPORT_FILE="${REPORT_DIR}/oidc-report-${TIMESTAMP}.json"
-SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+TEAMS_WEBHOOK_URL="${TEAMS_WEBHOOK_URL:-}"
 ERROR_THRESHOLD="${ERROR_THRESHOLD:-10}"
 MONITORING_DURATION="${MONITORING_DURATION:-3600}" # Default: 1 hour
 CHECK_INTERVAL="${CHECK_INTERVAL:-60}" # Check every 60 seconds
@@ -297,12 +297,12 @@ generate_report() {
     echo "$total_errors"
 }
 
-send_slack_alert() {
+send_teams_alert() {
     local total_errors="$1"
     local -n results=$2
 
-    if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
-        log_warn "Slack webhook URL not configured. Skipping Slack notification."
+    if [[ -z "$TEAMS_WEBHOOK_URL" ]]; then
+        log_warn "Teams webhook URL not configured. Skipping Teams notification."
         return
     fi
 
@@ -311,72 +311,25 @@ send_slack_alert() {
         return
     fi
 
-    log_info "Sending Slack alert (errors: $total_errors, threshold: $ERROR_THRESHOLD)..."
+    log_info "Sending Teams alert (errors: $total_errors, threshold: $ERROR_THRESHOLD)..."
 
     local error_summary=""
     for key in "${!results[@]}"; do
         if [[ ! "$key" =~ _samples$ ]] && [[ ${results[$key]} -gt 0 ]]; then
-            error_summary+="• $key: ${results[$key]}\n"
+            error_summary+="$key: ${results[$key]} | "
         fi
     done
 
-    local payload=$(cat <<EOF
-{
-  "text": ":warning: OIDC Authentication Errors Detected",
-  "blocks": [
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": ":warning: OIDC Authentication Alert"
-      }
-    },
-    {
-      "type": "section",
-      "fields": [
-        {
-          "type": "mrkdwn",
-          "text": "*Total Errors:*\n$total_errors"
-        },
-        {
-          "type": "mrkdwn",
-          "text": "*Threshold:*\n$ERROR_THRESHOLD"
-        },
-        {
-          "type": "mrkdwn",
-          "text": "*Timestamp:*\n$TIMESTAMP"
-        },
-        {
-          "type": "mrkdwn",
-          "text": "*Check Interval:*\n${CHECK_INTERVAL}s"
-        }
-      ]
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Error Summary:*\n$error_summary"
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Report:* \`$REPORT_FILE\`"
-      }
-    }
-  ]
-}
-EOF
-)
+    local title="OIDC Authentication Alert"
+    local message="Total Errors: $total_errors (threshold: $ERROR_THRESHOLD) | Timestamp: $TIMESTAMP | Interval: ${CHECK_INTERVAL}s | $error_summary | Report: $REPORT_FILE"
 
-    if curl -X POST -H 'Content-type: application/json' \
-        --data "$payload" \
-        "$SLACK_WEBHOOK_URL" &> /dev/null; then
-        log_success "Slack alert sent successfully"
+    if curl -s -X POST "$TEAMS_WEBHOOK_URL" \
+        -H "Content-Type: application/json" \
+        -d "{\"@type\":\"MessageCard\",\"@context\":\"http://schema.org/extensions\",\"summary\":\"$title\",\"themeColor\":\"FF0000\",\"title\":\"$title\",\"text\":\"$message\"}" \
+        &> /dev/null; then
+        log_success "Teams alert sent successfully"
     else
-        log_error "Failed to send Slack alert"
+        log_error "Failed to send Teams alert"
     fi
 }
 
@@ -398,7 +351,7 @@ continuous_monitoring() {
 
         local total_errors=$(generate_report results)
 
-        send_slack_alert "$total_errors" results
+        send_teams_alert "$total_errors" results
 
         elapsed=$((elapsed + CHECK_INTERVAL))
 
@@ -422,7 +375,7 @@ single_check() {
 
     local total_errors=$(generate_report results)
 
-    send_slack_alert "$total_errors" results
+    send_teams_alert "$total_errors" results
 }
 
 show_usage() {
@@ -441,7 +394,7 @@ Options:
 Environment Variables:
   LOG_DIR                   Directory for logs (default: /var/log/oidc-monitor)
   REPORT_DIR                Directory for reports (default: /var/log/oidc-monitor/reports)
-  SLACK_WEBHOOK_URL         Slack webhook URL for alerts
+  TEAMS_WEBHOOK_URL         Teams webhook URL for alerts
   ERROR_THRESHOLD           Error threshold for alerts (default: 10)
   KEYCLOAK_NAMESPACE        Keycloak namespace (default: keycloak)
   GITLAB_NAMESPACE          GitLab namespace (default: gitlab-staging)
@@ -457,8 +410,8 @@ Examples:
   # Run with custom threshold
   $0 --threshold 50 --interval 300
 
-  # Run with Slack alerts
-  SLACK_WEBHOOK_URL=https://hooks.slack.com/... $0 --duration 86400
+  # Run with Teams alerts
+  TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/... $0 --duration 86400
 
 EOF
 }
