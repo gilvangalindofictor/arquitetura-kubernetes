@@ -316,6 +316,10 @@ resource "kubernetes_secret" "gitlab_postgresql_password" {
   }
 
   type = "Opaque"
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations, metadata[0].labels]
+  }
 }
 
 #------------------------------------------------------------------------------

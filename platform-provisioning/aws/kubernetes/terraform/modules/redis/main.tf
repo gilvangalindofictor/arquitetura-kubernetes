@@ -83,6 +83,10 @@ resource "kubernetes_secret" "redis_password" {
   }
 
   type = "Opaque"
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations, metadata[0].labels]
+  }
 }
 
 # =============================================================================
@@ -127,11 +131,6 @@ resource "helm_release" "redis_operator" {
     value = "128Mi"
   }
 
-  lifecycle {
-    ignore_changes = [
-      metadata
-    ]
-  }
 }
 
 # Wait for CRDs to be fully registered
