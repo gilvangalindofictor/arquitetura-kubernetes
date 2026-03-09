@@ -107,9 +107,15 @@ spec:
         - name: KC_HEALTH_ENABLED
           value: "true"
         - name: KEYCLOAK_ADMIN
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-admin-credentials
+              key: username
         - name: KEYCLOAK_ADMIN_PASSWORD
-          value: Qq!Tp?Q=xmCmj5zGbzIW>kno
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-admin-credentials
+              key: password
         - name: KC_DB
           value: postgres
         - name: KC_DB_URL_HOST
@@ -147,10 +153,9 @@ spec:
           value: INFO
         - name: KC_HTTP_MANAGEMENT_HEALTH_ENABLED
           value: "false"
-        - name: KC_BOOTSTRAP_ADMIN_USERNAME
-          value: bootstrap_admin
-        - name: KC_BOOTSTRAP_ADMIN_PASSWORD
-          value: BootstrapAdmin123!
+        # KC_BOOTSTRAP_ADMIN_USERNAME / KC_BOOTSTRAP_ADMIN_PASSWORD REMOVIDOS
+        # Keycloak já inicializado (realms: master, platform, ipaas)
+        # Bootstrap user não existe nos realms ativos — credenciais desnecessárias
         ports:
         - name: http
           containerPort: 8080
