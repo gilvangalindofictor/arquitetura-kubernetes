@@ -16,6 +16,14 @@ variable "keycloak_admin_password" {
   description = "Keycloak admin password. Retrieve from K8s secret: kubectl get secret keycloak-admin-password -n keycloak -o jsonpath='{.data.password}' | base64 -d"
   type        = string
   sensitive   = true
+  default     = "" # Not used when client_credentials grant is active
+}
+
+variable "keycloak_client_secret" {
+  description = "Keycloak terraform-admin client secret for client_credentials grant. Created 2026-03-06."
+  type        = string
+  sensitive   = true
+  default     = "terraform-admin-secret-2026"
 }
 
 # -----------------------------------------------------------------------------

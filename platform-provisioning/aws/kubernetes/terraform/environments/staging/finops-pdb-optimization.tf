@@ -26,7 +26,7 @@ module "finops_pdb_optimization" {
     # Grafana — Monitoring dashboards (stateless, persiste config no PVC)
     # Labels validados: app.kubernetes.io/name=grafana (2026-02-24)
     grafana = {
-      namespace     = "monitoring"
+      namespace     = "staging-observability-monitoring" # DEC-074: renamed from monitoring
       min_available = 0
       selector = {
         "app.kubernetes.io/name"     = "grafana"
@@ -37,7 +37,7 @@ module "finops_pdb_optimization" {
     # ArgoCD Server — GitOps controller (stateless, estado no Git)
     # Labels validados: app.kubernetes.io/name=argocd-server, 2 replicas (2026-02-24)
     argocd-server = {
-      namespace     = "argocd"
+      namespace     = "staging-platform-argocd" # DEC-074: renamed from argocd
       min_available = 0
       selector = {
         "app.kubernetes.io/name" = "argocd-server"
@@ -59,7 +59,7 @@ module "finops_pdb_optimization" {
     # Labels validados: app=webservice,release=gitlab, 2 replicas (2026-02-24)
     # NOTA: Deployment real: gitlab-webservice-default (não gitlab-webservice)
     gitlab-webservice = {
-      namespace     = "gitlab-staging"
+      namespace     = "staging-platform-gitlab" # DEC-074: renamed from gitlab-staging
       min_available = 0
       selector = {
         app     = "webservice"
@@ -71,7 +71,7 @@ module "finops_pdb_optimization" {
     # Labels validados: app.kubernetes.io/name=keycloakx, StatefulSet (2026-02-24)
     # NOTA: Label real é "keycloakx" (chart keycloakx), não "keycloak"
     keycloak = {
-      namespace     = "keycloak"
+      namespace     = "staging-platform-keycloak" # DEC-074: renamed from keycloak
       min_available = 0
       selector = {
         "app.kubernetes.io/name"     = "keycloakx"
@@ -82,7 +82,7 @@ module "finops_pdb_optimization" {
     # SonarQube — Code quality (stateful, dados no PostgreSQL/PVC)
     # Labels validados: app=sonarqube, StatefulSet (2026-02-24)
     sonarqube = {
-      namespace     = "sonarqube"
+      namespace     = "staging-platform-sonarqube" # DEC-074: renamed from sonarqube
       min_available = 0
       selector = {
         app = "sonarqube"
@@ -109,7 +109,7 @@ module "finops_pdb_optimization" {
     # Labels validados: app.kubernetes.io/name=prometheus, StatefulSet (2026-02-24)
     # CUIDADO: Dados TSDB persistidos; drain causa gap de scraping (~5min tolerável)
     prometheus = {
-      namespace     = "monitoring"
+      namespace     = "staging-observability-monitoring" # DEC-074: renamed from monitoring
       min_available = 0
       selector = {
         "app.kubernetes.io/name"     = "prometheus"
@@ -121,7 +121,7 @@ module "finops_pdb_optimization" {
     # Labels validados: app.kubernetes.io/name=loki,component=backend (2026-02-24)
     # NOTA: PDB aplicado ao backend (índices); read/write têm PDBs próprios via Helm
     loki-backend = {
-      namespace     = "monitoring"
+      namespace     = "staging-observability-monitoring" # DEC-074: renamed from monitoring
       min_available = 0
       selector = {
         "app.kubernetes.io/name"      = "loki"

@@ -135,6 +135,15 @@ provider "kubectl" {
   load_config_file       = false
 }
 
+# Vault Provider — Root module configuration
+# Required by module.backstage_staging (vault_policy, vault_kubernetes_auth_backend_role, vault_kv_secret_v2)
+# Uses localhost:8200 via kubectl port-forward (same pattern as vault_config_staging module)
+# PREREQ: kubectl port-forward -n staging-security-vault svc/vault 8200:8200 &
+provider "vault" {
+  address = "http://localhost:8200"
+  token   = var.vault_root_token
+}
+
 # VPC and Subnets (existing from Marco 0)
 data "aws_vpc" "existing" {
   id = var.vpc_id
@@ -574,7 +583,7 @@ module "vault_staging" {
   cluster_name        = local.cluster_name
   aws_account_id      = var.aws_account_id
   aws_region          = var.aws_region
-  namespace           = "vault-system"
+  namespace           = "staging-security-vault" # DEC-074: renamed from vault-system
   oidc_provider_arn   = data.aws_iam_openid_connect_provider.eks.arn
   vault_chart_version = "0.27.0"
   replicas            = 1     # Single replica for staging (FinOps cost-optimized)
@@ -707,7 +716,7 @@ module "harbor_staging" {
   aws_region           = var.aws_region
   namespace            = "harbor-system"
   oidc_provider_arn    = data.aws_iam_openid_connect_provider.eks.arn
-  harbor_chart_version = "1.14.0"
+  harbor_chart_version = "1.18.2"
 
   # S3 Storage (IRSA)
   s3_bucket_name = module.s3_buckets_staging.harbor_images_bucket_name
@@ -2624,4 +2633,42 @@ module "backstage_staging" {
 
   # Tags
   common_tags = local.common_tags
+}
+
+# =============================================================================
+# FinOps Cost Exporter — CronJob K8s + IRSA → Pushgateway → Prometheus
+# =============================================================================
+# Proposito: Consultar AWS Cost Explorer API a cada 6h e push metricas para
+# Prometheus Pushgateway. Alimenta o dashboard "FinOps AWS Cost Visibility".
+#
+# Arquitetura: CronJob K8s (IRSA) → Cost Explorer API → Pushgateway (cluster-internal)
+# Motivo CronJob vs Lambda: Lambda nao resolve .svc.cluster.local (CoreDNS interno)
+#
+# Metricas: aws_cost_daily_usd, aws_cost_mtd_usd, aws_cost_forecast_usd,
+#           aws_cost_by_tag_usd, aws_budget_limit_usd, aws_budget_actual_usd
+#
+# Custo CE API: ~120 chamadas/mes (free tier: 1.000/mes) = $0 adicional
+# =============================================================================
+
+module "finops_cost_exporter" {
+  source = "../../modules/finops-cost-exporter"
+
+  cluster_name      = local.cluster_name
+  aws_account_id    = var.aws_account_id
+  aws_region        = var.aws_region
+  environment       = local.environment
+  namespace         = "staging-observability-monitoring"
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+  oidc_provider_url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  budget_limit_usd  = 807
+  budget_name       = "staging-monthly"
+  pushgateway_url   = "http://kube-prometheus-stack-prometheus-pushgateway.staging-observability-monitoring.svc.cluster.local:9091"
+
+  common_tags = {
+    # environment tag removed: provider default_tags already sets Environment=staging
+    # Adding lowercase 'environment' causes "Duplicate tag keys" (AWS is case-insensitive)
+    owner      = "platform-team"
+    domain     = "finops"
+    managed_by = "terraform"
+  }
 }

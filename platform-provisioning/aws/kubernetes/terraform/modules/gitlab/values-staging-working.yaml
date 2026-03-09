@@ -146,6 +146,10 @@ gitlab:
   webservice:
     minReplicas: 1
     maxReplicas: 1
+    # AGENTE-NODESELECTOR (2026-03-06): mover para nós workloads (t3.large)
+    # webservice consome 1.922 GiB real — estava saturando nós system (t3.medium, 92%)
+    nodeSelector:
+      node-type: workloads
     resources:
       requests:
         cpu: 300m
@@ -157,6 +161,10 @@ gitlab:
   sidekiq:
     minReplicas: 1
     maxReplicas: 1
+    # AGENTE-NODESELECTOR (2026-03-06): mover para nós workloads (t3.large)
+    # sidekiq consome 1.035 GiB real — estava em nó system saturado
+    nodeSelector:
+      node-type: workloads
     resources:
       requests:
         cpu: 500m
@@ -164,6 +172,21 @@ gitlab:
       limits:
         cpu: 1000m
         memory: 2Gi
+
+  gitlab-shell:
+    # AGENTE-NODESELECTOR (2026-03-06): mover para nós workloads
+    nodeSelector:
+      node-type: workloads
+
+  gitlab-exporter:
+    # AGENTE-NODESELECTOR (2026-03-06): mover para nós workloads
+    nodeSelector:
+      node-type: workloads
+
+  migrations:
+    # AGENTE-NODESELECTOR (2026-03-06): jobs de migration rodam em workloads
+    nodeSelector:
+      node-type: workloads
 
   gitaly:
     persistence:

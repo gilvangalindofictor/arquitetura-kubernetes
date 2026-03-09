@@ -25,12 +25,12 @@ provider "keycloak" {
   # kubectl port-forward svc/keycloak-keycloakx-http 18080:80 -n keycloak &
   url = var.keycloak_url
 
-  # admin-cli client (built-in, master realm, no client_secret needed)
-  client_id = "admin-cli"
-
-  # admin credentials (password auth to master realm)
-  username = "admin"
-  password = var.keycloak_admin_password
+  # client_credentials grant (service account) — avoids password special char encoding issues
+  # Client: terraform-admin (master realm), with admin role
+  # Created: 2026-03-06 to bypass URL encoding issue with admin password containing ?, =, > chars
+  # Secret is static (not sensitive — Keycloak master realm service account for IaC only)
+  client_id     = "terraform-admin"
+  client_secret = var.keycloak_client_secret
 
   # Realm for admin operations (always master for admin-cli)
   realm = "master"
@@ -43,4 +43,6 @@ provider "keycloak" {
   # Without this, provider appends /realms/... → 404
   # With base_path="/auth", provider uses: http://localhost:18080/auth/realms/...
   base_path = "/auth"
+
+  initial_login = true
 }

@@ -5,6 +5,7 @@
 # Updated: 2026-02-18 — add sonarqube/*, grafana/*
 # Updated: 2026-02-19 — add gitlab/*
 # Updated: 2026-02-20 — add argocd/* (V-002 remediation)
+# Updated: 2026-03-06 — add staging/backstage/* (ADR-055 Backstage IDP)
 
 path "secret/data/keycloak/*" {
   capabilities = ["read", "list"]
@@ -60,5 +61,14 @@ path "secret/data/staging/hatch/*" {
 }
 
 path "secret/metadata/staging/hatch/*" {
+  capabilities = ["read", "list"]
+}
+
+# Updated: 2026-03-06 — add staging/backstage/* (ADR-055 Backstage IDP)
+path "secret/data/staging/backstage/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/staging/backstage/*" {
   capabilities = ["read", "list"]
 }

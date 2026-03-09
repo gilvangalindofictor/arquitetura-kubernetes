@@ -260,7 +260,9 @@ resource "kubectl_manifest" "harbor_postgresql_externalsecret" {
       }
       data = [
         {
-          secretKey = "postgresql-password"
+          # Harbor chart v2.10.0 expects key "password" (not "postgresql-password")
+          # POSTGRESQL_PASSWORD env var in harbor-core deployment uses secretKeyRef.key=password
+          secretKey = "password"
           remoteRef = {
             key      = "secret/data/harbor/postgresql"
             property = "password"

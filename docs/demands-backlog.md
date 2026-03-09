@@ -654,7 +654,7 @@ kubectl get clusterpolicyreports
 **Prioridade vs Outras Demandas**:
 - **Após**: GAP-005 (CI/CD validation), V-003 (Harbor secrets)
 - **Antes**: GAP-006/007/008 (hardening opcional)
-- **Paralelo**: DT-005 (Slack webhooks - ambos são observabilidade)
+- **Paralelo**: DT-005 (Teams webhooks - ambos são observabilidade)
 
 **Referências**:
 - [Kyverno Documentation](https://kyverno.io/docs/)
@@ -1216,13 +1216,17 @@ go test -v -run TestKMSKeyRotationEnabled
 
 ---
 
-### ✅ DT-005: Alertas Básicos (Observability) [PARCIALMENTE ATIVO — Slack webhooks pendentes]
+### DT-005 — Alertas de Plataforma via Teams Webhook
 
 **Severidade**: 🟡 MEDIUM
-**Status**: ⚠️ **PARCIALMENTE ATIVO** (confrontação 2026-03-05) — 4 PrometheusRules ativas no cluster (6d3h), AlertmanagerConfig deployada, secret `alertmanager-slack-webhook` existe mas **todos os 4 valores são placeholders** (`REPLACE`). Routing configurado corretamente, falta apenas os webhooks reais.
-**Impacto**: Alertas disparam mas **não chegam ao Slack** (routing aponta para URLs REPLACE)
-**Esforço**: S (substituir 4 URLs no secret)
+**Status**: PENDENTE — Aguardando configuração de webhook Teams
+**Prioridade:** P2
+**Decisão:** ~~Slack~~ -> **Microsoft Teams** (decisão 2026-03-06) | **Referência:** ADR-103
+**Bloqueador:** URL do webhook Teams não configurada (secret `alertmanager-slack-webhook` tem valores `REPLACE`)
+**Esforço**: S (atualizar secret + AlertmanagerConfig receiver)
 **Plano**: Marco 5 (observability completa)
+
+**Contexto (confrontação 2026-03-05):** 4 PrometheusRules ativas no cluster (6d3h), AlertmanagerConfig deployada, secret `alertmanager-slack-webhook` existe com 4 chaves (critical/warning/data-services/security) — todos com valor `REPLACE`. Routing configurado corretamente; falta apenas a URL real do Teams.
 
 **37 alertas implementados** em 4 grupos PrometheusRule:
 
@@ -1234,21 +1238,23 @@ go test -v -run TestKMSKeyRotationEnabled
 | Security       | 8       | 5        | 3       |
 | **TOTAL**      | **37**  | **19**   | **18**  |
 
-**Arquivos criados**:
+**Arquivos existentes**:
 - `domains/observability/infra/alerts/dt005-prometheus-rules.yaml` — PrometheusRule CRDs (4 grupos)
-- `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` — Alertmanager routing (4 canais Slack)
+- `domains/observability/infra/alerts/dt005-alertmanager-config.yaml` — Alertmanager routing (atualizar: receiver slack -> msteams webhook)
 - `domains/observability/infra/helm/kube-prometheus-stack/values.yaml` — Atualizado
-- 17 runbooks em `domains/observability/docs/runbooks/` com template padrao (Triage > Diagnostic > Mitigation > Post-Mortem)
+- 17 runbooks em `domains/observability/docs/runbooks/`
 
-**Tarefas**:
+**Escopo de implementação (quando webhook URL disponível)**:
 - [x] Definir alertas criticos (disk, memory, certificates, DB connections, pod restarts)
-- [x] Configurar Alertmanager routing (4 canais Slack + inhibit rules)
+- [x] Configurar Alertmanager routing (4 grupos + inhibit rules)
 - [x] Criar runbooks para cada alerta (17 runbooks)
 - [x] PrometheusRule CRDs para Prometheus Operator
-- [ ] **ACAO REQUERIDA**: Substituir URLs no secret `alertmanager-slack-webhook` (4 chaves: critical/warning/data-services/security — todos com `REPLACE` placeholder)
-- [x] ~~`kubectl apply -f domains/observability/infra/alerts/`~~ — **ATIVO** (dt005-*-alerts 6d3h em staging-observability-monitoring)
-- [x] ~~Helm upgrade kube-prometheus-stack~~ — PrometheusRules operam via CRD independentemente
-- [ ] Validar alertas chegando no Slack após substituir webhooks
+- [x] ~~`kubectl apply -f domains/observability/infra/alerts/`~~ — ATIVO (dt005-*-alerts 6d3h em staging-observability-monitoring)
+- [ ] Obter URL do webhook do canal Teams de alertas (equipe responsável)
+- [ ] Atualizar secret `alertmanager-slack-webhook` com URL real Teams (ou criar `alertmanager-teams-webhook`)
+- [ ] Atualizar AlertmanagerConfig: receiver `slack_api_url` -> `webhook_configs` HTTP Teams
+- [ ] Validar entrega de alertas financeiros (WAFHighBlockRate, etc.) no canal Teams
+**Impacto:** Alertas de plataforma e financeiros não chegam a nenhum destino enquanto pendente
 
 ---
 
@@ -1346,7 +1352,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 - ✅ ~~P0: Verificar subnet group RDS antes de apply~~ — **COMPLETO** (DT-001, 2026-02-20)
 - ✅ ~~P0: Deploy alertas PrometheusRule (DT-005)~~ — **DEPLOYED** (2026-02-20)
 - P1: Rodar `make test-all` após `go mod tidy` — DT-003
-- P1: Configurar Slack webhooks reais — DT-005 (secret existe com REPLACE placeholders)
+- P1: Configurar Teams webhooks reais — DT-005 (secret existe com REPLACE placeholders; decisão 2026-03-06: Teams substituiu Slack)
 - ✅ ~~P2: `terraform plan` para Multi-AZ prod + deletion_protection~~ — **COMPLETO** (DT-004, 2026-02-20)
 
 ---
@@ -1408,7 +1414,7 @@ Ver `docs/context/risks.md` para matriz completa. Riscos críticos monitorados:
 
 **Concluídos anteriormente**:
 
-- ✅ **DT-005**: Alertas PrometheusRule deployados (Slack webhooks manuais)
+- ✅ **DT-005**: Alertas PrometheusRule deployados (Teams webhooks pendentes — decisão 2026-03-06: Teams substituiu Slack)
 - ✅ **GAP-005**: Templates GitLab CI/CD completos (validação E2E manual pendente)
 - ✅ **GAP-006/007/008**: ApplicationSets, Network Policies, Monitoring
 
@@ -2291,4 +2297,5 @@ Federar identidades do Microsoft Entra ID (Azure AD) no Keycloak via OIDC Identi
 Última atualização: 2026-03-05 (confrontação backlog × cluster real)
 
 - DEC-074 50%→100% ✅ | CICD-003/005 [x] | GAP-007 enforcement ⚠️ | INFRA-001 step 2 + runner + PVC Gitaly | IaC Compliance 4/4 ✅
-- Confrontação 2026-03-05: #1 helm upgrade gitlab FECHADO (rev 14, existingSecret ativo) | #4 lifecycle ignore_changes FECHADO (removidos commit 05f9d57) | DT-005 status atualizado (PrometheusRules ativas, Slack webhooks = REPLACE) | V-010 backup disponível (daily-full-backup-20260305020022) | Loki chunksCache TF não alinhado (só comentário no loki.tf)
+- Confrontação 2026-03-05: #1 helm upgrade gitlab FECHADO (rev 14, existingSecret ativo) | #4 lifecycle ignore_changes FECHADO (removidos commit 05f9d57) | DT-005 status atualizado (PrometheusRules ativas, Teams webhooks = REPLACE) | V-010 backup disponível (daily-full-backup-20260305020022) | Loki chunksCache TF não alinhado (só comentário no loki.tf)
+- DT-005 requalificado 2026-03-06: Slack -> Teams | ADR-103 criado | sem implementação no cluster

@@ -770,6 +770,20 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "NoSchedule"
   }
 
+  # -----------------------------------------------------------------------------
+  # Prometheus Pushgateway — FinOps cost metrics ingestion
+  # Lambda finops-cost-exporter pushes cost metrics every 6h
+  # -----------------------------------------------------------------------------
+  set {
+    name  = "prometheus-pushgateway.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "prometheus-pushgateway.serviceMonitor.enabled"
+    value = "true"
+  }
+
   depends_on = [kubernetes_namespace.monitoring]
 
   lifecycle {

@@ -1,0 +1,74 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: finops-cost-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    app: kube-prometheus-stack
+    app.kubernetes.io/managed-by: terraform
+    environment: staging
+    owner: platform-team
+    domain: finops
+spec:
+  groups:
+    - name: finops.cost.alerts
+      interval: 1h
+      rules:
+        - alert: FinOpsBudgetBreach
+          expr: aws_budget_actual_usd > aws_budget_limit_usd
+          for: 2h
+          labels:
+            severity: critical
+            team: platform
+            channel: finops-aws
+          annotations:
+            summary: "Custo MTD acima do budget"
+            description: >-
+              Custo MTD {{ $value | printf "%.2f" }} USD excede o budget de
+              {{ $labels.environment }} ($807/mes).
+            runbook: "https://wiki.internal/finops/budget-breach"
+
+        - alert: FinOpsBudgetWarning80pct
+          expr: (aws_budget_actual_usd / aws_budget_limit_usd) > 0.80
+          for: 2h
+          labels:
+            severity: warning
+            team: platform
+            channel: finops-aws
+          annotations:
+            summary: "Custo MTD acima de 80% do budget"
+            description: >-
+              Custo MTD atingiu {{ $value | printf "%.1f" }}% do budget de
+              {{ $labels.environment }}. Budget: $807/mes.
+            runbook: "https://wiki.internal/finops/budget-warning"
+
+        - alert: FinOpsDailyCostAnomaly
+          expr: |
+            sum(aws_cost_daily_usd) without(date)
+            > on() group_left()
+            (avg_over_time(sum(aws_cost_daily_usd) without(date)[7d:1d]) * 1.5)
+          for: 2h
+          labels:
+            severity: warning
+            team: platform
+            channel: finops-aws
+          annotations:
+            summary: "Anomalia no custo diario AWS"
+            description: >-
+              Custo diario {{ $value | printf "%.2f" }} USD esta acima de 150%
+              da media dos ultimos 7 dias. Verificar provisionamento nao planejado.
+            runbook: "https://wiki.internal/finops/daily-cost-anomaly"
+
+        - alert: FinOpsForecastBreach
+          expr: aws_cost_forecast_usd > aws_budget_limit_usd * 1.10
+          for: 6h
+          labels:
+            severity: warning
+            team: platform
+            channel: finops-aws
+          annotations:
+            summary: "Forecast do mes acima do budget"
+            description: >-
+              Forecast para {{ $labels.environment }}: {{ $value | printf "%.2f" }} USD
+              (>10% acima do budget de $807). Acao preventiva recomendada.
+            runbook: "https://wiki.internal/finops/forecast-breach"

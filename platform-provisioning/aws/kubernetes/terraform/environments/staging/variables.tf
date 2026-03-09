@@ -257,3 +257,53 @@ variable "dr_allowed_cidrs" {
   type        = list(string)
   default     = []
 }
+
+#------------------------------------------------------------------------------
+# Backstage IDP Variables (ADR-055)
+# Equalizado: 2026-03-06 (implantado manualmente em 2026-03-05)
+# Vault paths: secret/staging/backstage/{database,keycloak,gitlab,argocd,
+#              sonarqube,vault,eks,session}
+# ESO ExternalSecret: backstage-secrets (staging-platform-backstage)
+#------------------------------------------------------------------------------
+
+variable "backstage_db_password" {
+  description = "PostgreSQL password for Backstage database (ADR-055: seeds Vault KV secret/staging/backstage/database)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_keycloak_client_secret" {
+  description = "Keycloak OIDC client secret for Backstage (ADR-055/ADR-046: seeds Vault KV secret/staging/backstage/keycloak)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_gitlab_token" {
+  description = "GitLab Group Access Token for Backstage (ADR-055/ALTO-2: Group AT obrigatório, seeds Vault KV secret/staging/backstage/gitlab)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_argocd_token" {
+  description = "ArgoCD API token for Backstage plugin (ADR-055: seeds Vault KV secret/staging/backstage/argocd)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_sonarqube_token" {
+  description = "SonarQube API token for Backstage plugin (ADR-055: seeds Vault KV secret/staging/backstage/sonarqube)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_auth_session_secret" {
+  description = "Random session secret for Backstage auth (ADR-055: seeds Vault KV secret/staging/backstage/session)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
