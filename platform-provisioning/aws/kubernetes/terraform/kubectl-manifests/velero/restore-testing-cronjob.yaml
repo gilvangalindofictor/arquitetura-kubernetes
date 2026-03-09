@@ -117,11 +117,11 @@ spec:
                   value: "velero-restore-test"
                 - name: TEST_SOURCE_NAMESPACE
                   value: "cert-manager"  # Small, stable namespace for testing
-                - name: SLACK_WEBHOOK_URL
+                - name: TEAMS_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:
                       name: velero-notifications
-                      key: slack-webhook-url
+                      key: teams-webhook-url
                       optional: true
 
               command:
@@ -248,8 +248,8 @@ spec:
                   echo "Errors: $ERRORS"
                   echo "=========================================="
 
-                  # Send Slack notification (if webhook configured)
-                  if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+                  # Send Teams notification (if webhook configured)
+                  if [ -n "${TEAMS_WEBHOOK_URL:-}" ]; then
                     curl -X POST -H 'Content-type: application/json' \
                       --data "{
                         \"text\": \"✅ Velero Restore Test Successful\",
@@ -263,7 +263,7 @@ spec:
                           ]
                         }]
                       }" \
-                      "${SLACK_WEBHOOK_URL}" || echo "Slack notification failed"
+                      "${TEAMS_WEBHOOK_URL}" || echo "Teams notification failed"
                   fi
 
                   if [ "$RESTORE_STATUS" = "Completed" ] && [ $ERRORS -eq 0 ]; then
@@ -283,11 +283,11 @@ spec:
                   memory: 256Mi
 
 ---
-# Secret for Slack notifications (optional)
-# Create this secret with your Slack webhook URL:
+# Secret for Teams notifications (optional)
+# Create this secret with your Teams webhook URL:
 #
 # kubectl create secret generic velero-notifications \
-#   --from-literal=slack-webhook-url=https://hooks.slack.com/services/YOUR/WEBHOOK/URL \
+#   --from-literal=teams-webhook-url=https://outlook.office.com/webhook/YOUR/WEBHOOK/URL \
 #   -n velero
 #
 # Or use ExternalSecret to pull from Vault

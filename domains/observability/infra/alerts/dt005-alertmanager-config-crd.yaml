@@ -3,7 +3,7 @@
 # Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
 # Namespace: staging-observability-monitoring
 # Maintainer: Platform SRE Team
-# Last Updated: 2026-03-04
+# Last Updated: 2026-03-09
 #
 # This is the RECOMMENDED approach for managing Alertmanager routing.
 # AlertmanagerConfig is a namespaced CRD managed by the Prometheus Operator.
@@ -18,22 +18,22 @@
 # Prerequisites:
 #   - kube-prometheus-stack deployed (Prometheus Operator running)
 #   - alertmanager-values-patch.yaml applied (alertmanagerConfigSelector enabled)
-#   - Secret 'alertmanager-slack-webhooks' created by configure-slack-webhooks.sh
+#   - Secret 'alertmanager-slack-webhook' created with Teams webhook URLs
 #
-# Secret keys required in 'alertmanager-slack-webhooks':
-#   - slack-webhook-critical
-#   - slack-webhook-warning
-#   - slack-webhook-data
-#   - slack-webhook-security
+# Secret keys required in 'alertmanager-slack-webhook':
+#   - critical-webhook-url
+#   - warning-webhook-url
+#   - data-services-webhook-url
+#   - security-webhook-url
 #
 # Routing strategy:
 #   All alerts in namespace 'staging-observability-monitoring' enter this config.
 #   Route tree:
-#     root (default: slack-warning)
-#       ├── severity=critical  → slack-critical  (repeat: 5m, groupWait: 10s)
-#       ├── service=postgresql|redis|rabbitmq → slack-data-services (repeat: 15m)
-#       ├── service=vault|cert-manager|external-secrets|kyverno → slack-security
-#       └── severity=warning   → slack-warning  (repeat: 30m, batched)
+#     root (default: teams-warning)
+#       ├── severity=critical  → teams-critical  (repeat: 5m, groupWait: 10s)
+#       ├── service=postgresql|redis|rabbitmq → teams-data-services (repeat: 15m)
+#       ├── service=vault|cert-manager|external-secrets|kyverno → teams-security
+#       └── severity=warning   → teams-warning  (repeat: 30m, batched)
 #
 # Inhibit rules (4):
 #   1. critical inhibits warning (same alertname+namespace+service)
@@ -44,10 +44,10 @@
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
-  name: dt005-slack-routing
+  name: dt005-teams-routing
   namespace: staging-observability-monitoring
   labels:
-    app.kubernetes.io/name: dt005-slack-routing
+    app.kubernetes.io/name: dt005-teams-routing
     app.kubernetes.io/component: alerting
     app.kubernetes.io/part-of: kube-prometheus-stack
     app.kubernetes.io/managed-by: kubectl
@@ -59,10 +59,10 @@ spec:
   # ---------------------------------------------------------------------------
   # Route: Root
   # All alerts from this namespace enter here.
-  # Default receiver: slack-warning (low-noise batching)
+  # Default receiver: teams-warning (low-noise batching)
   # ---------------------------------------------------------------------------
   route:
-    receiver: slack-warning
+    receiver: teams-warning
     groupBy:
       - namespace
       - alertname
@@ -75,7 +75,7 @@ spec:
       # -----------------------------------------------------------------------
       # Critical alerts: immediate, short repeat
       # -----------------------------------------------------------------------
-      - receiver: slack-critical
+      - receiver: teams-critical
         matchers:
           - name: severity
             value: critical
@@ -88,7 +88,7 @@ spec:
       # -----------------------------------------------------------------------
       # Data services: dedicated channel
       # -----------------------------------------------------------------------
-      - receiver: slack-data-services
+      - receiver: teams-data-services
         matchers:
           - name: service
             value: "postgresql|redis|rabbitmq"
@@ -105,7 +105,7 @@ spec:
       # -----------------------------------------------------------------------
       # Security/compliance: security channel
       # -----------------------------------------------------------------------
-      - receiver: slack-security
+      - receiver: teams-security
         matchers:
           - name: service
             value: "vault|cert-manager|external-secrets|kyverno"
@@ -121,7 +121,7 @@ spec:
       # -----------------------------------------------------------------------
       # Warning alerts: batched, reduced noise
       # -----------------------------------------------------------------------
-      - receiver: slack-warning
+      - receiver: teams-warning
         matchers:
           - name: severity
             value: warning
@@ -133,121 +133,100 @@ spec:
 
   # ---------------------------------------------------------------------------
   # Receivers
-  # Webhook URLs are read from the K8s Secret 'alertmanager-slack-webhooks'.
+  # Webhook URLs are read from the K8s Secret 'alertmanager-teams-webhook'.
   # Secret must exist in the same namespace as this AlertmanagerConfig.
   # ---------------------------------------------------------------------------
   receivers:
 
     # -----------------------------------------------------------------------
-    # slack-critical: #alerts-critical
+    # teams-critical
     # -----------------------------------------------------------------------
-    - name: slack-critical
-      slackConfigs:
-        - apiURL:
-            name: alertmanager-slack-webhooks
-            key: slack-webhook-critical
-          channel: "#alerts-critical"
+    - name: teams-critical
+      msteamsConfigs:
+        - webhookUrl:
+            name: alertmanager-teams-webhook
+            key: critical-webhook-url
           sendResolved: true
-          iconEmoji: ":fire:"
-          username: "AlertManager [k8s-platform-prod]"
           title: |-
-            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
-          titleLink: |-
-            {{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else }}https://grafana.k8s-platform-prod.internal{{ end }}
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} FIRING{{ else }} RESOLVED{{ end }}] {{ .CommonLabels.alertname }}
           text: >-
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
+            **Alert:** {{ .Annotations.summary }}
 
-            *Severity:* `{{ .Labels.severity }}`
-            *Namespace:* `{{ .Labels.namespace }}`
-            *Service:* `{{ .Labels.service }}`
+            **Severity:** `{{ .Labels.severity }}`
+            **Namespace:** `{{ .Labels.namespace }}`
+            **Service:** `{{ .Labels.service }}`
 
-            *Description:* {{ .Annotations.description }}
+            **Description:** {{ .Annotations.description }}
 
-            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
             {{ end }}
-          actions:
-            - type: button
-              text: "Open Grafana"
-              url: "https://grafana.k8s-platform-prod.internal/dashboards"
-            - type: button
-              text: "Prometheus Alerts"
-              url: "https://prometheus.k8s-platform-prod.internal/alerts"
 
     # -----------------------------------------------------------------------
-    # slack-warning: #alerts-warning
+    # teams-warning
     # -----------------------------------------------------------------------
-    - name: slack-warning
-      slackConfigs:
-        - apiURL:
-            name: alertmanager-slack-webhooks
-            key: slack-webhook-warning
-          channel: "#alerts-warning"
+    - name: teams-warning
+      msteamsConfigs:
+        - webhookUrl:
+            name: alertmanager-teams-webhook
+            key: warning-webhook-url
           sendResolved: true
-          iconEmoji: ":warning:"
-          username: "AlertManager [k8s-platform-prod]"
           title: |-
             [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
           text: >-
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
+            **Alert:** {{ .Annotations.summary }}
 
-            *Severity:* `{{ .Labels.severity }}`
-            *Namespace:* `{{ .Labels.namespace }}`
+            **Severity:** `{{ .Labels.severity }}`
+            **Namespace:** `{{ .Labels.namespace }}`
 
             {{ end }}
 
     # -----------------------------------------------------------------------
-    # slack-data-services: #alerts-data-services
+    # teams-data-services
     # -----------------------------------------------------------------------
-    - name: slack-data-services
-      slackConfigs:
-        - apiURL:
-            name: alertmanager-slack-webhooks
-            key: slack-webhook-data
-          channel: "#alerts-data-services"
+    - name: teams-data-services
+      msteamsConfigs:
+        - webhookUrl:
+            name: alertmanager-teams-webhook
+            key: data-services-webhook-url
           sendResolved: true
-          iconEmoji: ":database:"
-          username: "AlertManager [k8s-platform-prod]"
           title: |-
             [{{ .Status | toUpper }}] {{ .CommonLabels.service | toUpper }}: {{ .CommonLabels.alertname }}
           text: >-
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
+            **Alert:** {{ .Annotations.summary }}
 
-            *Service:* `{{ .Labels.service }}`
-            *Instance:* `{{ .Labels.instance }}`
-            *Namespace:* `{{ .Labels.namespace }}`
+            **Service:** `{{ .Labels.service }}`
+            **Instance:** `{{ .Labels.instance }}`
+            **Namespace:** `{{ .Labels.namespace }}`
 
-            *Description:* {{ .Annotations.description }}
+            **Description:** {{ .Annotations.description }}
 
-            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
             {{ end }}
 
     # -----------------------------------------------------------------------
-    # slack-security: #alerts-security
+    # teams-security
     # -----------------------------------------------------------------------
-    - name: slack-security
-      slackConfigs:
-        - apiURL:
-            name: alertmanager-slack-webhooks
-            key: slack-webhook-security
-          channel: "#alerts-security"
+    - name: teams-security
+      msteamsConfigs:
+        - webhookUrl:
+            name: alertmanager-teams-webhook
+            key: security-webhook-url
           sendResolved: true
-          iconEmoji: ":lock:"
-          username: "AlertManager [k8s-platform-prod] SECURITY"
           title: |-
-            [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+            [{{ .Status | toUpper }} SECURITY] {{ .CommonLabels.alertname }}
           text: >-
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
+            **Alert:** {{ .Annotations.summary }}
 
-            *Service:* `{{ .Labels.service }}`
-            *Namespace:* `{{ .Labels.namespace }}`
+            **Service:** `{{ .Labels.service }}`
+            **Namespace:** `{{ .Labels.namespace }}`
 
-            *Description:* {{ .Annotations.description }}
+            **Description:** {{ .Annotations.description }}
 
-            {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+            {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
             {{ end }}
 
   # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: alertmanager-slack-webhook
+  name: alertmanager-teams-webhook
   namespace: staging-observability-monitoring
   labels:
     app.kubernetes.io/managed-by: external-secrets
@@ -11,13 +11,14 @@ metadata:
     # ADR-101: Secrets Migration to Vault + ExternalSecrets
     # Migrated: 2026-03-05 from plain K8s Secret
     # Vault path: secret/data/monitoring/alertmanager
+    # 2026-03-09: Renamed alertmanager-slack-webhook → alertmanager-teams-webhook (Slack → Teams migration)
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: vault-backend
     kind: ClusterSecretStore
   target:
-    name: alertmanager-slack-webhook
+    name: alertmanager-teams-webhook
     creationPolicy: Owner
     deletionPolicy: Retain
   data:

@@ -3,7 +3,7 @@
 # ============================================================================
 # Purpose: Daily scheduled audit to detect unauthorized configuration changes
 # Schedule: 2 AM UTC daily
-# Alert: Slack webhook on drift detected
+# Alert: Teams webhook on drift detected
 # ============================================================================
 apiVersion: batch/v1
 kind: CronJob
@@ -73,8 +73,8 @@ spec:
                   cat /tmp/drift-report.json | jq '.'
 
                   # Send success notification (optional)
-                  if [ -n "$SLACK_WEBHOOK_URL" ] && [ "$NOTIFY_ON_SUCCESS" = "true" ]; then
-                    curl -X POST "$SLACK_WEBHOOK_URL" \
+                  if [ -n "$TEAMS_WEBHOOK_URL" ] && [ "$NOTIFY_ON_SUCCESS" = "true" ]; then
+                    curl -X POST "$TEAMS_WEBHOOK_URL" \
                       -H 'Content-Type: application/json' \
                       -d "{
                         \"text\": \"✅ Velero drift detection passed\",
@@ -98,9 +98,9 @@ spec:
                   DRIFT_SUMMARY=$(cat /tmp/drift-report.json | jq -r '.drifts[] | "• \(.field): expected \(.expected), got \(.actual)"' | head -5)
                   DRIFT_COUNT=$(cat /tmp/drift-report.json | jq '.drifts | length')
 
-                  # Send alert (Slack webhook)
-                  if [ -n "$SLACK_WEBHOOK_URL" ]; then
-                    curl -X POST "$SLACK_WEBHOOK_URL" \
+                  # Send alert (Teams webhook)
+                  if [ -n "$TEAMS_WEBHOOK_URL" ]; then
+                    curl -X POST "$TEAMS_WEBHOOK_URL" \
                       -H 'Content-Type: application/json' \
                       -d "{
                         \"text\": \"⚠️ Velero configuration drift detected!\",
@@ -128,11 +128,11 @@ spec:
               value: "k8s-platform-prod"
             - name: SCRIPT_BASE_URL
               value: "https://raw.githubusercontent.com/yourorg/platform/main"  # Update to your repo
-            - name: SLACK_WEBHOOK_URL
+            - name: TEAMS_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
                   name: monitoring-webhooks
-                  key: slack-webhook-url
+                  key: teams-webhook-url
                   optional: true  # Don't fail if secret doesn't exist
             - name: NOTIFY_ON_SUCCESS
               value: "false"  # Set to "true" to get success notifications
@@ -227,11 +227,11 @@ subjects:
 # ============================================================================
 # Secret: monitoring-webhooks (example)
 # ============================================================================
-# Create this secret to enable Slack alerts:
+# Create this secret to enable Teams alerts:
 #
 #   kubectl create secret generic monitoring-webhooks \
 #     -n velero \
-#     --from-literal=slack-webhook-url='https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+#     --from-literal=teams-webhook-url='https://outlook.office.com/webhook/YOUR/WEBHOOK/URL'
 #
 # Or use ExternalSecret (Vault):
 #
@@ -249,8 +249,8 @@ subjects:
 #     name: monitoring-webhooks
 #     creationPolicy: Owner
 #   data:
-#   - secretKey: slack-webhook-url
+#   - secretKey: teams-webhook-url
 #     remoteRef:
 #       key: secret/data/monitoring/webhooks
-#       property: slack_url
+#       property: teams_url
 # ============================================================================

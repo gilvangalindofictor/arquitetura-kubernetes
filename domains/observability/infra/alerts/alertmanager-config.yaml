@@ -3,21 +3,23 @@
 # Cluster: k8s-platform-prod (EKS)
 #
 # Routing Strategy:
-#   - Critical alerts -> immediate notification (Slack + Email), 5min repeat
-#   - Warning alerts -> batched notification (Slack), 30min repeat
+#   - Critical alerts -> immediate notification (Teams + Email), 5min repeat
+#   - Warning alerts -> batched notification (Teams), 30min repeat
 #   - Data services -> dedicated channel/recipient
 #   - Security alerts -> security team channel
 #
 # Receivers:
-#   - slack-critical: Immediate critical alerts
-#   - slack-warning: Batched warning alerts
-#   - slack-data-services: Data service specific alerts
-#   - slack-security: Security/vault/certificate alerts
+#   - teams-critical: Immediate critical alerts
+#   - teams-warning: Batched warning alerts
+#   - teams-data-services: Data service specific alerts
+#   - teams-security: Security/vault/certificate alerts
 #   - email-critical: Email for critical alerts (backup channel)
 #   - null: Silenced/suppressed alerts
 #
 # IMPORTANT: Replace placeholder values before deploying:
-#   - SLACK_WEBHOOK_URL_* -> actual Slack webhook URLs
+#   - Teams webhook URLs are stored in K8s Secret alertmanager-slack-webhook
+#     (keys: critical-webhook-url, warning-webhook-url,
+#            data-services-webhook-url, security-webhook-url)
 #   - smtp_* -> actual SMTP server configuration
 #   - email_to_* -> actual email addresses
 # =============================================================================
@@ -38,16 +40,16 @@ spec:
     groupWait: 30s
     groupInterval: 5m
     repeatInterval: 12h
-    receiver: "slack-warning"
+    receiver: "teams-warning"
     routes:
       # =====================================================================
-      # Critical alerts -> Immediate notification (Slack + Email)
+      # Critical alerts -> Immediate notification (Teams + Email)
       # =====================================================================
       - matchers:
           - name: severity
             value: critical
             matchType: "="
-        receiver: "slack-critical"
+        receiver: "teams-critical"
         repeatInterval: 5m
         groupWait: 10s
         groupInterval: 1m
@@ -69,7 +71,7 @@ spec:
           - name: service
             value: "(postgresql|redis|rabbitmq)"
             matchType: "=~"
-        receiver: "slack-data-services"
+        receiver: "teams-data-services"
         repeatInterval: 15m
         groupBy: ["service", "alertname", "namespace"]
 
@@ -80,7 +82,7 @@ spec:
           - name: service
             value: "(vault|cert-manager|external-secrets)"
             matchType: "=~"
-        receiver: "slack-security"
+        receiver: "teams-security"
         repeatInterval: 10m
         groupBy: ["service", "alertname"]
 
@@ -91,97 +93,93 @@ spec:
           - name: severity
             value: warning
             matchType: "="
-        receiver: "slack-warning"
+        receiver: "teams-warning"
         repeatInterval: 30m
         groupWait: 60s
         groupInterval: 10m
 
   receivers:
     # =====================================================================
-    # Slack - Critical Alerts (immediate)
+    # Teams - Critical Alerts (immediate)
     # =====================================================================
-    - name: "slack-critical"
-      slackConfigs:
-        - apiURL:
+    - name: "teams-critical"
+      msteamsConfigs:
+        - webhookUrl:
             name: alertmanager-slack-webhook
             key: critical-webhook-url
-          channel: "#alerts-critical"
           sendResolved: true
           title: |
-            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }} FIRING{{ else }} RESOLVED{{ end }}] {{ .CommonLabels.alertname }}
           text: |
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Severity:* `{{ .Labels.severity }}`
-            *Namespace:* {{ .Labels.namespace }}
-            *Service:* {{ .Labels.service }}
-            *Description:* {{ .Annotations.description }}
-            *Started:* {{ .StartsAt | since }}
-            {{ if .Annotations.dashboard_url }}*Dashboard:* {{ .Annotations.dashboard_url }}{{ end }}
+            **Alert:** {{ .Annotations.summary }}
+            **Severity:** {{ .Labels.severity }}
+            **Namespace:** {{ .Labels.namespace }}
+            **Service:** {{ .Labels.service }}
+            **Description:** {{ .Annotations.description }}
+            **Started:** {{ .StartsAt | since }}
+            {{ if .Annotations.dashboard_url }}**Dashboard:** {{ .Annotations.dashboard_url }}{{ end }}
             ---
             {{ end }}
 
     # =====================================================================
-    # Slack - Warning Alerts (batched)
+    # Teams - Warning Alerts (batched)
     # =====================================================================
-    - name: "slack-warning"
-      slackConfigs:
-        - apiURL:
+    - name: "teams-warning"
+      msteamsConfigs:
+        - webhookUrl:
             name: alertmanager-slack-webhook
             key: warning-webhook-url
-          channel: "#alerts-warning"
           sendResolved: true
           title: |
             [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
           text: |
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Severity:* `{{ .Labels.severity }}`
-            *Namespace:* {{ .Labels.namespace }}
-            {{ if .Annotations.description }}*Details:* {{ .Annotations.description | reReplaceAll "\n" " " | truncate 300 }}{{ end }}
+            **Alert:** {{ .Annotations.summary }}
+            **Severity:** {{ .Labels.severity }}
+            **Namespace:** {{ .Labels.namespace }}
+            {{ if .Annotations.description }}**Details:** {{ .Annotations.description | reReplaceAll "\n" " " | truncate 300 }}{{ end }}
             ---
             {{ end }}
 
     # =====================================================================
-    # Slack - Data Services (dedicated)
+    # Teams - Data Services (dedicated)
     # =====================================================================
-    - name: "slack-data-services"
-      slackConfigs:
-        - apiURL:
+    - name: "teams-data-services"
+      msteamsConfigs:
+        - webhookUrl:
             name: alertmanager-slack-webhook
             key: data-services-webhook-url
-          channel: "#alerts-data-services"
           sendResolved: true
           title: |
             [{{ .Status | toUpper }}] {{ .CommonLabels.service }}: {{ .CommonLabels.alertname }}
           text: |
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Severity:* `{{ .Labels.severity }}`
-            *Service:* {{ .Labels.service }} / {{ .Labels.component }}
-            *Instance:* {{ .Labels.instance }}
-            *Description:* {{ .Annotations.description }}
+            **Alert:** {{ .Annotations.summary }}
+            **Severity:** {{ .Labels.severity }}
+            **Service:** {{ .Labels.service }} / {{ .Labels.component }}
+            **Instance:** {{ .Labels.instance }}
+            **Description:** {{ .Annotations.description }}
             ---
             {{ end }}
 
     # =====================================================================
-    # Slack - Security Alerts
+    # Teams - Security Alerts
     # =====================================================================
-    - name: "slack-security"
-      slackConfigs:
-        - apiURL:
+    - name: "teams-security"
+      msteamsConfigs:
+        - webhookUrl:
             name: alertmanager-slack-webhook
             key: security-webhook-url
-          channel: "#alerts-security"
           sendResolved: true
           title: |
-            [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+            [{{ .Status | toUpper }} SECURITY] {{ .CommonLabels.alertname }}
           text: |
             {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Severity:* `{{ .Labels.severity }}`
-            *Service:* {{ .Labels.service }}
-            *Description:* {{ .Annotations.description }}
+            **Alert:** {{ .Annotations.summary }}
+            **Severity:** {{ .Labels.severity }}
+            **Service:** {{ .Labels.service }}
+            **Description:** {{ .Annotations.description }}
             ---
             {{ end }}
 
@@ -231,16 +229,16 @@ spec:
 
 ---
 # =============================================================================
-# Slack Webhook Secret (placeholder - populate via ESO or kubectl)
+# Teams Webhook Secret (placeholder - populate via ESO or kubectl)
 #
 # To create manually:
-#   kubectl create secret generic alertmanager-slack-webhook -n monitoring \
-#     --from-literal=critical-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
-#     --from-literal=warning-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
-#     --from-literal=data-services-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ' \
-#     --from-literal=security-webhook-url='https://hooks.slack.com/services/XXX/YYY/ZZZ'
+#   kubectl create secret generic alertmanager-slack-webhook -n staging-observability-monitoring \
+#     --from-literal=critical-webhook-url='https://outlook.office.com/webhook/XXX' \
+#     --from-literal=warning-webhook-url='https://outlook.office.com/webhook/XXX' \
+#     --from-literal=data-services-webhook-url='https://outlook.office.com/webhook/XXX' \
+#     --from-literal=security-webhook-url='https://outlook.office.com/webhook/XXX'
 #
-# Or via ExternalSecret (Vault path: secret/data/alertmanager/slack):
+# Or via ExternalSecret (Vault path: secret/data/alertmanager/teams):
 # =============================================================================
 apiVersion: v1
 kind: Secret
@@ -252,8 +250,8 @@ metadata:
     demand: DT-005
 type: Opaque
 stringData:
-  # REPLACE THESE WITH ACTUAL WEBHOOK URLs
-  critical-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
-  warning-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
-  data-services-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
-  security-webhook-url: "https://hooks.slack.com/services/REPLACE/WITH/ACTUAL-WEBHOOK"
+  # REPLACE THESE WITH ACTUAL TEAMS WEBHOOK URLs
+  critical-webhook-url: "https://outlook.office.com/webhook/REPLACE/WITH/ACTUAL-WEBHOOK"
+  warning-webhook-url: "https://outlook.office.com/webhook/REPLACE/WITH/ACTUAL-WEBHOOK"
+  data-services-webhook-url: "https://outlook.office.com/webhook/REPLACE/WITH/ACTUAL-WEBHOOK"
+  security-webhook-url: "https://outlook.office.com/webhook/REPLACE/WITH/ACTUAL-WEBHOOK"

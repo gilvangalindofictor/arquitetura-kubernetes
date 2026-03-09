@@ -3,17 +3,17 @@
 # Cluster: k8s-platform-prod (EKS 1.34, us-east-1)
 # Namespace: staging-observability-monitoring
 # Maintainer: Platform SRE Team
-# Last Updated: 2026-03-04
+# Last Updated: 2026-03-09
 #
 # IMPORTANT: Webhook URLs are placeholders.
-# Use scripts/observability/configure-slack-webhooks.sh to inject real URLs
+# Use scripts/observability/configure-teams-webhooks.sh to inject real URLs
 # via a Kubernetes Secret (no plaintext credentials in YAML).
 #
 # Channel mapping:
-#   #alerts-critical      — severity=critical (PD-like immediacy)
-#   #alerts-warning       — severity=warning  (batched, low noise)
-#   #alerts-data-services — service=postgresql|redis|rabbitmq
-#   #alerts-security      — service=vault|cert-manager|external-secrets|kyverno
+#   teams-critical      — severity=critical (PD-like immediacy)
+#   teams-warning       — severity=warning  (batched, low noise)
+#   teams-data-services — service=postgresql|redis|rabbitmq
+#   teams-security      — service=vault|cert-manager|external-secrets|kyverno
 #
 # Routing hierarchy:
 #   root (default: warning) → critical → data-services → security → warning
@@ -42,13 +42,13 @@ route:
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 12h
-  receiver: "slack-warning"
+  receiver: "teams-warning"
 
   routes:
     # --- Critical alerts: immediate + continue to email ---
     - matchers:
         - severity = "critical"
-      receiver: "slack-critical"
+      receiver: "teams-critical"
       repeat_interval: 5m
       group_wait: 10s
       group_interval: 1m
@@ -64,7 +64,7 @@ route:
     # --- Data services: dedicated channel ---
     - matchers:
         - service =~ "postgresql|redis|rabbitmq"
-      receiver: "slack-data-services"
+      receiver: "teams-data-services"
       repeat_interval: 15m
       group_wait: 30s
       group_interval: 5m
@@ -73,7 +73,7 @@ route:
     # --- Security/compliance: security channel ---
     - matchers:
         - service =~ "vault|cert-manager|external-secrets|kyverno"
-      receiver: "slack-security"
+      receiver: "teams-security"
       repeat_interval: 10m
       group_wait: 20s
       group_interval: 3m
@@ -82,7 +82,7 @@ route:
     # --- Warning: batched, low noise ---
     - matchers:
         - severity = "warning"
-      receiver: "slack-warning"
+      receiver: "teams-warning"
       repeat_interval: 30m
       group_wait: 60s
       group_interval: 10m
@@ -92,107 +92,86 @@ receivers:
   - name: "null"
 
   # -----------------------------------------------------------------------
-  # Slack — #alerts-critical
+  # Teams — Critical
   # -----------------------------------------------------------------------
-  - name: "slack-critical"
-    slack_configs:
-      - api_url: "__SLACK_WEBHOOK_CRITICAL__"
-        channel: "#alerts-critical"
+  - name: "teams-critical"
+    msteams_configs:
+      - webhook_url: "__TEAMS_WEBHOOK_CRITICAL__"
         send_resolved: true
-        icon_emoji: ":fire:"
-        username: "AlertManager [k8s-platform-prod]"
         title: |-
-          [{{ .Status | toUpper }}{{ if eq .Status "firing" }} :fire:{{ else }} :white_check_mark:{{ end }}] {{ .CommonLabels.alertname }}
-        title_link: |-
-          {{ if .CommonAnnotations.runbook_url }}{{ .CommonAnnotations.runbook_url }}{{ else }}https://grafana.k8s-platform-prod.internal{{ end }}
+          [{{ .Status | toUpper }}{{ if eq .Status "firing" }} FIRING{{ else }} RESOLVED{{ end }}] {{ .CommonLabels.alertname }}
         text: >-
           {{ range .Alerts }}
-          *Alert:* {{ .Annotations.summary }}
+          **Alert:** {{ .Annotations.summary }}
 
-          *Severity:* `{{ .Labels.severity }}`
-          *Namespace:* `{{ .Labels.namespace }}`
-          *Service:* `{{ .Labels.service }}`
+          **Severity:** `{{ .Labels.severity }}`
+          **Namespace:** `{{ .Labels.namespace }}`
+          **Service:** `{{ .Labels.service }}`
 
-          *Description:* {{ .Annotations.description }}
+          **Description:** {{ .Annotations.description }}
 
-          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
           {{ end }}
-        actions:
-          - type: button
-            text: "Open Grafana"
-            url: "https://grafana.k8s-platform-prod.internal/dashboards"
-          - type: button
-            text: "Prometheus"
-            url: "https://prometheus.k8s-platform-prod.internal/alerts"
 
   # -----------------------------------------------------------------------
-  # Slack — #alerts-warning
+  # Teams — Warning
   # -----------------------------------------------------------------------
-  - name: "slack-warning"
-    slack_configs:
-      - api_url: "__SLACK_WEBHOOK_WARNING__"
-        channel: "#alerts-warning"
+  - name: "teams-warning"
+    msteams_configs:
+      - webhook_url: "__TEAMS_WEBHOOK_WARNING__"
         send_resolved: true
-        icon_emoji: ":warning:"
-        username: "AlertManager [k8s-platform-prod]"
         title: |-
           [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }} alerts)
         text: >-
           {{ range .Alerts }}
-          *Alert:* {{ .Annotations.summary }}
+          **Alert:** {{ .Annotations.summary }}
 
-          *Severity:* `{{ .Labels.severity }}`
-          *Namespace:* `{{ .Labels.namespace }}`
+          **Severity:** `{{ .Labels.severity }}`
+          **Namespace:** `{{ .Labels.namespace }}`
 
           {{ end }}
 
   # -----------------------------------------------------------------------
-  # Slack — #alerts-data-services
+  # Teams — Data Services
   # -----------------------------------------------------------------------
-  - name: "slack-data-services"
-    slack_configs:
-      - api_url: "__SLACK_WEBHOOK_DATA__"
-        channel: "#alerts-data-services"
+  - name: "teams-data-services"
+    msteams_configs:
+      - webhook_url: "__TEAMS_WEBHOOK_DATA__"
         send_resolved: true
-        icon_emoji: ":database:"
-        username: "AlertManager [k8s-platform-prod]"
         title: |-
           [{{ .Status | toUpper }}] {{ .CommonLabels.service | toUpper }}: {{ .CommonLabels.alertname }}
         text: >-
           {{ range .Alerts }}
-          *Alert:* {{ .Annotations.summary }}
+          **Alert:** {{ .Annotations.summary }}
 
-          *Service:* `{{ .Labels.service }}`
-          *Instance:* `{{ .Labels.instance }}`
-          *Namespace:* `{{ .Labels.namespace }}`
+          **Service:** `{{ .Labels.service }}`
+          **Instance:** `{{ .Labels.instance }}`
+          **Namespace:** `{{ .Labels.namespace }}`
 
-          *Description:* {{ .Annotations.description }}
+          **Description:** {{ .Annotations.description }}
 
-          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
           {{ end }}
 
   # -----------------------------------------------------------------------
-  # Slack — #alerts-security
+  # Teams — Security
   # -----------------------------------------------------------------------
-  - name: "slack-security"
-    slack_configs:
-      - api_url: "__SLACK_WEBHOOK_SECURITY__"
-        channel: "#alerts-security"
+  - name: "teams-security"
+    msteams_configs:
+      - webhook_url: "__TEAMS_WEBHOOK_SECURITY__"
         send_resolved: true
-        icon_emoji: ":lock:"
-        username: "AlertManager [k8s-platform-prod] SECURITY"
         title: |-
-          [{{ .Status | toUpper }} :lock:] {{ .CommonLabels.alertname }}
+          [{{ .Status | toUpper }} SECURITY] {{ .CommonLabels.alertname }}
         text: >-
           {{ range .Alerts }}
-          *Alert:* {{ .Annotations.summary }}
+          **Alert:** {{ .Annotations.summary }}
 
-          *Service:* `{{ .Labels.service }}`
-          *Namespace:* `{{ .Labels.namespace }}`
+          **Service:** `{{ .Labels.service }}`
+          **Namespace:** `{{ .Labels.namespace }}`
 
-          *Description:* {{ .Annotations.description }}
+          **Description:** {{ .Annotations.description }}
 
-          {{ if .Annotations.runbook_url }}:book: *Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.runbook_url }}**Runbook:** {{ .Annotations.runbook_url }}{{ end }}
           {{ end }}
 
   # -----------------------------------------------------------------------

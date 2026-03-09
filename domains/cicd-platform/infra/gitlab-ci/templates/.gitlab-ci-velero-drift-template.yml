@@ -108,9 +108,9 @@ velero:drift:scheduled:
       if ! $DRIFT_SCRIPT_PATH --json > /tmp/drift-report.json; then
         echo "⚠️ Drift detected in scheduled audit"
 
-        # Send notification (Slack, email, etc)
-        if [ -n "$SLACK_WEBHOOK_URL" ]; then
-          curl -X POST "$SLACK_WEBHOOK_URL" \
+        # Send notification (Teams, email, etc)
+        if [ -n "$TEAMS_WEBHOOK_URL" ]; then
+          curl -X POST "$TEAMS_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
             -d "{
               \"text\": \"⚠️ Velero configuration drift detected in $CLUSTER_NAME!\",
@@ -186,10 +186,10 @@ velero:drift:auto-fix:
 #    - Interval: "0 2 * * *" (daily at 2 AM)
 #    - Target branch: main
 #
-# 2. Configure Slack webhook:
+# 2. Configure Teams webhook:
 #    - CI/CD Variables > New Variable
-#    - Key: SLACK_WEBHOOK_URL
-#    - Value: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+#    - Key: TEAMS_WEBHOOK_URL
+#    - Value: https://outlook.office.com/webhook/YOUR/WEBHOOK/URL
 #    - Protected: yes, Masked: yes
 #
 # 3. Pre-deployment validation:

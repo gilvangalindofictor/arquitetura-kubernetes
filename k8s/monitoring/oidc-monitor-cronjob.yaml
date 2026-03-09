@@ -69,13 +69,13 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: oidc-monitor-slack
+  name: oidc-monitor-teams
   namespace: monitoring
 type: Opaque
 stringData:
-  # IMPORTANT: Replace with actual Slack webhook URL
-  # Create webhook at: https://api.slack.com/messaging/webhooks
-  webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  # IMPORTANT: Replace with actual Teams webhook URL
+  # Create webhook at: https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
+  webhook-url: "https://outlook.office.com/webhook/YOUR/WEBHOOK/URL"
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -159,11 +159,11 @@ spec:
             - name: ARGOCD_NAMESPACE
               value: "argocd"
 
-            # Slack webhook from secret
-            - name: SLACK_WEBHOOK_URL
+            # Teams webhook from secret
+            - name: TEAMS_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: oidc-monitor-slack
+                  name: oidc-monitor-teams
                   key: webhook-url
                   optional: true
 
@@ -273,30 +273,29 @@ spec:
               echo ""
               echo "Report saved to: ${DAILY_REPORT}"
 
-              # Send daily summary to Slack if configured
-              if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+              # Send daily summary to Teams if configured
+              if [ -n "${TEAMS_WEBHOOK_URL:-}" ]; then
                 curl -X POST -H 'Content-type: application/json' \
                   --data "{
-                    \"text\": \":bar_chart: Daily OIDC Monitoring Report - ${YESTERDAY}\",
-                    \"blocks\": [{
-                      \"type\": \"section\",
-                      \"fields\": [{
-                        \"type\": \"mrkdwn\",
-                        \"text\": \"*Total Checks:*\\n${total_checks}\"
+                    \"text\": \"Daily OIDC Monitoring Report - ${YESTERDAY}\",
+                    \"sections\": [{
+                      \"facts\": [{
+                        \"name\": \"Total Checks\",
+                        \"value\": \"${total_checks}\"
                       }, {
-                        \"type\": \"mrkdwn\",
-                        \"text\": \"*Total Errors:*\\n${total_errors}\"
+                        \"name\": \"Total Errors\",
+                        \"value\": \"${total_errors}\"
                       }]
                     }]
                   }" \
-                  "$SLACK_WEBHOOK_URL" || true
+                  "$TEAMS_WEBHOOK_URL" || true
               fi
 
             env:
-            - name: SLACK_WEBHOOK_URL
+            - name: TEAMS_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: oidc-monitor-slack
+                  name: oidc-monitor-teams
                   key: webhook-url
                   optional: true
 
@@ -370,10 +369,10 @@ spec:
           value: "gitlab-staging"
         - name: ARGOCD_NAMESPACE
           value: "argocd"
-        - name: SLACK_WEBHOOK_URL
+        - name: TEAMS_WEBHOOK_URL
           valueFrom:
             secretKeyRef:
-              name: oidc-monitor-slack
+              name: oidc-monitor-teams
               key: webhook-url
               optional: true
 
