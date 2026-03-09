@@ -33,6 +33,8 @@ resource "helm_release" "otel_collector" {
   chart      = "opentelemetry-collector"
   version    = var.chart_version
   namespace  = var.namespace
+  timeout    = 600 # 10 minutes — pods may take longer on scale events
+  wait       = false # Avoid context deadline exceeded on upgrade
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
     replicas                = var.replicas
@@ -64,6 +66,10 @@ resource "kubernetes_manifest" "otel_hpa" {
     target_cpu_percent = var.hpa_target_cpu_percent
   }))
 
+  field_manager {
+    force_conflicts = true
+  }
+
   depends_on = [helm_release.otel_collector]
 }
 
@@ -75,6 +81,10 @@ resource "kubernetes_manifest" "otel_pdb" {
     name      = var.release_name
     namespace = var.namespace
   }))
+
+  field_manager {
+    force_conflicts = true
+  }
 
   depends_on = [helm_release.otel_collector]
 }
@@ -92,6 +102,10 @@ resource "kubernetes_manifest" "otel_network_policies" {
   }
 
   manifest = each.value
+
+  field_manager {
+    force_conflicts = true
+  }
 
   depends_on = [helm_release.otel_collector]
 }

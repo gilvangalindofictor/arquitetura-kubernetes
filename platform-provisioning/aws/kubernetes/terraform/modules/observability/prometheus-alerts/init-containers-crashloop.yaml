@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-alert-init-crashloop
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   labels:
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/component: alerting-rules

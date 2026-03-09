@@ -54,6 +54,7 @@ resource "helm_release" "external_secrets" {
   })]
 
   timeout = 300 # 5 minutes
+  wait    = false # Kyverno label policies may block Service creation during upgrade
 }
 
 # -----------------------------------------------------------------------------

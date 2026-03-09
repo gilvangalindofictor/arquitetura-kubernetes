@@ -226,11 +226,12 @@ module "postgresql_staging" {
 module "redis_staging" {
   source = "../../modules/redis"
 
-  cluster_name  = local.cluster_name
-  replicas      = var.redis_replicas # 1
-  pvc_size      = var.redis_pvc_size # 5Gi
-  storage_class = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
-  common_tags   = local.common_tags
+  cluster_name         = local.cluster_name
+  replicas             = var.redis_replicas # 1
+  pvc_size             = var.redis_pvc_size # 5Gi
+  storage_class        = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
+  common_tags          = local.common_tags
+  monitoring_namespace = "staging-observability-monitoring"
 
   # Toleration for critical nodes (ADR-041 pattern)
   tolerations = [{
@@ -302,7 +303,7 @@ data "aws_secretsmanager_secret_version" "rds_actual_master" {
 resource "kubernetes_secret" "gitlab_postgresql_password" {
   metadata {
     name      = "gitlab-postgresql-password"
-    namespace = "gitlab-staging" # Changed from data-services to gitlab-staging
+    namespace = "staging-platform-gitlab" # DEC-074: migrated from gitlab-staging (2026-03-09)
 
     labels = merge(local.common_tags, {
       "app.kubernetes.io/name"     = "postgresql"
@@ -698,6 +699,14 @@ module "vault_config_staging" {
   # Pass existing password from TF_VAR_keycloak_admin_password to preserve Keycloak admin login
   keycloak_admin_password = var.keycloak_admin_password
 
+  # Alertmanager Microsoft Teams Webhooks — 2026-03-09 Teams rename
+  # Default REPLACE_ values; real URLs set directly in Vault after TF import.
+  # lifecycle.ignore_changes in module prevents overwrite of real URLs.
+  # alertmanager_teams_webhook_critical      = "REPLACE_TEAMS_WEBHOOK_URL_CRITICAL"
+  # alertmanager_teams_webhook_warning       = "REPLACE_TEAMS_WEBHOOK_URL_WARNING"
+  # alertmanager_teams_webhook_data_services = "REPLACE_TEAMS_WEBHOOK_URL_DATA_SERVICES"
+  # alertmanager_teams_webhook_security      = "REPLACE_TEAMS_WEBHOOK_URL_SECURITY"
+
   common_tags = local.common_tags
 }
 
@@ -810,7 +819,7 @@ module "keycloak_clients_staging" {
   grafana_namespace    = "monitoring"
   harbor_namespace     = "harbor-system"
   vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
-  sonarqube_namespace  = "sonarqube"
+  sonarqube_namespace  = "staging-platform-sonarqube"
 
   # grafana-admins group + oidc-group-membership-mapper
   # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
@@ -831,7 +840,7 @@ module "keycloak_staging" {
   # Cluster info
   cluster_name = local.cluster_name
   aws_region   = var.aws_region
-  namespace    = "keycloak"
+  namespace    = "staging-platform-keycloak"
 
   # Keycloak configuration
   keycloak_chart_version = "7.1.7" # Updated to codecentric/keycloakx (Quarkus 26.5.1)
@@ -951,7 +960,7 @@ module "sonarqube_staging" {
   ]
 
   cluster_name    = local.cluster_name
-  namespace       = "sonarqube"
+  namespace       = "staging-platform-sonarqube"
   postgresql_host = module.postgresql_staging.rds_address
 
   # ALB Ingress
@@ -1007,7 +1016,7 @@ resource "kubernetes_manifest" "sonarqube_sp_saml_externalsecret" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "sonarqube-sp-saml"
-      namespace = "sonarqube"
+      namespace = "staging-platform-sonarqube"
     }
     spec = {
       refreshInterval = "1h"
@@ -1787,7 +1796,7 @@ resource "kubectl_manifest" "vpa_keycloak" {
     kind: VerticalPodAutoscaler
     metadata:
       name: keycloak
-      namespace: keycloak
+      namespace: staging-platform-keycloak
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1847,7 +1856,7 @@ resource "kubectl_manifest" "vpa_gitlab_webservice" {
     kind: VerticalPodAutoscaler
     metadata:
       name: gitlab-webservice
-      namespace: gitlab-staging
+      namespace: staging-platform-gitlab
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1877,7 +1886,7 @@ resource "kubectl_manifest" "vpa_gitlab_sidekiq" {
     kind: VerticalPodAutoscaler
     metadata:
       name: gitlab-sidekiq
-      namespace: gitlab-staging
+      namespace: staging-platform-gitlab
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1907,7 +1916,7 @@ resource "kubectl_manifest" "vpa_argocd" {
     kind: VerticalPodAutoscaler
     metadata:
       name: argocd-server
-      namespace: argocd
+      namespace: staging-platform-argocd
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1937,7 +1946,7 @@ resource "kubectl_manifest" "vpa_prometheus" {
     kind: VerticalPodAutoscaler
     metadata:
       name: prometheus
-      namespace: monitoring
+      namespace: staging-observability-monitoring
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1967,7 +1976,7 @@ resource "kubectl_manifest" "vpa_grafana" {
     kind: VerticalPodAutoscaler
     metadata:
       name: grafana
-      namespace: monitoring
+      namespace: staging-observability-monitoring
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -1997,7 +2006,7 @@ resource "kubectl_manifest" "vpa_loki" {
     kind: VerticalPodAutoscaler
     metadata:
       name: loki-write
-      namespace: monitoring
+      namespace: staging-observability-monitoring
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -2027,7 +2036,7 @@ resource "kubectl_manifest" "vpa_tempo" {
     kind: VerticalPodAutoscaler
     metadata:
       name: tempo-distributor
-      namespace: monitoring
+      namespace: staging-observability-monitoring
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -2665,10 +2674,8 @@ module "finops_cost_exporter" {
   pushgateway_url   = "http://kube-prometheus-stack-prometheus-pushgateway.staging-observability-monitoring.svc.cluster.local:9091"
 
   common_tags = {
-    # environment tag removed: provider default_tags already sets Environment=staging
-    # Adding lowercase 'environment' causes "Duplicate tag keys" (AWS is case-insensitive)
-    owner      = "platform-team"
-    domain     = "finops"
-    managed_by = "terraform"
+    # NOTE: owner/managed_by removed — default_tags already sets Owner/ManagedBy (AWS is case-insensitive)
+    # Adding lowercase variants causes "Duplicate tag keys" error
+    domain = "finops"
   }
 }

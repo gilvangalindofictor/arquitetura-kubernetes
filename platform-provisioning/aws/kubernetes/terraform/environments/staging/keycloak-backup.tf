@@ -22,7 +22,7 @@ data "aws_iam_policy_document" "keycloak_backup_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${replace(data.aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:keycloak:keycloak-backup"]
+      values   = ["system:serviceaccount:staging-platform-keycloak:keycloak-backup"]
     }
 
     condition {
@@ -56,7 +56,7 @@ resource "aws_iam_role_policy_attachment" "keycloak_backup_s3" {
 resource "kubernetes_service_account" "keycloak_backup" {
   metadata {
     name      = "keycloak-backup"
-    namespace = "keycloak"
+    namespace = "staging-platform-keycloak"
 
     annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.keycloak_backup.arn
@@ -76,7 +76,7 @@ resource "kubernetes_service_account" "keycloak_backup" {
 resource "kubernetes_config_map" "keycloak_backup_script" {
   metadata {
     name      = "keycloak-backup-script"
-    namespace = "keycloak"
+    namespace = "staging-platform-keycloak"
 
     labels = merge(local.common_tags, {
       "app.kubernetes.io/name" = "keycloak-backup"
@@ -89,7 +89,7 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
       set -eu
 
       # Configuration
-      KEYCLOAK_URL="$${KEYCLOAK_URL:-http://keycloak-keycloakx-http.keycloak.svc.cluster.local}"
+      KEYCLOAK_URL="$${KEYCLOAK_URL:-http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local}"
       KEYCLOAK_REALM="$${KEYCLOAK_REALM:-master}"
       KEYCLOAK_USER="$${KEYCLOAK_USER:-admin}"
       KEYCLOAK_PASSWORD="$${KEYCLOAK_PASSWORD}"
@@ -193,7 +193,7 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
 
     metadata = {
       name      = "keycloak-backup"
-      namespace = "keycloak"
+      namespace = "staging-platform-keycloak"
 
       labels = merge(local.common_tags, {
         "app.kubernetes.io/name"     = "keycloak-backup"
@@ -231,7 +231,7 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
                   env = [
                     {
                       name  = "KEYCLOAK_URL"
-                      value = "http://keycloak-keycloakx-http.keycloak.svc.cluster.local"
+                      value = "http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local"
                     },
                     {
                       name  = "KEYCLOAK_REALM"
@@ -328,7 +328,7 @@ resource "kubernetes_manifest" "keycloak_backup_prometheusrule" {
 
     metadata = {
       name      = "keycloak-backup"
-      namespace = "keycloak"
+      namespace = "staging-platform-keycloak"
 
       labels = merge(local.common_tags, {
         "app.kubernetes.io/name" = "keycloak-backup"
@@ -345,7 +345,7 @@ resource "kubernetes_manifest" "keycloak_backup_prometheusrule" {
           rules = [
             {
               alert = "KeycloakBackupFailed"
-              expr  = "kube_job_status_failed{namespace=\"keycloak\",job_name=~\"keycloak-backup.*\"} > 0"
+              expr  = "kube_job_status_failed{namespace=\"staging-platform-keycloak\",job_name=~\"keycloak-backup.*\"} > 0"
               for   = "5m"
 
               labels = {
@@ -360,7 +360,7 @@ resource "kubernetes_manifest" "keycloak_backup_prometheusrule" {
             },
             {
               alert = "KeycloakBackupMissing"
-              expr  = "(time() - kube_job_status_completion_time{namespace=\"keycloak\",job_name=~\"keycloak-backup.*\"}) > 86400"
+              expr  = "(time() - kube_job_status_completion_time{namespace=\"staging-platform-keycloak\",job_name=~\"keycloak-backup.*\"}) > 86400"
               for   = "1h"
 
               labels = {

@@ -38,6 +38,12 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "monitoring_namespace" {
+  description = "Kubernetes namespace where Prometheus/kube-prometheus-stack is deployed"
+  type        = string
+  default     = "monitoring"
+}
+
 variable "tolerations" {
   description = "Tolerations for Redis pods (scheduling on tainted nodes)"
   type = list(object({

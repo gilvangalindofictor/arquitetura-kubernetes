@@ -279,7 +279,7 @@ resource "kubectl_manifest" "redis_service_monitor" {
 
     metadata = {
       name      = "redis"
-      namespace = "monitoring"
+      namespace = var.monitoring_namespace
 
       labels = merge(var.common_tags, {
         "app.kubernetes.io/name"       = "redis"

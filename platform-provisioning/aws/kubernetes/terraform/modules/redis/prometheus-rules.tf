@@ -12,7 +12,7 @@ resource "kubectl_manifest" "redis_prometheus_rules" {
 
     metadata = {
       name      = "redis-alerts"
-      namespace = "monitoring"
+      namespace = var.monitoring_namespace
 
       labels = merge(var.common_tags, {
         "app.kubernetes.io/name"       = "redis"

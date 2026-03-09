@@ -5,6 +5,13 @@ installCRDs: true
 
 replicaCount: ${replicas}
 
+# Corporate labels required by Kyverno ADR-048 policy
+commonLabels:
+  app.kubernetes.io/part-of: external-secrets
+  domain: platform
+  owner: platform-team
+  environment: staging
+
 image:
   repository: ghcr.io/external-secrets/external-secrets
   pullPolicy: IfNotPresent
@@ -37,7 +44,7 @@ podSecurityContext:
 %{ if enable_monitoring }
 serviceMonitor:
   enabled: true
-  namespace: monitoring
+  namespace: staging-observability-monitoring
   interval: 30s
   scrapeTimeout: 10s
   labels:
