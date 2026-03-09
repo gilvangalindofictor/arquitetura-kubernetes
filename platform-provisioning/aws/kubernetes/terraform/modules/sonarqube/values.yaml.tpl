@@ -13,7 +13,7 @@ postgresql:
   enabled: false  # Using external PostgreSQL
 
 jdbcOverwrite:
-  enable: true
+  enabled: true  # Fixed: 'enable' was deprecated, chart uses 'enabled' (2026-03-09)
   jdbcUrl: "jdbc:postgresql://${postgresql_host}:${postgresql_port}/${postgresql_database}"
   jdbcUsername: sonarqube_user
   jdbcSecretName: sonarqube-postgresql
@@ -37,18 +37,24 @@ resources:
     memory: 4Gi
 
 # Probes
+# SRE-FIX 2026-03-09: SonarQube JVM boot on staging t3.medium takes 3-5min under load.
+# Root cause: 600 restarts during cluster recovery (2026-03-07) — startupProbe window (270s)
+# was insufficient. Increased failureThreshold 24→36 (total window: 30 + 36*10 = 390s = 6.5min).
+# readinessProbe/livenessProbe: added explicit failureThreshold=10 (300s tolerance post-startup).
 startupProbe:
   initialDelaySeconds: 30
   periodSeconds: 10
-  failureThreshold: 24
+  failureThreshold: 36
 
 livenessProbe:
-  initialDelaySeconds: 60
+  initialDelaySeconds: 120
   periodSeconds: 30
+  failureThreshold: 10
 
 readinessProbe:
-  initialDelaySeconds: 60
+  initialDelaySeconds: 120
   periodSeconds: 30
+  failureThreshold: 10
 
 # Ingress
 ingress:
