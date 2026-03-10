@@ -1,6 +1,6 @@
 # Índice de Custos e FinOps
 
-**Última Atualização:** 2026-02-19
+**Última Atualização:** 2026-03-10
 
 Arquivo de referência central para todos os documentos, relatórios, scripts e dados relacionados a custos e FinOps da plataforma Kubernetes AWS.
 
@@ -152,6 +152,7 @@ Arquivo de referência central para todos os documentos, relatórios, scripts e 
 
 | Data       | Entrada                                                                                    | Resumo                                                         |
 | ---------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| 2026-03-06 | [finops-grafana-dashboard-design](../logbook/2026-03-06-finops-grafana-dashboard-design.md) | Design do dashboard Grafana FinOps — KPIs, savings, forecast  |
 | 2026-02-18 | [p0-shutdown-script-bugfix](../logbook/2026-02-18-p0-shutdown-script-bugfix.md)            | Bugfix crítico no script de shutdown                           |
 | 2026-02-18 | [p1-security-finops](../logbook/2026-02-18-p1-security-finops.md)                          | Integração Security + FinOps                                   |
 | 2026-02-17 | [staging-shutdown-weekly](../logbook/2026-02-17-staging-shutdown-weekly.md)                | Execução semanal de shutdown                                   |
@@ -170,6 +171,16 @@ Arquivo de referência central para todos os documentos, relatórios, scripts e 
 | 2026-02-04 | [lambda-python-downgrade](../logbook/2026-02-04-finops-lambda-python-downgrade.md)         | Python 3.13→3.12 (compatibilidade Lambda)                      |
 
 ---
+
+---
+
+## 📊 Março 2026 — Relatórios e Status
+
+| Documento | Descrição |
+| --------- | --------- |
+| [docs/finops/finops-status-2026-03-10.md](../finops/finops-status-2026-03-10.md) | Status FinOps 2026-03-10 — savings R$ 58.258/ano, DT-005 COMPLETO, VPA pendente |
+| [docs/finops/finops-status-2026-03-06.md](../finops/finops-status-2026-03-06.md) | Status FinOps 2026-03-06 — savings R$ 56.546/ano, VPA decisao, estrategia producao |
+| [docs/reports/aws-costs-consolidated-2026-03.md](../reports/aws-costs-consolidated-2026-03.md) | Relatório consolidado Mar 2026 (gerado pelo FinOps agent) |
 
 ---
 

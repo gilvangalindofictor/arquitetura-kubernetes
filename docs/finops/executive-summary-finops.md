@@ -329,3 +329,73 @@ Status: ✅ HIGHLY OPTIMIZED (-64% vs quickstart)
 **Preparado por:** Claude Code + FinOps Agent
 **Data:** 2026-02-10
 **Versão:** 1.0
+
+---
+
+## Atualização — Pós Quick Wins (2026-03-10)
+
+**Status:** Revisão programada executada
+**Período:** 2026-02-10 → 2026-03-10 (30 dias pós análise inicial)
+
+### Resumo: Anomalias Críticas Resolvidas
+
+Todas as anomalias críticas identificadas em 2026-02-10 foram resolvidas ou endereçadas.
+
+| Anomalia | Status em 2026-02-10 | Status em 2026-03-10 |
+| -------- | -------------------- | -------------------- |
+| EKS Extended Support ($360/mês) | CRITICO — pendente | RESOLVIDO ✅ (upgrade 1.34, 2026-02-10) |
+| EC2 Overprovisioning ($121/mês) | Alta — pendente | PARCIAL — VPA dados coletados, execução pendente producao |
+| ALBs nginx-test + echo-server | Pendente | RESOLVIDO ✅ (deletados 2026-02-11) |
+| NLBs RabbitMQ | Pendente | RESOLVIDO ✅ (deletados 2026-02-11) |
+| Weekend Shutdown GAP | Pendente | RESOLVIDO ✅ (FinOps FASE 2, 2026-02-23) |
+| EBS gp2 → gp3 | Pendente | RESOLVIDO ✅ (2026-02-13) |
+
+### EKS — Extended Support Eliminado
+
+- Upgrade 1.31 → 1.34 executado em 2026-02-10 (4h, zero downtime)
+- Economia realizada: R$ 25.920/ano ($360/mês × 12 × R$6,00)
+- EKS Standard Support confirmado: $2.40/dia (vs $14.40/dia anterior)
+- Próximo EOL (1.34): Ago/2026 — monitoramento ativo
+
+### EC2 — Rightsizing Status
+
+- VPA staging: dados coletados (7+ dias), execução CANCELADA (ROI insuficiente vs produção)
+- VPA produção: PENDENTE — deploy produção previsto para Abr/2026
+- Savings projetados pós-VPA produção: R$ 25.000-35.000/ano
+- Referência VPA staging disponível: redis (cpu=25m, mem=65Mi), harbor-core (cpu=15m, mem=65Mi)
+
+### Savings Totais Realizados vs Projetados
+
+| Cenário | Economia/Ano | Status |
+| ------- | ------------ | ------ |
+| Projetado Quick Wins (2026-02-10) | R$ 27.864 | SUPERADO |
+| Realizado em 30 dias | **R$ 58.258** | 209% do projetado |
+| Meta original roadmap | R$ 62.000 | 94% atingido |
+| Projetado pós-VPA produção | R$ 83-93K | Em roadmap |
+
+### KPIs Revisados (2026-03-10)
+
+| KPI | Meta | Status 2026-02-10 | Status 2026-03-10 |
+| --- | ---- | ----------------- | ----------------- |
+| Custo Mensal | < R$ 3.000 (quick wins) | R$ 5.010 — ACIMA | R$ 5.487 (Fev real) — acima por expansão plataforma |
+| EKS Standard Support | $73/mês | $433/mês — CRITICO | $69/mês — OK ✅ |
+| Quick Wins Implementados | 5/5 | 0/5 — PENDENTE | 15/15+ — SUPERADO ✅ |
+| Savings Realized | >$400/mês | $0 — PENDENTE | R$ 58.258/ano — SUPERADO ✅ |
+| FinOps Automation | Ativo | Não existia | ATIVO (1º mês validação) |
+| Alertas (Teams) | Operacionais | Slack (sem webhook) | Teams ativo — DT-005 COMPLETO ✅ |
+
+**Contexto do custo acima do budget em Mar/26:** Desvio é resultado de trabalho intenso de plataforma
+(Linkerd Phase 2, GitLab, Keycloak, Kyverno) que forçou autoscaler ao máximo. Não é ineficiência —
+é investimento em estabilidade. VPA produção irá corrigir após deploy.
+
+### Próxima Revisão: 2026-04-10
+
+**Itens para a próxima revisão:**
+
+- VPA produção executado? Savings R$ 25-35K/ano confirmados?
+- FinOps Automation: 2º mês completo — taxa de sucesso Lambda?
+- Savings Plans + Reserved Instances comprados (apos 30d producao)?
+- Karpenter + Spot staging: decisão tomada?
+- Budget: retornou para <= $807/mês?
+
+**Referência completa:** [docs/finops/finops-status-2026-03-10.md](finops-status-2026-03-10.md)

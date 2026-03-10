@@ -367,6 +367,17 @@ Registro cronologico de todas as atividades, decisoes tecnicas e resolucoes de p
 
 ---
 
+## 2026-03
+
+### Marco 10
+
+- [2026-03-10-prometheus-operator-sync-failed-fix.md](2026-03-10-prometheus-operator-sync-failed-fix.md)
+  - Incidente PrometheusOperatorSyncFailed — Fix AlertmanagerConfig secret name pos-DT-005
+- [2026-03-10-finops-gaps-analysis.md](2026-03-10-finops-gaps-analysis.md)
+  - FinOps Gaps Analysis: savings ajustados (ADR-094) + CloudWatch 5→3 log types
+
+---
+
 ## Documentos de Referencia
 
 - [strategies-gitlab-sso.md](strategies-gitlab-sso.md) - Estrategias GitLab SSO

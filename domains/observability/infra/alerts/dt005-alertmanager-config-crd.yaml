@@ -18,9 +18,9 @@
 # Prerequisites:
 #   - kube-prometheus-stack deployed (Prometheus Operator running)
 #   - alertmanager-values-patch.yaml applied (alertmanagerConfigSelector enabled)
-#   - Secret 'alertmanager-slack-webhook' created with Teams webhook URLs
+#   - Secret 'alertmanager-teams-webhook' created with Teams webhook URLs
 #
-# Secret keys required in 'alertmanager-slack-webhook':
+# Secret keys required in 'alertmanager-teams-webhook':
 #   - critical-webhook-url
 #   - warning-webhook-url
 #   - data-services-webhook-url
@@ -135,6 +135,9 @@ spec:
   # Receivers
   # Webhook URLs are read from the K8s Secret 'alertmanager-teams-webhook'.
   # Secret must exist in the same namespace as this AlertmanagerConfig.
+  # ESO manages: Vault path secret/monitoring/alertmanager → keys: critical_webhook_url,
+  #              warning_webhook_url, data_services_webhook_url, security_webhook_url
+  # Status: ATIVO — URL Teams real populada em 2026-03-10
   # ---------------------------------------------------------------------------
   receivers:
 

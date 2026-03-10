@@ -131,6 +131,32 @@ resource "helm_release" "redis_operator" {
     value = "128Mi"
   }
 
+  # Kyverno compliance labels (codified from imperative apply 2026-03-10)
+  set {
+    name  = "podLabels.domain"
+    value = "data"
+  }
+
+  set {
+    name  = "podLabels.owner"
+    value = "platform-team"
+  }
+
+  set {
+    name  = "podLabels.environment"
+    value = lookup(var.common_tags, "Environment", "staging")
+  }
+
+  set {
+    name  = "podLabels.app\\.kubernetes\\.io/name"
+    value = "redis-operator"
+  }
+
+  set {
+    name  = "podLabels.app\\.kubernetes\\.io/part-of"
+    value = "data-services"
+  }
+
 }
 
 # Wait for CRDs to be fully registered
@@ -162,6 +188,10 @@ resource "kubectl_manifest" "redis" {
         "app.kubernetes.io/name"       = "redis"
         "app.kubernetes.io/instance"   = "${var.cluster_name}-redis"
         "app.kubernetes.io/managed-by" = "terraform"
+        "app.kubernetes.io/part-of"    = "data-services"
+        "domain"                       = "data"
+        "owner"                        = "platform-team"
+        "environment"                  = lookup(var.common_tags, "Environment", "staging")
       })
     }
 

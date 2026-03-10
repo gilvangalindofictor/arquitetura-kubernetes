@@ -102,6 +102,25 @@ resource "aws_security_group" "cluster" {
   }
 }
 
+# -----------------------------------------------------------------------------
+# FinOps: CloudWatch Log Group com retention codificada — 2026-03-10
+# Root cause P0: retention aplicada manualmente (30d) em 2026-02-12.
+# IaC ownership: retention_in_days = 7 (saving vs. 30d).
+# Log group é criado ANTES do cluster (depends_on no cluster resource).
+# -----------------------------------------------------------------------------
+resource "aws_cloudwatch_log_group" "eks_cluster" {
+  name              = "/aws/eks/${var.project_name}-cluster/cluster"
+  retention_in_days = 7
+
+  tags = {
+    Name      = "/aws/eks/${var.project_name}-cluster/cluster"
+    Project   = var.project_name
+    ManagedBy = "terraform"
+    Component = "eks-control-plane-logs"
+    CostTag   = "observability"
+  }
+}
+
 # EKS Cluster
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-cluster"
@@ -115,7 +134,9 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  # FinOps: reduzido de 5→3 log types (removido controllerManager + scheduler)
+  # Saving estimado: $3-4/mês (R$ 216-288/ano) — 2026-03-10
+  enabled_cluster_log_types = ["api", "audit", "authenticator"]
 
   tags = {
     Name      = "${var.project_name}-cluster"
@@ -126,6 +147,7 @@ resource "aws_eks_cluster" "main" {
   depends_on = [
     aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy,
     aws_iam_role_policy_attachment.cluster_AmazonEKSVPCResourceController,
+    aws_cloudwatch_log_group.eks_cluster,
   ]
 }
 
