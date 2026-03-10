@@ -770,19 +770,9 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "NoSchedule"
   }
 
-  # -----------------------------------------------------------------------------
-  # Prometheus Pushgateway — FinOps cost metrics ingestion
-  # Lambda finops-cost-exporter pushes cost metrics every 6h
-  # -----------------------------------------------------------------------------
-  set {
-    name  = "prometheus-pushgateway.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "prometheus-pushgateway.serviceMonitor.enabled"
-    value = "true"
-  }
+  # NOTE: prometheus-pushgateway subchart was removed in kube-prometheus-stack v82+.
+  # Pushgateway is now deployed as a standalone helm_release below.
+  # Ref: resource helm_release "prometheus_pushgateway" (2026-03-10 RCA KubeJobFailed)
 
   depends_on = [kubernetes_namespace.monitoring]
 
@@ -926,4 +916,74 @@ resource "kubectl_manifest" "grafana_oidc_externalsecret" {
   })
 
   depends_on = [kubernetes_namespace.monitoring]
+}
+
+# -----------------------------------------------------------------------------
+# Prometheus Pushgateway — standalone (removido do kube-prometheus-stack v82+)
+# Deploy separado para suportar finops-cost-exporter CronJob (push a cada 6h)
+# Service name: kube-prometheus-stack-prometheus-pushgateway (fullnameOverride)
+# URL esperada pelo CronJob: http://kube-prometheus-stack-prometheus-pushgateway.<ns>.svc.cluster.local:9091
+# Ref: 2026-03-10 KubeJobFailed RCA — kube-prometheus-stack v82.4.0 removeu subchart
+# -----------------------------------------------------------------------------
+resource "helm_release" "prometheus_pushgateway" {
+  name       = "prometheus-pushgateway"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "prometheus-pushgateway"
+  namespace  = var.namespace
+  version    = "~> 3.6"
+
+  set {
+    name  = "fullnameOverride"
+    value = "kube-prometheus-stack-prometheus-pushgateway"
+  }
+  set {
+    name  = "serviceMonitor.enabled"
+    value = "true"
+  }
+  set {
+    name  = "serviceMonitor.namespace"
+    value = var.namespace
+  }
+  set {
+    name  = "nodeSelector.node-type"
+    value = "system"
+  }
+  set {
+    name  = "tolerations[0].key"
+    value = "node-type"
+  }
+  set {
+    name  = "tolerations[0].operator"
+    value = "Equal"
+  }
+  set {
+    name  = "tolerations[0].value"
+    value = "system"
+  }
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoSchedule"
+  }
+  set {
+    name  = "podLabels.environment"
+    value = var.environment
+  }
+  set {
+    name  = "podLabels.owner"
+    value = "platform-team"
+  }
+  set {
+    name  = "podLabels.domain"
+    value = "operations"
+  }
+  set {
+    name  = "podLabels.app\\.kubernetes\\.io/name"
+    value = "prometheus-pushgateway"
+  }
+  set {
+    name  = "podLabels.app\\.kubernetes\\.io/part-of"
+    value = "kube-prometheus-stack"
+  }
+
+  depends_on = [helm_release.kube_prometheus_stack]
 }
