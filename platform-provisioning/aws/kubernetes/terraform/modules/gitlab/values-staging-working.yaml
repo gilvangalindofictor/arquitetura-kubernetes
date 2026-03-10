@@ -200,6 +200,9 @@ gitlab:
       limits:
         cpu: 500m
         memory: 1Gi
+    startupProbe:
+      timeoutSeconds: 5
+      periodSeconds: 5
 
 # Disable GitLab components
 postgresql:

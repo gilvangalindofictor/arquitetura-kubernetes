@@ -141,6 +141,7 @@ resource "kubernetes_cron_job_v1" "finops_cost_exporter" {
       "app.kubernetes.io/name"       = "finops-cost-exporter"
       "app.kubernetes.io/managed-by" = "terraform"
       "app.kubernetes.io/component"  = "finops"
+      domain                         = "finops"
       environment                    = var.environment
       owner                          = "platform-team"
     }
@@ -157,7 +158,9 @@ resource "kubernetes_cron_job_v1" "finops_cost_exporter" {
       metadata {
         labels = {
           "app.kubernetes.io/name" = "finops-cost-exporter"
+          domain                   = "finops"
           environment              = var.environment
+          owner                    = "platform-team"
         }
       }
 
@@ -169,7 +172,9 @@ resource "kubernetes_cron_job_v1" "finops_cost_exporter" {
           metadata {
             labels = {
               "app.kubernetes.io/name" = "finops-cost-exporter"
+              domain                   = "finops"
               environment              = var.environment
+              owner                    = "platform-team"
             }
           }
 

@@ -198,6 +198,9 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
       labels = merge(local.common_tags, {
         "app.kubernetes.io/name"     = "keycloak-backup"
         "app.kubernetes.io/instance" = "keycloak-backup-${local.environment}"
+        domain                       = "security"
+        environment                  = local.environment
+        owner                        = "platform-team"
       })
     }
 
@@ -209,11 +212,23 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
       concurrencyPolicy          = "Forbid"
 
       jobTemplate = {
+        metadata = {
+          labels = {
+            "app.kubernetes.io/name" = "keycloak-backup"
+            domain                   = "security"
+            environment              = local.environment
+            owner                    = "platform-team"
+          }
+        }
+
         spec = {
           template = {
             metadata = {
               labels = {
-                app = "keycloak-backup"
+                app         = "keycloak-backup"
+                domain      = "security"
+                environment = local.environment
+                owner       = "platform-team"
               }
             }
 

@@ -137,7 +137,7 @@ backstage:
   podAnnotations:
     linkerd.io/inject: "enabled"
     config.linkerd.io/proxy-await: "enabled"
-    config.linkerd.io/skip-outbound-ports: "443"
+    config.linkerd.io/skip-outbound-ports: "443,5432"
 
   # ---------------------------------------------------------------------------
   # Variáveis de ambiente lidas do Secret backstage-secrets (ESO → Vault)

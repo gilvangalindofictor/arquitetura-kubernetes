@@ -79,7 +79,7 @@ resource "aws_eks_node_group" "workloads" {
   scaling_config {
     desired_size = 6 # gerenciado pelo cluster autoscaler
     min_size     = 2
-    max_size     = 6
+    max_size     = 9
   }
 
   update_config {

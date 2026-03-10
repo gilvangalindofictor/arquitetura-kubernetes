@@ -280,6 +280,10 @@ gitlab:
       storageClass: gp3
       size: 50Gi
 
+    startupProbe:
+      timeoutSeconds: 5
+      periodSeconds: 5
+
   # Toolbox (disabled for staging - no automated backups needed)
   toolbox:
     enabled: false
