@@ -1,0 +1,118 @@
+# =============================================================================
+# CronJob: Proactive rolling restart of linkerd-cni DaemonSet
+#
+# PURPOSE: Prevent stale ServiceAccount tokens in the CNI kubeconfig files
+#          written to nodes. The projected SA token has ~24h TTL but the CNI
+#          DaemonSet pod only writes the kubeconfig once at startup. Without
+#          periodic restarts, long-running CNI pods accumulate expired tokens.
+#
+# SCHEDULE: Every 12 hours (well within the 24h token TTL)
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: linkerd-cni-token-refresh
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    app.kubernetes.io/component: cni-maintenance
+    domain: platform
+    managed-by: terraform
+spec:
+  schedule: "0 */12 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: cni-maintenance
+        spec:
+          serviceAccountName: linkerd-cni-restart
+          restartPolicy: OnFailure
+          containers:
+            - name: restart-cni
+              image: bitnami/kubectl:1.29
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Rolling restart linkerd-cni DaemonSet..."
+                  kubectl rollout restart daemonset/linkerd-cni -n linkerd-cni
+                  kubectl rollout status daemonset/linkerd-cni -n linkerd-cni --timeout=300s
+                  echo "Done."
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 1000
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+---
+# ServiceAccount for the CronJob
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: linkerd-cni-restart
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    domain: platform
+    managed-by: terraform
+---
+# Role: permission to restart the DaemonSet
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: linkerd-cni-restart
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    domain: platform
+    managed-by: terraform
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets/status"]
+    verbs: ["get"]
+  # Needed for rollout status
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "get", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: linkerd-cni-restart
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    domain: platform
+    managed-by: terraform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: linkerd-cni-restart
+subjects:
+  - kind: ServiceAccount
+    name: linkerd-cni-restart
+    namespace: linkerd-cni

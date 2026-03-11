@@ -1784,9 +1784,24 @@ Implementar Argo Rollouts para deployments progressivos (canary, blue-green), re
 
 ---
 
+### CICD-006: Application Onboarding Automatizado via Manifesto Base
+
+- **Status:** PLANEJAMENTO COMPLETO — PRONTO PARA EXECUCAO
+- **Prioridade:** HIGH
+- **Data:** 2026-03-11
+- **Marco:** Marco 5 — Self-Service Platform
+- **Documento:** [docs/demands/2026-03-11-cicd-onboarding-manifesto-base.md](docs/demands/2026-03-11-cicd-onboarding-manifesto-base.md)
+- **ADR:** ADR-104 (a criar)
+- **Referencias:** ADR-055, ADR-102, ADR-047-049, ADR-081-085, GOV-001, GOV-009, GOV-011
+- **Sprints:** S0-S6 planejadas
+- **Decisoes Mesa Tecnica:** P1-P8 RESOLVIDAS (2026-03-11)
+- **Bloqueador:** GitLab Runner CrashLoopBackOff
+
+---
+
 ### 📊 CI/CD Enhancement Roadmap Summary
 
-**Total Effort**: 160h → **Real: 32h** | **Status**: 5/5 Completos
+**Total Effort**: 160h → **Real: 32h** | **Status**: 5/5 Completos + 1 em Planejamento
 
 **Implementation Status (2026-03-03)**:
 

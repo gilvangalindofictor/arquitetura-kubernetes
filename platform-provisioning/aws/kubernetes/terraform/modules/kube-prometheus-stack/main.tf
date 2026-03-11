@@ -930,7 +930,7 @@ resource "helm_release" "prometheus_pushgateway" {
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "prometheus-pushgateway"
   namespace  = var.namespace
-  version    = "~> 3.6"
+  version    = "3.6.0"
 
   set {
     name  = "fullnameOverride"

@@ -232,6 +232,7 @@ module "redis_staging" {
   storage_class        = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
   common_tags          = local.common_tags
   monitoring_namespace = "staging-observability-monitoring"
+  operator_namespace   = "staging-data-redis-operator" # ADR-048 Kyverno namespace convention
 
   # Toleration for critical nodes (ADR-041 pattern)
   tolerations = [{

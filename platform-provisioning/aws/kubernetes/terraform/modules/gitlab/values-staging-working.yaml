@@ -239,6 +239,13 @@ registry:
 gitlab-runner:
   install: true
   replicas: 1
+  # FIX-2026-03-11: Runner registration requires direct HTTP to webservice on port 8181.
+  # When Linkerd destination service is degraded (InvalidContentType/failfast), new proxies
+  # can't bootstrap service discovery, causing runner registration to hang indefinitely.
+  # Adding 8181 to skip-outbound-ports ensures registration bypasses Linkerd proxy,
+  # making the runner resilient to Linkerd control plane instability.
+  podAnnotations:
+    config.linkerd.io/skip-outbound-ports: "5432,6379,8075,8181"
   # GitLab 17.x+ auth token (glrt-): set runnerRegistrationToken="" to signal
   # isAuthToken=true. This prevents REGISTER_LOCKED/RUNNER_TAG_LIST env vars
   # that cause FATAL error with auth token registration flow.

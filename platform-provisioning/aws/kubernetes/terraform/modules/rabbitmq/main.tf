@@ -215,8 +215,8 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
               metadata = {
                 labels = merge(var.common_tags, {
                   "app.kubernetes.io/component" = "rabbitmq-server"
-                  "app.kubernetes.io/name"      = "rabbitmq-cluster-operator"
-                  "app.kubernetes.io/part-of"   = "data-services"
+                  "app.kubernetes.io/name"      = "${var.cluster_name}-rabbitmq"
+                  "app.kubernetes.io/part-of"   = "rabbitmq"
                   "domain"                      = "data"
                   "owner"                       = "platform-team"
                   "environment"                 = lookup(var.common_tags, "Environment", "staging")

@@ -214,10 +214,11 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
       jobTemplate = {
         metadata = {
           labels = {
-            "app.kubernetes.io/name" = "keycloak-backup"
-            domain                   = "security"
-            environment              = local.environment
-            owner                    = "platform-team"
+            "app.kubernetes.io/name"    = "keycloak-backup"
+            "app.kubernetes.io/part-of" = "keycloak"
+            domain                      = "security"
+            environment                 = local.environment
+            owner                       = "platform-team"
           }
         }
 
@@ -225,10 +226,12 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
           template = {
             metadata = {
               labels = {
-                app         = "keycloak-backup"
-                domain      = "security"
-                environment = local.environment
-                owner       = "platform-team"
+                app                         = "keycloak-backup"
+                "app.kubernetes.io/name"    = "keycloak-backup"
+                "app.kubernetes.io/part-of" = "keycloak"
+                domain                      = "security"
+                environment                 = local.environment
+                owner                       = "platform-team"
               }
             }
 
@@ -260,7 +263,7 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
                       name = "KEYCLOAK_PASSWORD"
                       valueFrom = {
                         secretKeyRef = {
-                          name = "keycloak-admin-password"
+                          name = "keycloak-admin-credentials"
                           key  = "password"
                         }
                       }

@@ -332,6 +332,19 @@ resource "helm_release" "linkerd_cni" {
     value = "terraform"
   }
 
+  # ==========================================================================
+  # FIX repairController (2026-03-11) — race condition CNI not ready
+  # Root cause: pods scheduled on new nodes before CNI DaemonSet configures
+  # iptables rules — linkerd-network-validator fails with exit 95.
+  # Fix: repairController watches for broken pods and automatically
+  # re-injects the CNI configuration, eliminating manual intervention.
+  # Ref: docs/logbook/2026-03-06-linkerd-crashloop-fix.md
+  # ==========================================================================
+  set {
+    name  = "repairController.enabled"
+    value = "true"
+  }
+
   # wait=false: DaemonSet may have 2 pods Pending on system/fargate nodes
   # that never become Ready (NodeAffinity + capacity constraints). CNI is
   # fully operational on all worker nodes (10/12). Avoiding timeout on apply.

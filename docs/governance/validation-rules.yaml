@@ -39,7 +39,7 @@ spec:
       pattern:
         metadata:
           labels:
-            domain: "platform | integration | data | operations | shared-services"
+            domain: "platform | integration | data | operations | shared-services | security | governance"
             owner: "*-team"
             environment: "dev | staging | prod"
             app.kubernetes.io/name: "?*"
@@ -90,11 +90,11 @@ spec:
       message: |
         ❌ Namespace naming violado (ADR-048).
         Esperado: {env}-{domain}-{product}
-        Formato: ^(dev|staging|prod|shared)-(platform|integration|data|operations|shared)(-[a-z0-9-]+)?$
+        Formato: ^(dev|staging|prod|shared)-(platform|integration|data|operations|shared|security|governance)(-[a-z0-9-]+)?$
         Exemplos: staging-integration-ipaas, prod-data-hatch
       pattern:
         metadata:
-          name: "(dev|staging|prod|shared)-(platform|integration|data|operations|shared)-?*"
+          name: "(dev|staging|prod|shared)-(platform|integration|data|operations|shared|security|governance)-?*"
 
 ---
 apiVersion: kyverno.io/v1
@@ -157,7 +157,7 @@ spec:
       pattern:
         metadata:
           labels:
-            domain: "platform | integration | data | operations | shared-services"
+            domain: "platform | integration | data | operations | shared-services | security | governance"
 
   - name: check-label-owner
     match:

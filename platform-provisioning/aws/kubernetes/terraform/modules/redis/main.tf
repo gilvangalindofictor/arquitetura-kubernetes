@@ -43,7 +43,7 @@ resource "random_password" "redis" {
 
 resource "kubernetes_namespace" "redis_operator" {
   metadata {
-    name = "redis-operator"
+    name = var.operator_namespace
 
     labels = merge(var.common_tags, {
       "app.kubernetes.io/name"       = "redis-operator"
@@ -100,9 +100,7 @@ resource "kubernetes_secret" "redis_password" {
 resource "helm_release" "redis_operator" {
   name       = "redis-operator"
   namespace  = kubernetes_namespace.redis_operator.metadata[0].name
-  repository = "https://ot-container-kit.github.io/helm-charts"
-  chart      = "redis-operator"
-  version    = "0.18.1"
+  chart      = "/home/gilvangalindo/.cache/helm/repository/redis-operator-0.23.0.tgz"
 
   skip_crds       = true
   replace         = true
@@ -132,28 +130,29 @@ resource "helm_release" "redis_operator" {
   }
 
   # Kyverno compliance labels (codified from imperative apply 2026-03-10)
+  # Chart uses redisOperator.podLabels (not top-level podLabels)
   set {
-    name  = "podLabels.domain"
+    name  = "redisOperator.podLabels.domain"
     value = "data"
   }
 
   set {
-    name  = "podLabels.owner"
+    name  = "redisOperator.podLabels.owner"
     value = "platform-team"
   }
 
   set {
-    name  = "podLabels.environment"
+    name  = "redisOperator.podLabels.environment"
     value = lookup(var.common_tags, "Environment", "staging")
   }
 
   set {
-    name  = "podLabels.app\\.kubernetes\\.io/name"
+    name  = "redisOperator.podLabels.app\\.kubernetes\\.io/name"
     value = "redis-operator"
   }
 
   set {
-    name  = "podLabels.app\\.kubernetes\\.io/part-of"
+    name  = "redisOperator.podLabels.app\\.kubernetes\\.io/part-of"
     value = "data-services"
   }
 

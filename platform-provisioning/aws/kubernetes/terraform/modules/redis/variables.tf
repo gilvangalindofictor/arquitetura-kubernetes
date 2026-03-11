@@ -14,6 +14,12 @@ variable "namespace" {
   default     = "data-services"
 }
 
+variable "operator_namespace" {
+  description = "Kubernetes namespace for Redis Operator (must follow Kyverno ADR-048 pattern: {env}-{domain}-*)"
+  type        = string
+  default     = "staging-data-redis-operator"
+}
+
 variable "replicas" {
   description = "Number of Redis replicas (master + replicas total)"
   type        = number
