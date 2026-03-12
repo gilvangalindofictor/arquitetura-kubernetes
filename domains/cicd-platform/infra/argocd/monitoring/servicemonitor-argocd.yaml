@@ -1,0 +1,84 @@
+# GAP-SEC-04: ServiceMonitors dedicados para ArgoCD — namespace staging-platform-argocd
+# Referência: ADR-105 (OPÇÃO A — 1 instância ArgoCD por ambiente)
+#
+# Cobre as 3 portas de métricas nativas do ArgoCD:
+#   - argocd-server:                  porta 8083 (metrics)
+#   - argocd-repo-server:             porta 8084 (metrics)
+#   - argocd-application-controller:  porta 8082 (metrics)
+#
+# Prometheus Operator descobre estes ServiceMonitors via label:
+#   monitoring.platform/scrape: "true"
+#
+# Escopo restrito ao namespace: staging-platform-argocd
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-server-metrics
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  namespaceSelector:
+    matchNames:
+      - staging-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-repo-server-metrics
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  namespaceSelector:
+    matchNames:
+      - staging-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-application-controller-metrics
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  namespaceSelector:
+    matchNames:
+      - staging-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http

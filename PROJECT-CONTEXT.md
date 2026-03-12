@@ -1,14 +1,18 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-03-04 Sessão 3 — 6/6 Cluster Audit discrepâncias RESOLVIDAS ✅
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 planejamento | Enterprise Assessment **4.4/5.0** Advanced++)
+> **Última Atualização**: 2026-03-12 ~21:00 BRT — SESSÃO COMPLETA | P0 linkerd RESOLVIDO | AlertManager CRD aplicado (KubeSchedulerDown+KubeControllerManagerDown suprimidos) | 0 pendências
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 em execucao — Sprint S0 | Enterprise Assessment **4.4/5.0** Advanced++)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
-> **Custo AWS (Feb/2026)**: ~$800/mês staging | FinOps Savings: R$ 56.546/ano realizados
-> **Recent Updates (2026-03-04)**: GitLab → staging-platform-gitlab ✅ | ArgoCD v2.10.9 PKCE ✅ | Velero schedules ✅ | Harbor Linkerd 2/2 ✅ | Kyverno 100% staging-data-hatch ✅ | Keycloak TF 11/11 ✅
+> **Custo AWS (Mar/2026 MTD)**: $480.28 (11 dias) | Forecast AWS CE: $1.251/mes (+55% budget) | Nossa projeção ajustada: $1.116/mes (+38%) | FinOps Savings: R$ 61.638/ano realizados (99.4% meta)
+> **Health (2026-03-12 ~21:00 BRT)**: 12/12 nodes Ready | Linkerd OPERATIONAL (destination 4/4, identity 2/2, proxy-injector 2/2) | GitLab 11/11 pods Running | Vault OK | RDS AVAILABLE | AlertManager CRD atualizado (EKS falsos positivos suprimidos) | 0 alertas P0/P1 ativos
+> **Apply 2026-03-12 14:39**: Lambda finops_stop/start atualizadas (suspend_cluster_autoscaler ativo) | RabbitMQ ClusterIP confirmado (NLB eliminado)
+> **Apply 2026-03-12 ~17:00-19:00**: module.linkerd (1 changed — system ASG max 4→5) | module.vault_staging (1 changed — telemetry unauthenticated_metrics_access=true) | zero drift pós-apply confirmado
+> **Apply 2026-03-12 ~21:00**: AlertmanagerConfig dt005-teams-routing configured — inhibitRules KubeSchedulerDown+KubeControllerManagerDown via Watchdog ativo
+> **P0 Recovery 2026-03-12**: linkerd-trust-anchor recriado via --from-file (SHA256 trailing newline bug) | CNI deadlock fix (skip-outbound-ports:8080 em destination+proxy-injector) | Keycloak backup admin password: argon2id hash atualizado no RDS | Root token Vault revogado
 >
-> ✅ **CLUSTER AUDIT RESOLVIDO (2026-03-04)**: Velero deployed + schedules | Harbor 7/7 Linkerd | ArgoCD v2.10.9 PKCE | Kyverno compliance | GitLab migrado | VPA Day 7 report
+> ✅ **CICD-006 CONCLUÍDO 100% (2026-03-11)**: CI/CD Onboarding — 28 GAPs processados (27 resolvidos, 1 eliminado), conformidade 100%, auditoria final aprovada
 
 ---
 
@@ -82,11 +86,21 @@
 
 **SEMPRE me refiro ao PROJETO ATIVO (AWS EKS MVP):**
 
-- Marco atual: **Marco 5** (Production Readiness — Enterprise Assessment 4.2/5.0, Production Roadmap 10-14 semanas)
+- Marco atual: **Marco 5** (Self-Service Platform — CI/CD Onboarding Automatizado via Manifesto Base)
 - Marco 4: **✅ 100% completo** (8/8 GAPs — CI/CD end-to-end funcional)
 - CI/CD Enhancement: **49 artefatos preparados** (CICD-001 a CICD-005 — Security, Quality, Automation, Progressive Delivery)
-- Progresso Geral: **75%** (Marcos 0-4 completos, Marco 5 em andamento — GitLab v18.9.1, Linkerd, PostgreSQL 16)
-- Próximo: Deploy CI/CD Enhancement (Phase 1: SAST/DAST + Immutable Tags + Quality Gate, Phase 2: Secret Rotation, Phase 3: Argo Rollouts)
+- **CI/CD Onboarding (CICD-006):** ✅ CONCLUÍDO 100% — Auditoria final aprovada — 28 GAPs processados (27 resolvidos, 1 eliminado), conformidade 100%
+  - ✅ S0: GAP-001, GAP-002, GAP-004, GAP-005, GAP-006, GAP-015, GAP-018: todos resolvidos
+  - ✅ S1: GAP-003 (JSON Schema 416 linhas), GAP-007 (stage validate CI), GAP-022 (regex naming), GAP-023 (schema validation standalone)
+  - ✅ S2: GAP-008 (SA platform-provisioner + RBAC), GAP-009 (Vault K8s Auth dinamico), GAP-012 (2 libs + 23 funcoes + 11 scripts), GAP-024 (create-app.sh fix), GAP-025 (bootstrap-provisioner.sh fallback)
+  - ✅ S3/S4 + RE-AUDITORIA APROVADO: GAP-010 (destinations `${ENV}-${DOMAIN}-*`, provision-argocd.sh, create-argocd-app.sh alinhado), GAP-010a (divergencia create-argocd-app.sh), GAP-013 (provision-keycloak.sh + ExternalSecret CR 6 chaves Vault), GAP-013a (desalinhamento 7 vs 6 chaves)
+  - ✅ S5 APROVADO: GAP-011 (overlay prod Kustomize + ArgoCD Application prod), GAP-014 (approval layers 3 camadas + Kyverno ClusterPolicy hard cap), GAP-017 (environment protection rules + CI jobs prod when: manual)
+  - ✅ AUDITORIA FINAL APROVADA: GAP-A (validate-labels.sh --manifest/--env/--domain), GAP-D2-01 (provision-externalsecrets.sh), GAP-D2-02 (provision-namespace.sh), GAP-D2-03 (create-app.sh 8 steps totais)
+  - ✅ 6 scripts refatorados (genericos, --env/--domain obrigatorios, zero hardcoded)
+  - ✅ 8 issues criticos corrigidos (DB/RabbitMQ hostnames prod, Redis plaintext, ArgoCD wildcard, Keycloak double grant_type, Vault paths)
+  - GAPs pendentes: 0 ativos | 27 resolvidos | 1 eliminado (GAP-016) | 2 sub-GAPs adicionados e resolvidos (010a, 013a)
+- Progresso Geral: **95%** (Marcos 0-4 completos, Marco 5 CICD-006 CONCLUIDO 100%, S6 Backstage futuro M2)
+- Proximo: S6 Backstage IDP (Marco 2, futuro) — Scaffolder gera manifesto automaticamente
 
 **NÃO me refiro:**
 
@@ -740,6 +754,6 @@ LEITURA OBRIGATÓRIA para CTO e Architecture Team:
 ---
 
 **Autor**: System Architect
-**Última Atualização**: 2026-03-03
-**Versão**: 1.2 (Session 2026-03-03: GitLab v18.9.1 + Linkerd + PostgreSQL 16)
+**Última Atualização**: 2026-03-12 ~21:00 BRT
+**Versão**: 2.2 (Session 2026-03-12 COMPLETA: P0 linkerd RESOLVIDO | AlertManager CRD dt005 aplicado — KubeSchedulerDown+KubeControllerManagerDown suprimidos via Watchdog | Keycloak backup admin password corrigido (argon2id RDS) | ArgoCD timeout configs IaC | HPA maxReplicas sidekiq+webservice | 0 pendências ativas)
 **Status**: ✅ ATIVO

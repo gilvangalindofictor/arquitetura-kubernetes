@@ -1,0 +1,32 @@
+# =============================================================================
+# NetworkPolicy: Redis permite ingress de staging-platform-backstage (GAP-013)
+# Backstage usa Redis para: session cache, plugin catalog cache
+# Porta: 6379 (Redis)
+# Aplicar: kubectl apply -f redis-networkpolicy-backstage.yaml
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-allow-backstage
+  namespace: staging-security-redis
+  labels:
+    app.kubernetes.io/managed-by: terraform
+    purpose: backstage-session-cache
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-ha    # label do Redis HA (Spotahome chart)
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: staging-platform-backstage
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backstage
+      ports:
+        - protocol: TCP
+          port: 6379

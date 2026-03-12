@@ -261,6 +261,25 @@ resource "helm_release" "linkerd_control_plane" {
     # ==========================================================================
     networkValidator:
       connectAddr: "127.0.0.1:4140"
+
+    # ==========================================================================
+    # FIX CNI DEADLOCK (2026-03-12) — skip-outbound-ports para CP com CNI
+    # Root cause: destination e proxy-injector tentam conectar em identity:8080
+    # para bootstrap mTLS. Com CNI iptables ativo, o outbound na 8080 e
+    # interceptado pelo proprio proxy local criando um deadlock circular.
+    # Erro: "received corrupt message of type InvalidContentType"
+    # Fix: skip-outbound-ports=8080 permite conexao direta ao identity service
+    # sem passar pelo proxy, quebrando o ciclo.
+    # Codificado apos aplicacao direta via kubectl patch (2026-03-12 ~17:00 BRT).
+    # Ref: docs/logbook/2026-03-12-finops-code-review.md (P0 Recovery)
+    # ==========================================================================
+    destination:
+      podAnnotations:
+        config.linkerd.io/skip-outbound-ports: "8080"
+
+    proxyInjector:
+      podAnnotations:
+        config.linkerd.io/skip-outbound-ports: "8080"
   YAML
   ]
 

@@ -1,0 +1,127 @@
+# =============================================================================
+# platform-provisioner-rbac.yaml — ServiceAccount + ClusterRole + RoleBinding
+# =============================================================================
+# Descricao: RBAC least-privilege para o SA platform-provisioner usado pelo
+#            pipeline CI/CD de onboarding/provisioning.
+# Ref:       GAP-008 (P1, Sprint S2), P8 (ServiceAccount), ADR-048
+# Uso:       O SA e ClusterRole sao criados uma vez (bootstrap).
+#            O RoleBinding e criado POR NAMESPACE via create-namespace.sh.
+# =============================================================================
+
+# ---- ServiceAccount (one-time, namespace platform-system) ----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-provisioner
+  namespace: ${SA_NAMESPACE:-cicd-argocd}
+  labels:
+    app.kubernetes.io/name: platform-provisioner
+    app.kubernetes.io/part-of: platform-core
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: ci-cd
+---
+# ---- ClusterRole: permissoes minimas para provisioning ----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-provisioner
+  labels:
+    app.kubernetes.io/name: platform-provisioner
+    app.kubernetes.io/part-of: platform-core
+    app.kubernetes.io/managed-by: platform-provisioner
+rules:
+  # Verificar existencia de namespaces (read-only)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+
+  # Gerenciar secrets e configmaps nos namespaces das apps
+  # GAP-RBAC-02 (2026-03-12): verbo 'delete' removido de secrets — excessivo para SA de
+  # provisioning. Rotacao/rececriacao de secret deve ser feita via patch/update.
+  # delete em secrets poderia derrubar credenciais em uso por pods ativos.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "update", "patch", "delete"]
+
+  # Gerenciar service accounts nos namespaces das apps
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list"]
+
+  # Gerenciar resource quotas e limit ranges
+  - apiGroups: [""]
+    resources: ["resourcequotas", "limitranges"]
+    verbs: ["create", "get", "update", "patch"]
+
+  # ExternalSecrets (external-secrets.io operator)
+  # GAP-RBAC-03 (2026-03-12): clustersecretstores somente leitura — create/update/delete
+  # restrito a platform admins. clustersecretstores e recurso cluster-scoped global;
+  # delete acidental derrubaria acesso a secrets em todos os namespaces simultaneamente.
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores"]
+    verbs: ["get", "list"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets", "secretstores"]
+    verbs: ["create", "get", "update", "patch", "delete"]
+
+  # NetworkPolicies
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "get", "update", "patch"]
+
+  # Services e Endpoints
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+
+  # RBAC — roles e bindings (necessario para provisioning de namespaces)
+  # ADR-105 GAP-SEC-01: verbo 'escalate' removido — permite criar roles com permissoes
+  # acima do SA atual, violando principio least-privilege. 'bind' mantido para rolebindings.
+  # GAP-RBAC-01 (2026-03-12): bind restrito a roles/rolebindings namespace-scoped apenas
+  # clusterroles e clusterrolebindings removidos desta regra — bind nesses recursos
+  # permitiria ao SA bindar cluster-admin a qualquer subject (escalada de privilegio lateral).
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["create", "get", "list", "update", "patch", "bind"]
+  # Acesso read-only a cluster-scoped RBAC (sem bind/create/delete)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list"]
+
+  # Redis Operator CRDs (redis.redis.opstreelabs.in)
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redis", "rediscluster", "redissentinel", "redisreplication"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+
+  # RabbitMQ Operator CRDs (rabbitmq.com)
+  - apiGroups: ["rabbitmq.com"]
+    resources: ["rabbitmqclusters"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+
+  # ArgoCD Applications
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "appprojects"]
+    verbs: ["create", "get", "update", "patch"]
+---
+# ---- RoleBinding template (aplicar POR NAMESPACE da app) ----
+# Substituir ${NAMESPACE} pelo namespace real ao aplicar
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-provisioner-binding
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/name: platform-provisioner
+    app.kubernetes.io/part-of: platform-core
+    app.kubernetes.io/managed-by: platform-provisioner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: platform-provisioner
+    namespace: ${SA_NAMESPACE:-cicd-argocd}

@@ -286,3 +286,29 @@ spec:
           matchType: "="
       equal:
         - instance
+
+    # Rule 5: EKS Managed Control Plane — suppress false positives
+    # KubeSchedulerDown and KubeControllerManagerDown ALWAYS fire on EKS managed
+    # because AWS does not expose the scheduler/controller-manager metrics endpoints.
+    # These are false positives by design — the components run managed by AWS.
+    # Suppression: Watchdog (always-firing heartbeat) inhibits both alerts.
+    # Last updated: 2026-03-12
+    - sourceMatch:
+        - name: alertname
+          value: Watchdog
+          matchType: "="
+      targetMatch:
+        - name: alertname
+          value: KubeSchedulerDown
+          matchType: "=~"
+      equal: []
+
+    - sourceMatch:
+        - name: alertname
+          value: Watchdog
+          matchType: "="
+      targetMatch:
+        - name: alertname
+          value: KubeControllerManagerDown
+          matchType: "=~"
+      equal: []

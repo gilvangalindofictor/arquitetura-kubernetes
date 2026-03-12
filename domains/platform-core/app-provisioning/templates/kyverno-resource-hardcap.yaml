@@ -1,0 +1,283 @@
+# =============================================================================
+# Kyverno ClusterPolicy — enforce-resource-hard-cap
+# =============================================================================
+# Descricao: Bloqueia deploy de workloads com recursos acima do hard cap
+#            definido na decisao P5 da mesa tecnica (GAP-014).
+#
+# Hard caps:
+#   - Memory limit: 4Gi (4096Mi) por container
+#   - CPU limit: 2000m (2 cores) por container
+#
+# Aplica a: Deployments, StatefulSets, CronJobs, Jobs, DaemonSets
+# Modo: Enforce (bloqueia na admissao — workload NAO e criado)
+#
+# Para solicitar exception:
+#   1. Abra MR com label "resource-exception"
+#   2. Inclua justificativa tecnica (ADR-104)
+#   3. Platform Team aprova e ajusta policy via annotation de bypass
+#
+# Ref: ADR-104, decisao P5, GAP-014
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-resource-hard-cap
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    governance.platform/policy: resource-hard-cap
+    governance.platform/decision: P5
+  annotations:
+    policies.kyverno.io/title: Enforce Resource Hard Cap
+    policies.kyverno.io/category: Resource Management
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Deployment,StatefulSet,CronJob,Job,DaemonSet
+    policies.kyverno.io/description: >-
+      Bloqueia workloads cujos containers solicitem recursos acima do hard cap
+      definido na decisao P5 (ADR-104, GAP-014). Limite maximo por container:
+      4Gi de memoria e 2000m de CPU. Para exceptions, abra MR com label
+      "resource-exception" e justificativa tecnica aprovada pelo Platform Team.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    # ---- Regra para Deployments e StatefulSets --------------------------------
+    - name: validate-resource-limits-pods
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] Container '{{ element.name }}' em '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para initContainers em Deployments e StatefulSets -------------
+    - name: validate-resource-limits-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] InitContainer '{{ element.name }}' em '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.initContainers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para CronJobs --------------------------------------------------
+    - name: validate-resource-limits-cronjobs
+      match:
+        any:
+          - resources:
+              kinds:
+                - CronJob
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] Container '{{ element.name }}' no CronJob '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.jobTemplate.spec.template.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para Jobs ------------------------------------------------------
+    - name: validate-resource-limits-jobs
+      match:
+        any:
+          - resources:
+              kinds:
+                - Job
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] Container '{{ element.name }}' no Job '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para initContainers em CronJobs --------------------------------
+    - name: validate-resource-limits-cronjobs-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - CronJob
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] InitContainer '{{ element.name }}' no CronJob '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.jobTemplate.spec.template.spec.initContainers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para initContainers em Jobs ------------------------------------
+    - name: validate-resource-limits-jobs-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Job
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] InitContainer '{{ element.name }}' no Job '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.initContainers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para DaemonSets ------------------------------------------------
+    - name: validate-resource-limits-daemonsets
+      match:
+        any:
+          - resources:
+              kinds:
+                - DaemonSet
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] Container '{{ element.name }}' no DaemonSet '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"
+
+    # ---- Regra para initContainers em DaemonSets ------------------------------
+    - name: validate-resource-limits-daemonsets-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - DaemonSet
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/resource-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-104/P5] InitContainer '{{ element.name }}' no DaemonSet '{{ request.object.metadata.name }}'
+          excede o hard cap de recursos. Limites maximos por container: memory=4Gi, cpu=2000m.
+          Para solicitar exception: abra MR com label "resource-exception" e justificativa
+          tecnica. Ref: ADR-104, decisao P5, GAP-014.
+        foreach:
+          - list: "request.object.spec.template.spec.initContainers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '0' }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+                  - key: "{{ element.resources.limits.cpu || '0' }}"
+                    operator: GreaterThan
+                    value: "2000m"

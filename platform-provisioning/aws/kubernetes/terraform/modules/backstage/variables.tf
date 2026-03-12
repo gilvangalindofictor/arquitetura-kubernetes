@@ -154,3 +154,15 @@ variable "backstage_auth_session_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "backstage_harbor_url" {
+  description = "Harbor registry URL for Backstage Harbor plugin"
+  type        = string
+  default     = "https://harbor.staging.internal"
+}
+
+variable "backstage_harbor_robot_token" {
+  description = "Harbor robot account token for Backstage Harbor plugin (robot$backstage-puller)"
+  type        = string
+  sensitive   = true
+}

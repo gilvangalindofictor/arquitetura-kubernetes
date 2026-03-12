@@ -3,15 +3,21 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: applications
-  namespace: argocd
+  # ADR-105 (2026-03-12): Migrado de namespace: argocd para staging-platform-argocd
+  namespace: staging-platform-argocd
   labels:
     app.kubernetes.io/managed-by: terraform
 spec:
   description: Application workloads (microservices, APIs, frontends)
 
   # Source repositories
+  # ADR-105 GAP-SEC-02: sourceRepos restrito — wildcard '*' removido.
+  # Workloads de aplicacao sao deployados exclusivamente via GitLab interno.
+  # Helm charts externos de data/infra adicionados conforme uso verificado.
   sourceRepos:
-    - '*'  # Allow all repos (can be restricted to specific Git URLs)
+    - 'https://gitlab.staging.internal/*'
+    - 'https://ot-container-kit.github.io/helm-charts'  # Redis Operator
+    - 'https://charts.bitnami.com/bitnami'              # RabbitMQ e outros
 
   # Destinations (application namespaces only)
   destinations:

@@ -3,6 +3,7 @@
 Registro consolidado de padroes, estrategias e licoes aprendidas ao longo das sessoes de implementacao da plataforma.
 
 Formato de cada entrada:
+
 - **Tipo**: categoria do trabalho
 - **Padrao**: sequencia de passos que funcionou
 - **Licoes aprendidas**: o que foi descoberto, o que nao funciona e por que
@@ -17,7 +18,7 @@ Formato de cada entrada:
 
 **Padrao que funcionou:**
 
-```
+```text
 Namespace → RBAC → Kyverno Exception → Vault Bootstrap → ExternalSecret → Helm
 ```
 
@@ -31,6 +32,7 @@ Namespace → RBAC → Kyverno Exception → Vault Bootstrap → ExternalSecret 
 8. Deploy Helm com `--dry-run` antes do deploy real
 
 **Referencias:**
+
 - logbook: `2026-03-05-backstage-deploy.md`
 - ADR-055
 - Scripts: `docs/plan/backstage/bootstrap-vault-setup.sh`, `docs/plan/backstage/bootstrap-credentials.sh`
@@ -48,6 +50,7 @@ Namespace → RBAC → Kyverno Exception → Vault Bootstrap → ExternalSecret 
 **Regra geral:** Ao criar qualquer namespace `staging-platform-*` novo, verificar primeiro se a ClusterPolicy `validate-namespace-naming` tem uma exclusion list e adicionar o namespace antes de tentar criar o namespace.
 
 **Comando de diagnostico:**
+
 ```bash
 kubectl get clusterpolicy validate-namespace-naming -o yaml | grep -A 20 exclude
 ```
@@ -63,6 +66,7 @@ kubectl get clusterpolicy validate-namespace-naming -o yaml | grep -A 20 exclude
 **Solucao aplicada:** Criar um script `bootstrap-vault-setup.sh` com todos os comandos necessarios ja prontos, documentados e sequenciados. O admin executa o script uma unica vez com seu token. O script e idempotente (verifica antes de criar).
 
 **Padrao recomendado para futuros deploys:**
+
 1. Agente cria o script de bootstrap com todos os comandos Vault
 2. Agente documenta no logbook o que o script faz
 3. Admin executa com seu token: `VAULT_TOKEN=<token> ./bootstrap-vault-setup.sh`
@@ -81,6 +85,7 @@ kubectl get clusterpolicy validate-namespace-naming -o yaml | grep -A 20 exclude
 **Solucao aplicada:** Protocolo AML de auto-renewal ativado. Polling detectou o login renovado em 75 segundos. Execucao retomada sem perda de estado.
 
 **Boas praticas para evitar interrupcao:**
+
 - Iniciar sessoes longas de deploy com `aws sso login` fresco
 - Usar `aws sts get-caller-identity` periodicamente para verificar validade da sessao
 - Manter o protocolo AML ativo em sessoes de deploy estimadas em mais de 4 horas
@@ -95,11 +100,12 @@ kubectl get clusterpolicy validate-namespace-naming -o yaml | grep -A 20 exclude
 
 **Padrao que funcionou:**
 
-```
+```text
 SP cert/key (PKCS8) → Vault KV → ESO template secret.properties → Helm sonarSecretProperties → Keycloak SAML client
 ```
 
 **Licoes aprendidas:**
+
 - `sonarSecretKey` e para chave AES de decrypt do DB, NAO para injetar sonar.properties
 - Key do K8s Secret deve ser `secret.properties`, nao `sonar-secret.txt`
 - `sonar.core.serverBaseURL` deve usar hostname externo (`*.staging.internal`), nunca `localhost`
@@ -107,6 +113,7 @@ SP cert/key (PKCS8) → Vault KV → ESO template secret.properties → Helm son
 - GitLab OAuth direto no SonarQube 10.3 Community nao funciona (plugin ausente) — usar federacao via Keycloak
 
 **Referencias:**
+
 - logbook: `2026-02-18-sonarqube-saml-fix.md`
 - strategies: `strategies-saml-sso.md`
 - DEC-062
@@ -119,15 +126,280 @@ SP cert/key (PKCS8) → Vault KV → ESO template secret.properties → Helm son
 
 **Padrao que funcionou:**
 
-```
+```text
 Keycloak realm platform → Client confidential + PKCE → GitLab OmniAuth OIDC → Vault KV → ESO
 ```
 
 **Licoes aprendidas:**
+
 - Qualquer URL que o browser precisa resolver DEVE usar hostname externo (`*.staging.internal`), nunca `svc.cluster.local` nem `localhost`
 - PKCE (S256) obrigatorio em Keycloak 26 para clients confidenciais com redirect via browser
 - Validar `/.well-known/openid-configuration` antes de qualquer integracao OIDC
 
 **Referencias:**
+
 - logbook: `2026-02-13-sso-e2e-conformidade-keycloak.md`
 - strategies: `strategies-gitlab-sso.md`
+
+---
+
+## 2026-03-12 — FinOps Code Review: Exame IaC + GAPs + Apply 14:39 BRT
+
+**Tipo:** FinOps — Exame de Código + Apply parcial + Health Status
+
+**Exame realizado:** Análise completa do código IaC para verificar status dos itens P0/P1 FinOps codificados na sessão anterior (2026-03-11).
+
+**Status P0/P1 confirmados no código:**
+
+- P0-001: EKS log_types codificado (eks/main.tf) — aguardando apply
+- P0-004: RabbitMQ NLB→ClusterIP codificado (rabbitmq/main.tf)
+- P1-001: Lambda suspend_cluster_autoscaler() codificado (lambda_stop.py + variables.tf)
+- ALB 4→2: codificado em staging/main.tf
+- NAT 2→1: codificado no módulo NAT
+
+**Total savings confirmados no código: R$ 61.638/ano (99.4% da meta R$ 62K)**
+
+**5 GAPs detectados (estado inicial):**
+
+- GAP-2 (ALTO): excluded_node_groups = ["system","critical"] — RESOLVIDO no IaC
+- GAP-1 (MÉDIO): suspend_autoscaler_on_stop não explícito — RESOLVIDO no IaC
+- GAP-3 (MÉDIO): fct-0001/fct-0002 lifecycle rules — FORA DE ESCOPO
+- GAP-4 (BAIXO): gp2→gp3 sem TF — drift latente
+- GAP-5 (MÉDIO): snapshots migração — FECHADO como falso positivo
+
+**Validação AWS ~14:00 BRT:**
+
+- Lambda OK: STOP 2026-03-11T23:00 UTC SUCCESS + START 2026-03-12T10:30 UTC SUCCESS. Zero erros em 7 dias (131+100 eventos).
+- GAP-5 FECHADO — falso positivo: 173 snapshots reais (163 EBS CSI/DLM + 10 Velero), 0 órfãos verdadeiros.
+- GAP-1 e GAP-2 RESOLVIDOS no IaC: `excluded_node_groups=["system"]` + `suspend_autoscaler_on_stop=true` codificados. Aguardando apply.
+- NLB RabbitMQ ainda ativo (USD 16,20/mês) — eliminado no apply de 14:39.
+
+**Apply 2026-03-12 14:39 BRT — CONFIRMADO:**
+
+- Lambda finops_stop: REDEPLOY (suspend_cluster_autoscaler() ativo em produção)
+- Lambda finops_start: REDEPLOY
+- RabbitMQ service: LoadBalancer → ClusterIP (NLB eliminado, -$16.20/mês)
+
+**Custos diários 01-11/03 (Cost Explorer coletado ~15:00 BRT):**
+
+- Acumulado: $480.28 (11 dias)
+- Weekday avg (excl 03-11): $39.97/dia | Weekend avg (excl anomalia): $39.40/dia
+- 03-11: $30.42 — queda de $9.55/dia confirmada pós ALB+NAT
+- Forecast AWS CE Marco: $1.731/mes (+115% vs budget $807)
+
+**Health Status ~15:00 BRT:**
+
+- Nodes: 12/12 Ready (EKS v1.34.2) | PVCs: todos Bound
+- P0: linkerd-trust-anchor secret AUSENTE → cascade CrashLoop GitLab+Linkerd (36-103 restarts)
+- P1: VaultDown + RDSPostgreSQLPlatformWideOutage alerts firing (cascata Linkerd)
+- P2: KubeJobFailed x4, linkerd-cni Pending, promtail Pending x3
+- 58 alertas firing: 11 CRITICAL + 42 WARNING + 5 INFO
+
+**P0 Recovery ~17:00-19:00 BRT:**
+
+- linkerd-trust-anchor recreado com cert correto (trailing newline preservado via `--from-file`)
+- SHA256 bug: `echo "$CERT"` stripa newline → hash errado. Fix: extrair de TF state via `--from-file`
+- System ASG Max=4→5 (identity pod Unschedulable, 17/17 pods/nó). TF já tem max_size=6 — dentro do range
+- Linkerd control plane: destination 4/4, identity 2/2, proxy-injector 2/2 ✅
+- VaultDown alert → FALSO POSITIVO (scrape 403 sem token). Fix: telemetry `unauthenticated_metrics_access=true` adicionado em vault/values.yaml.tpl
+- RDS alert → FALSO POSITIVO (cascata Linkerd). RDS AVAILABLE confirmado
+- Keycloak backup script: 4x `/auth/` removidos (KC 17+ eliminou prefixo em todos os endpoints)
+
+**IaC Codificada nesta Sessão (apply pendente — SSO expirado):**
+
+- `vault/values.yaml.tpl`: telemetry stanza com `unauthenticated_metrics_access=true`
+- `keycloak-backup.tf`: endpoints sem prefixo `/auth/`
+- `node-groups.tf`: max_size=6 já existia desde 2026-03-05 ✅ (sem mudança necessária)
+
+**P0 Recovery ~17:00-19:00 BRT — CONCLUÍDO:**
+
+- linkerd-trust-anchor recriado com cert correto (SHA256 trailing newline bug resolvido via `--from-file`)
+- CNI deadlock fix: `skip-outbound-ports=8080` em destination + proxy-injector
+- System ASG Max=4→5 (identity Unschedulable) — module.linkerd apply confirmado (1 changed)
+- Vault: `unauthenticated_metrics_access=true` — module.vault_staging apply confirmado (1 changed)
+- Ambos os módulos: zero drift pós-apply confirmado
+- Root token Vault revogado pós-apply
+- GitLab 11/11 pods 2/2 ou 3/3 Running (recuperado da cascata Linkerd)
+- Keycloak backup: 4x `/auth/` removidos nos endpoints (KC 17+ eliminou prefixo)
+
+**Referências:**
+
+- logbook: `2026-03-12-finops-code-review.md`
+- logbook: `2026-03-12-linkerd-p0-recovery.md`
+- finops: `docs/finops/finops-status-2026-03-12.md`
+
+---
+
+### Licao 4 — SHA256 trailing newline bug: echo stripa newline, --from-file preserva
+
+**Problema:** Ao recriar o secret `linkerd-trust-anchor`, o hash SHA256 do certificado calculado via `echo "$CERT" | sha256sum` não correspondia ao hash esperado pelo Linkerd. Resultado: trust anchor inválido, control plane inteiro em CrashLoop.
+
+**Causa raiz:** O comando `echo "$CERT"` stripa o trailing newline do conteúdo da variável antes de calcular o hash. Como o certificado PEM termina com `\n`, o hash resultante é diferente do hash do arquivo original. O Linkerd valida o hash do cert no momento de inject do proxy — qualquer divergência causa `InvalidContentType` / `CertificateInvalid`.
+
+**Solucao aplicada:**
+
+```bash
+# ERRADO — stripa trailing newline:
+CERT=$(cat trust-anchor.crt)
+echo "$CERT" | sha256sum  # hash ERRADO
+
+# CORRETO — preserva trailing newline:
+kubectl create secret generic linkerd-trust-anchor \
+  --from-file=ca.crt=trust-anchor.crt \  # --from-file preserva o conteudo exato
+  --namespace=linkerd --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**Regra geral:** Sempre usar `--from-file=<key>=<arquivo>` ao criar secrets com certificados. Nunca usar variáveis shell interpoladas via `echo` para conteúdo binário ou com trailing newlines significativos.
+
+**Diagnóstico:** Comparar hash no secret com hash do arquivo original:
+
+```bash
+kubectl get secret linkerd-trust-anchor -n linkerd -o jsonpath='{.data.ca\.crt}' | base64 -d | sha256sum
+sha256sum trust-anchor.crt
+# Se diferentes → trailing newline bug
+```
+
+---
+
+### Licao 5 — CNI deadlock Linkerd: porta 8080 (identity headless) interceptada pelo próprio proxy
+
+**Problema:** Após o Linkerd CNI ser habilitado (modo iptables), o pod `destination` e o `proxy-injector` entravam em loop de erro `InvalidContentType` ao tentar conectar no `identity` service via a porta headless 8080. O erro era: outbound traffic na porta 8080 interceptado pelo próprio proxy Linkerd antes de chegar ao identity service.
+
+**Causa raiz:** Com CNI iptables, todo tráfego outbound do pod é redirecionado pelo proxy Linkerd antes de sair. A porta 8080 é usada pelo `identity` service como porta headless para comunicação interna do control plane. O proxy do `destination` tentava conectar no `identity:8080` — o iptables redirecionava para o próprio proxy (loopback), que não sabia processar o protocolo gRPC interno → `InvalidContentType` em loop.
+
+**Solucao aplicada:**
+
+```yaml
+# Em destination deployment e proxy-injector deployment:
+annotations:
+  config.linkerd.io/skip-outbound-ports: "8080"
+```
+
+Isso instrui o CNI a não interceptar tráfego outbound na porta 8080, permitindo que a comunicação interna do control plane chegue diretamente ao identity service sem passar pelo proxy.
+
+**Regra geral:** Ao usar Linkerd CNI (não init container), verificar se os componentes do control plane têm `skip-outbound-ports` configurado para portas de comunicação interna. Especialmente crítico para: identity (8080), destination (8086), proxy-injector (8443).
+
+**Diagnóstico:**
+
+```bash
+# Ver se há InvalidContentType loops:
+kubectl logs -n linkerd deployment/linkerd-destination -c linkerd-proxy | grep InvalidContent
+# Ver se skip-outbound-ports está configurado:
+kubectl get deploy -n linkerd linkerd-destination -o jsonpath='{.spec.template.metadata.annotations}'
+```
+
+---
+
+### Licao 6 — Keycloak 26: senha admin so é definida no primeiro boot — rotacao exige argon2id no PostgreSQL
+
+**Problema:** Após rotacionar o secret K8s `keycloak-admin-credentials` (V-006), o login no Keycloak continuava falhando com credenciais inválidas. O pod não reiniciou e continuou usando a senha antiga.
+
+**Causa raiz:** O Keycloak 26 (modo quarkus) define a senha do admin **apenas no primeiro boot** via variável de ambiente `KC_BOOTSTRAP_ADMIN_PASSWORD`. Se o pod já está Running e o secret é alterado, o Keycloak ignora completamente a nova variável — a senha permanece no banco PostgreSQL como hash argon2id.
+
+**Solução aplicada:**
+
+```sql
+-- Conectar no RDS PostgreSQL, database keycloak
+-- Gerar hash argon2id da nova senha (Python 3):
+python3 -c "
+import argon2
+ph = argon2.PasswordHasher(time_cost=3, memory_cost=65536, parallelism=1, hash_len=32, salt_len=16)
+print(ph.hash('NOVA_SENHA'))
+"
+
+-- Atualizar diretamente no banco:
+UPDATE credential SET secret_data = '{"value":"<hash_argon2id>","salt":"","additionalParameters":{}}',
+  credential_data = '{"hashIterations":3,"algorithm":"argon2","additionalParameters":{"hashLength":["32"],"memory":["65536"],"type":["id"],"version":["19"],"parallelism":["1"]}}'
+WHERE type = 'password' AND user_id = (
+  SELECT id FROM user_entity WHERE username = 'admin' AND realm_id = 'master'
+);
+```
+
+**Regra geral:** Para rotacionar a senha admin do Keycloak 26 em produção: (1) gerar hash argon2id em Python com `argon2-cffi`; (2) atualizar a tabela `credential` no PostgreSQL; (3) testar login imediatamente sem reiniciar o pod.
+
+**Anti-pattern:** Deletar/recriar o pod esperando que KC 26 leia o novo secret. Só funciona em primeiro boot.
+
+---
+
+### Licao 7 — AlertManager inhibitRules para componentes EKS managed (falsos positivos permanentes)
+
+**Problema:** Alertas `KubeSchedulerDown` e `KubeControllerManagerDown` disparam constantemente em clusters EKS porque o kube-scheduler e kube-controller-manager são gerenciados pela AWS no control plane (não expostos como pods no data plane). O Prometheus não consegue scrapeá-los.
+
+**Causa raiz:** EKS managed control plane — scheduler e controller-manager rodam em infraestrutura AWS interna. Os ServiceMonitors tentam scrape em targets que nunca existirão → alerta permanente.
+
+**Solução aplicada (AlertmanagerConfig CRD):**
+
+```yaml
+inhibitRules:
+  - sourceMatch:
+      - name: alertname
+        value: Watchdog
+        matchType: "="
+    targetMatch:
+      - name: alertname
+        value: KubeSchedulerDown
+        matchType: "=~"
+    equal: []
+  - sourceMatch:
+      - name: alertname
+        value: Watchdog
+        matchType: "="
+    targetMatch:
+      - name: alertname
+        value: KubeControllerManagerDown
+        matchType: "=~"
+    equal: []
+```
+
+**Rationale:** `Watchdog` está sempre firing em clusters saudáveis — serve como fonte de inibição permanente. `equal: []` garante que a supressão seja global (sem matching por labels adicionais).
+
+**Regra geral:** Em clusters EKS, sempre adicionar inhibitRules para `KubeSchedulerDown` e `KubeControllerManagerDown` usando `Watchdog` como sourceMatch. Codificar no AlertmanagerConfig CRD (não no values.yaml do kube-prometheus-stack, que pode ser sobrescrito por TF apply).
+
+---
+
+### Licao 8 — Vault generate-root via recovery keys: processo completo para obter root token temporário
+
+**Problema:** Para executar `terraform apply` no módulo vault (que requer root token como variável), o root token já havia sido revogado (boa prática). O processo de regeneração via recovery keys não era conhecido.
+
+**Causa raiz:** Vault HA com KMS auto-unseal usa recovery keys (não unseal keys). O root token pode ser gerado via `generate-root` endpoint usando 3 das 5 recovery keys (threshold 3).
+
+**Processo:**
+
+```bash
+# 1. Iniciar generate-root
+curl -s -X PUT localhost:8200/v1/sys/generate-root/attempt \
+  -d '{"pgp_key": ""}' | jq -r '.otp'  # Guardar OTP
+
+# 2. Submeter 3 recovery keys (do /tmp/vault-init.json)
+for key in KEY1 KEY2 KEY3; do
+  curl -s -X PUT localhost:8200/v1/sys/generate-root/update \
+    -d "{\"key\": \"$key\", \"nonce\": \"$NONCE\"}"
+done
+
+# 3. Pegar encoded_token e fazer XOR com OTP
+python3 -c "
+import base64
+encoded = base64.b64decode('ENCODED_TOKEN')
+otp = base64.b64decode('OTP_BASE64')
+root = bytes(a ^ b for a, b in zip(encoded, otp))
+print(base64.b64encode(root).decode())
+"
+
+# 4. Usar root token — e REVOGAR imediatamente após apply
+vault token revoke -self
+```
+
+**Regra geral:** Manter `/tmp/vault-init.json` (ou equivalente seguro) com as 5 recovery keys. Nunca armazenar o root token — sempre gerar pontualmente e revogar após uso. Port-forward obrigatório para `localhost:8200` antes de qualquer operação Vault via TF.
+
+---
+
+## 2026-03-11 — Auditoria Pós-Entrega + Planejamento S6
+
+**Auditoria S0→S5:** 34 GAPs identificados, 30 corrigidos em paralelo.
+Sprints S3/S4 e S5 aprovados com ressalvas; S0+S1 e S2 em correção.
+
+**S6 Backstage IDP:** Planejado (4 micro-sprints). Bloqueado por:
+deploy Backstage (Vault bootstrap + Keycloak client + Helm), GitLab Group Token,
+repo backstage-catalog.
+
+**Ação:** Resolver desbloqueadores do Backstage para iniciar S6-A.

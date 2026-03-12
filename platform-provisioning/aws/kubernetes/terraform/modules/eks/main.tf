@@ -134,9 +134,11 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  # FinOps: reduzido de 5→3 log types (removido controllerManager + scheduler)
-  # Saving estimado: $3-4/mês (R$ 216-288/ano) — 2026-03-10
-  enabled_cluster_log_types = ["api", "audit", "authenticator"]
+  # FinOps: reduzido de 5→2 log types (removido controllerManager, scheduler, api)
+  # api removido em 2026-03-11: audit já captura todas operações com contexto completo
+  # VendedLog-Bytes era 98.9% do custo CW ($21.95 MTD/10d). Remoção de api corta ~50%
+  # Saving estimado: $25-35/mês (R$ 1.800-2.520/ano) — 2026-03-11
+  enabled_cluster_log_types = ["audit", "authenticator"]
 
   tags = {
     Name      = "${var.project_name}-cluster"

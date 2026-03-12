@@ -1,0 +1,96 @@
+# ===========================================================================
+# ATENÇÃO: Este arquivo NÃO deve ser aplicado até que prod-platform-argocd
+# seja provisionado (ADR-105 — quando cluster prod for criado/namespace criado).
+# Status: PRÉ-PROVISIONADO — aguardando provisionamento do namespace prod
+# GAP-SEC-04b | ADR-105 | 2026-03-12
+# ===========================================================================
+#
+# ServiceMonitors dedicados para ArgoCD — namespace prod-platform-argocd
+# Referência: ADR-105 (OPÇÃO A — 1 instância ArgoCD por ambiente)
+#
+# Cobre as 3 portas de métricas nativas do ArgoCD:
+#   - argocd-server:                  porta 8083 (metrics)
+#   - argocd-repo-server:             porta 8084 (metrics)
+#   - argocd-application-controller:  porta 8082 (metrics)
+#
+# Ações ao provisionar prod-platform-argocd:
+#   1. kubectl apply -f servicemonitor-argocd-prod.yaml
+#   2. Verificar no Prometheus targets que os 3 monitors aparecem como UP
+#   3. Marcar GAP-SEC-04b como RESOLVIDO no demand doc
+#
+# Espelho de: servicemonitor-argocd.yaml (staging)
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-server-metrics-prod
+  namespace: prod-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  namespaceSelector:
+    matchNames:
+      - prod-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-repo-server-metrics-prod
+  namespace: prod-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  namespaceSelector:
+    matchNames:
+      - prod-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-application-controller-metrics-prod
+  namespace: prod-platform-argocd
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    app.kubernetes.io/component: argocd
+    app.kubernetes.io/part-of: argocd
+    monitoring.platform/scrape: "true"
+    environment: production
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  namespaceSelector:
+    matchNames:
+      - prod-platform-argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+      scheme: http

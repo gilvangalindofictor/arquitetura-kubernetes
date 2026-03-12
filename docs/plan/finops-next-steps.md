@@ -1,9 +1,9 @@
 # FinOps Automation - Plano de Próximas Etapas
 
 **Data de Criação**: 2026-01-30
-**Última Atualização**: 2026-02-23
+**Última Atualização**: 2026-03-11
 **Framework**: executor-terraform.md (Multi-Agent Decision Making)
-**Status**: FASE 2 ATIVA | EventBridge ENABLED | Automation Running
+**Status**: FASE 3 COMPLETA | Automation Running | ALERTA: Budget +51%
 
 ---
 
@@ -31,13 +31,19 @@ Completar validação e habilitar automação FinOps para reduzir custos de stag
 
 ### 🔄 Em Progresso
 
-- [ ] Monitoramento primeira semana de execuções automáticas (2026-02-24 a 2026-03-03)
-- [ ] Validação economia real vs projetada (1 mês)
+- [x] Monitoramento primeira semana de execuções automáticas (2026-02-24 a 2026-03-03) -- COMPLETO: Lambda START/STOP operacionais, circuit breaker CLOSED, 0 failures
+- [ ] Validação economia real vs projetada (1 mês) -- PARCIAL: savings reais MENORES que projetados (weekend costs $38-39/dia vs $15-18 esperado)
+
+### ⚠️ ALERTA ATIVO
+
+- **ALERTA: Cluster escalou para 13 nodes (era 9). Forecast Mar $1,217 vs budget $807 (+51%)**
+- Causa provável: workloads sem VPA + requests over-provisioned impede bin-packing
+- Ação requerida: VPA + right-sizing urgente para reduzir node count
 
 ### 📋 Pendente
 
 - [ ] Otimizacao de PDBs: shutdown 10-15min -> 2-3min (MEDIUM priority)
-- [ ] SNS notifications / Slack integration (LOW priority)
+- [ ] SNS notifications / Teams integration (LOW priority)
 - [ ] Deploy em producao (Marco 3, Q2 2026)
 
 ---
@@ -306,61 +312,54 @@ kubectl delete pod loki-gateway-xxxxx --grace-period=0 --force
 
 ---
 
-### FASE 3: Habilitar Automação ✅ COMPLETO (2026-02-23)
+### FASE 3: Habilitar Automação ✅ COMPLETO (2026-02-23) — VALIDADO 2026-03-11
 
-**Período**: 2026-02-23
+**Período**: 2026-02-23 a 2026-03-11 (validação 1o. mês)
 **Responsável**: DevOps Team
 **Prioridade**: HIGH
-**Status**: CONCLUIDO
+**Status**: COMPLETO — VALIDADO COM RESSALVAS
 
 #### Resultado
 
 - `enable_automation = true` em `environments/staging/main.tf` (linha 1146)
-- 3 EventBridge rules ENABLED via Terraform apply previo:
+- 5 EventBridge rules ENABLED via Terraform apply:
   - `finops-startup-staging`: `cron(30 10 ? * MON-FRI *)` = 07h30 BRT Mon-Fri
   - `finops-shutdown-staging`: `cron(0 23 ? * MON-FRI *)` = 20h00 BRT Mon-Fri
   - `finops-weekend-shutdown-staging`: `cron(0 3 ? * SAT *)` = 00h00 BRT Sat
+  - `finops-snapshot-cleanup-staging`: snapshot lifecycle automation
+  - `finops-weekly-report-staging`: weekly cost report generation
 - Circuit breaker DynamoDB: CLOSED | startup_failures=0 | shutdown_failures=0
 - Logbook: `docs/logbook/2026-02-23-finops-fase2-automation-enabled.md`
 
-#### Tarefas Pendentes (monitoramento pos-ativacao)
+#### Validação 1o. Mês (2026-03-11)
 
-**3.3 Monitoramento Primeira Semana** (2026-02-24 a 2026-03-03)
+**Automação:**
 
-```bash
-# Monitorar logs de execucao automatica
-aws logs tail /aws/lambda/finops-scheduler-start-staging --follow --since 1h
-aws logs tail /aws/lambda/finops-scheduler-stop-staging --follow --since 1h
+- Lambda START/STOP: operacionais, ~10 execuções/semana
+- Circuit breaker: CLOSED, 0 failures em todo o período
+- Success rate: 100%
+- Zero downtime inesperado
 
-# Verificar metricas CloudWatch
-# - Invocations: 10/semana esperado (5 startups + 5 shutdowns)
-# - Errors: 0 esperado | Duration: ~1.5s avg | Throttles: 0
+**Economia (savings reais vs projetados):**
 
-# Validar alarms nao disparados
-aws cloudwatch describe-alarms --alarm-names \
-  finops-staging-startup-failures \
-  finops-staging-shutdown-failures \
-  finops-staging-startup-duration-high
-```
-
-**3.4 Validação de Economia** (apos 1 mes: 2026-03-23)
-
-```bash
-# Cost Explorer: Service=EC2, Tag=Environment:staging, periodo atual vs anterior
-# Savings esperados: ~$147/mes = ~R$ 779/mes (PTAX 5.30)
-```
+- Projetado: R$ 12.800/ano (R$ 13.596,89 documentado na FASE 1)
+- Realizado (conservador): R$ 8.000-10.000/ano (~65-80% do projetado)
+- GAP identificado: Weekend costs $38-39/dia (esperado $15-18/dia)
+- Causa raiz: Cluster autoscaler re-escala nodes durante weekend shutdown, custo mínimo maior que esperado
+- Ação: Investigar node autoscaler behavior + otimizar shutdown para reduzir baseline
 
 #### Criterios de Sucesso
 
-- [x] EventBridge rules ENABLED (3/3)
+- [x] EventBridge rules ENABLED (5/5)
 - [x] Circuit breaker CLOSED
-- [ ] 100% success rate nas primeiras 20 execucoes automaticas (validar 2026-03-03)
-- [ ] Economia real >= 80% da projetada (validar 2026-03-23)
-- [ ] Zero downtime inesperado
+- [x] 100% success rate nas execuções automáticas (validado 2026-03-11)
+- [ ] Economia real >= 80% da projetada — PARCIAL: ~65-80% (R$ 8-10K vs R$ 12.8K)
+- [x] Zero downtime inesperado
 
-#### Riscos
+#### Riscos Identificados Pós-Validação
 
-- **MEDIO**: Primeira execucao automatica falhar (mitigado: 5/5 testes manuais previos OK)
+- **ALTO**: Cluster escalou para 13 nodes (era 9) — forecast $1,217/mês vs budget $807 (+51%)
+- **MEDIO**: Weekend costs não reduzem ao mínimo — cluster autoscaler re-escala nodes
 - **BAIXO**: RDS 7-day stop issue (mitigado: circuit breaker detect + last_stop_time monitorado)
 - **BAIXO**: Holiday nao detectado (mitigado: Brasil API integrado no Lambda)
 
@@ -411,11 +410,11 @@ aws cloudwatch describe-alarms --alarm-names \
 - **HA Maintained**: Target N-1 always, Current N-1 (mas com delay)
 - **Logs Lost**: Target 0%, Current 0%
 
-### Fase 3 (Automation Enabled)
-- **Automatic Executions**: Target 10/week, Current 0
-- **Success Rate**: Target 100%, Current N/A
-- **Savings Realized**: Target ≥80% of projected, Current N/A
-- **Downtime**: Target 0min, Current 0min
+### Fase 3 (Automation Enabled) — Validado 2026-03-11
+- **Automatic Executions**: Target 10/week, Current ~10/week ✅
+- **Success Rate**: Target 100%, Current 100% ✅
+- **Savings Realized**: Target ≥80% of projected, Current ~65-80% (R$ 8-10K vs R$ 12.8K) ⚠️
+- **Downtime**: Target 0min, Current 0min ✅
 
 ### Fase 4 (Production)
 - **Prod Deploy**: Target Q2 2026, Current Not Started
@@ -426,18 +425,42 @@ aws cloudwatch describe-alarms --alarm-names \
 ## 📋 Backlog de Issues
 
 ### Abertos
-1. **PDB Optimization** (MEDIUM priority)
+
+1. **Cluster em 13 nodes — all max** (P0 - URGENTE)
+   - Cluster expandiu de 9 para 13 nodes, todos node groups no limite max
+   - Forecast Mar $1,217 vs budget $807 (+51%)
+   - Ação: Investigar workloads, aplicar VPA, right-size requests para bin-packing
+   - ETA: 2026-03-17
+
+2. **Weekend costs $38-39/dia** (P0 - URGENTE)
+   - Custo mínimo durante weekend muito acima do esperado ($15-18/dia)
+   - Causa: Cluster autoscaler re-escala nodes mesmo com shutdown ativo
+   - Ação: Otimizar shutdown para reduzir custo mínimo (scale-to-zero nodegroups?)
+   - ETA: 2026-03-17
+
+3. **CloudWatch $66/mês projetado** (P1)
+   - Custo CloudWatch crescendo apesar de fix anterior de log retention
+   - Ação: Investigar log groups com volume alto, ajustar retention/filtros
+   - ETA: 2026-03-24
+
+4. **VPA urgente para bin-packing** (P1)
+   - Sem VPA, requests over-provisioned impedem bin-packing eficiente
+   - Resultado: 13 nodes quando 9 deveriam bastar
+   - Ação: Deploy VPA em modo recommend, aplicar right-sizing nos top consumers
+   - ETA: 2026-03-24
+
+5. **PDB Optimization** (MEDIUM priority)
    - Shutdown não-graceful: 10-15min vs 2-3min esperado
    - Causa: PDBs com maxUnavailable=0
    - Solução: Implementar Cenário 3+4
-   - ETA: Sprint 2026-02
+   - ETA: 2026-04
 
-2. **Monitoring Enhancements** (LOW priority)
-   - SNS notifications não configuradas
+6. **Monitoring Enhancements** (LOW priority)
+   - SNS/Teams notifications não configuradas
    - Solução: Adicionar SNS topic ARN após validação
-   - ETA: Fase 3
+   - ETA: 2026-04
 
-3. **RDS 7-Day Stop Limitation** (LOW priority - monitoring)
+7. **RDS 7-Day Stop Limitation** (LOW priority - monitoring)
    - AWS para RDS automaticamente após 7 dias stopped
    - Solução: Circuit breaker detecta + alerta
    - Mitigação: Monitorar last_stop_time no DynamoDB
@@ -505,7 +528,7 @@ aws cloudwatch describe-alarms --alarm-names \
 
 ---
 
-**Última Revisão**: 2026-01-30
-**Próxima Revisão**: 2026-02-06 (após Fase 1 completa)
+**Última Revisão**: 2026-03-11
+**Próxima Revisão**: 2026-03-17 (P0: cluster nodes + weekend costs)
 **Owner**: DevOps Team
-**Status**: 🟢 On Track
+**Status**: ⚠️ Budget Over (+51%) — Ação requerida em node count e weekend costs

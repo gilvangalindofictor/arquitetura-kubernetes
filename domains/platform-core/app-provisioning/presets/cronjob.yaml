@@ -1,0 +1,52 @@
+# =============================================================================
+# Preset: CronJob (scheduled tasks)
+# =============================================================================
+# Mesa Tecnica P1 — Valores baseados em consumo real do cluster
+# Staging multiplier: 0.5x CPU req, 0.75x mem req
+# Replicas: n/a (controlado pelo schedule)
+# Ref: ADR-104, 2026-03-11
+# =============================================================================
+
+type: cronjob
+description: "Preset para CronJobs — execucao agendada, sem replicas persistentes"
+
+environments:
+  production:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    replicas:
+      min: 0     # n/a para cronjob
+      max: 0     # n/a para cronjob
+    concurrencyPolicy: "Forbid"
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    activeDeadlineSeconds: 3600
+
+  staging:
+    resources:
+      requests:
+        cpu: "50m"        # 0.5x de 100m
+        memory: "96Mi"    # 0.75x de 128Mi
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    replicas:
+      min: 0
+      max: 0
+    concurrencyPolicy: "Forbid"
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
+    activeDeadlineSeconds: 3600
+
+defaults:
+  port: 0        # cronjobs geralmente nao expoe porta
+  healthCheck:
+    liveness: ""
+    readiness: ""
+  restartPolicy: "Never"
+  backoffLimit: 3

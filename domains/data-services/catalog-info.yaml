@@ -1,0 +1,56 @@
+# =============================================================================
+# catalog-info.yaml — Component entity: data-hatch-etl (Hatch ETL)
+# Registra o componente ETL/Hatch no Backstage Catalog
+# Namespace K8s: staging-data-hatch (ADR-048)
+#
+# GAP-S6-10: catalog-info.yaml do ETL/Hatch (Sprint S6-A)
+# Sprint S6-A / M2 — ADR-055, ADR-102
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: data-hatch-etl
+  title: "Data Hatch ETL"
+  description: "Pipeline ETL Python para ingestão e transformação de dados. CronJob agendado no Kubernetes com secrets via ESO/Vault."
+  annotations:
+    # Integração Kubernetes — exibe pods em tempo real
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name=hatch"
+    backstage.io/kubernetes-namespace: "staging-data-hatch"
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/etl/hatch/-/blob/main/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    # Integração ArgoCD (S6-D)
+    argocd/app-name: "hatch-etl"
+    # Integração GitLab
+    gitlab.com/project-slug: "etl/hatch"
+    # Integração Grafana (S6-D)
+    grafana/dashboard-selector: "hatch"
+    grafana/alert-label-selector: "service=hatch"
+  tags:
+    - etl
+    - python
+    - data-pipeline
+    - cronjob
+    - data-services
+  links:
+    - title: "ArgoCD Application"
+      url: "https://argocd.staging.internal/applications/hatch-etl"
+      icon: "dashboard"
+    - title: "Grafana Dashboard"
+      url: "https://grafana.staging.internal/d/hatch-etl"
+      icon: "dashboard"
+    - title: "GitLab Repository"
+      url: "https://gitlab.staging.internal/etl/hatch"
+      icon: "gitlab"
+    - title: "Vault Secrets"
+      url: "https://vault.staging.internal/ui/vault/secrets/secret/apps/etl/hatch"
+      icon: "lock"
+spec:
+  type: service
+  lifecycle: production
+  owner: data-team
+  system: data-hatch-etl
+  domain: data-services
+  dependsOn:
+    - resource:default/staging-data-hatch-postgresql
+    - resource:default/staging-data-hatch-s3

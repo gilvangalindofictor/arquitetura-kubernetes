@@ -1,0 +1,72 @@
+# =============================================================================
+# ArgoCD SA para Backstage Scaffolder (GAP-009)
+# SA backstage-scaffolder: cria ArgoCD Applications (apenas create, não delete/sync)
+# Separado do backstage-reader (read-only) para princípio de menor privilégio
+# Aplicar: kubectl apply -f argocd-scaffolder-sa.yaml
+# ADR: ADR-055
+# =============================================================================
+
+---
+# ServiceAccount no namespace ArgoCD
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backstage-scaffolder
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/component: scaffolder
+    app.kubernetes.io/managed-by: terraform
+
+---
+# Role: permite apenas CREATE de Applications no namespace argocd
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backstage-scaffolder
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/component: scaffolder
+    app.kubernetes.io/managed-by: terraform
+  annotations:
+    backstage.io/reason: "Backstage Scaffolder creates ArgoCD Applications for new services"
+    backstage.io/review-date: "2026-09-11"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["create", "get"]   # get necessário para verificar se já existe
+  - apiGroups: [""]
+    resources: ["secrets"]     # necessário para sync de repos privados
+    verbs: ["get"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backstage-scaffolder
+  namespace: staging-platform-argocd
+  labels:
+    app.kubernetes.io/name: backstage
+    app.kubernetes.io/managed-by: terraform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backstage-scaffolder
+subjects:
+  - kind: ServiceAccount
+    name: backstage-scaffolder
+    namespace: staging-platform-argocd
+
+---
+# Secret para gerar token long-lived do SA (ArgoCD API token para Scaffolder)
+# Após apply: kubectl get secret backstage-scaffolder-token -n staging-platform-argocd -o jsonpath='{.data.token}' | base64 -d
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backstage-scaffolder-token
+  namespace: staging-platform-argocd
+  annotations:
+    kubernetes.io/service-account.name: backstage-scaffolder
+type: kubernetes.io/service-account-token

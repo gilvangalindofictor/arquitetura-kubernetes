@@ -257,7 +257,7 @@ module "rabbitmq_staging" {
   # ALB Ingress for Management UI
   ingress_enabled    = true
   ingress_host       = "rabbitmq.staging.internal"
-  ingress_group_name = "data-staging"
+  ingress_group_name = "platform-staging" # FinOps ALB 4→2: merged from data-staging (2026-03-11)
 }
 
 # S3 Buckets - STAGING (7d lifecycle)
@@ -348,9 +348,9 @@ module "gitlab_staging" {
 
   # GitLab configuration
   gitlab_edition         = "ce"
-  gitlab_version         = "9.9.1"  # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36)
-  gitlab_replicas        = 1 # Cost-optimized for staging
-  gitlab_runner_replicas = 1 # Cost-optimized for staging
+  gitlab_version         = "9.9.1" # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36)
+  gitlab_replicas        = 1       # Cost-optimized for staging
+  gitlab_runner_replicas = 1       # Cost-optimized for staging
 
   # TLS configuration (ADR-021 Phase 1: disabled)
   enable_tls  = false
@@ -473,7 +473,7 @@ resource "null_resource" "gitlab_runner_envfrom" {
   triggers = {
     secret_name = "gitlab-ci-credentials"
     # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
-    namespace   = "staging-platform-gitlab"
+    namespace = "staging-platform-gitlab"
   }
 
   provisioner "local-exec" {
@@ -541,7 +541,7 @@ resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
     apiVersion = "rbac.authorization.k8s.io/v1"
     kind       = "Role"
     metadata = {
-      name      = "gitlab-gitlab-runner"
+      name = "gitlab-gitlab-runner"
       # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
       namespace = "staging-platform-gitlab"
       labels = {
@@ -619,9 +619,9 @@ module "external_secrets_staging" {
   depends_on = [module.vault_staging]
 
   cluster_name      = local.cluster_name
-  namespace         = "staging-security-externalsecrets" # DEC-074: migrated from external-secrets-system (2026-03-02)
-  eso_chart_version = "0.12.1"                          # Updated from 0.9.11 to match active Helm release
-  replicas          = 1 # Cost-optimized for staging
+  namespace         = "staging-security-externalsecrets"                           # DEC-074: migrated from external-secrets-system (2026-03-02)
+  eso_chart_version = "0.12.1"                                                     # Updated from 0.9.11 to match active Helm release
+  replicas          = 1                                                            # Cost-optimized for staging
   vault_addr        = "http://vault.staging-security-vault.svc.cluster.local:8200" # Updated to canonical vault addr
   enable_monitoring = true
   common_tags       = local.common_tags
@@ -811,20 +811,20 @@ module "keycloak_clients_staging" {
   cluster_name  = local.cluster_name
 
   # Enable all clients (TASK-002: full 6-client IaC coverage)
-  gitlab_enabled     = true
-  argocd_enabled     = true
-  grafana_enabled    = true
-  harbor_enabled     = true
-  vault_enabled      = true
-  sonarqube_enabled  = true
+  gitlab_enabled    = true
+  argocd_enabled    = true
+  grafana_enabled   = true
+  harbor_enabled    = true
+  vault_enabled     = true
+  sonarqube_enabled = true
 
   # Kubernetes namespaces
-  gitlab_namespace     = "staging-platform-gitlab"  # DEC-074 Wave 6: renamed from gitlab-staging
-  argocd_namespace     = "argocd"
-  grafana_namespace    = "monitoring"
-  harbor_namespace     = "harbor-system"
-  vault_namespace      = "staging-security-vault"   # DEC-074 Wave 3: renamed from vault-system
-  sonarqube_namespace  = "staging-platform-sonarqube"
+  gitlab_namespace    = "staging-platform-gitlab" # DEC-074 Wave 6: renamed from gitlab-staging
+  argocd_namespace    = "argocd"
+  grafana_namespace   = "monitoring"
+  harbor_namespace    = "harbor-system"
+  vault_namespace     = "staging-security-vault" # DEC-074 Wave 3: renamed from vault-system
+  sonarqube_namespace = "staging-platform-sonarqube"
 
   # grafana-admins group + oidc-group-membership-mapper
   # Replaces null_resource.keycloak_grafana_admins_group (Python port-forward)
@@ -1098,7 +1098,7 @@ module "kube_prometheus_stack_staging" {
   # Grafana ALB Ingress
   grafana_ingress_enabled    = true
   grafana_ingress_host       = "grafana.staging.internal"
-  grafana_ingress_group_name = "observability-staging"
+  grafana_ingress_group_name = "platform-staging" # FinOps ALB 4→2: merged from observability-staging (2026-03-11)
 
   # Grafana OIDC — Keycloak SSO (ativado 2026-02-18)
   # client_secret MIGRADO para Vault KV: secret/grafana/oidc (2026-02-19)
@@ -1296,12 +1296,15 @@ module "finops_automation_staging" {
   enable_sns_notifications = false # Usar apenas tópico externo (finops-alerts-staging)
   sns_topic_arn            = aws_sns_topic.finops_alerts_staging.arn
 
-  # FinOps Protection (2026-02-27): Never scale system/critical node groups to 0
-  # Fix: Prevent monitoring pods from becoming Pending/Unschedulable
-  excluded_node_groups      = ["system", "critical"]
-  min_system_nodes          = 2 # prometheus-node-exporter (11 pods), loki-canary (9 pods)
-  min_critical_nodes        = 2 # ArgoCD, Vault, other critical services
-  enable_scaling_protection = true
+  # FinOps Protection: Only system group excluded from weekend scale-down
+  # critical REMOVIDO da exclusão (2026-03-12): Lambda STOP gerencia critical até min=2 nos weekends
+  # Decisão: maximizar saving weekend (+R$ 3-5K/ano); ArgoCD/Vault tolerant com min=2 nodes
+  # Ref: GAP-2 resolution — docs/logbook/2026-03-12-finops-code-review.md
+  excluded_node_groups       = ["system"]
+  min_system_nodes           = 2 # prometheus-node-exporter (11 pods), loki-canary (9 pods)
+  min_critical_nodes         = 2 # ArgoCD, Vault — floor protection; critical não mais excluído
+  enable_scaling_protection  = true
+  suspend_autoscaler_on_stop = true # GAP-1 fix (2026-03-12): explícito — impede re-escala nos weekends
 
   # Tags
   tags = local.common_tags
@@ -2152,27 +2155,14 @@ module "snapshot_cleanup" {
   })
 }
 
-#------------------------------------------------------------------------------
-# Data Lifecycle Manager (DLM) — Automated Snapshot Retention
-# Purpose: Automate EBS snapshot retention policies (Velero 30d, Manual 14d, Migration 7d)
-# Savings: R$ 252/ano (30% reduction post-stabilization, 3 months)
-# Current state: 22 snapshots (213 GB, R$ 766/ano), no snapshots > 30 days
-# Replaces: Manual snapshot management with automated DLM policies
-#------------------------------------------------------------------------------
+# REMOVIDO 2026-03-11 — FinOps: DLM snapshot_lifecycle INOPERANTE
+# Root cause: resource_types=["VOLUME"] + target_tags buscava tags em volumes EBS,
+# mas tags velero.io/backup existem apenas nos snapshots (criados pelo Velero CSI).
+# DLM nunca matchou nenhum volume → 0 snapshots gerenciados → R$0 savings reais.
+# Velero já cobre: TTL 720h (30d) + schedules daily/hourly + GC. DLM é 100% redundante.
+# TF apply remove 6 recursos: 3 DLM policies + IAM role/policy/instance-profile.
+# Savings reais: cleanup de ~174 snapshots órfãos → R$1.879-3.132/ano potencial.
 
-module "snapshot_lifecycle" {
-  source = "../../modules/snapshot-lifecycle"
-
-  policy_name_prefix       = "k8s-platform-staging"
-  velero_retention_days    = 30 # Velero backup snapshots
-  manual_retention_days    = 14 # Manually created snapshots
-  migration_retention_days = 7  # Migration/temporary snapshots
-
-  common_tags = merge(local.common_tags, {
-    Purpose     = "Automated EBS snapshot retention via DLM"
-    Criticality = "High"
-  })
-}
 
 #------------------------------------------------------------------------------
 # TASK-004 Validation: FCT Proposals Bucket Access Test
@@ -2310,12 +2300,12 @@ module "vpc_dr_staging" {
     aws.dr = aws.us-west-2
   }
 
-  environment           = local.environment
-  vpc_cidr              = "10.1.0.0/16"
-  rds_subnet_cidr_az_a  = "10.1.128.0/20"
-  rds_subnet_cidr_az_b  = "10.1.144.0/20"
-  db_subnet_group_name  = "k8s-platform-dr-db-subnet-group"
-  dr_region             = "us-west-2"
+  environment          = local.environment
+  vpc_cidr             = "10.1.0.0/16"
+  rds_subnet_cidr_az_a = "10.1.128.0/20"
+  rds_subnet_cidr_az_b = "10.1.144.0/20"
+  db_subnet_group_name = "k8s-platform-dr-db-subnet-group"
+  dr_region            = "us-west-2"
 
   tags = local.common_tags
 }
@@ -2538,8 +2528,8 @@ module "linkerd" {
 
   # --- Grafana Dashboards ---
   # ENABLED (2026-03-03) — 4 dashboard JSONs created (top-line, service-mesh, deployment, namespace)
-  enable_grafana_dashboards       = true
-  grafana_dashboard_namespace     = "staging-observability-monitoring"
+  enable_grafana_dashboards   = true
+  grafana_dashboard_namespace = "staging-observability-monitoring"
 
   # --- Jaeger / Tracing ---
   # Desabilitado em staging (OpenTelemetry Collector ja existe em monitoring)
@@ -2644,6 +2634,9 @@ module "backstage_staging" {
 
   # Session secret
   backstage_auth_session_secret = var.backstage_auth_session_secret
+
+  # Harbor plugin
+  backstage_harbor_robot_token = var.backstage_harbor_robot_token
 
   # Tags
   common_tags = local.common_tags

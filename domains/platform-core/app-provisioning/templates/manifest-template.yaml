@@ -1,0 +1,89 @@
+# =============================================================================
+# .platform/manifest.yaml — Template de Manifesto Base
+# =============================================================================
+# Copie este arquivo para o repositorio da aplicacao em: .platform/manifest.yaml
+# Preencha os campos obrigatorios e remova comentarios desnecessarios.
+#
+# Ref: ADR-104, Mesa Tecnica 2026-03-11
+# Schema: platform.k8s/v1
+# Validacao: domains/platform-core/app-provisioning/scripts/validation/
+# =============================================================================
+
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
+
+metadata:
+  name: ""                    # OBRIGATORIO: kebab-case, max 63 chars (ADR-048)
+  domain: ""                  # OBRIGATORIO: platform|integration|data|operations|shared-services
+  product: ""                 # OBRIGATORIO: agrupa microservicos do mesmo produto
+  type: ""                    # OBRIGATORIO: etl|api-rest|worker|frontend|cronjob
+  owner: ""                   # OBRIGATORIO: {domain}-team
+  description: ""             # Descricao breve da aplicacao
+  tags: []                    # Tags opcionais para catalogacao
+
+# ---------------------------------------------------------------------------
+# Dependencias — default negativo: tudo desligado
+# ---------------------------------------------------------------------------
+dependencies:
+  database:
+    enabled: false             # Habilita PostgreSQL no RDS shared
+    type: "shared"             # shared|dedicated
+    name: ""                   # Nome do database (auto-gerado se vazio)
+    extensions: []             # Extensoes PostgreSQL adicionais
+
+  redis:
+    enabled: false             # Habilita Redis via Operator
+    mode: "standalone"         # standalone|sentinel
+
+  rabbitmq:
+    enabled: false             # Habilita RabbitMQ vhost/user/exchanges
+    replicas: 1
+    vhosts: []                 # VHosts adicionais (alem do padrao)
+
+  keycloak:
+    enabled: false             # Habilita Keycloak OIDC client
+    clientType: "confidential" # confidential|public
+    redirectUris: []           # URIs de redirect para OAuth2
+
+# ---------------------------------------------------------------------------
+# Recursos — se vazio, usa preset do tipo (P1)
+# Hard cap: 4Gi mem / 2000m CPU (P5 — Kyverno enforce)
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: ""                    # Vazio = preset do tipo
+    memory: ""
+  limits:
+    cpu: ""
+    memory: ""
+  replicas:
+    min: 0                     # 0 = preset do tipo
+    max: 0
+
+# ---------------------------------------------------------------------------
+# Configuracao da aplicacao
+# ---------------------------------------------------------------------------
+config:
+  port: 0                      # Porta HTTP (0 = preset do tipo)
+  healthCheck:
+    liveness: ""               # Path do liveness probe (ex: /health)
+    readiness: ""              # Path do readiness probe (ex: /ready)
+  ingress:
+    enabled: false
+    host: ""                   # FQDN (ex: api.empresa.com)
+    class: "internal"          # internal|external
+    tls: true
+  env: {}                      # Env vars adicionais (nao-sensíveis)
+  secretKeys: []               # Chaves de secrets necessarias
+  schedule: ""                 # Apenas cronjob (ex: "0 */6 * * *")
+
+# ---------------------------------------------------------------------------
+# Observabilidade
+# ---------------------------------------------------------------------------
+observability:
+  metrics:
+    enabled: false
+    path: "/metrics"
+    port: 0                    # 0 = mesmo que config.port
+  tracing:
+    enabled: false

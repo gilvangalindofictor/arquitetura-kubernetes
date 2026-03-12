@@ -12,14 +12,9 @@ output "rabbitmq_service_internal" {
   value       = "${var.cluster_name}-rabbitmq"
 }
 
-output "rabbitmq_external_hostname" {
-  description = "RabbitMQ LoadBalancer hostname for external access"
-  value       = try(kubernetes_service.rabbitmq_management_external.status[0].load_balancer[0].ingress[0].hostname, "")
-}
-
-output "rabbitmq_external_ip" {
-  description = "RabbitMQ LoadBalancer IP for external access (if available)"
-  value       = try(kubernetes_service.rabbitmq_management_external.status[0].load_balancer[0].ingress[0].ip, "")
+output "rabbitmq_management_service_name" {
+  description = "RabbitMQ Management ClusterIP service name for internal access"
+  value       = kubernetes_service.rabbitmq_management_internal.metadata[0].name
 }
 
 output "rabbitmq_amqp_port" {
@@ -38,8 +33,8 @@ output "rabbitmq_default_user_secret" {
 }
 
 output "rabbitmq_management_url" {
-  description = "RabbitMQ Management UI URL (after LoadBalancer is provisioned)"
-  value       = "http://${try(kubernetes_service.rabbitmq_management_external.status[0].load_balancer[0].ingress[0].hostname, "<pending>")}:15672"
+  description = "RabbitMQ Management UI URL (internal cluster access via port-forward or Ingress)"
+  value       = "http://${kubernetes_service.rabbitmq_management_internal.metadata[0].name}.${var.namespace}.svc.cluster.local:15672"
 }
 
 output "rabbitmq_connection_string_internal" {

@@ -26,6 +26,10 @@ terraform {
       source  = "hashicorp/vault"
       version = "~> 3.25"
     }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -477,6 +481,27 @@ resource "vault_kv_secret_v2" "backstage_session" {
   }
 }
 
+# Harbor registry credentials (Harbor plugin + Scaffolder M2)
+resource "vault_kv_secret_v2" "backstage_harbor" {
+  mount = "secret"
+  name  = "staging/backstage/harbor"
+
+  data_json = jsonencode({
+    url          = var.backstage_harbor_url
+    robot-token  = var.backstage_harbor_robot_token
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "backstage"
+      cluster    = var.cluster_name
+      adr        = "ADR-055"
+    }
+  }
+}
+
 # -----------------------------------------------------------------------------
 # ExternalSecret: backstage-secrets
 # Sincroniza todos os secrets do Vault para K8s Secret backstage-secrets
@@ -495,6 +520,7 @@ resource "kubectl_manifest" "backstage_externalsecret" {
     vault_kv_secret_v2.backstage_vault,
     vault_kv_secret_v2.backstage_eks,
     vault_kv_secret_v2.backstage_session,
+    vault_kv_secret_v2.backstage_harbor,
   ]
 
   yaml_body = <<-YAML
@@ -584,6 +610,15 @@ resource "kubectl_manifest" "backstage_externalsecret" {
           remoteRef:
             key: secret/staging/backstage/session
             property: auth-session-secret
+        # ── Harbor ────────────────────────────────────────────────────────────
+        - secretKey: harbor-url
+          remoteRef:
+            key: secret/staging/backstage/harbor
+            property: url
+        - secretKey: harbor-robot-token
+          remoteRef:
+            key: secret/staging/backstage/harbor
+            property: robot-token
   YAML
 }
 
@@ -631,4 +666,168 @@ resource "helm_release" "backstage" {
       set,
     ]
   }
+}
+
+# -----------------------------------------------------------------------------
+# IRSA (IAM Role for Service Account): backstage-irsa-role
+# Permite que o ServiceAccount backstage acesse S3 TechDocs
+# Binding: eks.amazonaws.com/role-arn annotation no ServiceAccount (values.yaml.tpl)
+# ADR-055 / GAP-006
+# -----------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "backstage_irsa_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = ["arn:aws:iam::${var.aws_account_id}:oidc-provider/oidc.eks.${var.aws_region}.amazonaws.com/id/EC913B145BF356481CBE823532F09150"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "oidc.eks.${var.aws_region}.amazonaws.com/id/EC913B145BF356481CBE823532F09150:sub"
+      values   = ["system:serviceaccount:${var.namespace}:backstage"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "oidc.eks.${var.aws_region}.amazonaws.com/id/EC913B145BF356481CBE823532F09150:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "backstage_irsa" {
+  name               = "backstage-irsa-role"
+  assume_role_policy = data.aws_iam_policy_document.backstage_irsa_assume_role.json
+
+  tags = merge(var.common_tags, {
+    Name      = "backstage-irsa-role"
+    Service   = "Backstage"
+    Cluster   = var.cluster_name
+    ManagedBy = "terraform"
+    ADR       = "ADR-055"
+  })
+}
+
+data "aws_iam_policy_document" "backstage_techdocs_s3" {
+  statement {
+    effect  = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      "arn:aws:s3:::backstage-techdocs-${var.aws_account_id}",
+      "arn:aws:s3:::backstage-techdocs-${var.aws_account_id}/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "backstage_techdocs_s3" {
+  name   = "backstage-techdocs-s3"
+  role   = aws_iam_role.backstage_irsa.id
+  policy = data.aws_iam_policy_document.backstage_techdocs_s3.json
+}
+
+# -----------------------------------------------------------------------------
+# ArgoCD SA: backstage-scaffolder (GAP-009)
+# SA separado com escopo mínimo de Create em Applications
+# Separado do backstage-reader (read-only) — menor privilégio
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "argocd_scaffolder_sa" {
+  depends_on = [kubernetes_namespace.backstage]
+
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: backstage-scaffolder
+      namespace: staging-platform-argocd
+      labels:
+        app.kubernetes.io/name: backstage
+        app.kubernetes.io/component: scaffolder
+        app.kubernetes.io/managed-by: terraform
+  YAML
+}
+
+resource "kubectl_manifest" "argocd_scaffolder_role" {
+  depends_on = [kubectl_manifest.argocd_scaffolder_sa]
+
+  yaml_body = <<-YAML
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: backstage-scaffolder
+      namespace: staging-platform-argocd
+    rules:
+      - apiGroups: ["argoproj.io"]
+        resources: ["applications"]
+        verbs: ["create", "get"]
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get"]
+  YAML
+}
+
+resource "kubectl_manifest" "argocd_scaffolder_rolebinding" {
+  depends_on = [kubectl_manifest.argocd_scaffolder_role]
+
+  yaml_body = <<-YAML
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: backstage-scaffolder
+      namespace: staging-platform-argocd
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: backstage-scaffolder
+    subjects:
+      - kind: ServiceAccount
+        name: backstage-scaffolder
+        namespace: staging-platform-argocd
+  YAML
+}
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy: Redis ← Backstage (GAP-013)
+# Backstage usa Redis no keyspace /1 para session cache e plugin cache
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "redis_allow_backstage" {
+  depends_on = [kubernetes_namespace.backstage]
+
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: redis-allow-backstage
+      namespace: staging-security-redis
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        purpose: backstage-session-cache
+    spec:
+      podSelector:
+        matchLabels:
+          app: redis-ha
+      policyTypes:
+        - Ingress
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: staging-platform-backstage
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: backstage
+          ports:
+            - protocol: TCP
+              port: 6379
+  YAML
 }

@@ -1,0 +1,220 @@
+# =============================================================================
+# Backstage Software Template: New Service (Genérico)
+# Template base para criação de qualquer serviço na plataforma
+# Suporta tipos: api, worker, etl
+# Herança: etl-service/template.yaml e api-service/template.yaml estendem este
+#
+# Sprint S6-B / M2 — ADR-055, ADR-102
+# =============================================================================
+
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: new-service
+  title: "Novo Serviço (Genérico)"
+  description: "Template base para criação de qualquer serviço na plataforma — API, Worker ou ETL com K8s manifests e Vault AppRole"
+  tags:
+    - kubernetes
+    - generic
+    - recommended
+    - platform
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/new-service/template.yaml"
+spec:
+  owner: platform-team
+  type: service
+
+  # ---------------------------------------------------------------------------
+  # Parameters — validação de input com regex obrigatória (GAP-008)
+  # NUNCA usar title como identificador direto (XSS/injection via UI)
+  # ---------------------------------------------------------------------------
+  parameters:
+    - title: "Informações do Serviço"
+      required:
+        - name
+        - description
+        - owner
+        - type
+        - domain
+      properties:
+        name:
+          title: "Nome do serviço"
+          type: string
+          description: "Identificador único. Letras minúsculas, números e hífens. Ex: meu-servico"
+          pattern: '^[a-z][a-z0-9-]{2,40}$'
+          ui:autofocus: true
+          ui:help: "Usado como nome do repositório GitLab, namespace K8s (staging-{domain}-{name}) e path Vault"
+        description:
+          title: "Descrição"
+          type: string
+          description: "Descrição curta do propósito do serviço (máx 200 caracteres)"
+          maxLength: 200
+        owner:
+          title: "Squad responsável"
+          type: string
+          description: "Squad dona do serviço — usada para RBAC e alertas"
+          enum:
+            - "platform-team"
+            - "data-team"
+            - "backend-team"
+            - "ops-team"
+          enumNames:
+            - "Platform Team"
+            - "Data Team"
+            - "Backend Team"
+            - "Ops Team"
+        type:
+          title: "Tipo do serviço"
+          type: string
+          description: "Tipo de workload — define o template de manifests gerado"
+          enum:
+            - "api"
+            - "worker"
+            - "etl"
+          enumNames:
+            - "API (HTTP server, tem Ingress + HPA)"
+            - "Worker (processo background, sem Ingress)"
+            - "ETL (CronJob agendado, sem Ingress)"
+          ui:widget: radio
+        domain:
+          title: "Domínio de negócio"
+          type: string
+          description: "Domínio da plataforma ao qual o serviço pertence — define namespace K8s"
+          enum:
+            - "platform-core"
+            - "data-services"
+            - "cicd-platform"
+            - "observability"
+            - "security"
+          enumNames:
+            - "platform-core"
+            - "data-services"
+            - "cicd-platform"
+            - "observability"
+            - "security"
+        system:
+          title: "Sistema (opcional)"
+          type: string
+          description: "Sistema Backstage ao qual o serviço pertence. Deixe em branco para criar como sistema standalone"
+          default: ""
+
+    - title: "Configuração de Recursos"
+      properties:
+        replicas:
+          title: "Réplicas iniciais"
+          type: integer
+          description: "Número inicial de réplicas. Para ETL/Worker, use 1"
+          default: 1
+          minimum: 1
+          maximum: 10
+        cpu_request:
+          title: "CPU Request"
+          type: string
+          description: "CPU solicitada em milicores. Ex: 100m"
+          default: "100m"
+          pattern: '^[0-9]+m$'
+        memory_request:
+          title: "Memory Request"
+          type: string
+          description: "Memória solicitada. Ex: 128Mi"
+          default: "128Mi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+        cpu_limit:
+          title: "CPU Limit"
+          type: string
+          description: "Limite de CPU em milicores. Ex: 500m"
+          default: "500m"
+          pattern: '^[0-9]+m$'
+        memory_limit:
+          title: "Memory Limit"
+          type: string
+          description: "Limite de memória. Ex: 256Mi"
+          default: "256Mi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+
+    - title: "Repositório GitLab"
+      required:
+        - gitlab_group
+      properties:
+        gitlab_group:
+          title: "Grupo GitLab"
+          type: string
+          description: "Grupo GitLab onde o repositório será criado"
+          default: "services"
+          enum:
+            - "backend"
+            - "data"
+            - "etl"
+            - "platform"
+            - "services"
+        repo_visibility:
+          title: "Visibilidade do repositório"
+          type: string
+          description: "Visibilidade do repositório no GitLab"
+          default: "private"
+          enum: ["private", "internal"]
+          enumNames: ["Private (apenas o grupo)", "Internal (toda a organização)"]
+
+  # ---------------------------------------------------------------------------
+  # Steps — executados sequencialmente pelo Backstage Scaffolder
+  # ---------------------------------------------------------------------------
+  steps:
+    - id: fetch-template
+      name: "Gerar estrutura do projeto"
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          type: ${{ parameters.type }}
+          domain: ${{ parameters.domain }}
+          system: ${{ parameters.system }}
+          replicas: ${{ parameters.replicas }}
+          cpu_request: ${{ parameters.cpu_request }}
+          memory_request: ${{ parameters.memory_request }}
+          cpu_limit: ${{ parameters.cpu_limit }}
+          memory_limit: ${{ parameters.memory_limit }}
+          gitlab_group: ${{ parameters.gitlab_group }}
+
+    - id: publish-gitlab
+      name: "Criar repositório no GitLab"
+      action: publish:gitlab
+      input:
+        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=${{ parameters.name }}"
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: ${{ parameters.repo_visibility }}
+        onExistingBranch: force
+
+    - id: register-catalog
+      name: "Registrar no Backstage Catalog"
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitlab'].output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+  # ---------------------------------------------------------------------------
+  # Output — links exibidos ao usuário após a execução
+  # ---------------------------------------------------------------------------
+  output:
+    links:
+      - title: "Repositório GitLab"
+        url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+        icon: gitlab
+      - title: "Ver no Backstage Catalog"
+        icon: catalog
+        entityRef: ${{ steps['register-catalog'].output.entityRef }}
+    text:
+      - title: "Próximos passos"
+        content: |
+          Seu serviço foi criado com sucesso!
+
+          **Namespace Kubernetes:** `staging-${{ parameters.domain }}-${{ parameters.name }}`
+
+          **Próximos passos:**
+          1. Clone o repositório e revise o `.platform/manifest.yaml` gerado
+          2. Abra um MR com as configurações do seu serviço
+          3. O pipeline `validate:manifest` rodará automaticamente no MR
+          4. Após merge, o ArgoCD provisionará o namespace e deployará a aplicação

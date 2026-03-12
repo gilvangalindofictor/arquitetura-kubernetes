@@ -221,6 +221,23 @@ alertmanager:
           severity: "warning"
         equal: ["node"]
 
+      # EKS Managed Control Plane — suppress false positives
+      # KubeSchedulerDown and KubeControllerManagerDown always fire on EKS managed
+      # because AWS does not expose scheduler/controller-manager Prometheus endpoints.
+      # Suppression via Watchdog heartbeat (always firing on healthy clusters).
+      # Last updated: 2026-03-12
+      - source_match:
+          alertname: "Watchdog"
+        target_match_re:
+          alertname: "KubeSchedulerDown|KubeControllerManagerDown"
+        equal: []
+
+      - source_match:
+          alertname: "Watchdog"
+        target_match_re:
+          alertname: "KubeControllerManagerDown"
+        equal: []
+
     # =========================================================================
     # Maintenance Window Templates
     # To silence alerts during maintenance, create a silence via Alertmanager UI

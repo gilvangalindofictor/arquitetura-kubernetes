@@ -1,0 +1,336 @@
+# =============================================================================
+# Kyverno ClusterPolicies — ArgoCD AppProject Governance
+# =============================================================================
+# Descricao: Valida AppProjects do ArgoCD contra destinations nao autorizados
+#            e sourceRepos com wildcards ou repositorios nao confiáveis.
+#
+# GAP-SEC-03 (P2 MEDIA): Prevenir:
+#   1. Destinos nao autorizados (clusters externos / namespaces fora do padrao)
+#   2. sourceRepos wildcard ('*') ou repos nao confiáveis
+#
+# Contexto arquitetural (ADR-105):
+#   - OPCAO A aprovada (4-0): 1 instância ArgoCD por ambiente
+#   - staging-platform-argocd namespace → ArgoCD staging
+#   - prod-platform-argocd namespace    → ArgoCD prod (ainda nao provisionado)
+#   - Cluster unico: https://kubernetes.default.svc (in-cluster only)
+#
+# Policies neste arquivo:
+#   1. enforce-argocd-appproject-destinations  (Audit  — prod nao existe ainda)
+#   2. enforce-argocd-appproject-source-repos  (Enforce — wildcard e risco imediato)
+#
+# Para solicitar exception:
+#   1. Abra MR com label "argocd-governance-exception"
+#   2. Inclua justificativa tecnica (ADR-105)
+#   3. Platform Team aprova e adiciona annotation de bypass no AppProject:
+#      governance.platform/argocd-exception: "approved"
+#
+# Ref: ADR-105, GAP-SEC-03
+# =============================================================================
+
+# =============================================================================
+# Policy 1: enforce-argocd-appproject-destinations
+# -----------------------------------------------------------------------------
+# Modo: Audit — nao bloqueia ainda (prod-platform-argocd ainda nao provisionado)
+#
+# Valida que AppProjects declarem destinations SOMENTE para:
+#   - server: https://kubernetes.default.svc (in-cluster — ADR-105)
+#   - namespace: staging-* | prod-* | {namespaces de sistema conhecidos}
+#
+# Namespaces de sistema permitidos explicitamente (plataforma atual):
+#   kube-system, cert-manager, external-secrets, monitoring,
+#   vault-system, keycloak, sonarqube, harbor, gitlab,
+#   argocd, staging-platform-argocd, prod-platform-argocd,
+#   kyverno, default
+#
+# NOTA: O padrao de longo prazo (ADR-048) e staging-{domain}-* / prod-{domain}-*.
+#       Os namespaces de sistema acima sao excecoes historicas (platform.yaml).
+#       A policy permanece em Audit ate que:
+#         a) prod-platform-argocd seja provisionado
+#         b) namespaces de sistema sejam migrados para o padrao {env}-platform-*
+#         c) Mesa tecnica aprove transicao para Enforce
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-argocd-appproject-destinations
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    governance.platform/policy: argocd-appproject-destinations
+    governance.platform/gap: GAP-SEC-03
+  annotations:
+    policies.kyverno.io/title: Enforce ArgoCD AppProject Destinations
+    policies.kyverno.io/category: Security & Compliance
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: AppProject
+    policies.kyverno.io/description: >-
+      Valida que AppProjects do ArgoCD declarem destinations somente para o
+      cluster in-cluster (https://kubernetes.default.svc) e namespaces dentro
+      do padrao autorizado (staging-*, prod-*, ou namespaces de sistema
+      conhecidos). Previne apontamento para clusters externos nao provisionados.
+      Modo Audit ate producao ser provisionada (ADR-105, GAP-SEC-03).
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    # ---- Regra: server deve ser in-cluster apenas ---------------------------
+    - name: validate-destination-server-in-cluster
+      match:
+        any:
+          - resources:
+              kinds:
+                - AppProject
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/argocd-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-105/GAP-SEC-03] AppProject '{{ request.object.metadata.name }}'
+          declara destination para servidor externo nao autorizado:
+          '{{ element.server }}'. Somente o cluster in-cluster e permitido:
+          https://kubernetes.default.svc. Para destinos externos, abra MR com
+          label "argocd-governance-exception" e justificativa tecnica. Ref: ADR-105, GAP-SEC-03.
+        foreach:
+          - list: "request.object.spec.destinations"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.server }}"
+                    operator: NotEquals
+                    value: "https://kubernetes.default.svc"
+
+    # ---- Regra: namespace deve seguir padrao autorizado --------------------
+    - name: validate-destination-namespace-pattern
+      match:
+        any:
+          - resources:
+              kinds:
+                - AppProject
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/argocd-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-105/GAP-SEC-03] AppProject '{{ request.object.metadata.name }}'
+          declara destination para namespace nao autorizado: '{{ element.namespace }}'.
+          Namespaces permitidos: staging-*, prod-*, ou namespaces de sistema
+          conhecidos (kube-system, cert-manager, monitoring, vault-system,
+          keycloak, sonarqube, harbor, gitlab, external-secrets, argocd,
+          staging-platform-argocd, prod-platform-argocd, kyverno, default).
+          Para exceptions, abra MR com label "argocd-governance-exception".
+          Ref: ADR-105, GAP-SEC-03.
+        foreach:
+          - list: "request.object.spec.destinations"
+            deny:
+              conditions:
+                all:
+                  # GAP-KYV-02 (2026-03-12): AnyNotIn nao expande wildcards — substituido por
+                  # NotLike que suporta wildcard *. Logica AND: nega se NAO e staging-* E NAO
+                  # e prod-* E NAO e namespace de sistema conhecido.
+                  # Namespace nao e staging-* (NotLike com wildcard)
+                  - key: "{{ element.namespace }}"
+                    operator: NotLike
+                    value: "staging-*"
+                  # E namespace nao e prod-* (NotLike com wildcard)
+                  - key: "{{ element.namespace }}"
+                    operator: NotLike
+                    value: "prod-*"
+                  # E nao e um namespace de sistema conhecido (comparacao literal — sem wildcard)
+                  - key: "{{ element.namespace }}"
+                    operator: AnyNotIn
+                    value:
+                      - "kube-system"
+                      - "cert-manager"
+                      - "monitoring"
+                      - "vault-system"
+                      - "keycloak"
+                      - "sonarqube"
+                      - "harbor"
+                      - "gitlab"
+                      - "external-secrets"
+                      - "argocd"
+                      - "staging-platform-argocd"
+                      - "prod-platform-argocd"
+                      - "kyverno"
+                      - "default"
+                      - "apps-*"
+                      # GAP-SEC-03a (2026-03-12): namespaces legados applications.yaml
+                      # Pre-ADR-048 — migração para staging-apps/prod-apps/dev-apps planejada
+                      - "staging"
+                      - "production"
+                      - "development"
+
+---
+# =============================================================================
+# Policy 2: enforce-argocd-appproject-source-repos
+# -----------------------------------------------------------------------------
+# Modo: Enforce — wildcard e risco de seguranca imediato
+#
+# Bloqueia AppProjects com sourceRepos contendo:
+#   - "*" (wildcard exato — qualquer repo e permitido, risco critico)
+#   - URLs que nao matchem os repositorios confiáveis do projeto:
+#       Internos:  https://gitlab.staging.internal/* | https://gitlab.prod.internal/*
+#       Helm:      hashicorp, codecentric, goharbor, kyverno, grafana, argoproj,
+#                  helm-stable, ot-container-kit, bitnami, jfrog-artifactory
+#
+# Para solicitar adicao de novo repositorio:
+#   1. Abra MR atualizando esta policy (adicionar ao allowlist)
+#   2. Justificativa tecnica obrigatoria (ADR-105)
+#   3. Platform Team aprova via code review
+#
+# Bypass de emergencia:
+#   annotation: governance.platform/argocd-exception: "approved"
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-argocd-appproject-source-repos
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    governance.platform/policy: argocd-appproject-source-repos
+    governance.platform/gap: GAP-SEC-03
+  annotations:
+    policies.kyverno.io/title: Enforce ArgoCD AppProject Source Repos
+    policies.kyverno.io/category: Security & Compliance
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: AppProject
+    policies.kyverno.io/description: >-
+      Bloqueia AppProjects do ArgoCD que declarem sourceRepos com wildcard ('*')
+      ou com URLs fora da allowlist de repositorios confiáveis do projeto.
+      Repositorios permitidos: GitLab interno (staging/prod), e Helm charts
+      verificados (Hashicorp, Codecentric, Harbor, Kyverno, Grafana, ArgoCD,
+      Helm-stable, OT-Container-Kit, Bitnami, JFrog). Modo Enforce pois
+      wildcard representa risco de seguranca imediato (ADR-105, GAP-SEC-03).
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    # ---- Regra: bloquear wildcard exato ('*') --------------------------------
+    - name: deny-wildcard-source-repos
+      match:
+        any:
+          - resources:
+              kinds:
+                - AppProject
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/argocd-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-105/GAP-SEC-03] AppProject '{{ request.object.metadata.name }}'
+          contem sourceRepo wildcard '*' que e PROIBIDO por politica de seguranca.
+          O wildcard permite deploy a partir de qualquer repositorio, incluindo
+          fontes nao confiáveis e potencialmente maliciosas. Substitua pelo
+          repositorio especifico necessario e submeta MR para revisao.
+          Ref: ADR-105, GAP-SEC-03.
+        foreach:
+          - list: "request.object.spec.sourceRepos"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element }}"
+                    operator: Equals
+                    value: "*"
+
+    # ---- Regra: bloquear repos fora da allowlist ----------------------------
+    - name: deny-untrusted-source-repos
+      match:
+        any:
+          - resources:
+              kinds:
+                - AppProject
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"governance.platform/argocd-exception\" || '' }}"
+            operator: NotEquals
+            value: "approved"
+      validate:
+        message: >-
+          [ADR-105/GAP-SEC-03] AppProject '{{ request.object.metadata.name }}'
+          contem sourceRepo nao autorizado: '{{ element }}'.
+          Repositorios permitidos (allowlist):
+          GitLab interno: https://gitlab.staging.internal/*, https://gitlab.prod.internal/*
+          Helm charts verificados: helm.releases.hashicorp.com, charts.hashicorp.com,
+          codecentric.github.io/helm-charts, helm.goharbor.io,
+          kyverno.github.io/kyverno, grafana.github.io/helm-charts,
+          argoproj.github.io/argo-helm, charts.helm.sh/stable,
+          ot-container-kit.github.io/helm-charts, charts.bitnami.com/bitnami,
+          releases.jfrog.io/artifactory/helm.
+          Para adicionar novo repositorio: abra MR atualizando a policy com
+          justificativa tecnica. Ref: ADR-105, GAP-SEC-03.
+        # IMPORTANTE: usar NotLike (nao NotEquals) para patterns com wildcard
+        foreach:
+          - list: "request.object.spec.sourceRepos"
+            deny:
+              conditions:
+                all:
+                  # Nao e GitLab interno staging
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://gitlab.staging.internal/*"
+                  # Nao e GitLab interno prod (futuro)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://gitlab.prod.internal/*"
+                  # Nao e Hashicorp Helm (releases)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://helm.releases.hashicorp.com"
+                  # Nao e Hashicorp Helm (charts)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://charts.hashicorp.com"
+                  # Nao e Codecentric (Keycloak)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://codecentric.github.io/helm-charts"
+                  # Nao e Harbor Helm
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://helm.goharbor.io"
+                  # Nao e Kyverno Helm
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://kyverno.github.io/kyverno"
+                  # Nao e Grafana Helm (Grafana, Loki, Tempo)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://grafana.github.io/helm-charts"
+                  # Nao e ArgoCD Helm
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://argoproj.github.io/argo-helm"
+                  # Nao e Helm Stable
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://charts.helm.sh/stable"
+                  # Nao e OT-Container-Kit (Redis Operator)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://ot-container-kit.github.io/helm-charts"
+                  # Nao e Bitnami (RabbitMQ etc.)
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://charts.bitnami.com/bitnami"
+                  # Nao e JFrog Artifactory Helm
+                  # NotLike: suporta wildcard * (ao contrario de NotEquals)
+                  - key: "{{ element }}"
+                    operator: NotLike
+                    value: "https://releases.jfrog.io/artifactory/helm"

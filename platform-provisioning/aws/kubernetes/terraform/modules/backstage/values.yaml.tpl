@@ -118,6 +118,30 @@ backstage:
       baseUrl: $${SONARQUBE_URL}
       apiKey: $${SONARQUBE_TOKEN}
 
+    # -------------------------------------------------------------------------
+    # TechDocs — external builder (GitLab CI gera, Backstage lê do S3)
+    # GAP-011: NUNCA usar runIn: 'local' em produção (consome recursos do pod)
+    # -------------------------------------------------------------------------
+    techdocs:
+      builder: 'external'
+      generator:
+        runIn: 'external'
+      publisher:
+        type: 'awsS3'
+        awsS3:
+          bucketName: 'backstage-techdocs-${aws_account_id}'
+          region: '${aws_region}'
+          credentials:
+            roleArn: 'arn:aws:iam::${aws_account_id}:role/backstage-irsa-role'
+
+    # -------------------------------------------------------------------------
+    # Harbor Plugin (M2 Scaffolder)
+    # -------------------------------------------------------------------------
+    harbor:
+      baseUrl: $${HARBOR_URL}
+      username: $${HARBOR_ROBOT_TOKEN}
+      password: $${HARBOR_ROBOT_TOKEN}
+
   # ---------------------------------------------------------------------------
   # Recursos do pod
   # ---------------------------------------------------------------------------
@@ -208,6 +232,18 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: auth-session-secret
+    - name: NODE_OPTIONS
+      value: "--max-old-space-size=1100"
+    - name: HARBOR_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: harbor-url
+    - name: HARBOR_ROBOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: harbor-robot-token
 
   # ---------------------------------------------------------------------------
   # Service Account com IRSA (AWS EKS IAM Roles for Service Accounts)

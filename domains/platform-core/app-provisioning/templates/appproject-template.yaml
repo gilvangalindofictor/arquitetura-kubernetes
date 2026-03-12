@@ -1,0 +1,96 @@
+---
+# AppProject Template - Generic per-domain provisioning
+# Reference: ADR-047 (5 domains: platform, integration, data, operations, shared-services)
+# Reference: ADR-048 (Naming convention: {env}-{domain}-{product})
+#
+# Placeholders:
+#   ${DOMAIN}             - Domain name (e.g., data, platform, integration)
+#   ${ARGOCD_NAMESPACE}   - ArgoCD installation namespace (e.g., staging-platform-argocd)
+#   ${GITLAB_HOST}        - GitLab hostname (e.g., gitlab.empresa.com.br)
+#   ${ENV}                - Environment name (e.g., staging, prod)
+#
+# Usage:
+#   sed -e 's/${DOMAIN}/data/g' \
+#       -e 's/${ARGOCD_NAMESPACE}/staging-platform-argocd/g' \
+#       -e 's/${GITLAB_HOST}/gitlab.empresa.com.br/g' \
+#       -e 's/${ENV}/staging/g' \
+#       appproject-template.yaml > appproject-data.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  # AppProject name matches the domain name (ADR-047)
+  name: ${DOMAIN}
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    environment: ${ENV}
+    domain: ${DOMAIN}
+    managed-by: platform-provisioner
+spec:
+  description: >-
+    AppProject for the '${DOMAIN}' domain (ADR-047).
+    All Applications under corporate-domains/${DOMAIN}/ are scoped to this project.
+
+  # Only repositories under the domain's GitLab group may deploy here
+  sourceRepos:
+    - "https://${GITLAB_HOST}/corporate-domains/${DOMAIN}/*"
+
+  # Allowed deployment targets — namespaces matching the domain naming convention
+  # ADR-048: namespace pattern is {env}-{domain}-{product}
+  # AppProject is created PER-ENVIRONMENT: one staging AppProject authorizes
+  # only staging-{domain}-* namespaces; prod AppProject authorizes prod-{domain}-*.
+  destinations:
+    - namespace: "${ENV}-${DOMAIN}-*"
+      server: https://kubernetes.default.svc
+
+  # No cluster-scoped resources allowed — all resources must be namespaced
+  clusterResourceWhitelist: []
+
+  # Namespace-scoped resources that Applications in this project may manage
+  namespaceResourceWhitelist:
+    - group: "apps"
+      kind: Deployment
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: "networking.k8s.io"
+      kind: Ingress
+    - group: "autoscaling"
+      kind: HorizontalPodAutoscaler
+    - group: "policy"
+      kind: PodDisruptionBudget
+    - group: ""
+      kind: ServiceAccount
+    - group: "rbac.authorization.k8s.io"
+      kind: Role
+    - group: "rbac.authorization.k8s.io"
+      kind: RoleBinding
+    - group: "networking.k8s.io"
+      kind: NetworkPolicy
+    - group: "external-secrets.io"
+      kind: ExternalSecret
+    - group: "batch"
+      kind: CronJob
+    - group: "batch"
+      kind: Job
+
+  # RBAC roles scoped to this domain
+  roles:
+    # Read-only access for domain developers
+    - name: ${DOMAIN}-developer
+      description: Read-only access to Applications in the ${DOMAIN} domain
+      policies:
+        - p, proj:${DOMAIN}:${DOMAIN}-developer, applications, get, ${DOMAIN}/*, allow
+      groups:
+        - ${DOMAIN}-developers
+
+    # Full access for domain admins
+    - name: ${DOMAIN}-admin
+      description: Full access to Applications in the ${DOMAIN} domain
+      policies:
+        - p, proj:${DOMAIN}:${DOMAIN}-admin, applications, *, ${DOMAIN}/*, allow
+        - p, proj:${DOMAIN}:${DOMAIN}-admin, repositories, *, ${DOMAIN}/*, allow
+      groups:
+        - ${DOMAIN}-admins

@@ -24,6 +24,7 @@ eks = boto3.client('eks')
 rds = boto3.client('rds')
 sns = boto3.client('sns')
 dynamodb = boto3.resource('dynamodb')
+autoscaling = boto3.client('autoscaling', config=boto3.session.Config(connect_timeout=10, read_timeout=30))
 
 # Configuration from environment variables
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
@@ -32,6 +33,7 @@ ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
 RDS_INSTANCE_ID = os.environ.get('RDS_INSTANCE_ID', '')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', '')
+CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
 
 # Node groups configuration
 NODE_GROUPS_CONFIG = {
@@ -67,6 +69,9 @@ def lambda_handler(event, context):
                 results['node_groups'][ng_name] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
 
+        # Resume Cluster Autoscaler ASG processes suspended during shutdown
+        resume_cluster_autoscaler(results)
+
         # Start RDS if configured
         if RDS_INSTANCE_ID:
             try:
@@ -98,6 +103,43 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': results
         }
+
+
+def resume_cluster_autoscaler(results):
+    """
+    Resume Cluster Autoscaler ASG scaling processes (Launch, Terminate)
+    that were suspended during shutdown to prevent DaemonSet re-scaling.
+    FinOps fix: pair with suspend in lambda_stop.py (2026-03-11)
+    """
+    try:
+        cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
+        paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
+        resumed_asgs = []
+
+        for page in paginator.paginate():
+            for asg in page['AutoScalingGroups']:
+                # Check if ASG belongs to this cluster
+                tags = {t['Key']: t['Value'] for t in asg.get('Tags', [])}
+                if cluster_tag_key not in tags:
+                    continue
+
+                # Only resume if processes are actually suspended
+                suspended = [p['ProcessName'] for p in asg.get('SuspendedProcesses', [])]
+                if 'Launch' in suspended or 'Terminate' in suspended:
+                    asg_name = asg['AutoScalingGroupName']
+                    logger.info(f"Resuming scaling processes for ASG: {asg_name}")
+                    autoscaling.resume_processes(
+                        AutoScalingGroupName=asg_name,
+                        ScalingProcesses=['Launch', 'Terminate']
+                    )
+                    resumed_asgs.append(asg_name)
+
+        results['autoscaler_resumed'] = resumed_asgs
+        logger.info(f"Cluster Autoscaler ASG processes resumed: {len(resumed_asgs)} ASGs")
+    except Exception as e:
+        logger.error(f"Failed to resume Cluster Autoscaler: {str(e)}")
+        results['autoscaler_resume_error'] = str(e)
+        # Non-blocking: continue with startup even if this fails
 
 
 def start_node_group(ng_name, config, results):

@@ -1,0 +1,168 @@
+# =============================================================================
+# Backstage Software Template: API Service
+# Cria um novo serviço API FastAPI com K8s, Ingress, HPA e Vault AppRole
+# Sprint S6 / M2 — ADR-055
+# =============================================================================
+
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: api-service
+  title: "API Service (FastAPI + K8s + Vault)"
+  description: "Cria serviço API FastAPI com Kubernetes manifests, Ingress, HPA e AppRole Vault isolado"
+  tags:
+    - python
+    - fastapi
+    - kubernetes
+    - api
+    - recommended
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/api-service/template.yaml"
+spec:
+  owner: platform-team
+  type: service
+
+  # ---------------------------------------------------------------------------
+  # Parameters — GAP-008: validação de input com regex obrigatória
+  # NUNCA usar title como identificador direto (XSS/injection via UI)
+  # ---------------------------------------------------------------------------
+  parameters:
+    - title: "Informações do Serviço"
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: "Nome do serviço"
+          type: string
+          description: "Identificador único. Letras minúsculas, números e hífens. Ex: minha-api"
+          pattern: '^[a-z][a-z0-9-]{2,40}$'
+          ui:autofocus: true
+          ui:help: "Será usado como nome do repositório GitLab, namespace Vault e labels Kubernetes"
+        description:
+          title: "Descrição"
+          type: string
+          description: "Descrição curta do propósito da API"
+          maxLength: 200
+        owner:
+          title: "Squad responsável"
+          type: string
+          description: "Squad dona do serviço"
+          enum:
+            - "platform-team"
+            - "data-team"
+            - "backend-team"
+            - "ops-team"
+          enumNames:
+            - "Platform Team"
+            - "Data Team"
+            - "Backend Team"
+            - "Ops Team"
+
+    - title: "Configuração da API"
+      properties:
+        port:
+          title: "Porta da aplicação"
+          type: integer
+          description: "Porta TCP em que a API vai escutar (1024–65535)"
+          default: 8000
+          minimum: 1024
+          maximum: 65535
+        enable_hpa:
+          title: "Habilitar HPA"
+          type: boolean
+          description: "Criar HorizontalPodAutoscaler para escalonamento automático"
+          default: true
+        hpa_min_replicas:
+          title: "Réplicas mínimas (HPA)"
+          type: integer
+          description: "Número mínimo de réplicas quando HPA estiver habilitado"
+          default: 2
+          minimum: 1
+          maximum: 10
+        hpa_max_replicas:
+          title: "Réplicas máximas (HPA)"
+          type: integer
+          description: "Número máximo de réplicas quando HPA estiver habilitado"
+          default: 10
+          minimum: 2
+          maximum: 50
+
+    - title: "Repositório GitLab"
+      required:
+        - gitlab_group
+      properties:
+        gitlab_group:
+          title: "Grupo GitLab"
+          type: string
+          description: "Grupo GitLab onde o repositório será criado"
+          default: "backend"
+          enum:
+            - "backend"
+            - "platform"
+            - "services"
+        repo_visibility:
+          title: "Visibilidade"
+          type: string
+          description: "Visibilidade do repositório"
+          default: "private"
+          enum: ["private", "internal"]
+
+  # ---------------------------------------------------------------------------
+  # Steps — ações executadas sequencialmente pelo Scaffolder
+  # ---------------------------------------------------------------------------
+  steps:
+    - id: fetch-template
+      name: "Gerar estrutura do projeto"
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          port: ${{ parameters.port }}
+          enable_hpa: ${{ parameters.enable_hpa }}
+          hpa_min_replicas: ${{ parameters.hpa_min_replicas }}
+          hpa_max_replicas: ${{ parameters.hpa_max_replicas }}
+          gitlab_group: ${{ parameters.gitlab_group }}
+
+    - id: publish-gitlab
+      name: "Criar repositório no GitLab"
+      action: publish:gitlab
+      input:
+        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=api-${{ parameters.name }}"
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: ${{ parameters.repo_visibility }}
+
+    - id: vault-namespace
+      name: "Provisionar namespace Vault"
+      action: catalog:vault:write-namespace
+      input:
+        appName: "api-${{ parameters.name }}"
+        pathPrefix: "secret/data/apps/api"
+        createAppRole: true
+        appRoleConfig:
+          secret_id_ttl: "24h"
+          token_ttl: "1h"
+          token_max_ttl: "4h"
+
+    - id: register-catalog
+      name: "Registrar no Backstage Catalog"
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitlab'].output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+  # ---------------------------------------------------------------------------
+  # Output
+  # ---------------------------------------------------------------------------
+  output:
+    links:
+      - title: "Repositório GitLab"
+        url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+      - title: "Ver no Backstage Catalog"
+        icon: catalog
+        entityRef: ${{ steps['register-catalog'].output.entityRef }}

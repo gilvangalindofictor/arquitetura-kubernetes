@@ -593,3 +593,58 @@ resource "aws_iam_policy" "bucketconnector_fct_proposals" {
     Purpose = "S3-Admin"
   })
 }
+
+# -----------------------------------------------------------------------------
+# Backstage TechDocs Bucket
+# Armazena HTMLs gerados pelo mkdocs (pipeline GitLab CI via @techdocs/cli)
+# IRSA: backstage-irsa-role tem PutObject/GetObject/DeleteObject/ListBucket
+# Acesso: apenas backstage-irsa-role (sem acesso público)
+# -----------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "backstage_techdocs" {
+  bucket = "backstage-techdocs-${var.aws_account_id}"
+
+  tags = merge(var.common_tags, {
+    Name    = "Backstage TechDocs"
+    Purpose = "TechDocs static HTML storage (Backstage IDP)"
+    Service = "Backstage"
+    ADR     = "ADR-055"
+  })
+}
+
+resource "aws_s3_bucket_versioning" "backstage_techdocs" {
+  bucket = aws_s3_bucket.backstage_techdocs.id
+  versioning_configuration {
+    status = "Disabled"  # TechDocs regenera completo, versioning desnecessário
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "backstage_techdocs" {
+  bucket = aws_s3_bucket.backstage_techdocs.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "backstage_techdocs" {
+  bucket                  = aws_s3_bucket.backstage_techdocs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "backstage_techdocs" {
+  bucket = aws_s3_bucket.backstage_techdocs.id
+
+  rule {
+    id     = "noncurrent-cleanup"
+    status = "Enabled"
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}

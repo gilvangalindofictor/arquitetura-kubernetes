@@ -231,38 +231,32 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
 }
 
 # -----------------------------------------------------------------------------
-# Kubernetes Service (LoadBalancer) for Management UI
+# Kubernetes Service (ClusterIP) for Management UI
 # -----------------------------------------------------------------------------
+#
+# HISTÓRICO: Era type=LoadBalancer (NLB internet-facing) expondo AMQP 5672
+# publicamente. NLB deletado manualmente em Fev/2026 mas TF recriou em Mar/2026.
+# Corrigido para ClusterIP: elimina NLB (R$384/ano) + remove exposição pública.
+# Acesso ao Management UI via Ingress ALB (recurso abaixo) ou port-forward.
+# DATA: 2026-03-11
+#
 
-resource "kubernetes_service" "rabbitmq_management_external" {
+resource "kubernetes_service" "rabbitmq_management_internal" {
   metadata {
-    name      = "rabbitmq-management-external"
+    name      = "rabbitmq-management-internal"
     namespace = var.namespace
-
-    annotations = {
-      "service.beta.kubernetes.io/aws-load-balancer-type"     = "nlb"
-      "service.beta.kubernetes.io/aws-load-balancer-internal" = "false"
-      "service.beta.kubernetes.io/aws-load-balancer-scheme"   = "internet-facing"
-    }
 
     labels = merge(var.common_tags, {
       "app.kubernetes.io/name"     = "rabbitmq"
-      "app.kubernetes.io/instance" = "${var.cluster_name}-rabbitmq-external"
+      "app.kubernetes.io/instance" = "${var.cluster_name}-rabbitmq-management"
     })
   }
 
   spec {
-    type = "LoadBalancer"
+    type = "ClusterIP"
 
     selector = {
       "app.kubernetes.io/name" = "${var.cluster_name}-rabbitmq"
-    }
-
-    port {
-      name        = "amqp"
-      port        = 5672
-      target_port = 5672
-      protocol    = "TCP"
     }
 
     port {
@@ -273,20 +267,6 @@ resource "kubernetes_service" "rabbitmq_management_external" {
     }
 
     session_affinity = "ClientIP"
-  }
-
-  lifecycle {
-    ignore_changes = [
-      spec[0].load_balancer_class,
-      spec[0].load_balancer_source_ranges,
-      spec[0].port[0].node_port,
-      spec[0].port[1].node_port,
-      spec[0].health_check_node_port,
-      spec[0].internal_traffic_policy,
-      spec[0].ip_families,
-      spec[0].ip_family_policy,
-      spec[0].session_affinity_config,
-    ]
   }
 
   depends_on = [
@@ -302,7 +282,7 @@ resource "kubernetes_service" "rabbitmq_management_external" {
 
 # -----------------------------------------------------------------------------
 # ALB Ingress for Management UI (if ingress enabled)
-# Substitui acesso via NLB para Management UI, mantendo NLB apenas para AMQP
+# Acesso externo ao Management UI via ALB compartilhado (NLB removido)
 # -----------------------------------------------------------------------------
 
 resource "kubernetes_ingress_v1" "rabbitmq_management" {

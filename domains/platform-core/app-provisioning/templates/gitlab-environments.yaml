@@ -1,0 +1,61 @@
+# =============================================================================
+# GitLab Environment Protection Rules Template
+# =============================================================================
+# Ref: ADR-104 (deploy em producao requer aprovacao manual)
+#      GAP-017 (environment protection rules para producao nao configuradas)
+#
+# Este template documenta as regras de environment protection a serem aplicadas
+# via GitLab API ou UI: Settings > CI/CD > Environments.
+#
+# Uso:
+#   - Como referencia para configuracao manual via GitLab UI
+#   - Como input para o script setup-gitlab-environments.sh (automacao via API)
+#   - Como documentacao viva das politicas de deploy por ambiente
+#
+# GitFlow:
+#   feature/* → PR → staging (auto-deploy) → PR → main (deploy com aprovacao)
+# =============================================================================
+
+environments:
+  # ---------------------------------------------------------------------------
+  # Staging — Deploy automatico em push para branch staging
+  # ---------------------------------------------------------------------------
+  staging:
+    name: staging
+    deploy_branch: staging
+    auto_stop_in: never
+    protection_rules:
+      required_approvals: 0          # Deploy automatico — sem gate de aprovacao
+      allowed_to_deploy:
+        - roles: [developer, maintainer]
+    description: "Staging environment — auto-deploy on push to staging branch"
+
+  # ---------------------------------------------------------------------------
+  # Production — Deploy manual com aprovacao de Maintainer (ADR-104)
+  # ---------------------------------------------------------------------------
+  production:
+    name: production
+    deploy_branch: main
+    auto_stop_in: never
+    protection_rules:
+      required_approvals: 1          # Requer 1 aprovacao antes do deploy
+      allowed_to_approve:
+        - roles: [maintainer]        # Somente Maintainers podem aprovar
+      allowed_to_deploy:
+        - roles: [maintainer]        # Somente Maintainers podem deployar
+    description: "Production environment — requires 1 maintainer approval before deploy (ADR-104)"
+
+# =============================================================================
+# Como aplicar via GitLab UI:
+# =============================================================================
+# 1. Acesse: Settings > CI/CD > Environments
+# 2. Crie/edite cada environment conforme acima
+# 3. Em "production", marque "Required approvals" = 1
+# 4. Em "production", adicione Maintainers como "Allowed to approve"
+# 5. Em "production", adicione Maintainers como "Allowed to deploy"
+#
+# Como aplicar via API (automatizado):
+#   ./scripts/onboarding/setup-gitlab-environments.sh \
+#     --project-path "meu-grupo/meu-projeto" \
+#     --env all
+# =============================================================================

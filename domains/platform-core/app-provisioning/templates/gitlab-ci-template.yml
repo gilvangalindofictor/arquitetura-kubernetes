@@ -1,0 +1,140 @@
+# =============================================================================
+# gitlab-ci-template.yml — Template de pipeline CI/CD com stage validate
+# =============================================================================
+# Include este template no .gitlab-ci.yml da aplicacao para integrar
+# com o sistema de onboarding via manifesto base.
+#
+# Uso no .gitlab-ci.yml do app:
+#   include:
+#     - project: 'platform-core/app-provisioning'
+#       ref: main
+#       file: '/templates/gitlab-ci-template.yml'
+#
+# Ref: ADR-104, GAP-007 (stage validate), GAP-009 (Vault K8s Auth)
+# =============================================================================
+
+stages:
+  - validate
+  - test
+  - build
+  - security-scan
+  - quality-gate
+  - provision
+  - migrate   # GAP-NEW-001 (2026-03-12): stages migrate e deploy adicionados
+  - deploy
+
+# ---------------------------------------------------------------------------
+# Variables
+# ---------------------------------------------------------------------------
+variables:
+  MANIFEST_PATH: ".platform/manifest.yaml"
+  PROVISIONING_REPO: "platform-core/app-provisioning"
+  PROVISIONING_REF: "main"
+  VAULT_VERSION: "1.15.4"
+
+# ---------------------------------------------------------------------------
+# Stage: validate — Valida manifesto + naming + labels (3 jobs separados)
+# ---------------------------------------------------------------------------
+# GAP-NEW-002 (2026-03-12): needs:[] para paralelismo explícito + path único por job
+.validate_base:
+  stage: validate
+  needs: []
+  image: mikefarah/yq:4
+  before_script:
+    - |
+      if [ ! -f "$MANIFEST_PATH" ]; then
+        echo "ERRO: Manifesto nao encontrado em $MANIFEST_PATH"
+        exit 1
+      fi
+    - git clone --depth 1 --branch ${PROVISIONING_REF} https://${CI_SERVER_HOST}/${PROVISIONING_REPO}.git /tmp/provisioning-${CI_JOB_ID}
+  rules:
+    - changes:
+        - .platform/manifest.yaml
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: false
+
+validate:manifest:
+  extends: .validate_base
+  script:
+    - echo "Validando manifesto base..."
+    - bash /tmp/provisioning-${CI_JOB_ID}/scripts/validation/validate-manifest.sh "$MANIFEST_PATH"
+    - echo "Manifesto valido!"
+
+validate:naming:
+  extends: .validate_base
+  script:
+    - echo "Validando naming conventions..."
+    - |
+      ENV=$(yq '.config.env | keys | .[0]' "$MANIFEST_PATH" 2>/dev/null || echo "")
+      DOMAIN=$(yq '.metadata.domain' "$MANIFEST_PATH")
+      bash /tmp/provisioning-${CI_JOB_ID}/scripts/validation/validate-naming.sh \
+        --manifest "$MANIFEST_PATH" \
+        --env "${ENV:-staging}" \
+        --domain "$DOMAIN"
+    - echo "Naming valido!"
+
+validate:labels:
+  extends: .validate_base
+  script:
+    - echo "Validando labels..."
+    - |
+      ENV=$(yq '.config.env | keys | .[0]' "$MANIFEST_PATH" 2>/dev/null || echo "")
+      DOMAIN=$(yq '.metadata.domain' "$MANIFEST_PATH")
+      bash /tmp/provisioning-${CI_JOB_ID}/scripts/validation/validate-labels.sh \
+        --manifest "$MANIFEST_PATH" \
+        --env "${ENV:-staging}" \
+        --domain "$DOMAIN"
+    - echo "Labels validas!"
+
+# ---------------------------------------------------------------------------
+# Stage: provision — Executa onboarding (apenas em staging/main)
+# Auth: Vault Kubernetes Auth Method — token dinamico via JWT do SA (GAP-009)
+# ---------------------------------------------------------------------------
+provision:onboarding:
+  stage: provision
+  image:
+    name: bitnami/kubectl:1.28
+    entrypoint: [""]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git curl jq unzip  # GAP-NEW-004 (2026-03-12): unzip necessário para instalar Vault CLI
+    - git clone --depth 1 --branch ${PROVISIONING_REF} https://${CI_SERVER_HOST}/${PROVISIONING_REPO}.git /tmp/provisioning
+    # Instalar Vault CLI
+    - |
+      curl -sLO https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip
+      unzip -q vault_${VAULT_VERSION}_linux_amd64.zip && mv vault /usr/local/bin/ && rm vault_${VAULT_VERSION}_linux_amd64.zip
+    # Autenticar no Vault via Kubernetes JWT (GAP-009 — zero token estatico)
+    - |
+      source /tmp/provisioning/scripts/lib/vault-auth.sh
+      if [ "$CI_COMMIT_BRANCH" = "staging" ]; then
+        export ENV="staging"
+      elif [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        export ENV="prod"
+      fi
+      vault_k8s_login --role "platform-provisioner-${ENV}"
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "staging" ]; then
+        ENV="staging"
+      elif [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        ENV="prod"
+      else
+        echo "Branch $CI_COMMIT_BRANCH nao requer provisioning"
+        exit 0
+      fi
+    - echo "Executando onboarding para env=$ENV..."
+    - bash /tmp/provisioning/scripts/onboarding/create-app.sh --manifest "$MANIFEST_PATH" --env "$ENV"
+  after_script:
+    # Cleanup: revogar token dinamico Vault (best-effort)
+    - |
+      if [ -f /tmp/provisioning/scripts/lib/vault-auth.sh ]; then
+        source /tmp/provisioning/scripts/lib/vault-auth.sh
+        vault_token_revoke || true
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      changes:
+        - .platform/manifest.yaml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - .platform/manifest.yaml
+  allow_failure: false

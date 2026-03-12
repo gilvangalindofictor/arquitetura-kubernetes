@@ -399,3 +399,235 @@ Todas as anomalias críticas identificadas em 2026-02-10 foram resolvidas ou end
 - Budget: retornou para <= $807/mês?
 
 **Referência completa:** [docs/finops/finops-status-2026-03-10.md](finops-status-2026-03-10.md)
+
+---
+
+## Atualização — Exame Ambiente (2026-03-11)
+
+**Status:** Exame real do ambiente executado
+**Período:** 2026-03-10 → 2026-03-11 (1 dia após revisão anterior)
+
+### Estado do Cluster (2026-03-11)
+
+- **13 nodes ativos** (era 9 em Mar 6) — system=4 (MAX), workloads=6 (MAX), critical=3
+- **234 pods** (era 209 em revisão anterior)
+- EKS 1.34, v1.34.2-eks-ecaa3a6
+- 4 pods Pending: 2 linkerd-cni, 2 loki-canary
+
+### Custos MTD Mar 2026 (10 dias, Cost Explorer real)
+
+| Métrica | Valor |
+| ------- | ----- |
+| Total MTD | $426.72 |
+| Daily rate | ~$37.57 (excluindo tax spike dia 1) |
+| Forecast mensal | ~$1,217 = R$ 7.300 |
+| Vs budget $807 | **+51% ACIMA** (era +22% no forecast anterior de $986) |
+
+### Breakdown por Servico MTD
+
+| Servico | Custo MTD | % Total |
+| ------- | --------- | ------- |
+| EC2 Compute | $206.89 | 48% |
+| EC2 Other | $52.02 | 12% |
+| Tax | $51.84 | 12% |
+| VPC | $31.29 | 7% |
+| EKS | $23.30 | 5% |
+| CloudWatch | $21.36 | 5% |
+| ELB | $20.98 | 5% |
+| RDS | $9.36 | 2% |
+| Outros | $9.69 | 2% |
+
+### Validacoes Confirmadas
+
+- FinOps Automation: OPERACIONAL (Lambda START/STOP, circuit breaker CLOSED, 0 failures)
+- CloudWatch fix: APLICADO (3 log types, controllerManager+scheduler removidos)
+- Weekend costs NAO reduzem como esperado ($38-39/dia vs $15-18 minimo)
+
+### KPIs Revisados (2026-03-11)
+
+| KPI | Meta | Status Mar 10 | Status Mar 11 |
+| --- | ---- | ------------- | ------------- |
+| Custo Mensal | <= $807 | $986 forecast | **$1,217 forecast — PIOROU** |
+| Nodes ativos | 7-9 | 9 | **13 — AT MAX** |
+| FinOps Automation | Validar | Pendente | **VALIDADA** |
+| CloudWatch fix | Aplicar | Em andamento | **APLICADO** |
+| Savings Realizados | R$ 62K/ano | R$ 57.461 (92.7%) | R$ 57.461 (92.7%) |
+
+### Analise de Causa do Desvio de Custo
+
+- Cluster autoscaler escalou de 9 para 13 nodes (system e workloads atingiram MAX)
+- Causa: aumento de workloads (Backstage M1, new-service, expansao gitlab/observability)
+- 234 pods tentando ser agendados vs capacidade insuficiente
+- NOT a regression — e expansao real de demanda
+
+### Proxima Revisao: 2026-03-17
+
+- Validar se CloudWatch cost reduziu com 3 log types
+- Monitorar se nodes recuam de 13
+- Recalcular savings FinOps Automation com dados de 2+ weekends completos
+
+---
+
+## Atualização — Mesa Técnica FinOps (2026-03-11 sessão 2)
+
+**Status:** 4 agentes especialistas executados (AWS, Storage, Networking, Lambda)
+**Objetivo:** Identificar e aplicar oportunidades de economia na infraestrutura AWS
+
+### Ações P0 Executadas (esta sessão)
+
+| Ação | Status | Savings/ano |
+| ---- | ------ | ----------- |
+| EKS log types 3→2 (removido `api`, mantido audit+authenticator) | APLICADO no TF | R$ 1.800-2.520 |
+| Último volume gp2→gp3 (vol-07a678e436d487abc, 5GB) | APLICADO na AWS | R$ 25 |
+| 21 snapshots migração expirados (163 GB) | DELETADOS | R$ 600 |
+| NLB RabbitMQ → ClusterIP (+ remoção AMQP 5672 exposto) | APLICADO no TF | R$ 384 |
+| **Total P0** | | **R$ 2.809-3.529** |
+
+### Ações P1 Codificadas (pendente terraform apply)
+
+| Ação | Status | Savings/ano |
+| ---- | ------ | ----------- |
+| Weekend Gap Fix: suspend autoscaler ASG + critical scale-to-0 | CODIFICADO (lambda_stop.py + lambda_start.py + variables.tf) | R$ 12.480 |
+| ALB consolidation 4→2 (shared ingress group `staging-shared`) | PLANEJADO | R$ 2.040 |
+| NAT Gateway 2→1 (manter us-east-1a, deletar us-east-1b) | PLANEJADO | R$ 2.550 |
+| DLM redundante (Velero TTL gerencia retention) | INVESTIGADO — DLM inoperante por tag mismatch | R$ 0 (evita sprawl) |
+| **Total P1** | | **R$ 17.070** |
+
+### Achados Novos Desta Sessão
+
+1. **NLB RabbitMQ recriado** — Service TF `rabbitmq_management_external` reconciou NLB deletado. Fix: type→ClusterIP + AMQP 5672 não exposto
+2. **DLM inoperante** — `target_tags` no volume, mas tags existem nos snapshots (Velero CSI). DLM nunca encontra match → 0 snapshots gerenciados
+3. **Weekend root cause confirmado** — 11 DaemonSets criam Pending pods → autoscaler re-escala. Fix: suspend ASG processes + critical min=0
+4. **12 nodes reais** (não 13 como estimado) — system=4, workloads=6, critical=2
+5. **CloudWatch 98.9% VendedLog-Bytes** — log type `api` era ~50% do volume. Removido
+
+### Savings Pipeline Consolidado
+
+| Horizonte | Savings/ano (R$) | Status |
+| --------- | ----------------- | ------ |
+| Já realizados (até 2026-03-10) | R$ 57.461 | ATIVO |
+| P0 desta sessão | R$ 2.809-3.529 | APLICADO |
+| P1 desta sessão (pendente apply) | R$ 17.070 | CODIFICADO |
+| P2 futuro (VPA + Spot + RI) | R$ 42.888-52.888 | PLANEJADO |
+| P3 futuro (Graviton + Karpenter) | R$ 9.760-17.800 | BACKLOG |
+| **Grand Total Pipeline** | **R$ 129.988-148.748** | |
+
+### Arquivos Modificados Nesta Sessão
+
+- `modules/eks/main.tf` — log types 3→2
+- `modules/rabbitmq/main.tf` — NLB→ClusterIP + outputs
+- `modules/finops-automation/lambda/lambda_stop.py` — suspend autoscaler + critical scale-to-0
+- `modules/finops-automation/lambda/lambda_start.py` — resume autoscaler
+- `modules/finops-automation/variables.tf` — excluded_node_groups, suspend_autoscaler_on_stop
+- `docs/finops/finops-analysis-2026-03-11.md` — relatório completo (NOVO)
+
+### Próxima Revisão: 2026-03-18
+
+- terraform apply das mudanças P0/P1
+- Validar weekend com autoscaler suspenso (próximo sábado)
+- Validar CloudWatch cost com 2 log types
+- Iniciar ALB consolidation via ingress group annotations
+- Decisão NAT Gateway consolidation
+
+---
+
+## Atualização Consolidada — Março 2026 (01/03 → 12/03)
+
+**Status:** Compilação completa do cenário financeiro | Dados Cost Explorer até 2026-03-11 | IaC revisado 2026-03-12
+**Período:** 2026-03-01 a 2026-03-12
+
+### Timeline de Ações (01/03 → 12/03/2026)
+
+| Data | Ação | Saving/ano (R$) | Status |
+| ---- | ---- | --------------- | ------ |
+| 2026-03-01 | Tax mensal cobrado — custo $87,55 (distorce daily rate) | — | Referência |
+| 2026-03-08/09 | Weekend gap confirmado — $38-39/dia vs $15-18 esperado | GAP identificado | Bloqueador |
+| 2026-03-10 | EKS log_types 5→3 (removido controllerManager + scheduler) | R$ 720-1.080 | CODIFICADO — apply pendente |
+| 2026-03-10 | Volume gp2→gp3 último remanescente (vol-07a678e436d487abc, 5GB) | R$ 25 | APLICADO diretamente |
+| 2026-03-11 | 21 snapshots migração expirados (163 GB) deletados | R$ 600 | APLICADO (ação manual) |
+| 2026-03-11 | NLB RabbitMQ → ClusterIP + AMQP 5672 não mais exposto | R$ 384 | CODIFICADO (NLB ainda ativo — aguarda apply) |
+| 2026-03-11 | EKS log_types 3→2 (removido `api`, mantido audit+authenticator) | R$ 1.800-2.520 | CODIFICADO — aguarda apply |
+| 2026-03-11 | ALB 4→2: observability-staging + data-staging → platform-staging | R$ 2.009 | CODIFICADO + APLICADO |
+| 2026-03-11 | NAT Gateway 2→1: us-east-1b removida (replace-route 20:52Z) | R$ 2.168-2.550 | CODIFICADO + APLICADO |
+| 2026-03-11 | DLM removal: 6 recursos destruídos (era inoperante — tag mismatch) | R$ 0 (cleanup) | APLICADO |
+| 2026-03-11 | Lambda STOP: suspend_cluster_autoscaler() implementado | R$ 7.600-12.480 | CODIFICADO — aguarda apply |
+| 2026-03-12 | GAP-2 fix: excluded_node_groups ["system","critical"]→["system"] | R$ 3.000-5.000 | CODIFICADO — aguarda apply |
+| 2026-03-12 | GAP-1 fix: suspend_autoscaler_on_stop=true adicionado explicitamente | Complemento GAP-2 | CODIFICADO — aguarda apply |
+| 2026-03-12 | GAP-5 fechado como falso positivo (173 snapshots = todos válidos) | R$ 0 (sem orphans) | ENCERRADO |
+
+### Totais de Savings (Estado 2026-03-12)
+
+| Categoria | R$/ano | Status |
+| --------- | ------ | ------ |
+| **Savings realizados (até 2026-03-10)** | **R$ 57.461** | ATIVO — em produção |
+| EKS log_types (2 removidos) | R$ 1.800-2.520 | CODIFICADO — apply pendente |
+| NLB RabbitMQ → ClusterIP | R$ 384 | CODIFICADO — apply pendente |
+| ALB 4→2 | R$ 2.009 | APLICADO (AWS) |
+| NAT 2→1 | R$ 2.168-2.550 | APLICADO (AWS) |
+| **Savings realizados + aplicados (2026-03-12)** | **R$ 61.638** | 99,4% da meta R$ 62K |
+| Lambda suspend autoscaler + GAP-2 fix critical | R$ 7.600-12.480 | CODIFICADO — próximo ciclo |
+| VPA Rightsizing produção (estimado) | R$ 15.000-25.000 | PROJETADO — Abr/2026 |
+| Savings Plans 1yr + RDS RI | R$ 10.944 | PROJETADO — pós 30d prod |
+| Karpenter + Spot + Graviton | R$ 9.760-17.800 | BACKLOG — Q2-Q3/2026 |
+
+### Forecast vs Budget (2026-03-12)
+
+| Métrica | Valor |
+| ------- | ----- |
+| Budget aprovado (Marco 3) | USD 807/mês = R$ 4.841/mês |
+| Custo Fevereiro 2026 REAL | USD 914/mês = R$ 5.487/mês (+13%) |
+| Forecast Março 2026 | **USD 1.217/mês = R$ 7.300/mês (+51%)** |
+| Impacto ALB + NAT (pós-aplicação) | -USD 43-54/mês |
+| Forecast pós-ALB/NAT (estimado) | USD 1.163-1.174/mês (~+44%) |
+| Impacto VPA Rightsizing (pós-deploy Abr/26) | -USD 90-120/mês |
+| Forecast pós-VPA (estimado) | USD 600-650/mês (**abaixo do budget**) |
+
+**Causa do desvio +51%:** Cluster escalou de 9 para 13 nodes (system=4/MAX, workloads=6/MAX, critical=3) impulsionado por expansão de plataforma (Backstage M1, GitLab, observability). Não é ineficiência — é crescimento real de demanda. VPA é a alavanca para normalizar.
+
+**Weekend gap confirmado:** Lambda STOP executa corretamente (0 failures) mas cluster autoscaler re-escala nodes por DaemonSet Pending pods. Fix codificado (suspend_cluster_autoscaler + excluded_node_groups=["system"]). Será validado no weekend de 14-15/03.
+
+### GAPs — Estado Final (2026-03-12)
+
+| GAP | Status | Detalhe |
+| --- | ------ | ------- |
+| GAP-1: suspend_autoscaler não explícito | **RESOLVIDO** (IaC) | staging/main.tf atualizado — aguarda apply |
+| GAP-2: critical nodes excluídos do shutdown | **RESOLVIDO** (IaC) | excluded_node_groups=["system"] — aguarda apply |
+| GAP-3: fct-0001/fct-0002 lifecycle | **FORA DE ESCOPO** | Outra demanda — não abordar |
+| GAP-4: gp2→gp3 sem TF (drift latente) | Baixa prioridade | Volume efêmero de node — baixo risco |
+| GAP-5: 174 snapshots suspeitos | **FALSO POSITIVO — FECHADO** | 173 snapshots reais = todos válidos (EBS CSI + Velero) |
+
+### KPIs — Revisão 2026-03-12
+
+| KPI | Meta | Status |
+| --- | ---- | ------ |
+| Savings realizados | R$ 62K/ano | R$ 61.638 (**99,4%**) — quase atingida |
+| Forecast mensal | <= USD 807 | USD 1.217 (+51%) — CRÍTICO |
+| FinOps Automation execução | 100% success | 100% ✅ (131 STOP + 100 START, 0 failures) |
+| FinOps Automation savings reais | R$ 12.800/ano | R$ 8.000-10.000/ano (revisado para baixo) |
+| Weekend costs | USD 15-18/dia | USD 38-39/dia (gap a resolver) |
+| Nodes ativos | 7-9 | 13 (AT MAX) — VPA urgente |
+| DT-005 Teams | COMPLETO | COMPLETO ✅ |
+
+### Próximas Alavancas (ROI Order)
+
+1. **terraform apply P0/P1** — EKS log_types + NLB RabbitMQ + Lambda suspend autoscaler (R$ 9.784-14.984/ano desbloqueados, esforço ~2h)
+2. **Validar weekend 14-15/03** — Confirmar eficácia de suspend_cluster_autoscaler() pós-apply
+3. **VPA Rightsizing** — Deploy produção Abr/2026, única alavanca capaz de trazer forecast abaixo do budget (R$ 15-25K/ano, redução 13→9-10 nodes)
+4. **Savings Plans 1yr No-Upfront** — R$ 7.920/ano após 30d produção ativa (15min, ROI imediato)
+5. **RDS Reserved Instance 1yr** — R$ 3.024/ano (15min, console RDS)
+6. **Karpenter + Spot Instances** — R$ 6.696/ano, Q2/2026 após estabilização
+
+### Próxima Coleta de Dados: 2026-03-18
+
+- Cost Explorer MTD real (dias 11-18)
+- Impacto NAT 2→1 visível na fatura VPC
+- Validar eficácia weekend com suspend_autoscaler (se apply executado antes de 13/03)
+- Recalcular forecast pós-ações
+
+---
+
+**Preparado por:** FinOps Specialist + Documentation Specialist — Claude Code
+**Data:** 2026-03-12
+**Versão:** 3.0 (compilação completa 01/03→12/03/2026)
+**Documento base:** docs/finops/finops-status-2026-03-12.md
+**Logbooks:** 2026-03-11-finops-alb-dlm-nat-consolidation.md | 2026-03-11-finops-environment-exam.md | 2026-03-12-finops-code-review.md

@@ -1,0 +1,416 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.empresa.com/schemas/v1/manifest-schema.json",
+  "title": "ApplicationManifest",
+  "description": "Schema completo para .platform/manifest.yaml — Validacao declarativa de onboarding de aplicacoes no cluster Kubernetes. Ref: ADR-104 (Onboarding), ADR-047 (Dominios), ADR-048 (Naming kebab-case). Implementado em GAP-003 (Sprint S1).",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "resources", "config"],
+  "additionalProperties": false,
+
+  "$defs": {
+    "kebab-case": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "String em kebab-case conforme ADR-048. Exemplos: hatch-etl, api-gateway, my-app."
+    },
+    "k8s-cpu": {
+      "type": "string",
+      "pattern": "^([0-9]+m|[0-9]+(\\.[0-9]+)?)$",
+      "description": "Quantidade de CPU no formato Kubernetes. Exemplos: 100m, 500m, 1, 1.5, 2000m."
+    },
+    "k8s-memory": {
+      "type": "string",
+      "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|k|M|G|T|P|E)?$",
+      "description": "Quantidade de memoria no formato Kubernetes. Exemplos: 256Mi, 1Gi, 512Mi, 2Gi."
+    },
+    "uri-string": {
+      "type": "string",
+      "pattern": "^https?://",
+      "description": "String que representa uma URI HTTP/HTTPS. Wildcards permitidos para redirectUris (ex: https://app.staging.internal/*)."
+    }
+  },
+
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "platform.k8s/v1",
+      "description": "Versao da API do manifesto. Atualmente somente platform.k8s/v1 e suportado."
+    },
+    "kind": {
+      "type": "string",
+      "const": "ApplicationManifest",
+      "description": "Tipo do recurso. Deve ser ApplicationManifest."
+    },
+
+    "metadata": {
+      "type": "object",
+      "description": "Identidade da aplicacao conforme ADR-047 (dominios organizacionais) e ADR-048 (naming kebab-case).",
+      "required": ["name", "domain", "product", "type", "owner"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,62}$",
+          "description": "Nome unico da aplicacao em kebab-case, max 63 caracteres. Usado como base para namespace, labels e DNS. Ref: ADR-048."
+        },
+        "domain": {
+          "type": "string",
+          "enum": ["platform", "integration", "data", "operations", "shared-services"],
+          "description": "Dominio organizacional ao qual a aplicacao pertence. Define o namespace prefix ({env}-{domain}-{name}). Ref: ADR-047 (5 dominios)."
+        },
+        "product": {
+          "$ref": "#/$defs/kebab-case",
+          "description": "Identificador do produto que agrupa microservicos relacionados. Formato kebab-case. Ref: ADR-048."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["etl", "api-rest", "worker", "frontend", "cronjob"],
+          "description": "Tipo principal da aplicacao — determina o preset de recursos (CPU, memoria, replicas, HPA). Presets disponiveis em presets/{type}.yaml. Ref: ADR-104."
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[a-z]+-team$",
+          "description": "Time responsavel pela aplicacao no formato {domain}-team ou {squad}-team. Exemplos: data-team, platform-team."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Descricao livre da aplicacao, seu proposito e composicao. Opcional, max 500 caracteres."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "uniqueItems": true,
+          "description": "Tags para filtragem e organizacao. Formato kebab-case sem maiusculas. Exemplos: etl, multi-tenant, python."
+        }
+      }
+    },
+
+    "dependencies": {
+      "type": "object",
+      "description": "Servicos de infraestrutura consumidos pela aplicacao. Cada dependencia habilitada sera provisionada automaticamente pelo pipeline de onboarding. Ref: ADR-104.",
+      "additionalProperties": false,
+      "properties": {
+        "database": {
+          "type": "object",
+          "description": "Configuracao do banco de dados PostgreSQL (AWS RDS). Credenciais gerenciadas via Vault/ExternalSecrets.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita provisionamento de banco de dados para a aplicacao."
+            },
+            "type": {
+              "type": "string",
+              "enum": ["shared", "dedicated"],
+              "description": "Tipo de instancia RDS. 'shared' usa RDS compartilhado (custo menor). 'dedicated' provisiona instancia exclusiva."
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,62}$",
+              "description": "Nome do banco de dados. Formato snake_case (PostgreSQL convention). Exemplo: hatch_etl."
+            },
+            "extensions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              },
+              "uniqueItems": true,
+              "description": "Extensoes PostgreSQL requeridas. Exemplos: pg_trgm, uuid-ossp, postgis."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "type", "name"]
+          }
+        },
+
+        "redis": {
+          "type": "object",
+          "description": "Configuracao do Redis para cache, filas e rate limiting.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita provisionamento de Redis para a aplicacao."
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["sentinel", "standalone", "cluster"],
+              "description": "Modo de operacao do Redis. 'sentinel' para HA (3 nodes), 'standalone' para single node, 'cluster' para sharding."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "mode"]
+          }
+        },
+
+        "rabbitmq": {
+          "type": "object",
+          "description": "Configuracao do RabbitMQ para mensageria assincrona.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita provisionamento de RabbitMQ para a aplicacao."
+            },
+            "replicas": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de replicas do RabbitMQ. Minimo 1."
+            },
+            "vhosts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9/][a-z0-9/_-]*$"
+              },
+              "description": "Lista de virtual hosts a serem criados no RabbitMQ."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "replicas", "vhosts"]
+          }
+        },
+
+        "keycloak": {
+          "type": "object",
+          "description": "Configuracao do Keycloak OIDC para autenticacao e autorizacao.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita configuracao de client OIDC no Keycloak."
+            },
+            "clientType": {
+              "type": "string",
+              "enum": ["confidential", "public"],
+              "description": "Tipo de client OIDC. 'confidential' para server-to-server (backend). 'public' para SPAs e apps moveis."
+            },
+            "redirectUris": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/uri-string"
+              },
+              "description": "Lista de URIs de redirect permitidas. Wildcards aceitos (ex: https://app.staging.internal/*)."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "clientType", "redirectUris"]
+          }
+        }
+      }
+    },
+
+    "resources": {
+      "type": "object",
+      "description": "Limites de CPU, memoria e replicas para o Deployment Kubernetes. Valores podem divergir do preset — a convergencia e tratada via GAP-004.",
+      "required": ["requests", "limits", "replicas"],
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "description": "Resource requests — garantia minima de CPU e memoria alocados pelo scheduler.",
+          "required": ["cpu", "memory"],
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/k8s-cpu",
+              "description": "CPU request no formato Kubernetes (ex: 100m, 200m, 1)."
+            },
+            "memory": {
+              "$ref": "#/$defs/k8s-memory",
+              "description": "Memory request no formato Kubernetes (ex: 256Mi, 1Gi)."
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "description": "Resource limits — teto maximo de CPU e memoria. Pod e OOMKilled se exceder memoria.",
+          "required": ["cpu", "memory"],
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "$ref": "#/$defs/k8s-cpu",
+              "description": "CPU limit no formato Kubernetes (ex: 500m, 800m, 2)."
+            },
+            "memory": {
+              "$ref": "#/$defs/k8s-memory",
+              "description": "Memory limit no formato Kubernetes (ex: 512Mi, 1Gi)."
+            }
+          }
+        },
+        "replicas": {
+          "type": "object",
+          "description": "Range de replicas para HPA (HorizontalPodAutoscaler). Para cronjobs, min=0 e max=0.",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Numero minimo de replicas. Minimo 1 para servicos persistentes, 0 para cronjobs."
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Numero maximo de replicas para scale-up via HPA. Deve ser >= min."
+            }
+          }
+        }
+      }
+    },
+
+    "config": {
+      "type": "object",
+      "description": "Configuracao de runtime: porta, health checks, ingress, variaveis de ambiente e secrets. O campo 'env' e obrigatorio para scripts genericos que usam --env e --domain.",
+      "required": ["port", "healthCheck", "env"],
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Porta principal exposta pelo container (containerPort). Exemplos: 8000, 8080, 3000."
+        },
+        "healthCheck": {
+          "type": "object",
+          "description": "Endpoints de health check para liveness e readiness probes do Kubernetes.",
+          "required": ["liveness", "readiness"],
+          "additionalProperties": false,
+          "properties": {
+            "liveness": {
+              "type": "string",
+              "description": "Path do endpoint de liveness probe (httpGet). Exemplo: /healthz, /health."
+            },
+            "readiness": {
+              "type": "string",
+              "description": "Path do endpoint de readiness probe (httpGet). Exemplo: /healthz, /ready."
+            }
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "description": "Configuracao de Ingress (ALB) para exposicao HTTP/HTTPS da aplicacao.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita criacao do Ingress resource para a aplicacao."
+            },
+            "host": {
+              "type": "string",
+              "format": "hostname",
+              "description": "Hostname do Ingress. Padrao: {service}.{env}.internal. Exemplo: api-gateway.staging.internal."
+            },
+            "class": {
+              "type": "string",
+              "enum": ["internal", "external"],
+              "description": "Classe do Ingress. 'internal' para ALB scheme=internal (VPN). 'external' para ALB publico."
+            },
+            "tls": {
+              "type": "boolean",
+              "description": "Habilita TLS/HTTPS no Ingress com ssl-redirect automatico."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "host", "class", "tls"]
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Variaveis de ambiente nao-sensiveis injetadas via ConfigMap. Sensíveis ficam em secretKeys. OBRIGATORIO: scripts genericos de onboarding usam --env para ler este campo.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "secretKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "uniqueItems": true,
+          "description": "Lista de chaves de secrets sincronizadas via ExternalSecrets/Vault. Formato UPPER_SNAKE_CASE. Exemplos: DATABASE_URL, REDIS_PASSWORD."
+        },
+        "schedule": {
+          "type": "string",
+          "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot)|(((\\*(\\/[0-9]+)?|[0-9,\\-]+)\\s+){4}(\\*(\\/[0-9]+)?|[0-9,\\-]+)))$",
+          "description": "Expressao cron para agendamento (somente para type=etl ou type=cronjob). Formato: '* * * * *' (minuto hora dia mes dia_semana) ou aliases como @daily."
+        }
+      }
+    },
+
+    "observability": {
+      "type": "object",
+      "description": "Configuracao de observabilidade: metricas Prometheus e tracing OpenTelemetry. Pipeline: App -> OTEL Collector -> Tempo (traces) + Prometheus (metrics) + Loki (logs).",
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "description": "Configuracao de metricas Prometheus expostas pela aplicacao.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita scrape de metricas Prometheus via ServiceMonitor."
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Path do endpoint de metricas Prometheus. Padrao: /metrics."
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "Porta do endpoint de metricas, se diferente da porta principal. Exemplo: 9090."
+            }
+          },
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "required": ["enabled", "path", "port"]
+          }
+        },
+        "tracing": {
+          "type": "object",
+          "description": "Configuracao de distributed tracing via OpenTelemetry (OTEL). Traces exportados para Tempo via OTEL Collector.",
+          "required": ["enabled"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Habilita instrumentacao OTEL e exportacao de traces para o Collector."
+            }
+          }
+        }
+      }
+    }
+  }
+}

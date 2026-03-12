@@ -1,0 +1,89 @@
+# =============================================================================
+# .platform/manifest.yaml — Platform Application Manifest (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template new-service
+# Namespace K8s: staging-{{ values.domain }}-{{ values.name }} (ADR-048)
+# Validado pelo pipeline validate:manifest antes do merge
+#
+# ATENÇÃO: Este arquivo é gerado automaticamente. Não editar manualmente.
+# Abra um novo issue no Backstage para alterar configurações.
+# =============================================================================
+
+apiVersion: platform.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ values.name }}
+  namespace: staging-{{ values.domain }}-{{ values.name }}
+  labels:
+    app.kubernetes.io/name: {{ values.name }}
+    app.kubernetes.io/managed-by: backstage-scaffolder
+    platform.io/domain: {{ values.domain }}
+    platform.io/type: {{ values.type }}
+    platform.io/owner: {{ values.owner }}
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlab_group }}/{{ values.name }}/-/blob/main/.platform/manifest.yaml"
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    platform.io/generated-by: "backstage-scaffolder"
+    platform.io/generated-at: "{{ values.name }}"  # será sobrescrito pelo CI
+spec:
+  owner: {{ values.owner }}
+  {%- if values.system %}
+  system: {{ values.system }}
+  {%- endif %}
+  type: {{ values.type }}
+  domain: {{ values.domain }}
+
+  # Configuração de runtime
+  runtime:
+    replicas: {{ values.replicas }}
+    resources:
+      requests:
+        cpu: "{{ values.cpu_request }}"
+        memory: "{{ values.memory_request }}"
+      limits:
+        cpu: "{{ values.cpu_limit }}"
+        memory: "{{ values.memory_limit }}"
+
+  # Configurações por tipo de serviço
+  {%- if values.type == "api" %}
+  ingress:
+    enabled: true
+    host: "{{ values.name }}.staging.internal"
+    tls: true
+  autoscaling:
+    enabled: true
+    minReplicas: {{ values.replicas }}
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  {%- elif values.type == "worker" %}
+  ingress:
+    enabled: false
+  autoscaling:
+    enabled: false
+  {%- elif values.type == "etl" %}
+  ingress:
+    enabled: false
+  autoscaling:
+    enabled: false
+  schedule: "0 2 * * *"  # sobrescrever conforme necessidade
+  {%- endif %}
+
+  # Vault AppRole — secrets isolados por serviço
+  vault:
+    enabled: true
+    namespace: "apps/{{ values.type }}/{{ values.name }}"
+    createAppRole: true
+
+  # Observabilidade — métricas Prometheus via ServiceMonitor
+  observability:
+    metricsEnabled: true
+    metricsPath: "/metrics"
+    metricsPort: 8080
+    logsEnabled: true
+
+  # GitOps — ArgoCD Application criada automaticamente pelo provision:onboarding
+  gitops:
+    enabled: true
+    argocdProject: "applications"
+    syncPolicy: automated
+    selfHeal: true
+    prune: true

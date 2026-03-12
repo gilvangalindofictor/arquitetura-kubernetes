@@ -73,7 +73,7 @@ VAULT_PREFIX="secret/staging/backstage"
 GITLAB_URL="https://gitlab.staging.internal"
 GITLAB_GROUP="platform"              # grupo para o Group Access Token
 GITLAB_TOKEN_NAME="backstage"
-GITLAB_TOKEN_SCOPES="read_api,read_repository,write_repository"
+GITLAB_TOKEN_SCOPES="read_api,read_repository,write_repository,api"
 
 # =============================================================================
 # FUNCOES AUXILIARES
@@ -302,6 +302,69 @@ section_harbor() {
 }
 
 # =============================================================================
+# SECAO 3.B: Harbor - Criar robot account backstage-puller (Scaffolder M2)
+# GAP-002: robot account dedicado para Scaffolder criar/push imagens base
+# =============================================================================
+create_harbor_robot() {
+  log "====== SECAO HARBOR SCAFFOLDER: Criacao de robot account backstage-puller ======"
+  require_var "HARBOR_ADMIN_PASSWORD"
+
+  local HARBOR_ADMIN_PASS="${HARBOR_ADMIN_PASSWORD}"
+
+  # Robot account com pull (leitura) e push (escritura para Scaffolder criar imagens base)
+  local robot_payload
+  robot_payload=$(cat <<'JSON'
+{
+  "name": "backstage-puller",
+  "description": "Backstage IDP — Harbor plugin read + Scaffolder push base images",
+  "disable": false,
+  "duration": -1,
+  "permissions": [
+    {
+      "kind": "system",
+      "namespace": "/",
+      "access": [
+        {"resource": "repository", "action": "pull"},
+        {"resource": "repository", "action": "push"},
+        {"resource": "repository", "action": "read"}
+      ]
+    }
+  ]
+}
+JSON
+)
+
+  local response
+  response=$(curl -sf -u "${HARBOR_ADMIN_USER}:${HARBOR_ADMIN_PASS}" \
+    -X POST "${HARBOR_URL}/api/v2.0/robots" \
+    -H "Content-Type: application/json" \
+    -d "$robot_payload" 2>/dev/null || echo "{}")
+
+  local robot_token
+  robot_token=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('secret',''))" 2>/dev/null || echo "")
+
+  if [[ -n "$robot_token" ]]; then
+    log "  Harbor robot account 'backstage-puller' criado. Armazenando token no Vault..."
+    vault_write "${VAULT_PREFIX}/harbor" \
+      url="${HARBOR_URL}" \
+      robot-token="${robot_token}"
+    log "  Harbor: OK (token armazenado em ${VAULT_PREFIX}/harbor)"
+  else
+    local robot_name
+    robot_name=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('name',''))" 2>/dev/null || echo "")
+    if [[ "$robot_name" == *"backstage-puller"* ]]; then
+      warn "Harbor robot account 'backstage-puller' ja existe (token nao disponivel para reutilizacao)."
+      warn "Para renovar: delete o robot em Harbor → Admin → Robot Accounts e re-execute."
+    else
+      warn "Harbor robot account pode ja existir ou criacao falhou."
+      warn "Resposta: $response"
+      warn "ACAO NECESSARIA: Criar manualmente em Harbor → Admin → Robot Accounts"
+      warn "  Name: backstage-puller | Scopes: Pull + Push"
+    fi
+  fi
+}
+
+# =============================================================================
 # SECAO 4: ArgoCD - Gerar token via argocd CLI
 # =============================================================================
 section_argocd() {
@@ -357,6 +420,24 @@ section_argocd() {
     account="$ARGOCD_BACKSTAGE_ACCOUNT"
 
   log "ArgoCD: token salvo em ${VAULT_PREFIX}/argocd"
+
+  # Gerar token para SA backstage-scaffolder (Scaffolder — create Applications)
+  # Pre-requisito: argocd-scaffolder-sa.yaml aplicado no cluster
+  log "ArgoCD: Gerando token para backstage-scaffolder..."
+  ARGOCD_SCAFFOLDER_TOKEN=$(kubectl get secret backstage-scaffolder-token \
+    -n "$ARGOCD_NAMESPACE" \
+    -o jsonpath='{.data.token}' | base64 -d 2>/dev/null || echo "")
+
+  if [[ -n "$ARGOCD_SCAFFOLDER_TOKEN" ]]; then
+    vault_write "${VAULT_PREFIX}/argocd-scaffolder" \
+      url="https://${ARGOCD_SERVER}" \
+      token="$ARGOCD_SCAFFOLDER_TOKEN"
+    log "ArgoCD: token scaffolder salvo em ${VAULT_PREFIX}/argocd-scaffolder"
+  else
+    warn "Secret 'backstage-scaffolder-token' nao encontrado em '$ARGOCD_NAMESPACE'."
+    warn "Pre-requisito: kubectl apply -f argocd-scaffolder-sa.yaml"
+    warn "ArgoCD scaffolder token NAO salvo no Vault."
+  fi
 }
 
 # =============================================================================
@@ -421,7 +502,8 @@ section_gitlab() {
      - Token name:   backstage
      - Expiration:   (defina conforme politica, sugerido 1 ano)
      - Role:         Reporter (minimo) ou Developer
-     - Scopes:       [x] read_api  [x] read_repository  [x] write_repository
+     - Scopes:       [x] api  [x] read_api  [x] read_repository  [x] write_repository
+                     (api: necessario para Scaffolder M2 criar repositorios via API)
   5. Clique em "Create group access token"
   6. COPIE o token gerado (visivel apenas uma vez)
 
@@ -448,6 +530,7 @@ section_verify_vault() {
     "${VAULT_PREFIX}/argocd"
     "${VAULT_PREFIX}/sonarqube"
     "${VAULT_PREFIX}/gitlab"
+    "${VAULT_PREFIX}/argocd-scaffolder"
   )
   for p in "${paths[@]}"; do
     if vault_path_exists "$p"; then
@@ -468,6 +551,7 @@ case "$SECTION" in
     section_rds
     section_keycloak
     section_harbor
+    create_harbor_robot
     section_argocd
     section_sonarqube
     section_gitlab
@@ -475,13 +559,14 @@ case "$SECTION" in
     ;;
   rds)       section_rds ;;
   keycloak)  section_keycloak ;;
-  harbor)    section_harbor ;;
-  argocd)    section_argocd ;;
+  harbor)             section_harbor ;;
+  harbor-scaffolder)  create_harbor_robot ;;
+  argocd)             section_argocd ;;
   sonarqube) section_sonarqube ;;
   gitlab)    section_gitlab ;;
   verify)    section_verify_vault ;;
   *)
-    echo "Uso: $0 [all|rds|keycloak|harbor|argocd|sonarqube|gitlab|verify]"
+    echo "Uso: $0 [all|rds|keycloak|harbor|harbor-scaffolder|argocd|sonarqube|gitlab|verify]"
     exit 1
     ;;
 esac

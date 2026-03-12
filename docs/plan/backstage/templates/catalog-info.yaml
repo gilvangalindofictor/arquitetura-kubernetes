@@ -1,0 +1,28 @@
+# =============================================================================
+# catalog-info.yaml — Registra os templates no Backstage Catalog
+# Aplicar: adicionar esta URL como catalog.locations em app-config.yaml
+#
+# app-config.yaml:
+#   catalog:
+#     locations:
+#       - type: url
+#         target: https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/catalog-info.yaml
+#         rules:
+#           - allow: [Template, Location]
+#
+# Sprint S6 / M2 — ADR-055
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: backstage-templates
+  description: "Golden Path Templates — Platform Team (Sprint S6 M2)"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/catalog-info.yaml"
+spec:
+  targets:
+    - ./new-service/template.yaml     # Template genérico base (api/worker/etl)
+    - ./etl-service/template.yaml     # Template especializado ETL
+    - ./api-service/template.yaml     # Template especializado API FastAPI
+    - ./frontend/template.yaml        # Template Frontend React + nginx

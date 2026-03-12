@@ -1,0 +1,32 @@
+# =============================================================================
+# catalog-info.yaml — Backstage Component entity (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template new-service
+# Registrado no catálogo automaticamente após publicação no GitLab
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ values.name }}
+  title: "{{ values.name }}"
+  description: "{{ values.description }}"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlab_group }}/{{ values.name }}/-/blob/main/catalog-info.yaml"
+    # Integração Kubernetes — exibe pods em tempo real no Backstage
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    backstage.io/kubernetes-namespace: "staging-{{ values.domain }}-{{ values.name }}"
+    # Integração ArgoCD
+    argocd/app-name: "{{ values.name }}"
+    # Integração GitLab
+    gitlab.com/project-slug: "{{ values.gitlab_group }}/{{ values.name }}"
+  tags:
+    - {{ values.type }}
+    - {{ values.domain }}
+spec:
+  type: {{ values.type }}
+  lifecycle: experimental
+  owner: {{ values.owner }}
+  {%- if values.system %}
+  system: {{ values.system }}
+  {%- endif %}
+  domain: {{ values.domain }}

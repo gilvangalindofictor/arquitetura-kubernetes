@@ -1,0 +1,168 @@
+# =============================================================================
+# Backstage Software Template: ETL Service
+# Cria um novo serviço ETL Python com K8s, ESO, Vault AppRole
+# Sprint S6 / M2 — ADR-055
+# =============================================================================
+
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: etl-service
+  title: "ETL Service (Python + K8s + Vault)"
+  description: "Cria serviço ETL Python com Kubernetes manifests, ExternalSecret ESO e AppRole Vault isolado"
+  tags:
+    - python
+    - etl
+    - kubernetes
+    - recommended
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/etl-service/template.yaml"
+spec:
+  owner: platform-team
+  type: service
+
+  # ---------------------------------------------------------------------------
+  # Parameters — GAP-008: validação de input com regex obrigatória
+  # NUNCA usar title como identificador direto (XSS/injection via UI)
+  # ---------------------------------------------------------------------------
+  parameters:
+    - title: "Informações do Serviço"
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: "Nome do serviço"
+          type: string
+          description: "Identificador único. Letras minúsculas, números e hífens. Ex: meu-etl-servico"
+          pattern: '^[a-z][a-z0-9-]{2,40}$'
+          ui:autofocus: true
+          ui:help: "Será usado como nome do repositório GitLab, namespace Vault e labels Kubernetes"
+        description:
+          title: "Descrição"
+          type: string
+          description: "Descrição curta do propósito do serviço ETL"
+          maxLength: 200
+        owner:
+          title: "Squad responsável"
+          type: string
+          description: "Squad dona do serviço"
+          enum:
+            - "platform-team"
+            - "data-team"
+            - "backend-team"
+            - "ops-team"
+          enumNames:
+            - "Platform Team"
+            - "Data Team"
+            - "Backend Team"
+            - "Ops Team"
+
+    - title: "Configuração ETL"
+      required:
+        - source
+        - destination
+      properties:
+        source:
+          title: "Fonte de dados (source)"
+          type: string
+          description: "Origem dos dados. Ex: s3://bucket/prefix, postgresql://host/db, rabbitmq://queue"
+          pattern: '^(s3|postgresql|rabbitmq|kafka|http|https|file)://.+'
+          ui:help: "URI da fonte de dados que o ETL vai consumir"
+        destination:
+          title: "Destino dos dados (destination)"
+          type: string
+          description: "Destino dos dados transformados. Ex: s3://bucket/output, postgresql://host/db"
+          pattern: '^(s3|postgresql|kafka|http|https|file)://.+'
+          ui:help: "URI do destino onde os dados processados serão escritos"
+        schedule:
+          title: "Schedule Cron"
+          type: string
+          description: "Expressão cron para execução periódica. Ex: '0 2 * * *' (2am diário)"
+          default: "0 2 * * *"
+          pattern: '^(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)$'
+        python_version:
+          title: "Versão Python"
+          type: string
+          description: "Versão Python para o runtime"
+          default: "3.12"
+          enum: ["3.11", "3.12"]
+
+    - title: "Repositório GitLab"
+      required:
+        - gitlab_group
+      properties:
+        gitlab_group:
+          title: "Grupo GitLab"
+          type: string
+          description: "Grupo GitLab onde o repositório será criado"
+          default: "etl"
+          enum:
+            - "etl"
+            - "data"
+            - "platform"
+        repo_visibility:
+          title: "Visibilidade"
+          type: string
+          description: "Visibilidade do repositório"
+          default: "private"
+          enum: ["private", "internal"]
+
+  # ---------------------------------------------------------------------------
+  # Steps — ações executadas sequencialmente pelo Scaffolder
+  # ---------------------------------------------------------------------------
+  steps:
+    - id: fetch-template
+      name: "Gerar estrutura do projeto"
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          source: ${{ parameters.source }}
+          destination: ${{ parameters.destination }}
+          schedule: ${{ parameters.schedule }}
+          python_version: ${{ parameters.python_version }}
+          gitlab_group: ${{ parameters.gitlab_group }}
+
+    - id: publish-gitlab
+      name: "Criar repositório no GitLab"
+      action: publish:gitlab
+      input:
+        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=etl-${{ parameters.name }}"
+        description: ${{ parameters.description }}
+        defaultBranch: main
+        repoVisibility: ${{ parameters.repo_visibility }}
+
+    - id: vault-namespace
+      name: "Provisionar namespace Vault"
+      action: catalog:vault:write-namespace
+      input:
+        appName: "etl-${{ parameters.name }}"
+        pathPrefix: "secret/data/apps/etl"
+        createAppRole: true
+        appRoleConfig:
+          secret_id_ttl: "24h"
+          token_ttl: "1h"
+          token_max_ttl: "4h"
+
+    - id: register-catalog
+      name: "Registrar no Backstage Catalog"
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitlab'].output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+  # ---------------------------------------------------------------------------
+  # Output
+  # ---------------------------------------------------------------------------
+  output:
+    links:
+      - title: "Repositório GitLab"
+        url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+      - title: "Ver no Backstage Catalog"
+        icon: catalog
+        entityRef: ${{ steps['register-catalog'].output.entityRef }}

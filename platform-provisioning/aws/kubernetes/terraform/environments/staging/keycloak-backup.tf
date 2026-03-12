@@ -100,7 +100,8 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
       echo "🔐 Keycloak Backup started at $${BACKUP_DATE}"
 
       # 1. Authenticate and get access token
-      # Note: Token endpoint still uses /auth prefix (only Admin API removed it)
+      # NOTE 2026-03-12: esta instância KC 26.5.1 usa http.relativePath=/auth nos helm values
+      # → TODOS os endpoints requerem prefixo /auth/ (não foi removido nesta implantação)
       echo "  → Authenticating with Keycloak..."
       TOKEN=$(curl -s -X POST "$${KEYCLOAK_URL}/auth/realms/$${KEYCLOAK_REALM}/protocol/openid-connect/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
@@ -123,7 +124,7 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
 
       mkdir -p "$${BACKUP_DIR}"
 
-      # 3. Export each realm (Keycloak 26 uses POST with /auth prefix)
+      # 3. Export each realm
       for REALM in $REALMS; do
         echo "  → Exporting realm: $${REALM}"
 

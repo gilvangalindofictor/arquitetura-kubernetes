@@ -1,0 +1,51 @@
+# =============================================================================
+# Preset: ETL (Extract-Transform-Load)
+# =============================================================================
+# Mesa Tecnica P1 — Valores baseados em consumo real do cluster
+# Staging multiplier: 0.5x CPU req, 0.75x mem req, min 1 replica
+# Ref: ADR-104, 2026-03-11
+# =============================================================================
+
+type: etl
+description: "Preset para aplicacoes ETL — alto consumo de CPU e memoria"
+
+environments:
+  production:
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "800m"
+        memory: "1Gi"
+    replicas:
+      min: 1
+      max: 4
+    hpa:
+      enabled: true
+      targetCPUUtilizationPercentage: 75
+      targetMemoryUtilizationPercentage: 80
+
+  staging:
+    resources:
+      requests:
+        cpu: "100m"       # 0.5x de 200m
+        memory: "192Mi"   # 0.75x de 256Mi
+      limits:
+        cpu: "800m"       # limits nao mudam
+        memory: "1Gi"     # limits nao mudam
+    replicas:
+      min: 1
+      max: 2
+    hpa:
+      enabled: true
+      targetCPUUtilizationPercentage: 80
+      targetMemoryUtilizationPercentage: 85
+
+defaults:
+  port: 8080
+  healthCheck:
+    liveness: "/health"
+    readiness: "/ready"
+  probeInitialDelay: 30
+  terminationGracePeriod: 60

@@ -93,6 +93,14 @@ server:
 
         service_registration "kubernetes" {}
 
+        # Fix 2026-03-12: enable unauthenticated metrics access so Prometheus can
+        # scrape /v1/sys/metrics without a Vault token — avoids VaultDown false positive
+        telemetry {
+          prometheus_retention_time = "30s"
+          disable_hostname = true
+          unauthenticated_metrics_access = true
+        }
+
   # Persistence
   dataStorage:
     enabled: true

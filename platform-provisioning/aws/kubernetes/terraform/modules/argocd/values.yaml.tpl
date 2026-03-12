@@ -23,6 +23,21 @@ configs:
     # Use external PostgreSQL
     "server.insecure": "true"  # For internal cluster access
 
+    # -------------------------------------------------------------------------
+    # Repo-server timeout tuning — fixes "authentication handshake failed:
+    # context deadline exceeded" on GitLab when the default 60s is too short.
+    # Root cause: TLS handshake + Git clone on large repos exceeds default timeout.
+    # ADR: increased to 300s (5 min) to cover slow GitLab responses under load.
+    # -------------------------------------------------------------------------
+    "server.repo.server.timeout.seconds": "300"
+    "reposerver.parallelism.limit": "10"
+
+  cm:
+    # Increase timeout for repo operations (Git fetch/clone/diff)
+    # Default: 60s — insufficient when GitLab is under load or repo is large.
+    timeout.reconciliation: 300s
+    exec.timeout: 300s
+
 server:
   replicas: ${replicas}
 
@@ -115,6 +130,18 @@ repoServer:
       operator: Equal
       value: critical
       effect: NoSchedule
+
+  # -------------------------------------------------------------------------
+  # Repo-server env vars — fix "authentication handshake failed: context
+  # deadline exceeded" for backstage + staging-platform-new-service apps.
+  # Root cause: default Git timeout (60s) exceeded when GitLab is under load
+  # or SSH/TLS handshake is slow. These env vars override ArgoCD defaults.
+  # -------------------------------------------------------------------------
+  env:
+    - name: ARGOCD_GIT_ATTEMPTS_COUNT
+      value: "5"
+    - name: ARGOCD_GIT_REQUEST_TIMEOUT
+      value: "300"
 
   metrics:
     enabled: ${enable_monitoring}

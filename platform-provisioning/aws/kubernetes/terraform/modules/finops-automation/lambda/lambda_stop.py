@@ -25,6 +25,7 @@ eks = boto3.client('eks')
 rds = boto3.client('rds')
 sns = boto3.client('sns')
 dynamodb = boto3.resource('dynamodb')
+autoscaling = boto3.client('autoscaling', config=boto3.session.Config(connect_timeout=10, read_timeout=30))
 
 # Configuration from environment variables
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
@@ -41,8 +42,9 @@ EXCLUDED_NODE_GROUPS = [ng.strip() for ng in EXCLUDED_NODE_GROUPS if ng.strip()]
 MIN_SYSTEM_NODES = int(os.environ.get('MIN_SYSTEM_NODES', '2'))
 MIN_CRITICAL_NODES = int(os.environ.get('MIN_CRITICAL_NODES', '2'))
 ENABLE_SCALING_PROTECTION = os.environ.get('ENABLE_SCALING_PROTECTION', 'true').lower() == 'true'
+SUSPEND_AUTOSCALER_ON_STOP = os.environ.get('SUSPEND_AUTOSCALER_ON_STOP', 'true').lower() == 'true'
 
-logger.info(f"FinOps Protection: EXCLUDED_NODE_GROUPS={EXCLUDED_NODE_GROUPS}, MIN_SYSTEM_NODES={MIN_SYSTEM_NODES}, ENABLE_SCALING_PROTECTION={ENABLE_SCALING_PROTECTION}")
+logger.info(f"FinOps Protection: EXCLUDED_NODE_GROUPS={EXCLUDED_NODE_GROUPS}, MIN_SYSTEM_NODES={MIN_SYSTEM_NODES}, ENABLE_SCALING_PROTECTION={ENABLE_SCALING_PROTECTION}, SUSPEND_AUTOSCALER={SUSPEND_AUTOSCALER_ON_STOP}")
 
 # Node groups configuration (scale to 0 only if NOT protected)
 NODE_GROUPS_CONFIG = {
@@ -82,6 +84,9 @@ def lambda_handler(event, context):
                 logger.error(f"Error stopping RDS {RDS_INSTANCE_ID}: {str(e)}")
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
+
+        # Suspend Cluster Autoscaler ASG processes to prevent DaemonSet re-scaling
+        suspend_cluster_autoscaler(results)
 
         # Stop node groups (scale to 0 or MIN if protected)
         for ng_name, config in NODE_GROUPS_CONFIG.items():
@@ -127,6 +132,41 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': results
         }
+
+
+def suspend_cluster_autoscaler(results):
+    """
+    Suspend Cluster Autoscaler ASG scaling processes (Launch, Terminate)
+    to prevent DaemonSet Pending pods from triggering node scale-up after shutdown.
+    FinOps fix: weekend costs $38-39/dia → $8-12/dia (2026-03-11)
+    """
+    if not SUSPEND_AUTOSCALER_ON_STOP:
+        logger.info("Cluster Autoscaler suspension disabled, skipping")
+        return
+
+    try:
+        cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
+        paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
+        suspended_asgs = []
+
+        for page in paginator.paginate():
+            for asg in page['AutoScalingGroups']:
+                tags = {t['Key']: t['Value'] for t in asg.get('Tags', [])}
+                if cluster_tag_key in tags:
+                    asg_name = asg['AutoScalingGroupName']
+                    logger.info(f"Suspending scaling processes for ASG: {asg_name}")
+                    autoscaling.suspend_processes(
+                        AutoScalingGroupName=asg_name,
+                        ScalingProcesses=['Launch', 'Terminate']
+                    )
+                    suspended_asgs.append(asg_name)
+
+        results['autoscaler_suspended'] = suspended_asgs
+        logger.info(f"Cluster Autoscaler ASG processes suspended: {len(suspended_asgs)} ASGs")
+    except Exception as e:
+        logger.error(f"Failed to suspend Cluster Autoscaler: {str(e)}")
+        results['autoscaler_suspend_error'] = str(e)
+        # Non-blocking: continue with shutdown even if this fails
 
 
 def stop_node_group(ng_name, config, results):

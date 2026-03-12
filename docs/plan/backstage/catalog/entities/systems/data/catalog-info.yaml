@@ -1,0 +1,38 @@
+# =============================================================================
+# entities/systems/data/catalog-info.yaml — System entity: data-hatch-etl
+# Representa o sistema ETL Hatch no domínio data-services
+# Namespace K8s padrão: staging-data-hatch (ADR-048)
+#
+# Sprint S6-A / M2 — ADR-055, ADR-102
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: data-hatch-etl
+  title: "Data Hatch ETL"
+  description: "Sistema ETL de ingestão e transformação de dados — pipeline Python com agendamento via CronJob"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/systems/data/catalog-info.yaml"
+    backstage.io/techdocs-ref: "dir:."
+    # Links de observabilidade (S6-D)
+    grafana/dashboard-selector: "hatch"
+    argocd/app-name: "hatch-etl"
+  tags:
+    - etl
+    - python
+    - data-pipeline
+    - cronjob
+  links:
+    - title: "ArgoCD Application"
+      url: "https://argocd.staging.internal/applications/hatch-etl"
+      icon: "dashboard"
+    - title: "Grafana Dashboard"
+      url: "https://grafana.staging.internal/d/hatch-etl"
+      icon: "dashboard"
+    - title: "GitLab Repository"
+      url: "https://gitlab.staging.internal/etl/hatch"
+      icon: "gitlab"
+spec:
+  owner: data-team
+  domain: data-services

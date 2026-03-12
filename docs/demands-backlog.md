@@ -1,10 +1,10 @@
 # 📋 Demandas em Aberto — Plataforma Kubernetes
 
 > **Data**: 2026-02-06
-> **Última Revisão**: 2026-03-04 Sessão 3 BRT — 6/6 discrepâncias do Cluster Audit RESOLVIDAS ✅
+> **Última Revisão**: 2026-03-12 ~21:00 BRT — Sessão completa | P0 Linkerd RESOLVIDO | AlertManager CRD aplicado | 0 incidentes ativos
 > **Fonte**: executor-terraform.md framework — 5 agentes especializados paralelos
-> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **DEC-074: ✅ 100%** | **Cluster Audit: 6/6 ✅**
-> **Infrastructure Health (2026-03-04 Pós-Remediação)**: WAF ✅ | **Velero ✅ deployed + schedules daily+hourly** | Loki ✅ (62 pods) | Kyverno ✅ ENFORCE (~90%+ pods) | GitLab ✅ v18.9.1 Rev 11 `staging-platform-gitlab` | RDS PG 16.4 ✅ | **Linkerd ✅ GitLab 2/2+3/3 / Harbor 7/7 2/2 mTLS** | ArgoCD **✅ v2.10.9** PKCE S256 | EKS ✅ 1.34.2 / 12 nodes | ESO ✅ 16/16
+> **Status Marco Atual**: Marco 3 ✅ Completo | Marco 4 ✅ 100% Completo | **CI/CD Enhancement: 5/5 COMPLETOS** | **CICD-006: ✅ 100%** | **DEC-074: ✅ 100%** | **Cluster Audit: 6/6 ✅**
+> **Infrastructure Health (2026-03-12 ~21:00 BRT)**: 12/12 nodes Ready | Linkerd ✅ OPERATIONAL (destination 4/4 + identity 2/2 + proxy-injector 2/2) | GitLab ✅ 11/11 Running | Vault ✅ metrics OK | RDS ✅ AVAILABLE | AlertManager ✅ EKS falsos positivos suprimidos | FinOps: Lambda+autoscaler ATIVO | Savings: R$ 61.638/ano (99.4% meta)
 
 ---
 
@@ -1786,16 +1786,46 @@ Implementar Argo Rollouts para deployments progressivos (canary, blue-green), re
 
 ### CICD-006: Application Onboarding Automatizado via Manifesto Base
 
-- **Status:** PLANEJAMENTO COMPLETO — PRONTO PARA EXECUCAO
+- **Status:** ✅ CONCLUÍDO 100% — Auditoria final aprovada — 27/28 GAPs resolvidos (1 eliminado) — Conformidade 100%
 - **Prioridade:** HIGH
 - **Data:** 2026-03-11
 - **Marco:** Marco 5 — Self-Service Platform
 - **Documento:** [docs/demands/2026-03-11-cicd-onboarding-manifesto-base.md](docs/demands/2026-03-11-cicd-onboarding-manifesto-base.md)
-- **ADR:** ADR-104 (a criar)
+- **ADR:** ADR-104 ✅ CRIADO (2026-03-11, docs/adr/)
 - **Referencias:** ADR-055, ADR-102, ADR-047-049, ADR-081-085, GOV-001, GOV-009, GOV-011
-- **Sprints:** S0-S6 planejadas
+- **Sprints:** S0 ✅ COMPLETO e APROVADO | S1 ✅ COMPLETO e APROVADO | S2 ✅ COMPLETO e APROVADO | S3/S4 ✅ COMPLETO e RE-AUDITORIA APROVADO (apos 1 ciclo de fix: GAP-010+010a, GAP-013+013a) | S5 ✅ COMPLETO e APROVADO (GAP-011, GAP-014, GAP-017) | S6 futuro M2 (Backstage IDP — fora do escopo)
 - **Decisoes Mesa Tecnica:** P1-P8 RESOLVIDAS (2026-03-11)
-- **Bloqueador:** GitLab Runner CrashLoopBackOff
+- **Bloqueador:** ~~GitLab Runner CrashLoopBackOff~~ ✅ RESOLVIDO (verificado 2026-03-11: 2/2 Running, pod gitlab-gitlab-runner-7c6f847cb9-zwfsb)
+- **Sprint S0 Wave 1 (2026-03-11):**
+  - ✅ GAP-018: 27 arquivos K8s/Helm corrigidos para namespace `staging-data-hatch-etl`
+  - ✅ GAP-002: Estrutura app-provisioning criada (22 arquivos) em `domains/platform-core/app-provisioning/`
+  - ✅ GAP-001: `.platform/manifest.yaml` criado no ETL/Hatch com valores reais
+  - ✅ GAP-004/005/006: ResourceQuota + LimitRange criados em `ETL/Hatch/k8s/base/`
+  - ✅ GAP-015: ADR-104 criado em `docs/adr/`
+  - 6 scripts refatorados (genericos, `--env`/`--domain` obrigatorios, zero hardcoded)
+  - 8 issues criticos corrigidos (DB/RabbitMQ hostnames prod, Redis password plaintext, ArgoCD wildcard, Keycloak double grant_type, Vault paths sem env segregation)
+- **Sprint S1 (2026-03-11):**
+  - ✅ GAP-003: JSON Schema completo (416 linhas, $defs reutilizaveis, conditionals, additionalProperties:false)
+  - ✅ GAP-007: Stage `validate` adicionado como primeiro stage (8 stages total)
+  - ✅ GAP-022: Regex de validate-naming.sh alinhado com schema $defs.kebab-case
+  - ✅ GAP-023: validate-manifest.sh com schema validation standalone (python3+jsonschema)
+- **Sprint S2 (2026-03-11):** ✅ COMPLETO e APROVADO (apos fix de 2 bugs)
+  - ✅ GAP-008: SA platform-provisioner + RBAC least-privilege + bootstrap script + RoleBinding em create-namespace.sh
+  - ✅ GAP-009: Vault Kubernetes Auth dinamico (lib/vault-auth.sh), zero VAULT_TOKEN estatico
+  - ✅ GAP-012: Scripts refatorados — 2 libs (common.sh 250 linhas, manifest-parser.sh 146 linhas), 23 funcoes compartilhadas, 11 scripts atualizados
+  - ✅ GAP-024: create-app.sh corrigido — 3 chamadas faltavam --env/--domain
+  - ✅ GAP-025: bootstrap-provisioner.sh agora usa common.sh com fallback
+- **Sprint S3/S4 (2026-03-11):** ✅ COMPLETO e RE-AUDITORIA APROVADO (apos 1 ciclo de fix)
+  - ✅ GAP-010: ArgoCD AppProject `data` criado, destinations parametrizadas `${ENV}-${DOMAIN}-*`, provision-argocd.sh criado, create-argocd-app.sh alinhado (AppProject inline removido) — REPROVADO na auditoria, APROVADO na re-auditoria apos fix
+  - ✅ GAP-010a: Divergencia create-argocd-app.sh resolvida (novo GAP adicionado e resolvido)
+  - ✅ GAP-013: provision-keycloak.sh com vault-auth.sh integrado, realm configuravel, JWKS URL auto-calculada, ExternalSecret CR adicionado (6 chaves mapeadas do Vault) — REPROVADO na auditoria, APROVADO na re-auditoria apos fix
+  - ✅ GAP-013a: Desalinhamento 7 vs 6 chaves resolvido — ExternalSecret usa 6 chaves explicitas (novo GAP adicionado e resolvido)
+- **Sprint S5 (2026-03-11):** ✅ COMPLETO
+  - ✅ GAP-011: Overlay prod criado — overlays/prod/ (kustomization.yaml, patches/replicas.yaml, patches/resources.yaml), ArgoCD Application prod (manual sync, branch main, namespace prod-data-hatch-etl), resources alinhados com presets
+  - ✅ GAP-014: Approval layers 3 camadas — validate-resource-approval.sh (AUTO/TECH LEAD/BLOCK, presets embutidos, conversao unidades K8s), Kyverno ClusterPolicy (hard cap 4Gi/2000m, Enforce, bypass via annotation), CI integrado (step no stage validate)
+  - ✅ GAP-017: Environment protection rules — Template gitlab-environments.yaml (staging auto + production 1 approval), setup-gitlab-environments.sh (GitLab API), CI jobs prod com when: manual + environment: production
+- **Auditoria Final (2026-03-11):** ✅ APROVADA — 100% CONFORMIDADE — 4 GAPs resolvidos: GAP-A (validate-labels.sh com --manifest/--env/--domain), GAP-D2-01 (provision-externalsecrets.sh criado), GAP-D2-02 (provision-namespace.sh criado), GAP-D2-03 (create-app.sh 8 steps totais)
+- **Proximo:** S6 Backstage IDP (Marco 2, futuro) — Scaffolder gera manifesto automaticamente — fora do escopo desta demanda
 
 ---
 

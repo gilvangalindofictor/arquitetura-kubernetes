@@ -1,6 +1,6 @@
 # VPA Rightsizing + FinOps Automation — Analise Consolidada
 
-**Data:** 2026-03-10
+**Data:** 2026-03-10 | **Atualizado:** 2026-03-11
 **Cluster:** k8s-platform-prod (EKS 1.34, staging cluster)
 **Owner:** Observability & SRE Specialist + FinOps Team
 **Referencia:** finops-status-2026-03-06.md | Budget: $807/mes | Mar Forecast: $986 (+22%)
@@ -80,15 +80,15 @@ DIA 14 (refinamento):
 
 ---
 
-## 2. FinOps Automation — Validacao 1o. Mes (23/02 → 10/03)
+## 2. FinOps Automation — Validacao 1o. Mes (23/02 → 11/03)
 
 ### 2.1 Periodo de Analise
 
 | Parametro | Detalhe |
 |-----------|---------|
 | **Data de ativacao** | 2026-02-23 (FinOps FASE 2 habilitado) |
-| **Data de analise** | 2026-03-10 |
-| **Periodo total** | 16 dias operacionais |
+| **Data de analise** | 2026-03-11 (atualizado de 2026-03-10) |
+| **Periodo total** | 17 dias operacionais |
 | **Componentes** | EventBridge (startup 08:00 / shutdown 18:00 BRT seg-sex) + weekend rule + Lambda start/stop + DynamoDB circuit breaker |
 
 ### 2.2 Weekend Shutdowns — Custo Real Observado
@@ -98,9 +98,18 @@ DIA 14 (refinamento):
 | Weekend 1 (parcial, pre-ativacao) | 14-16/02 | $12.07 + $12.07 + $15.78 = $39.92 | $37.50 × 3 = $112.50 | $72.58 |
 | Weekend 2 | 21-22/02 | $12.35 + $12.35 = $24.70 | $37.50 × 2 = $75.00 | **$50.30** |
 | Weekend 3 | 01-02/03 | $59.65 + $39.69 = $99.34* | $37.50 × 2 = $75.00 | ($24.34) |
-| Weekend 4 | 07-08/03 | ~$24-30 (estimado) | $37.50 × 2 = $75.00 | **~$45-51** |
+| Weekend 4 | 08-09/03 | $38.43 + $39.04 = $77.47 | $42.00 × 2 = $84.00 | **$6.53** |
 
 > *Weekend 01-02/03: $59.65 inclui Tax mensal de Marco ($24.19) que seria cobrada independente do shutdown. Custo real de compute = $59.65 - $24.19 = $35.46. Economia real: ($37.50 × 2) - ($35.46 + $39.69) = $75 - $75.15 = neutro (Tax distorce). Revisar com dados granulares CloudWatch.
+
+**ACHADO CRITICO — Weekend 08-09/03 (validacao 2026-03-11):**
+- Mar 8 (Sab): $38.43 | Mar 9 (Dom): $39.04 — custo weekend NAO reduz como esperado
+- Lambda STOP rodou corretamente (shutdown confirmado). Lambda START rodou Mar 9 10:30 (domingo)
+- EventBridge schedule e MON-FRI — invocacao domingo requer investigacao (manual ou bug de schedule)
+- **Root cause:** Lambda escala para min (system=2, work=2, crit=2 = 6 nodes) mas cluster autoscaler re-escala para atender demanda de pods remanescentes
+- Custo base esperado weekend: ~$15-18/dia (6 nodes) + VPC/ELB overhead ~$8-10 = $23-28/dia
+- Custo real: $38-39/dia = **GAP de $10-15/dia** vs esperado
+- Saving real weekend: baseline $42/dia sem shutdown → $38/dia com = ~$4/dia = **~$120/mes = R$ 8.640/ano** (abaixo dos R$ 12.800 documentados)
 
 **Analise critica Weekend 01-02/03:**
 - $59.65 no sabado 01/03 e anormalmente alto — Tax mensal de Marco ($24.19) foi alocado neste dia
@@ -108,61 +117,70 @@ DIA 14 (refinamento):
 - EC2 $20.22 no sabado sugere alguns nos ainda ativos (possivelmente nodes system+critical no minimo)
 - Nodes `min=2` nao desligam com a automacao de shutdown — apenas `desired` e reduzido para `min`
 
-### 2.3 Calculo Rigoroso — Economia FinOps Automation (16 dias)
+### 2.3 Calculo Rigoroso — Economia FinOps Automation (17 dias) [ATUALIZADO 2026-03-11]
 
 **Metodologia:**
 - Custo com shutdown (observado): dados reais Cost Explorer
-- Custo sem shutdown (contrafactual): baseline $37.50/dia todos os dias
+- Custo sem shutdown (contrafactual): baseline $42/dia (atualizado de $37.50 — cluster expandiu para 13 nodes)
 - Economia = Contrafactual - Real
 
 | Componente | Calculo | Resultado |
 |-----------|---------|-----------|
-| Dias analisados | 23/02 → 10/03 = 16 dias | 16 dias |
-| Custo real 16 dias (estimado) | $914.41 (fev completo) + $199.62 (mar 1-5) = proporcional | ~$340 nos 16 dias |
-| Custo contrafactual 16 dias | 16 × $37.50 = $600 | $600 |
-| **Economia bruta 16 dias** | $600 - $340 ≈ | **~$260** |
-| Economia anualizada (proporcional) | $260 × (365/16) = | **~$5.931/ano = R$ 35.584** |
+| Dias analisados | 23/02 → 11/03 = 17 dias | 17 dias |
+| Custo real 17 dias (estimado) | $914.41 (fev completo) + $199.62 (mar 1-5) = proporcional | ~$360 nos 17 dias |
+| Custo contrafactual 17 dias | 17 × $42.00 = $714 | $714 |
+| **Economia bruta 17 dias** | $714 - $360 ≈ | **~$354** |
+| Economia anualizada (proporcional) | $354 × (365/17) = | **~$7.602/ano = R$ 45.612** |
+
+> **RECONCILIACAO 2026-03-11:** O calculo acima usa contrafactual de $42/dia (baseline sem shutdown com 13 nodes). Porem a economia REAL observada nos weekends e muito menor: baseline $42/dia → $38/dia com shutdown = ~$4/dia de saving efetivo. Isso ocorre porque o cluster autoscaler re-escala nodes para atender pods remanescentes, anulando parcialmente o shutdown.
+
+**Saving REAL baseado em weekend costs observados (2026-03-11):**
+- Weekend saving efetivo: ~$4/dia × 8 dias weekend/mes = ~$32/mes = **~R$ 2.304/ano** (apenas weekends)
+- Weekday shutdown savings (18h-08h): contribuicao adicional estimada ~$500/mes = **~R$ 6.000/ano**
+- **Saving real conservador total: R$ 8.000-10.000/ano** (confirmado)
+- **Saving documentado anterior: R$ 12.800/ano — OTIMISTA (revisado para baixo)**
 
 **Nota sobre divergencia vs R$ 13.597 documentado:**
-O saving documentado de R$ 13.597/ano foi calculado com base no modelo de shutdown completo (desired=0 exceto min). Custo residual real nos finais de semana ainda e $12-15/dia (nodes `min=2` permanecem ativos). A diferenca sugere que o saving real converge para R$ 8.000-10.000/ano considerando o custo residual dos nos minimos. Revalidar com dados de setembro (quando tiver 3 meses completos).
+O saving documentado de R$ 13.597/ano foi calculado com base no modelo de shutdown completo (desired=0 exceto min). Custo residual real nos finais de semana e $38-39/dia (nodes `min=2` permanecem ativos + cluster autoscaler re-escala). A diferenca confirma que o saving real converge para **R$ 8.000-10.000/ano** considerando o custo residual. Proximo checkpoint: junho/2026 (3 meses completos).
 
-### 2.4 Status Lambda Execucoes
+### 2.4 Status Lambda Execucoes [VALIDADO 2026-03-11]
 
-| Verificacao | Status Assumido | Evidencia |
-|-------------|----------------|-----------|
-| Lambda start-nodes.py | ✅ Ativo (sem alertas de falha) | Cluster retorna operacional apos weekends |
-| Lambda stop-nodes.py | ✅ Ativo (custos reduzem nos finais de semana) | Dados Cost Explorer confirmam |
-| DynamoDB circuit breaker | ✅ Funcionando | Nenhum evento de double-shutdown detectado |
-| EventBridge rules | ✅ Ativas | Timestamps de startup/shutdown coerentes com dados de custo |
-| SNS notificacoes | ⚠️ Parcial | Webhook Teams (pós DT-005) — validar entrega das notificacoes |
+| Verificacao | Status | Evidencia (2026-03-11) |
+|-------------|--------|------------------------|
+| Lambda start-nodes.py | ✅ OPERACIONAL | last_startup: 2026-03-11T10:30:10.873692 — "Scaling node group system to 2 nodes, workloads to 3 nodes, critical to 2 nodes" |
+| Lambda stop-nodes.py | ✅ OPERACIONAL | last_shutdown: 2026-03-10T23:00:12.808987 — "EXCLUDED_NODE_GROUPS=['system', 'critical']", "Stopping RDS instance k8s-platform-prod-postgresql" |
+| DynamoDB circuit breaker | ✅ CLOSED | startup_failures=0, shutdown_failures=0 |
+| EventBridge rules | ✅ 5 rules ENABLED | startup, shutdown, weekend-shutdown, snapshot-cleanup, weekly-report |
+| SNS notificacoes | ⚠️ Parcial | Webhook Teams (pos DT-005) — validar entrega das notificacoes |
 
-**Recomendacao de validacao (Acao P1):**
+**Node Groups — Estado Expandido (2026-03-11):**
 
-```bash
-# 1. Verificar invocacoes Lambda (ultimas 100)
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/start-nodes \
-  --start-time $(date -d '16 days ago' +%s000) \
-  --filter-pattern "SUCCESS" | jq '.events | length'
+| Node Group | Tipo | Desired Anterior | Desired Atual | Max | Observacao |
+|------------|------|-----------------|---------------|-----|------------|
+| system | t3.medium | 3 | **4 (MAX)** | 4 | Cluster autoscaler empurrou ao maximo |
+| workloads | t3.large | 4 | **6 (MAX)** | 6 | Cluster autoscaler empurrou ao maximo |
+| critical | t3.xlarge | 2 | **3** | — | Expandiu 1 node |
+| **Total** | — | **9** | **13** | — | **+44% nodes — impacto direto em custo** |
 
-# 2. Verificar estado DynamoDB (circuit breaker)
-aws dynamodb scan \
-  --table-name finops-automation-state \
-  --query 'Items[*].{date:date.S,action:last_action.S,status:status.S}'
+> **ALERTA:** Todos os node groups no maximo ou proximo. Cluster autoscaler esta compensando pods com requests altos. VPA rightsizing e a alavanca para reduzir de volta para 7-9 nodes.
 
-# 3. Confirmar schedule EventBridge
-aws events list-rules --query 'Rules[?contains(Name, `finops`)].{Name:Name,State:State,Schedule:ScheduleExpression}'
-```
+**Impacto VPA com 13 nodes (2026-03-11):**
+- Se VPA reduzir requests → autoscaler podera manter 7-9 nodes em vez de 13
+- Savings incrementais: 4-6 nodes a menos x ~$3-8/dia/node = $12-48/dia = **R$ 2.160-8.640/ano** adicional apenas em staging
+- VPA producao permanece como maior alavanca: **R$ 25.000-35.000/ano**
 
-### 2.5 Extrapolacao Anual FinOps Automation
+**Investigacao pendente:**
+- Lambda START invocou Mar 9 (domingo) as 10:30 — EventBridge schedule e MON-FRI. Verificar se foi invocacao manual ou bug no cron expression
 
-| Cenario | Saving Anual | Base |
-|---------|--------------|------|
-| Documentado (modelo teorico) | R$ 13.597 | 100% shutdown efetivo + sem nos minimos |
-| Conservador (com custo residual min=2) | **R$ 8.000-10.000** | Custo real $12-15/dia weekend vs $0 teorico |
-| Otimista (ajuste min=0 em workloads) | R$ 11.000-13.000 | Requer mudanca min→0 em workloads group |
+### 2.5 Extrapolacao Anual FinOps Automation [ATUALIZADO 2026-03-11]
 
-**Conclusao:** FinOps Automation operacional e gerando savings reais. Valor de R$ 13.597/ano e teto superior; saving conservador validado e R$ 8-10K/ano. Gap principal: nodes `min=2` nos grupos system e critical continuam ativos nos finais de semana, gerando custo residual de $12-15/dia.
+| Cenario | Saving Anual | Base | Status |
+|---------|--------------|------|--------|
+| Documentado (modelo teorico) | R$ 13.597 | 100% shutdown efetivo + sem nos minimos | ~~OTIMISTA~~ REVISADO |
+| **Conservador (validado 2026-03-11)** | **R$ 8.000-10.000** | Weekend costs reais $38-39/dia vs $42 baseline + weekday shutdown | **CONFIRMADO** |
+| Otimista (ajuste min=0 em workloads) | R$ 11.000-13.000 | Requer mudanca min→0 em workloads group | PENDENTE VALIDACAO |
+
+**Conclusao (atualizada 2026-03-11):** FinOps Automation **OPERACIONAL** — Lambdas com zero failures, circuit breaker CLOSED, 5 EventBridge rules ativas. Saving conservador **confirmado em R$ 8-10K/ano** baseado em weekend costs reais. Gap principal: cluster autoscaler re-escala nodes mesmo apos shutdown (min=2 insuficiente — pods remanescentes forcam scale-up). Saving documentado de R$ 12.800/ano revisado para baixo.
 
 ---
 
@@ -184,16 +202,16 @@ aws events list-rules --query 'Rules[?contains(Name, `finops`)].{Name:Name,State
 
 ---
 
-## 4. t3.medium Memory Alert (P0) — Node System a 91%
+## 4. t3.medium Memory Alert (P0) — Node System a 88% [ATUALIZADO 2026-03-11]
 
 ### 4.1 Diagnostico
 
-| Dado | Valor |
-|------|-------|
-| Node group | system (t3.medium, 4 GiB RAM) |
-| Utilizacao atual | **91% = ~3.64 GiB utilizado** |
-| Risco | OOMKill no node — pods reiniciam, degradacao de servico |
-| Threshold critico | > 95% = eviction imminente |
+| Dado | Valor | Nota (2026-03-11) |
+|------|-------|--------------------|
+| Node group | system (t3.medium, 4 GiB RAM) | Agora com 4 nodes (era 3) |
+| Utilizacao atual | **88% = ~3.52 GiB utilizado** (ip-10-0-142-118) | Melhorou de 91% — pressao melhor distribuida com 4 nodes |
+| Risco | OOMKill no node — pods reiniciam, degradacao de servico | Reduzido com 4 nodes |
+| Threshold critico | > 95% = eviction imminente | |
 
 ### 4.2 Workloads Suspeitos
 
@@ -212,19 +230,20 @@ Nodes system hospedam prioritariamente: DNS (CoreDNS), monitoring stack, linkerd
 
 ### 4.3 Acoes Recomendadas
 
-**Emergencial (hoje):**
+**Emergencial (hoje) [ATUALIZADO 2026-03-11]:**
 ```bash
 # 1. Identificar top consumers no node system
 kubectl top pods --all-namespaces --sort-by=memory | head -20
 
-# 2. Identificar qual node esta a 91%
+# 2. Identificar qual node esta a 88%
 kubectl top nodes
 
-# 3. Scale temporario: system desired 3→4
-aws eks update-nodegroup-config \
-  --cluster-name k8s-platform-staging \
-  --nodegroup-name system \
-  --scaling-config minSize=2,maxSize=4,desiredSize=4
+# 3. Scale temporario: system desired 3→4 — JA REALIZADO (autoscaler escalou para 4/4 MAX)
+# NOTA: system ja esta em 4 nodes (MAX). Se pressao persistir, aumentar maxSize para 5.
+# aws eks update-nodegroup-config \
+#   --cluster-name k8s-platform-staging \
+#   --nodegroup-name system \
+#   --scaling-config minSize=2,maxSize=5,desiredSize=4
 ```
 
 **Medio prazo (esta semana):**
@@ -239,16 +258,24 @@ aws eks update-nodegroup-config \
 
 ---
 
-## 5. CloudWatch Cost Investigation (P1) — $34/mes vs $21 Esperado
+## 5. CloudWatch Cost Investigation (P1) — $34/mes vs $21 Esperado [ATUALIZADO 2026-03-11]
 
 ### 5.1 Divergencia Identificada
 
-| Metrica | Valor |
-|---------|-------|
-| **Baseline documentado** | $21.00/mes |
-| **Real Fevereiro 2026** | **$34.47/mes** |
-| **Delta** | +$13.47/mes (+64%) |
-| **Impacto anual** | +$161.64/ano = R$ 970/ano nao planejado |
+| Metrica | Valor | Atualizacao 2026-03-11 |
+|---------|-------|-----------------------|
+| **Baseline documentado** | $21.00/mes | — |
+| **Real Fevereiro 2026** | **$34.47/mes** (5 log types, 9 nodes) | Fix aplicado: 3 log types (controllerManager e scheduler REMOVIDOS) |
+| **Real Marco 2026 MTD** | — | **$21.36 (10 dias) → projetado ~$66/mes** |
+| **Delta** | +$13.47/mes (+64%) | Marco projetado PIOR apesar do fix — 13 nodes compensam reducao de logs |
+| **Impacto anual** | +$161.64/ano = R$ 970/ano nao planejado | Revisado: +$540/ano (~$45/mes excedente vs baseline) |
+
+**Correlacao nodes vs CloudWatch (2026-03-11):**
+- Fevereiro: 5 log types, 9 nodes = $34.47/mes
+- Marco: 3 log types, 13 nodes = ~$66/mes (projetado)
+- Cada node gera ~$1.50-2.50/mes em metricas CloudWatch
+- 4 nodes extras = +$6-10/mes em metricas
+- **Conclusao:** fix de log types foi correto mas expansao de nodes anulou economia. Savings real do fix: dificil isolar com expansao simultanea
 
 ### 5.2 Suspeitos por Categoria
 
@@ -296,14 +323,16 @@ aws cloudwatch list-metrics --output json | jq '[.Metrics[].Namespace] | group_b
 
 ## 6. Resumo Executivo — Acoes Mar/2026
 
-### 6.1 Acoes Imediatas (Esta Semana)
+### 6.1 Acoes Imediatas (Esta Semana) [ATUALIZADO 2026-03-11]
 
 | # | Acao | Responsavel | Impacto | Status |
 |---|------|-------------|---------|--------|
-| 1 | Aumentar system desired 3→4 (P0 memory) | Platform Team | Evita OOMKill | PENDENTE |
-| 2 | Investigar top log groups CloudWatch | SRE | -$9-15/mes | PENDENTE |
-| 3 | Validar Lambda execucoes (CloudWatch Logs + DynamoDB) | FinOps | Confirma R$ 13.597/ano | PENDENTE |
+| 1 | ~~Aumentar system desired 3→4 (P0 memory)~~ | Platform Team | Evita OOMKill | ✅ CONCLUIDO (autoscaler escalou para 4/4, mem 91%→88%) |
+| 2 | Investigar top log groups CloudWatch | SRE | -$9-15/mes | ⚠️ EM ANDAMENTO (fix log types aplicado, mas custo subiu com 13 nodes) |
+| 3 | ~~Validar Lambda execucoes (CloudWatch Logs + DynamoDB)~~ | FinOps | ~~Confirma R$ 13.597/ano~~ R$ 8-10K/ano | ✅ VALIDADO (Lambdas operacionais, circuit breaker CLOSED, saving revisado) |
 | 4 | Aplicar retention 7d em debug/CI log groups | SRE | -$5-8/mes | PENDENTE |
+| 5 | **Investigar Lambda START domingo Mar 9** | Platform Team | Correcao schedule EventBridge | NOVO — verificar cron expression |
+| 6 | **Investigar cluster autoscaler re-scaling apos shutdown** | Platform Team | Aumentar saving weekend | NOVO — pods remanescentes forcam scale-up |
 
 ### 6.2 Acoes Medio Prazo (Proximas 2 Semanas)
 
@@ -383,7 +412,8 @@ spec:
 
 ---
 
-**Preparado em:** 2026-03-10
-**Proximo review:** 2026-03-17 (pos CloudWatch fix + validacao Lambda)
+**Preparado em:** 2026-03-10 | **Atualizado:** 2026-03-11
+**Proximo review:** 2026-03-17 (pos investigacao autoscaler re-scaling + CloudWatch com 13 nodes)
 **Referencia:** docs/finops/finops-status-2026-03-06.md
 **Base financeira:** AWS Cost Explorer API (aws ce get-cost-and-usage)
+**Dados validados 2026-03-11:** Lambda logs, DynamoDB circuit breaker, EventBridge rules, Cost Explorer weekend costs

@@ -166,6 +166,16 @@ write_vault_paths() {
   maybe_run vault kv put secret/staging/backstage/session \
     auth-session-secret="$SESSION_SECRET"
   log "  secret/staging/backstage/session: OK"
+
+  # -- 3.9 Harbor robot account (M2 Scaffolder + Harbor plugin) --
+  # Criar manualmente: Harbor → Admin → Robot Accounts → New Robot Account
+  # Name: backstage-puller  | Scopes: Pull(push para M2 criar novas imagens base)
+  # Após criar: copiar o token gerado
+  HARBOR_ROBOT_TOKEN="${HARBOR_ROBOT_TOKEN:-PLACEHOLDER_HARBOR_ROBOT_TOKEN}"
+  maybe_run vault kv put secret/staging/backstage/harbor \
+    url="${HARBOR_URL}" \
+    robot-token="${HARBOR_ROBOT_TOKEN}"
+  log "  secret/staging/backstage/harbor: OK"
 }
 
 # ─── PASSO 4: Criar schema backstage no RDS ─────────────────────────────────
@@ -196,6 +206,7 @@ verify() {
     "secret/staging/backstage/vault"
     "secret/staging/backstage/eks"
     "secret/staging/backstage/session"
+    "secret/staging/backstage/harbor"
   )
   for path in "${PATHS[@]}"; do
     if [ "$DRY_RUN" = "true" ]; then
@@ -212,6 +223,31 @@ verify() {
   log "  kubectl get externalsecret backstage-secrets -n staging-platform-backstage -w"
 }
 
+# ─── PASSO 6: Configurar AppRole auth method para Scaffolder ──────────────
+# GAP-012: TTL obrigatório nos AppRoles criados pelo Scaffolder
+configure_approle_auth() {
+  log "PASSO 6: Verificando/configurando AppRole auth method..."
+
+  if ! vault auth list 2>/dev/null | grep -q "approle/"; then
+    log "  Habilitando AppRole auth method..."
+    maybe_run vault auth enable approle
+    log "  AppRole auth method: habilitado"
+  else
+    log "  AppRole auth method: já habilitado"
+  fi
+
+  # Template AppRole para novos serviços criados pelo Scaffolder
+  # GAP-012: TTL obrigatório (sem TTL = credencial persistente = risco)
+  log "  Criando AppRole template app-template (padrão para novos serviços)..."
+  maybe_run vault write auth/approle/role/app-template \
+    secret_id_ttl="24h" \
+    token_ttl="1h" \
+    token_max_ttl="4h" \
+    token_policies="default" \
+    bind_secret_id=true
+  log "  AppRole app-template: OK (TTL: secret_id=24h, token=1h, max=4h)"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 main() {
   log "=== bootstrap-vault-setup.sh — Backstage IDP Vault Config ==="
@@ -222,6 +258,7 @@ main() {
   write_vault_paths
   create_rds_schema
   verify
+  configure_approle_auth
   log "=== CONCLUÍDO ==="
   log ""
   log "PRÓXIMOS PASSOS:"

@@ -307,3 +307,10 @@ variable "backstage_auth_session_secret" {
   sensitive   = true
   default     = ""
 }
+
+variable "backstage_harbor_robot_token" {
+  description = "Harbor robot account token for Backstage Harbor plugin (robot$backstage-puller)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

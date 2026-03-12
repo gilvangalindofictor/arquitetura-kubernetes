@@ -72,9 +72,15 @@ variable "enable_automation" {
 # -----------------------------------------------------------------------------
 
 variable "excluded_node_groups" {
-  description = "Node groups excluded from scaling to 0 (comma-separated)"
+  description = "Node groups excluded from scaling to 0 — critical removed to enable weekend scale-to-0 (2026-03-11)"
   type        = list(string)
-  default     = ["system", "critical"]
+  default     = ["system"]
+}
+
+variable "suspend_autoscaler_on_stop" {
+  description = "Suspend Cluster Autoscaler ASG processes during shutdown to prevent DaemonSet re-scaling"
+  type        = bool
+  default     = true
 }
 
 variable "min_system_nodes" {
@@ -291,7 +297,8 @@ locals {
     EXCLUDED_NODE_GROUPS      = join(",", var.excluded_node_groups)
     MIN_SYSTEM_NODES          = tostring(var.min_system_nodes)
     MIN_CRITICAL_NODES        = tostring(var.min_critical_nodes)
-    ENABLE_SCALING_PROTECTION = tostring(var.enable_scaling_protection)
+    ENABLE_SCALING_PROTECTION   = tostring(var.enable_scaling_protection)
+    SUSPEND_AUTOSCALER_ON_STOP  = tostring(var.suspend_autoscaler_on_stop)
   }
 }
 
