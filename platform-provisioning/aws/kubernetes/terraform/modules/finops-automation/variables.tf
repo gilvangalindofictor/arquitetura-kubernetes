@@ -116,9 +116,9 @@ variable "enable_scaling_protection" {
 # -----------------------------------------------------------------------------
 
 variable "lambda_timeout" {
-  description = "Lambda timeout in seconds"
+  description = "Lambda timeout in seconds — must be >= 900 for full health-check cycle (NODE_READY + LINKERD + WORKLOAD = up to 1080s worst case, capped at Lambda max of 900s)"
   type        = number
-  default     = 300 # 5 minutes
+  default     = 900 # 15 minutes (Lambda max) — required for NODE_READY+LINKERD+WORKLOAD health check (was 300)
 
   validation {
     condition     = var.lambda_timeout >= 60 && var.lambda_timeout <= 900
@@ -135,6 +135,12 @@ variable "lambda_memory" {
     condition     = var.lambda_memory >= 128 && var.lambda_memory <= 10240
     error_message = "Lambda memory must be between 128 and 10240 MB."
   }
+}
+
+variable "workload_timeout_sec" {
+  description = "Seconds to wait for critical workloads (gitlab-webservice, vault) to become Ready in Step 8 health check"
+  type        = number
+  default     = 480
 }
 
 variable "lambda_runtime" {
@@ -157,18 +163,18 @@ variable "node_groups_config" {
   default = {
     system = {
       min_size     = 2
-      desired_size = 2
-      max_size     = 4
+      desired_size = 3  # startup target (autoscaler manages live desired; node-groups.tf max=6)
+      max_size     = 6  # aligned with node-groups.tf (was 4, increased 2026-03-05)
     }
     workloads = {
-      min_size     = 2
-      desired_size = 3
-      max_size     = 6
+      min_size     = 0  # allows scale-to-zero on shutdown (was 2)
+      desired_size = 2  # startup baseline (was 3; autoscaler scales up as needed; node-groups.tf max=9)
+      max_size     = 9  # aligned with node-groups.tf (was 6)
     }
     critical = {
       min_size     = 2
       desired_size = 2
-      max_size     = 4
+      max_size     = 4  # unchanged — correct
     }
   }
 }
@@ -299,6 +305,13 @@ locals {
     MIN_CRITICAL_NODES        = tostring(var.min_critical_nodes)
     ENABLE_SCALING_PROTECTION   = tostring(var.enable_scaling_protection)
     SUSPEND_AUTOSCALER_ON_STOP  = tostring(var.suspend_autoscaler_on_stop)
+    # Node Group startup targets (2026-03-13) — used by lambda_start to restore desired counts post-shutdown
+    SYSTEM_DESIRED            = tostring(var.node_groups_config["system"].desired_size)
+    WORKLOADS_DESIRED         = tostring(var.node_groups_config["workloads"].desired_size)
+    CRITICAL_DESIRED          = tostring(var.node_groups_config["critical"].desired_size)
+    NODE_GROUP_NAMES          = join(",", keys(var.node_groups_config))
+    # Health check timeouts — gitlab-webservice needs >300s to become Ready from cold start
+    WORKLOAD_TIMEOUT_SEC      = tostring(var.workload_timeout_sec)
   }
 }
 

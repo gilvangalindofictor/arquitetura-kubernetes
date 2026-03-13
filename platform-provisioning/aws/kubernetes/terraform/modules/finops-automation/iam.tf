@@ -44,27 +44,40 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "asg_policy" {
-  name = "finops-scheduler-asg-policy-v1"
+  name = "finops-scheduler-asg-policy-v2"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "ManageAutoScalingGroups"
-      Effect = "Allow"
-      Action = [
-        "autoscaling:DescribeAutoScalingGroups",
-        "autoscaling:UpdateAutoScalingGroup",
-        "autoscaling:SuspendProcesses",
-        "autoscaling:ResumeProcesses"
-      ]
-      Resource = "arn:aws:autoscaling:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/eks-${var.cluster_name}-*"
-      Condition = {
-        StringEquals = {
-          "aws:ResourceTag/Environment" = var.environment
+    Statement = [
+      {
+        # DescribeAutoScalingGroups is a List action — IAM does not support
+        # resource-level restrictions for it. Must be Resource = "*".
+        Sid    = "DescribeASGs"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups"
+        ]
+        Resource = "*"
+      },
+      {
+        # EKS ASG names follow the pattern eks-<nodegroup>-<uuid>, NOT eks-<cluster>-*.
+        # Scoped to this cluster via the eks:cluster-name tag (set automatically by EKS).
+        Sid    = "ManageAutoScalingGroups"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:UpdateAutoScalingGroup",
+          "autoscaling:SuspendProcesses",
+          "autoscaling:ResumeProcesses"
+        ]
+        Resource = "arn:aws:autoscaling:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/eks-*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/eks:cluster-name" = var.cluster_name
+          }
         }
       }
-    }]
+    ]
   })
 }
 
@@ -128,15 +141,17 @@ resource "aws_iam_role_policy" "eks_policy" {
         Effect = "Allow"
         Action = [
           "eks:DescribeCluster",
-          "eks:ListNodegroups",
-          "eks:DescribeNodegroup"
+          "eks:ListNodegroups"
         ]
         Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
       },
       {
+        # DescribeNodegroup + UpdateNodegroupConfig require the nodegroup ARN,
+        # not the cluster ARN. Using wildcard for nodegroup name and ID.
         Sid    = "ManageNodegroups"
         Effect = "Allow"
         Action = [
+          "eks:DescribeNodegroup",
           "eks:UpdateNodegroupConfig"
         ]
         Resource = "arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:nodegroup/${var.cluster_name}/*/*"

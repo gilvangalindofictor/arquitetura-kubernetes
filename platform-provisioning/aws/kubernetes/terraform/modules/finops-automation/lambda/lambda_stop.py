@@ -3,29 +3,43 @@ Lambda Function: Stop EKS Node Groups + RDS
 Trigger: EventBridge cron (Segunda-Sexta 18:00 BRT = 21:00 UTC)
 Author: FinOps Team
 Date: 2026-01-29
+Updated: 2026-03-13
+
+Changelog 2026-03-13:
+- BUG-001 FIX: Removed hardcoded NODE_GROUPS_CONFIG (max values were wrong).
+  stop_node_group() now reads current max_size from AWS via describe_nodegroup
+  and preserves it — never hardcodes max.
+- BUG-002 FIX: stop_node_group() no longer passes hardcoded maxSize to EKS API.
+- NODE_GROUP_NAMES env var replaces NODE_GROUPS_CONFIG dict.
+- Unified _boto_cfg applied to all AWS clients (connect_timeout=10, read_timeout=30).
+- datetime.utcnow() replaced with datetime.now(timezone.utc) (Python 3.12+ compliance).
 
 Environment Variables:
 - CLUSTER_NAME: k8s-platform-cluster
 - AWS_REGION: us-east-1
 - ENVIRONMENT: dev|staging|prod
 - CREATE_RDS_SNAPSHOT: true|false (default: false)
+- NODE_GROUP_NAMES: comma-separated list of node group names (default: system,workloads,critical)
 """
 
 import boto3
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Setup logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Shared boto3 config — explicit timeouts for all network calls (Lambda compliance)
+_boto_cfg = boto3.session.Config(connect_timeout=10, read_timeout=30)
+
 # AWS clients
-eks = boto3.client('eks')
-rds = boto3.client('rds')
-sns = boto3.client('sns')
-dynamodb = boto3.resource('dynamodb')
-autoscaling = boto3.client('autoscaling', config=boto3.session.Config(connect_timeout=10, read_timeout=30))
+eks = boto3.client('eks', config=_boto_cfg)
+rds = boto3.client('rds', config=_boto_cfg)
+sns = boto3.client('sns', config=_boto_cfg)
+dynamodb = boto3.resource('dynamodb', config=_boto_cfg)
+autoscaling = boto3.client('autoscaling', config=_boto_cfg)
 
 # Configuration from environment variables
 CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
@@ -46,12 +60,9 @@ SUSPEND_AUTOSCALER_ON_STOP = os.environ.get('SUSPEND_AUTOSCALER_ON_STOP', 'true'
 
 logger.info(f"FinOps Protection: EXCLUDED_NODE_GROUPS={EXCLUDED_NODE_GROUPS}, MIN_SYSTEM_NODES={MIN_SYSTEM_NODES}, ENABLE_SCALING_PROTECTION={ENABLE_SCALING_PROTECTION}, SUSPEND_AUTOSCALER={SUSPEND_AUTOSCALER_ON_STOP}")
 
-# Node groups configuration (scale to 0 only if NOT protected)
-NODE_GROUPS_CONFIG = {
-    'system': {'min': MIN_SYSTEM_NODES if ENABLE_SCALING_PROTECTION else 0, 'desired': MIN_SYSTEM_NODES if ENABLE_SCALING_PROTECTION else 0, 'max': 4},
-    'workloads': {'min': 0, 'desired': 0, 'max': 6},
-    'critical': {'min': MIN_CRITICAL_NODES if ENABLE_SCALING_PROTECTION else 0, 'desired': MIN_CRITICAL_NODES if ENABLE_SCALING_PROTECTION else 0, 'max': 4}
-}
+# Node group names to manage — read from env var, no hardcoded max values (BUG-001 fix)
+NODE_GROUP_NAMES = os.environ.get('NODE_GROUP_NAMES', 'system,workloads,critical').split(',')
+NODE_GROUP_NAMES = [ng.strip() for ng in NODE_GROUP_NAMES if ng.strip()]
 
 
 def lambda_handler(event, context):
@@ -63,7 +74,7 @@ def lambda_handler(event, context):
     logger.info(f"RDS Snapshot: {CREATE_RDS_SNAPSHOT}")
 
     results = {
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'environment': ENVIRONMENT,
         'cluster': CLUSTER_NAME,
         'node_groups': {},
@@ -88,20 +99,19 @@ def lambda_handler(event, context):
         # Suspend Cluster Autoscaler ASG processes to prevent DaemonSet re-scaling
         suspend_cluster_autoscaler(results)
 
-        # Stop node groups (scale to 0 or MIN if protected)
-        for ng_name, config in NODE_GROUPS_CONFIG.items():
+        # Stop node groups (scale to 0; max_size read live from AWS — never hardcoded)
+        for ng_name in NODE_GROUP_NAMES:
             try:
                 # Check if node group is excluded from scaling
                 if ng_name in EXCLUDED_NODE_GROUPS:
                     logger.info(f"Node group {ng_name} is EXCLUDED from scaling (protection enabled)")
                     results['node_groups'][ng_name] = {
                         'status': 'protected',
-                        'message': f'Node group excluded from scaling (min={config["min"]}, desired={config["desired"]})',
-                        'config': config
+                        'message': 'Node group excluded from scaling'
                     }
                     continue
 
-                stop_node_group(ng_name, config, results)
+                stop_node_group(ng_name, results)
             except Exception as e:
                 logger.error(f"Error stopping node group {ng_name}: {str(e)}")
                 results['node_groups'][ng_name] = {'status': 'error', 'message': str(e)}
@@ -193,33 +203,48 @@ def suspend_cluster_autoscaler(results):
         # Non-blocking: continue with shutdown even if this fails
 
 
-def stop_node_group(ng_name, config, results):
+def stop_node_group(ng_name, results):
     """
     Stop (scale to 0) an EKS node group.
-    Fix 2026-03-12: minSize is always forced to 0 during shutdown regardless of protection config.
-    A nodegroup minSize > 0 blocks desiredSize=0 — the EKS API rejects the call.
-    Protection is a runtime concern (startup), not a shutdown concern.
+
+    BUG-001/BUG-002 FIX (2026-03-13):
+    - max_size is read live from describe_nodegroup — never hardcoded.
+    - Only minSize and desiredSize are set to 0; maxSize is preserved unchanged.
+    - minSize is always forced to 0 during shutdown: a minSize > 0 causes the
+      EKS API to reject desiredSize=0. Protection is a startup concern, not shutdown.
     """
-    logger.info(f"Scaling node group {ng_name} to 0 nodes (minSize forced to 0)...")
+    logger.info(f"Describing node group {ng_name} to read current max_size...")
+
+    describe_resp = eks.describe_nodegroup(
+        clusterName=CLUSTER_NAME,
+        nodegroupName=ng_name
+    )
+    scaling = describe_resp['nodegroup']['scalingConfig']
+    current_max = scaling['maxSize']
+    current_desired = scaling['desiredSize']
+
+    logger.info(f"Node group {ng_name}: current scalingConfig={scaling}. Setting minSize=0, desiredSize=0, preserving maxSize={current_max}.")
 
     response = eks.update_nodegroup_config(
         clusterName=CLUSTER_NAME,
         nodegroupName=ng_name,
         scalingConfig={
-            'minSize': 0,  # Always 0 during shutdown — minSize > 0 blocks desiredSize=0
+            'minSize': 0,        # Always 0 during shutdown — minSize > 0 blocks desiredSize=0
             'desiredSize': 0,
-            'maxSize': config['max']
+            'maxSize': current_max  # Preserved from live AWS state — never hardcoded
         }
     )
 
     update_id = response.get('update', {}).get('id', 'unknown')
 
-    logger.info(f"Node group {ng_name} scale-down initiated (minSize=0, desiredSize=0). Update ID: {update_id}")
+    logger.info(f"Node group {ng_name} scale-down initiated (minSize=0, desiredSize=0, maxSize={current_max}). Update ID: {update_id}")
 
     results['node_groups'][ng_name] = {
         'status': 'stop_initiated',
         'update_id': update_id,
-        'config': {**config, 'min': 0, 'desired': 0}
+        'previous_desired': current_desired,
+        'preserved_max': current_max,
+        'config': {'min': 0, 'desired': 0, 'max': current_max}
     }
 
 
@@ -227,7 +252,7 @@ def create_snapshot(rds_instance, results):
     """
     Create RDS snapshot before stopping
     """
-    snapshot_id = f"{rds_instance}-shutdown-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+    snapshot_id = f"{rds_instance}-shutdown-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     logger.info(f"Creating RDS snapshot: {snapshot_id}")
 
@@ -250,7 +275,7 @@ def create_snapshot(rds_instance, results):
             'snapshot_id': snapshot_id,
             'instance': rds_instance,
             'status': snapshot_status,
-            'created_at': datetime.utcnow().isoformat()
+            'created_at': datetime.now(timezone.utc).isoformat()
         }
 
     except Exception as e:
@@ -361,7 +386,7 @@ def update_dynamodb_state(results):
     try:
         table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         # Prepare update expression
         update_expr = "SET last_shutdown = :timestamp, last_stop_time = :timestamp"

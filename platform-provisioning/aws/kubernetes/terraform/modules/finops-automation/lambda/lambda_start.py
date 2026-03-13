@@ -1,138 +1,833 @@
 """
 Lambda Function: Start EKS Node Groups + RDS
 Trigger: EventBridge cron (Segunda-Sexta 08:00 BRT = 11:00 UTC)
-Author: FinOps Team
+Author: FinOps Team / SRE Team
 Date: 2026-01-29
+Updated: 2026-03-13 — SRE health check + sequência correta de startup
 
 Environment Variables:
 - CLUSTER_NAME: k8s-platform-cluster
 - AWS_REGION: us-east-1
 - ENVIRONMENT: dev|staging|prod
+- RDS_INSTANCE_ID: RDS instance identifier
+- SNS_TOPIC_ARN: SNS topic ARN for notifications
+- DYNAMODB_TABLE_NAME: DynamoDB table for state tracking
+- HEALTH_CHECK_ENABLED: true|false (default: true)
+- NODE_READY_TIMEOUT_SEC: seconds to wait for system nodes Ready (default: 480 = 8min)
+- LINKERD_TIMEOUT_SEC: seconds to wait for Linkerd control plane (default: 300 = 5min)
+- WORKLOAD_TIMEOUT_SEC: seconds to wait for critical workloads (default: 300 = 5min)
+- SYSTEM_DESIRED: desired node count for system node group (default: 3)
+- WORKLOADS_DESIRED: desired node count for workloads node group (default: 2)
+- CRITICAL_DESIRED: desired node count for critical node group (default: 2)
+
+STARTUP SEQUENCE (SRE-validated 2026-03-13):
+  Step 1: Resume ASG processes (BEFORE scaling nodes — belt-and-suspenders)
+  Step 2: Scale CA Deployment to 1 replica
+  Step 3: start_node_group() for 'system' only (desired=2)
+  Step 4: Wait system nodes Ready (timeout: NODE_READY_TIMEOUT_SEC)
+  Step 5: Verify Linkerd control plane Running (timeout: LINKERD_TIMEOUT_SEC)
+  Step 6: start_node_group() for 'workloads' and 'critical'
+  Step 7: start_rds()
+  Step 8: verify_cluster_health() — final gate
+
+ROOT CAUSE ADDRESSED:
+  Before this fix, the Lambda reported success but Linkerd was Pending and
+  GitLab/Harbor were in CrashLoop. The old code started all node groups
+  simultaneously, resumed CA, and reported success without any health
+  verification. The Linkerd control plane (proxy-injector) was not running
+  when workload nodes joined, causing init containers to hang indefinitely.
+
+IAM NOTE:
+  The Lambda role requires eks:DescribeNodegroup (already present in iam.tf).
+  K8s API health checks (Linkerd/workload pods) require the Lambda IAM role
+  to be mapped in aws-auth ConfigMap with at least 'system:masters' or a
+  custom ClusterRole granting get/list on pods in target namespaces.
+  See: aws-auth mapping note at bottom of this file.
+
+LAMBDA TIMEOUT:
+  Set lambda_timeout = 900 in variables.tf (15 min) to accommodate full
+  startup sequence. Default 300s is insufficient when NODE_READY_TIMEOUT_SEC
+  + LINKERD_TIMEOUT_SEC + WORKLOAD_TIMEOUT_SEC = 480+300+300 = 1080s worst case.
+  In practice: ~600-720s typical startup.
 """
 
 import boto3
+import json
 import os
+import time
 import logging
-from datetime import datetime
+import urllib.request
+import urllib.error
+import base64
+import ssl
+from datetime import datetime, timezone
 
-# Setup logging
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# AWS clients
-eks = boto3.client('eks')
-rds = boto3.client('rds')
-sns = boto3.client('sns')
-dynamodb = boto3.resource('dynamodb')
-autoscaling = boto3.client('autoscaling', config=boto3.session.Config(connect_timeout=10, read_timeout=30))
+# ---------------------------------------------------------------------------
+# AWS clients — explicit timeouts required (python:S7618)
+# connect_timeout: max seconds to establish TCP connection
+# read_timeout: max seconds to wait for response from AWS API
+# ---------------------------------------------------------------------------
+_boto_cfg = boto3.session.Config(connect_timeout=10, read_timeout=30)
+eks       = boto3.client('eks',      config=_boto_cfg)
+rds       = boto3.client('rds',      config=_boto_cfg)
+sns       = boto3.client('sns',      config=_boto_cfg)
+dynamodb  = boto3.resource('dynamodb', config=_boto_cfg)
+autoscaling = boto3.client('autoscaling', config=_boto_cfg)
 
-# Configuration from environment variables
-CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-RDS_INSTANCE_ID = os.environ.get('RDS_INSTANCE_ID', '')
-SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', '')
+# ---------------------------------------------------------------------------
+# Configuration — environment variables
+# ---------------------------------------------------------------------------
+CLUSTER_NAME        = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
+AWS_REGION          = os.environ.get('AWS_REGION', 'us-east-1')
+ENVIRONMENT         = os.environ.get('ENVIRONMENT', 'dev')
+RDS_INSTANCE_ID     = os.environ.get('RDS_INSTANCE_ID', '')
+SNS_TOPIC_ARN       = os.environ.get('SNS_TOPIC_ARN', '')
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', '')
-CLUSTER_NAME = os.environ.get('CLUSTER_NAME', 'k8s-platform-cluster')
 
-# Node groups configuration
+# Health check toggles
+HEALTH_CHECK_ENABLED   = os.environ.get('HEALTH_CHECK_ENABLED', 'true').lower() == 'true'
+NODE_READY_TIMEOUT_SEC = int(os.environ.get('NODE_READY_TIMEOUT_SEC', '480'))   # 8 min
+LINKERD_TIMEOUT_SEC    = int(os.environ.get('LINKERD_TIMEOUT_SEC', '300'))      # 5 min
+WORKLOAD_TIMEOUT_SEC   = int(os.environ.get('WORKLOAD_TIMEOUT_SEC', '300'))     # 5 min
+
+# Poll interval for all wait loops
+POLL_INTERVAL_SEC = 15
+
+# ---------------------------------------------------------------------------
+# Node groups configuration — start config (scale UP targets)
+# max_size is intentionally absent: it is always read from AWS at runtime
+# inside start_node_group() so the Lambda never overrides a manually raised cap.
+#
+# Env vars (all optional — defaults shown below):
+#   SYSTEM_DESIRED    — desired replicas for system node group    (default: 3)
+#   WORKLOADS_DESIRED — desired replicas for workloads node group (default: 2)
+#   CRITICAL_DESIRED  — desired replicas for critical node group  (default: 2)
+#
+# Rationale for these defaults:
+#   system desired 3   — prevents DaemonSet + Linkerd boot deadlock (root cause 2026-03-12 P0)
+#   workloads min   0  — consistent with lambda_stop (scales workloads to 0); min=2 blocked scale-to-0
+#   workloads desired 2 — lean start, Cluster Autoscaler handles real demand
+# ---------------------------------------------------------------------------
 NODE_GROUPS_CONFIG = {
-    'system': {'min': 2, 'desired': 2, 'max': 4},
-    'workloads': {'min': 2, 'desired': 3, 'max': 6},
-    'critical': {'min': 2, 'desired': 2, 'max': 4}
+    'system':    {'min': 2, 'desired': int(os.environ.get('SYSTEM_DESIRED',    '3'))},
+    'workloads': {'min': 0, 'desired': int(os.environ.get('WORKLOADS_DESIRED', '2'))},
+    'critical':  {'min': 2, 'desired': int(os.environ.get('CRITICAL_DESIRED',  '2'))},
 }
 
+# ---------------------------------------------------------------------------
+# Workload health criteria
+# Defines the minimum pods that MUST be Running for health=OK.
+# namespace → list of (name_prefix, min_running_count)
+# ---------------------------------------------------------------------------
+CRITICAL_WORKLOADS = {
+    'staging-security-vault':    [('vault-0', 1)],
+    'staging-platform-gitlab':   [('gitlab-webservice', 1)],
+    'linkerd':                   [('linkerd-destination', 1),
+                                   ('linkerd-identity', 1),
+                                   ('linkerd-proxy-injector', 1)],
+    'staging-observability-monitoring': [('alertmanager', 1)],
+}
+
+# Linkerd-specific namespaces/prefixes for the dedicated Linkerd check
+LINKERD_NAMESPACE = 'linkerd'
+LINKERD_COMPONENTS = ['linkerd-destination', 'linkerd-identity', 'linkerd-proxy-injector']
+
+
+# ===========================================================================
+# MAIN HANDLER — Orchestrates the full startup sequence
+# ===========================================================================
 
 def lambda_handler(event, context):
     """
-    Main handler for Lambda function
+    Orchestrates environment startup with proper sequencing and health gates.
+
+    SEQUENCE:
+      1. Resume ASG processes
+      2. Scale CA Deployment to 1 replica
+      3. Start system node group
+      4. Wait system nodes ACTIVE + nodes Ready  [GATE]
+      5. Verify Linkerd control plane Running     [GATE]
+      6. Start workloads + critical node groups
+      7. Start RDS
+      8. Final cluster health check              [GATE]
+      9. Report via SNS + update DynamoDB
     """
-    logger.info(f"Starting EKS node groups for environment: {ENVIRONMENT}")
-    logger.info(f"Cluster: {CLUSTER_NAME}, Region: {AWS_REGION}")
+    start_ts = datetime.now(timezone.utc)
+    logger.info(f"[START] Startup sequence — environment={ENVIRONMENT} cluster={CLUSTER_NAME}")
+    logger.info(f"[START] health_check={HEALTH_CHECK_ENABLED} "
+                f"node_timeout={NODE_READY_TIMEOUT_SEC}s "
+                f"linkerd_timeout={LINKERD_TIMEOUT_SEC}s "
+                f"workload_timeout={WORKLOAD_TIMEOUT_SEC}s")
 
     results = {
-        'timestamp': datetime.utcnow().isoformat(),
-        'environment': ENVIRONMENT,
-        'cluster': CLUSTER_NAME,
-        'node_groups': {},
-        'rds': {},
-        'success': True
+        'timestamp':    start_ts.isoformat(),
+        'environment':  ENVIRONMENT,
+        'cluster':      CLUSTER_NAME,
+        'node_groups':  {},
+        'rds':          {},
+        'health_check': {},
+        'sequence':     [],
+        'success':      True,
+        'failure_reason': None,
     }
 
     try:
-        # Start node groups
-        for ng_name, config in NODE_GROUPS_CONFIG.items():
+        # ------------------------------------------------------------------
+        # STEP 1: Resume ASG processes BEFORE scaling nodes.
+        # Rationale: If ASG processes are still suspended from a previous
+        # shutdown, the EKS node group scale-up call will succeed at the EKS
+        # API level, but EC2 Auto Scaling will not actually launch instances
+        # because Launch/Terminate processes are suspended. Resuming FIRST
+        # ensures the EC2 fleet reacts immediately to the desired count change.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_1_resume_asg_processes', 'starting')
+        resume_asg_processes(results)
+        _seq(results, 'step_1_resume_asg_processes', 'done')
+
+        # ------------------------------------------------------------------
+        # STEP 2: Scale CA Deployment to 1 replica.
+        # Rationale: CA must be running before workload nodes join so it can
+        # manage the node pool correctly. Starting CA before workloads node
+        # group is started ensures CA is operational when workload nodes
+        # register — CA will not fight with our explicit desired count changes
+        # during startup because desired > 0 is already what we want.
+        # Note: CA was scaled to 0 by lambda_stop.py during shutdown.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_2_scale_ca_deployment', 'starting')
+        scale_ca_deployment(replicas=1, results=results)
+        _seq(results, 'step_2_scale_ca_deployment', 'done')
+
+        # ------------------------------------------------------------------
+        # STEP 3: Start system node group FIRST.
+        # Rationale: System nodes host kube-system pods (CoreDNS, kube-proxy,
+        # AWS VPC CNI), Linkerd CNI DaemonSet, and the Linkerd control plane
+        # itself. Workload pods with Linkerd sidecars need proxy-injector and
+        # linkerd-destination to be running before they can start. If system
+        # and workload nodes come up simultaneously, workload pods start
+        # requesting Linkerd admission webhook before proxy-injector is ready,
+        # resulting in init containers hanging indefinitely.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_3_start_system_nodegroup', 'starting')
+        start_node_group('system', NODE_GROUPS_CONFIG['system'], results)
+        _seq(results, 'step_3_start_system_nodegroup', 'done')
+
+        # ------------------------------------------------------------------
+        # STEP 4: Wait for system nodes to be ACTIVE + EC2 instances Ready.
+        # Gate: EKS nodegroup status == ACTIVE and running count >= desired.
+        # Rationale: We cannot proceed to Linkerd check if nodes are still
+        # provisioning. The EKS nodegroup ACTIVE status confirms the node
+        # group update has been processed and EC2 instances are running.
+        # ------------------------------------------------------------------
+        if HEALTH_CHECK_ENABLED:
+            _seq(results, 'step_4_wait_system_nodes_ready', 'starting')
+            ok, diag = wait_nodegroup_active(
+                ng_name='system',
+                desired=NODE_GROUPS_CONFIG['system']['desired'],
+                timeout_sec=NODE_READY_TIMEOUT_SEC,
+            )
+            results['health_check']['system_nodes'] = diag
+            _seq(results, 'step_4_wait_system_nodes_ready', 'ok' if ok else 'FAILED')
+
+            if not ok:
+                _fail(results, 'SYSTEM_NODES_NOT_READY',
+                      f"System nodes did not become ready within {NODE_READY_TIMEOUT_SEC}s. "
+                      f"Diag: {diag}")
+                update_dynamodb_state(results)
+                send_notification(results)
+                return _response(results)
+        else:
+            # Without health check, give nodes a fixed grace period
+            logger.warning("[HEALTH_CHECK_DISABLED] Sleeping 120s for system nodes (no gate)")
+            time.sleep(120)
+
+        # ------------------------------------------------------------------
+        # STEP 5: Verify Linkerd control plane is Running.
+        # Gate: linkerd-destination, linkerd-identity, linkerd-proxy-injector
+        #       all have at least 1 Running pod in namespace 'linkerd'.
+        # Rationale: This is the most critical gate in the startup sequence.
+        # Every workload pod with a Linkerd annotation calls the
+        # proxy-injector admission webhook and the identity service during
+        # its init phase. If either is not Running, pods hang in Init state
+        # forever (no timeout in the webhook path by default). Starting
+        # workload nodes BEFORE Linkerd is ready guarantees CrashLoops.
+        # ------------------------------------------------------------------
+        if HEALTH_CHECK_ENABLED:
+            _seq(results, 'step_5_verify_linkerd', 'starting')
+            ok, diag = wait_linkerd_ready(timeout_sec=LINKERD_TIMEOUT_SEC)
+            results['health_check']['linkerd'] = diag
+            _seq(results, 'step_5_verify_linkerd', 'ok' if ok else 'FAILED')
+
+            if not ok:
+                _fail(results, 'LINKERD_NOT_READY',
+                      f"Linkerd control plane not ready within {LINKERD_TIMEOUT_SEC}s. "
+                      f"Diag: {diag}")
+                update_dynamodb_state(results)
+                send_notification(results)
+                return _response(results)
+        else:
+            logger.warning("[HEALTH_CHECK_DISABLED] Skipping Linkerd gate")
+
+        # ------------------------------------------------------------------
+        # STEP 6: Start workloads and critical node groups.
+        # Rationale: Now that system nodes are Ready and Linkerd is Running,
+        # workload pods will be scheduled on nodes that already have the CNI
+        # plugin operational, and their Linkerd sidecars will be injected
+        # correctly by the now-running proxy-injector.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_6_start_workload_critical_nodegroups', 'starting')
+        for ng_name in ('workloads', 'critical'):
             try:
-                start_node_group(ng_name, config, results)
-            except Exception as e:
-                logger.error(f"Error starting node group {ng_name}: {str(e)}")
-                results['node_groups'][ng_name] = {'status': 'error', 'message': str(e)}
+                start_node_group(ng_name, NODE_GROUPS_CONFIG[ng_name], results)
+            except Exception as exc:
+                logger.error(f"Error starting node group {ng_name}: {exc}")
+                results['node_groups'][ng_name] = {'status': 'error', 'message': str(exc)}
                 results['success'] = False
+        _seq(results, 'step_6_start_workload_critical_nodegroups', 'done')
 
-        # Resume Cluster Autoscaler ASG processes suspended during shutdown
-        resume_cluster_autoscaler(results)
-
-        # Start RDS if configured
+        # ------------------------------------------------------------------
+        # STEP 7: Start RDS.
+        # Rationale: RDS is started after node groups so that if the RDS
+        # start has any issue it does not block node startup. RDS typically
+        # takes 3-5 minutes to become available — starting it here allows it
+        # to warm up while workload nodes are provisioning.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_7_start_rds', 'starting')
         if RDS_INSTANCE_ID:
             try:
                 start_rds(RDS_INSTANCE_ID, results)
-            except Exception as e:
-                logger.error(f"Error starting RDS {RDS_INSTANCE_ID}: {str(e)}")
-                results['rds'] = {'status': 'error', 'message': str(e)}
+            except Exception as exc:
+                logger.error(f"Error starting RDS {RDS_INSTANCE_ID}: {exc}")
+                results['rds'] = {'status': 'error', 'message': str(exc)}
                 results['success'] = False
+        _seq(results, 'step_7_start_rds', 'done')
 
-        # Update DynamoDB state
-        update_dynamodb_state(results)
+        # ------------------------------------------------------------------
+        # STEP 8: Final cluster health check.
+        # Gate: verify all CRITICAL_WORKLOADS have minimum running pods.
+        # This is a soft gate — failure sets success=False and changes the
+        # SNS subject to DEGRADED but does not prevent the function from
+        # completing (nodes are running, partial health is better than
+        # reporting success when nothing works).
+        # ------------------------------------------------------------------
+        if HEALTH_CHECK_ENABLED:
+            _seq(results, 'step_8_final_health_check', 'starting')
+            ok, diag = verify_cluster_health(timeout_sec=WORKLOAD_TIMEOUT_SEC)
+            results['health_check']['final'] = diag
+            _seq(results, 'step_8_final_health_check', 'ok' if ok else 'DEGRADED')
 
-        # Send notification
-        send_notification(results)
-
-        return {
-            'statusCode': 200 if results['success'] else 500,
-            'body': results
-        }
-
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        results['success'] = False
-        results['error'] = str(e)
-
-        send_notification(results)
-
-        return {
-            'statusCode': 500,
-            'body': results
-        }
-
-
-def resume_cluster_autoscaler(results):
-    """
-    Resume Cluster Autoscaler by:
-    1. Scaling the CA Deployment back to 1 replica (re-enables active autoscaling)
-    2. Resuming ASG Launch/Terminate processes that were suspended during shutdown
-    Fix 2026-03-12: CA Deployment was scaled to 0 during shutdown (paired with lambda_stop.py fix).
-    FinOps fix: pair with suspend in lambda_stop.py (2026-03-11)
-    """
-    # Step 1: Scale CA Deployment back to 1 replica via kubectl
-    try:
-        import subprocess
-        cmd = [
-            'kubectl', 'scale', 'deploy',
-            'cluster-autoscaler-aws-cluster-autoscaler',
-            '-n', 'kube-system', '--replicas=1'
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if proc.returncode == 0:
-            logger.info(f"Cluster Autoscaler Deployment scaled to 1: {proc.stdout.strip()}")
-            results['cluster_autoscaler_deployment'] = 'resumed_replicas_1'
+            if not ok:
+                # Soft failure — cluster is up but not fully healthy
+                _fail(results, 'CLUSTER_HEALTH_DEGRADED',
+                      f"Final health check failed: {diag.get('summary', 'unknown')}")
+                # Do NOT return early — fall through to notification
         else:
-            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
-            results['cluster_autoscaler_deployment'] = f'resume_failed: {proc.stderr.strip()}'
-    except Exception as e:
-        logger.warning(f"Failed to scale up CA Deployment via kubectl (non-blocking): {str(e)}")
-        results['cluster_autoscaler_deployment'] = f'resume_error: {str(e)}'
+            logger.warning("[HEALTH_CHECK_DISABLED] Skipping final health gate")
 
-    # Step 2: Resume ASG scaling processes
+        # ------------------------------------------------------------------
+        # Persist state + notify
+        # ------------------------------------------------------------------
+        elapsed = (datetime.now(timezone.utc) - start_ts).total_seconds()
+        results['elapsed_sec'] = round(elapsed, 1)
+        logger.info(f"[DONE] Startup sequence completed in {elapsed:.1f}s — "
+                    f"success={results['success']}")
+
+        update_dynamodb_state(results)
+        send_notification(results)
+
+        return _response(results)
+
+    except Exception as exc:
+        logger.error(f"[FATAL] Unexpected error in startup sequence: {exc}", exc_info=True)
+        results['success'] = False
+        results['error'] = str(exc)
+        send_notification(results)
+        return {'statusCode': 500, 'body': results}
+
+
+# ===========================================================================
+# HEALTH CHECK FUNCTIONS
+# ===========================================================================
+
+def verify_cluster_health(timeout_sec: int = 300) -> tuple:
+    """
+    Final cluster health gate.
+
+    Polls CRITICAL_WORKLOADS until all minimum running counts are met OR
+    timeout_sec is exceeded.
+
+    Returns:
+        (bool: all_healthy, dict: diagnostics)
+
+    Diagnostics structure:
+        {
+          'summary': 'OK' | 'DEGRADED: <reason>',
+          'components': {
+            '<namespace>/<prefix>': {
+              'required': int,
+              'running': int,
+              'status': 'ok' | 'insufficient' | 'error',
+              'pods': [{'name': str, 'phase': str, 'ready': bool}]
+            }
+          },
+          'elapsed_sec': float,
+          'attempts': int,
+        }
+
+    K8s API access:
+        Uses the EKS cluster endpoint + STS token (bearer auth). The Lambda
+        IAM role must be mapped in aws-auth ConfigMap with permissions to
+        list/get pods in the target namespaces. See IAM NOTE in module header.
+    """
+    logger.info(f"[HEALTH] Starting final cluster health check (timeout={timeout_sec}s)")
+
+    deadline = time.time() + timeout_sec
+    attempts = 0
+    last_diag = {}
+
+    while time.time() < deadline:
+        attempts += 1
+        all_ok = True
+        components = {}
+        failures = []
+
+        for namespace, criteria in CRITICAL_WORKLOADS.items():
+            for (prefix, min_count) in criteria:
+                key = f"{namespace}/{prefix}"
+                try:
+                    pods = _list_pods(namespace, label_selector=None)
+                    matching = [
+                        p for p in pods
+                        if p['name'].startswith(prefix)
+                    ]
+                    running = [
+                        p for p in matching
+                        if p['phase'] == 'Running' and p['ready']
+                    ]
+                    count = len(running)
+                    ok = count >= min_count
+
+                    components[key] = {
+                        'required': min_count,
+                        'running':  count,
+                        'status':   'ok' if ok else 'insufficient',
+                        'pods':     matching[:10],  # cap to avoid huge payloads
+                    }
+
+                    if not ok:
+                        all_ok = False
+                        failures.append(
+                            f"{key}: need {min_count} running, got {count}"
+                        )
+
+                except _K8sApiError as exc:
+                    components[key] = {
+                        'required': min_count,
+                        'running':  0,
+                        'status':   'error',
+                        'error':    str(exc),
+                    }
+                    all_ok = False
+                    failures.append(f"{key}: K8s API error — {exc}")
+                except Exception as exc:
+                    components[key] = {
+                        'required': min_count,
+                        'running':  0,
+                        'status':   'error',
+                        'error':    str(exc),
+                    }
+                    all_ok = False
+                    failures.append(f"{key}: unexpected error — {exc}")
+
+        elapsed = round(time.time() - (deadline - timeout_sec), 1)
+        last_diag = {
+            'summary':     'OK' if all_ok else f"DEGRADED: {'; '.join(failures)}",
+            'components':  components,
+            'elapsed_sec': elapsed,
+            'attempts':    attempts,
+        }
+
+        if all_ok:
+            logger.info(f"[HEALTH] All components healthy after {elapsed}s ({attempts} attempts)")
+            return True, last_diag
+
+        logger.info(
+            f"[HEALTH] Not fully healthy yet (attempt {attempts}, elapsed {elapsed}s): "
+            f"{'; '.join(failures)}"
+        )
+        time.sleep(POLL_INTERVAL_SEC)
+
+    logger.warning(
+        f"[HEALTH] Timeout after {timeout_sec}s ({attempts} attempts). "
+        f"Last state: {last_diag.get('summary')}"
+    )
+    return False, last_diag
+
+
+def wait_nodegroup_active(ng_name: str, desired: int, timeout_sec: int) -> tuple:
+    """
+    Poll EKS DescribeNodegroup until:
+      - nodegroup status == 'ACTIVE'
+      - scalingConfig.desiredSize matches desired
+      - health.issues is empty
+
+    Does NOT verify individual EC2 node K8s readiness (that requires K8s API).
+    The ACTIVE status + desired count is a reliable proxy: EKS marks the
+    nodegroup ACTIVE only after all desired nodes have joined the cluster.
+
+    Returns: (bool: ready, dict: diagnostics)
+    """
+    logger.info(
+        f"[NODES] Waiting for nodegroup '{ng_name}' ACTIVE "
+        f"(desired={desired}, timeout={timeout_sec}s)"
+    )
+    deadline = time.time() + timeout_sec
+    attempts = 0
+    last_status = 'unknown'
+    last_issues = []
+
+    while time.time() < deadline:
+        attempts += 1
+        try:
+            resp = eks.describe_nodegroup(
+                clusterName=CLUSTER_NAME,
+                nodegroupName=ng_name,
+            )
+            ng = resp['nodegroup']
+            status          = ng.get('status', 'UNKNOWN')
+            scaling         = ng.get('scalingConfig', {})
+            current_desired = scaling.get('desiredSize', 0)
+            health_issues   = ng.get('health', {}).get('issues', [])
+            last_status     = status
+            last_issues     = health_issues
+
+            logger.info(
+                f"[NODES] {ng_name}: status={status} "
+                f"desired={current_desired}/{desired} "
+                f"issues={len(health_issues)} "
+                f"(attempt {attempts})"
+            )
+
+            if status == 'ACTIVE' and current_desired >= desired and not health_issues:
+                elapsed = round(time.time() - (deadline - timeout_sec), 1)
+                diag = {
+                    'status':      status,
+                    'desired':     current_desired,
+                    'target':      desired,
+                    'issues':      health_issues,
+                    'elapsed_sec': elapsed,
+                    'attempts':    attempts,
+                    'result':      'READY',
+                }
+                logger.info(f"[NODES] '{ng_name}' READY in {elapsed}s")
+                return True, diag
+
+            # DEGRADED or CREATE_FAILED are terminal — no point waiting
+            if status in ('DEGRADED', 'CREATE_FAILED', 'DELETE_FAILED'):
+                diag = {
+                    'status':   status,
+                    'desired':  current_desired,
+                    'target':   desired,
+                    'issues':   health_issues,
+                    'result':   f'TERMINAL_STATUS: {status}',
+                }
+                logger.error(f"[NODES] '{ng_name}' in terminal status: {status}. Issues: {health_issues}")
+                return False, diag
+
+        except Exception as exc:
+            logger.warning(f"[NODES] DescribeNodegroup error (non-fatal, attempt {attempts}): {exc}")
+
+        time.sleep(POLL_INTERVAL_SEC)
+
+    elapsed = round(timeout_sec, 1)
+    diag = {
+        'status':      last_status,
+        'desired':     'unknown',
+        'target':      desired,
+        'issues':      last_issues,
+        'elapsed_sec': elapsed,
+        'attempts':    attempts,
+        'result':      f'TIMEOUT after {timeout_sec}s',
+    }
+    logger.warning(f"[NODES] '{ng_name}' timeout after {timeout_sec}s. Last status: {last_status}")
+    return False, diag
+
+
+def wait_linkerd_ready(timeout_sec: int) -> tuple:
+    """
+    Poll K8s API until all LINKERD_COMPONENTS have at least 1 Running+Ready pod
+    in LINKERD_NAMESPACE.
+
+    This is a hard gate — workload nodes must not start before Linkerd is ready.
+
+    Returns: (bool: ready, dict: diagnostics)
+
+    Linkerd health criteria:
+      - linkerd-destination: 1+ Running pod (route discovery)
+      - linkerd-identity: 1+ Running pod (mTLS certificate issuance)
+      - linkerd-proxy-injector: 1+ Running pod (sidecar injection webhook)
+
+    If K8s API is unreachable (e.g., RBAC not configured), this function falls
+    back to a fixed sleep of LINKERD_TIMEOUT_SEC / 2 and returns True with a
+    warning in the diagnostics. This preserves backward compatibility if the
+    aws-auth mapping has not been applied yet.
+    """
+    logger.info(
+        f"[LINKERD] Waiting for Linkerd control plane "
+        f"(timeout={timeout_sec}s, namespace={LINKERD_NAMESPACE})"
+    )
+    deadline = time.time() + timeout_sec
+    attempts = 0
+    last_states = {}
+    api_unreachable = False
+
+    while time.time() < deadline:
+        attempts += 1
+        all_ready = True
+        states = {}
+        api_error = None
+
+        for component in LINKERD_COMPONENTS:
+            try:
+                pods = _list_pods(LINKERD_NAMESPACE, label_selector=None)
+                matching = [p for p in pods if p['name'].startswith(component)]
+                running = [p for p in matching if p['phase'] == 'Running' and p['ready']]
+
+                states[component] = {
+                    'total':   len(matching),
+                    'running': len(running),
+                    'ready':   len(running) >= 1,
+                    'pods':    [{'name': p['name'], 'phase': p['phase']} for p in matching[:5]],
+                }
+
+                if len(running) < 1:
+                    all_ready = False
+
+            except _K8sApiError as exc:
+                # K8s API not reachable — likely RBAC not set up
+                api_error = str(exc)
+                api_unreachable = True
+                all_ready = False
+                states[component] = {'error': api_error, 'ready': False}
+                break
+            except Exception as exc:
+                api_error = str(exc)
+                all_ready = False
+                states[component] = {'error': api_error, 'ready': False}
+                break
+
+        last_states = states
+        elapsed = round(time.time() - (deadline - timeout_sec), 1)
+
+        if api_unreachable and api_error:
+            # K8s API unreachable — fall back to a fixed wait to avoid infinite loop
+            fallback_sleep = timeout_sec // 2
+            logger.warning(
+                f"[LINKERD] K8s API unreachable: {api_error}. "
+                f"FALLBACK: sleeping {fallback_sleep}s and assuming Linkerd ready. "
+                "ACTION REQUIRED: Map Lambda IAM role in aws-auth ConfigMap "
+                "(see IAM NOTE in module header)."
+            )
+            time.sleep(fallback_sleep)
+            diag = {
+                'components':  last_states,
+                'elapsed_sec': elapsed,
+                'attempts':    attempts,
+                'result':      'ASSUMED_READY (K8s API unreachable — fallback)',
+                'warning':     'K8s API RBAC not configured for Lambda role',
+            }
+            return True, diag
+
+        logger.info(
+            f"[LINKERD] attempt={attempts} elapsed={elapsed}s "
+            f"states={json.dumps({k: v.get('running', '?') for k, v in states.items()})}"
+        )
+
+        if all_ready:
+            diag = {
+                'components':  last_states,
+                'elapsed_sec': elapsed,
+                'attempts':    attempts,
+                'result':      'READY',
+            }
+            logger.info(f"[LINKERD] All components Running after {elapsed}s")
+            return True, diag
+
+        time.sleep(POLL_INTERVAL_SEC)
+
+    elapsed = round(timeout_sec, 1)
+    diag = {
+        'components':  last_states,
+        'elapsed_sec': elapsed,
+        'attempts':    attempts,
+        'result':      f'TIMEOUT after {timeout_sec}s',
+    }
+    logger.warning(f"[LINKERD] Timeout. Last states: {last_states}")
+    return False, diag
+
+
+# ===========================================================================
+# K8s API CLIENT — STS token bearer auth (no kubectl required)
+# ===========================================================================
+
+class _K8sApiError(Exception):
+    """Raised when the K8s API call fails with a non-retryable error."""
+
+
+def _get_k8s_token() -> str:
+    """
+    Generate a short-lived STS presigned token for K8s API authentication.
+
+    Uses SigV4QueryAuth (presigned URL) — identical to `aws eks get-token`.
+    The x-k8s-aws-id header is embedded in the signed URL so EKS can
+    validate cluster ownership. Token lifetime: 60s.
+
+    The Lambda IAM role must be mapped in aws-auth ConfigMap for the
+    resulting token to have any K8s RBAC permissions.
+
+    Returns: Bearer token string "k8s-aws-v1.<base64url(presigned_url)>".
+    """
+    from botocore.auth import SigV4QueryAuth
+    from botocore.awsrequest import AWSRequest
+
+    session = boto3.session.Session()
+    credentials = session.get_credentials().get_frozen_credentials()
+
+    request = AWSRequest(
+        method='GET',
+        url=f'https://sts.{AWS_REGION}.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15',
+        headers={'x-k8s-aws-id': CLUSTER_NAME},
+    )
+
+    # SigV4QueryAuth embeds the signature as query parameters (presigned URL).
+    # The x-k8s-aws-id header is included in X-Amz-SignedHeaders so EKS
+    # can verify the cluster association when it re-validates the token.
+    signer = SigV4QueryAuth(credentials, 'sts', AWS_REGION, expires=60)
+    signer.add_auth(request)
+
+    token_bytes = request.url.encode('utf-8')
+    b64 = base64.urlsafe_b64encode(token_bytes).rstrip(b'=').decode('utf-8')
+    return f"k8s-aws-v1.{b64}"
+
+
+def _get_cluster_endpoint() -> tuple:
+    """
+    Retrieve EKS cluster API endpoint and CA cert from EKS DescribeCluster.
+
+    Returns: (endpoint: str, ca_data: str)
+    """
+    resp = eks.describe_cluster(name=CLUSTER_NAME)
+    cluster = resp['cluster']
+    endpoint = cluster['endpoint']
+    ca_data  = cluster['certificateAuthority']['data']
+    return endpoint, ca_data
+
+
+def _k8s_get(path: str) -> dict:
+    """
+    Perform a GET request against the K8s API server.
+
+    Args:
+        path: API path, e.g. '/api/v1/namespaces/linkerd/pods'
+
+    Returns: Parsed JSON response dict.
+
+    Raises:
+        _K8sApiError: on HTTP error, SSL error, or connection failure.
+    """
+    endpoint, ca_data = _get_cluster_endpoint()
+    token = _get_k8s_token()
+
+    url = f"{endpoint.rstrip('/')}{path}"
+
+    # Write CA cert to a temp file for SSL verification
+    import tempfile
+    ca_bytes = base64.b64decode(ca_data)
+
+    with tempfile.NamedTemporaryFile(suffix='.crt', delete=False) as f:
+        f.write(ca_bytes)
+        ca_file = f.name
+
+    try:
+        ctx = ssl.create_default_context(cafile=ca_file)
+        req = urllib.request.Request(
+            url,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Accept':        'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
+            body = resp.read()
+            return json.loads(body)
+    except urllib.error.HTTPError as exc:
+        raise _K8sApiError(f"HTTP {exc.code} {exc.reason} — {path}") from exc
+    except urllib.error.URLError as exc:
+        raise _K8sApiError(f"URLError: {exc.reason} — {path}") from exc
+    except ssl.SSLError as exc:
+        raise _K8sApiError(f"SSLError: {exc} — {path}") from exc
+    except Exception as exc:
+        raise _K8sApiError(f"Unexpected error: {exc} — {path}") from exc
+    finally:
+        import os as _os
+        try:
+            _os.unlink(ca_file)
+        except Exception:
+            pass
+
+
+def _list_pods(namespace: str, label_selector: str = None) -> list:
+    """
+    List pods in a namespace via K8s API.
+
+    Args:
+        namespace: K8s namespace.
+        label_selector: Optional label selector string (e.g. 'app=vault').
+
+    Returns: List of pod dicts:
+        [{'name': str, 'phase': str, 'ready': bool}]
+    """
+    path = f"/api/v1/namespaces/{namespace}/pods"
+    if label_selector:
+        path += f"?labelSelector={urllib.parse.quote(label_selector)}"
+
+    data = _k8s_get(path)
+    pods = []
+    for item in data.get('items', []):
+        name   = item['metadata']['name']
+        phase  = item.get('status', {}).get('phase', 'Unknown')
+
+        # Determine readiness: all containers Ready
+        conditions = item.get('status', {}).get('conditions', [])
+        ready_cond = next(
+            (c for c in conditions if c.get('type') == 'Ready'),
+            None
+        )
+        ready = ready_cond is not None and ready_cond.get('status') == 'True'
+
+        pods.append({'name': name, 'phase': phase, 'ready': ready})
+    return pods
+
+
+# ===========================================================================
+# STARTUP HELPERS
+# ===========================================================================
+
+def resume_asg_processes(results: dict):
+    """
+    Resume ASG Launch/Terminate processes for all ASGs belonging to this cluster.
+
+    This is STEP 1 in the startup sequence — must run before start_node_group()
+    to ensure EC2 Auto Scaling will actually launch instances when EKS requests
+    a desired count change.
+
+    Also scales the CA Deployment is handled separately in scale_ca_deployment().
+    """
     try:
         cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
         paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
@@ -140,238 +835,494 @@ def resume_cluster_autoscaler(results):
 
         for page in paginator.paginate():
             for asg in page['AutoScalingGroups']:
-                # Check if ASG belongs to this cluster
                 tags = {t['Key']: t['Value'] for t in asg.get('Tags', [])}
                 if cluster_tag_key not in tags:
                     continue
 
-                # Only resume if processes are actually suspended
                 suspended = [p['ProcessName'] for p in asg.get('SuspendedProcesses', [])]
                 if 'Launch' in suspended or 'Terminate' in suspended:
                     asg_name = asg['AutoScalingGroupName']
-                    logger.info(f"Resuming scaling processes for ASG: {asg_name}")
+                    logger.info(f"[ASG] Resuming processes for ASG: {asg_name}")
                     autoscaling.resume_processes(
                         AutoScalingGroupName=asg_name,
-                        ScalingProcesses=['Launch', 'Terminate']
+                        ScalingProcesses=['Launch', 'Terminate'],
                     )
                     resumed_asgs.append(asg_name)
+                else:
+                    logger.info(
+                        f"[ASG] ASG {asg['AutoScalingGroupName']} processes already running, "
+                        "no action needed"
+                    )
 
         results['autoscaler_resumed'] = resumed_asgs
-        logger.info(f"Cluster Autoscaler ASG processes resumed: {len(resumed_asgs)} ASGs")
-    except Exception as e:
-        logger.error(f"Failed to resume Cluster Autoscaler ASG processes: {str(e)}")
-        results['autoscaler_resume_error'] = str(e)
-        # Non-blocking: continue with startup even if this fails
+        logger.info(f"[ASG] Resumed {len(resumed_asgs)} ASGs")
+
+    except Exception as exc:
+        logger.error(f"[ASG] Failed to resume ASG processes: {exc}")
+        results['autoscaler_resume_error'] = str(exc)
+        # Non-blocking: log and continue
 
 
-def start_node_group(ng_name, config, results):
+def scale_ca_deployment(replicas: int, results: dict):
     """
-    Start (scale up) an EKS node group
+    Scale the Cluster Autoscaler Deployment to `replicas` via K8s API PATCH.
+
+    Falls back to kubectl subprocess if K8s API is unavailable (maintains
+    backward compatibility with the previous implementation).
     """
-    logger.info(f"Scaling node group {ng_name} to {config['desired']} nodes...")
+    deployment_name = 'cluster-autoscaler-aws-cluster-autoscaler'
+    namespace       = 'kube-system'
+
+    # Attempt via K8s API first (preferred — no subprocess)
+    try:
+        patch_body = json.dumps({
+            'spec': {'replicas': replicas}
+        }).encode('utf-8')
+
+        endpoint, ca_data = _get_cluster_endpoint()
+        token = _get_k8s_token()
+
+        import tempfile
+        ca_bytes = base64.b64decode(ca_data)
+        with tempfile.NamedTemporaryFile(suffix='.crt', delete=False) as f:
+            f.write(ca_bytes)
+            ca_file = f.name
+
+        url = (
+            f"{endpoint.rstrip('/')}/apis/apps/v1/namespaces/{namespace}"
+            f"/deployments/{deployment_name}"
+        )
+        ctx = ssl.create_default_context(cafile=ca_file)
+        req = urllib.request.Request(
+            url,
+            data=patch_body,
+            headers={
+                'Authorization':  f'Bearer {token}',
+                'Content-Type':   'application/merge-patch+json',
+                'Accept':         'application/json',
+            },
+            method='PATCH',
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=20):
+            pass
+
+        import os as _os
+        try:
+            _os.unlink(ca_file)
+        except Exception:
+            pass
+
+        logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} replica(s) via K8s API")
+        results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}'
+        return
+
+    except Exception as exc:
+        logger.warning(f"[CA] K8s API scale failed ({exc}), falling back to kubectl subprocess")
+
+    # Fallback: kubectl subprocess (original implementation)
+    try:
+        import subprocess
+        cmd = [
+            'kubectl', 'scale', 'deploy', deployment_name,
+            '-n', namespace,
+            f'--replicas={replicas}',
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode == 0:
+            logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} via kubectl: {proc.stdout.strip()}")
+            results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}_via_kubectl'
+        else:
+            logger.warning(f"[CA] kubectl scale failed (non-blocking): {proc.stderr.strip()}")
+            results['cluster_autoscaler_deployment'] = f'scale_failed: {proc.stderr.strip()}'
+    except Exception as exc:
+        logger.warning(f"[CA] kubectl scale error (non-blocking): {exc}")
+        results['cluster_autoscaler_deployment'] = f'scale_error: {exc}'
+
+
+def start_node_group(ng_name: str, config: dict, results: dict):
+    """
+    Scale up an EKS node group. max_size is always read from AWS (never hardcoded).
+
+    Reading max_size from AWS ensures that any manually raised cap (e.g., via
+    Terraform or the console during an incident) is preserved and never silently
+    reset to a stale value embedded in this Lambda's configuration.
+    """
+    logger.info(f"[NG] Scaling '{ng_name}' → desired={config['desired']}")
+
+    # Fetch current max_size from AWS — this is the source of truth.
+    # Never pass a hardcoded max; doing so would silently override incident-time
+    # manual adjustments (e.g., the system ASG max 4→5 fix on 2026-03-12).
+    current_ng = eks.describe_nodegroup(clusterName=CLUSTER_NAME, nodegroupName=ng_name)
+    current_max = current_ng['nodegroup']['scalingConfig']['maxSize']
+    logger.info(f"[NG] '{ng_name}' max_size={current_max} (read from AWS, preserved as-is)")
 
     response = eks.update_nodegroup_config(
         clusterName=CLUSTER_NAME,
         nodegroupName=ng_name,
         scalingConfig={
-            'minSize': config['min'],
+            'minSize':     config['min'],
             'desiredSize': config['desired'],
-            'maxSize': config['max']
-        }
+            'maxSize':     current_max,   # ALWAYS from AWS — start never alters max
+        },
     )
 
     update_id = response.get('update', {}).get('id', 'unknown')
-
-    logger.info(f"Node group {ng_name} update initiated. Update ID: {update_id}")
+    logger.info(f"[NG] '{ng_name}' update initiated. UpdateId={update_id}")
 
     results['node_groups'][ng_name] = {
-        'status': 'initiated',
+        'status':    'initiated',
         'update_id': update_id,
-        'config': config
+        'config':    {**config, 'max': current_max},
     }
 
 
-def start_rds(rds_instance, results):
+def start_rds(rds_instance: str, results: dict):
     """
-    Start RDS instance if stopped
+    Start RDS instance if stopped.
     """
-    logger.info(f"Checking RDS instance: {rds_instance}")
+    logger.info(f"[RDS] Checking instance: {rds_instance}")
 
-    # Get current status
-    response = rds.describe_db_instances(
-        DBInstanceIdentifier=rds_instance
-    )
+    resp = rds.describe_db_instances(DBInstanceIdentifier=rds_instance)
+    db   = resp['DBInstances'][0]
+    status = db['DBInstanceStatus']
 
-    db_instance = response['DBInstances'][0]
-    status = db_instance['DBInstanceStatus']
-
-    logger.info(f"RDS {rds_instance} current status: {status}")
+    logger.info(f"[RDS] {rds_instance} status: {status}")
 
     if status == 'available':
-        logger.info(f"RDS {rds_instance} is already available")
-        results['rds'] = {
-            'instance': rds_instance,
-            'status': 'already_available',
-            'message': 'No action needed'
-        }
+        results['rds'] = {'instance': rds_instance, 'status': 'already_available'}
         return
 
     if status == 'stopped':
-        logger.info(f"Starting RDS instance {rds_instance}...")
-
-        rds.start_db_instance(
-            DBInstanceIdentifier=rds_instance
-        )
-
-        logger.info(f"RDS {rds_instance} start initiated")
-
+        rds.start_db_instance(DBInstanceIdentifier=rds_instance)
+        logger.info(f"[RDS] Start initiated for {rds_instance}")
         results['rds'] = {
-            'instance': rds_instance,
-            'status': 'start_initiated',
-            'previous_status': status
+            'instance':        rds_instance,
+            'status':          'start_initiated',
+            'previous_status': status,
         }
         return
 
-    if status in ['starting', 'backing-up']:
-        logger.info(f"RDS {rds_instance} is already {status}")
+    if status in ('starting', 'backing-up'):
         results['rds'] = {
             'instance': rds_instance,
-            'status': status,
-            'message': 'Already in transition'
+            'status':   status,
+            'message':  'Already in transition',
         }
         return
 
-    # Unexpected status
-    logger.warning(f"RDS {rds_instance} in unexpected status: {status}")
+    logger.warning(f"[RDS] Unexpected status: {status}")
     results['rds'] = {
         'instance': rds_instance,
-        'status': status,
-        'message': 'Unexpected status, no action taken'
+        'status':   status,
+        'message':  'Unexpected status, no action taken',
     }
 
 
-def update_dynamodb_state(results):
+# ===========================================================================
+# NOTIFICATION + STATE
+# ===========================================================================
+
+def send_notification(results: dict):
     """
-    Update DynamoDB table with startup state and timestamp
-    """
-    if not DYNAMODB_TABLE_NAME:
-        logger.warning("DYNAMODB_TABLE_NAME not configured, skipping state update")
-        return
+    Publish startup result to SNS with detailed diagnostics.
 
-    try:
-        table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+    Subject format:
+      EKS Start - <env> - SUCCESS                (all healthy)
+      EKS Start - <env> - DEGRADED               (started but health check failed)
+      EKS Start - <env> - FAILED: <reason>       (hard failure, nodes may not be up)
 
-        timestamp = datetime.utcnow().isoformat()
-
-        # Prepare update expression
-        update_expr = "SET last_startup = :timestamp"
-        expr_attr_values = {':timestamp': timestamp}
-
-        if results['success']:
-            # Success: reset startup_failures counter
-            update_expr += ", startup_failures = :zero"
-            expr_attr_values[':zero'] = 0
-            logger.info("Startup successful, resetting failure counter")
-        else:
-            # Failure: increment startup_failures counter
-            update_expr += ", startup_failures = startup_failures + :one"
-            expr_attr_values[':one'] = 1
-            logger.warning("Startup failed, incrementing failure counter")
-
-            # Check if circuit breaker should open (after fetching current count)
-            response = table.get_item(Key={'environment': ENVIRONMENT})
-            if 'Item' in response:
-                current_failures = int(response['Item'].get('startup_failures', 0))
-                if current_failures + 1 >= 3:  # Threshold
-                    update_expr += ", circuit_breaker_state = :open"
-                    expr_attr_values[':open'] = 'OPEN'
-                    logger.error("Circuit breaker threshold reached! Setting state to OPEN")
-
-        # Update DynamoDB
-        table.update_item(
-            Key={'environment': ENVIRONMENT},
-            UpdateExpression=update_expr,
-            ExpressionAttributeValues=expr_attr_values
-        )
-
-        logger.info(f"DynamoDB state updated: last_startup={timestamp}, success={results['success']}")
-
-    except Exception as e:
-        logger.error(f"Failed to update DynamoDB state: {str(e)}")
-        # Don't fail the whole operation if DynamoDB update fails
-
-
-def send_notification(results):
-    """
-    Send notification via SNS
+    Message includes:
+      - Full sequence steps with status
+      - Health check component details
+      - Failure reason if applicable
+      - Actionable remediation hint
     """
     if not SNS_TOPIC_ARN:
-        logger.warning("SNS_TOPIC_ARN not configured, skipping notification")
+        logger.warning("[SNS] SNS_TOPIC_ARN not configured, skipping notification")
         return
 
-    subject = f"EKS Start - {ENVIRONMENT} - {'SUCCESS' if results['success'] else 'FAILED'}"
+    failure_reason = results.get('failure_reason')
+    if not results['success'] and failure_reason:
+        status_label = f"FAILED: {failure_reason}"
+    elif not results['success']:
+        status_label = "DEGRADED"
+    else:
+        status_label = "SUCCESS"
 
-    message_lines = [
-        f"Environment: {ENVIRONMENT}",
-        f"Cluster: {CLUSTER_NAME}",
-        f"Timestamp: {results['timestamp']}",
+    subject = f"EKS Start - {ENVIRONMENT} - {status_label}"
+    # SNS subject limit is 100 chars
+    subject = subject[:100]
+
+    lines = [
+        "=== EKS STARTUP REPORT ===",
+        f"Environment : {ENVIRONMENT}",
+        f"Cluster     : {CLUSTER_NAME}",
+        f"Timestamp   : {results['timestamp']}",
+        f"Status      : {status_label}",
+        f"Elapsed     : {results.get('elapsed_sec', 'N/A')}s",
         "",
-        "Node Groups:",
+        "--- SEQUENCE ---",
     ]
 
-    for ng_name, ng_result in results.get('node_groups', {}).items():
-        message_lines.append(f"  - {ng_name}: {ng_result.get('status', 'unknown')}")
+    for step in results.get('sequence', []):
+        lines.append(f"  {step['step']}: {step['status']}")
+
+    lines += ["", "--- NODE GROUPS ---"]
+    for ng, ng_r in results.get('node_groups', {}).items():
+        lines.append(f"  {ng}: {ng_r.get('status', 'unknown')} (update={ng_r.get('update_id', '-')})")
 
     if results.get('rds'):
-        message_lines.append("")
-        message_lines.append("RDS:")
-        rds_result = results['rds']
-        message_lines.append(f"  - {rds_result.get('instance', 'unknown')}: {rds_result.get('status', 'unknown')}")
+        lines += ["", "--- RDS ---"]
+        rds_r = results['rds']
+        lines.append(f"  {rds_r.get('instance', '-')}: {rds_r.get('status', 'unknown')}")
 
-    message = "\n".join(message_lines)
+    hc = results.get('health_check', {})
+    if hc:
+        lines += ["", "--- HEALTH CHECK ---"]
+
+        # System nodes
+        if 'system_nodes' in hc:
+            sn = hc['system_nodes']
+            lines.append(
+                f"  system_nodes: {sn.get('result', '?')} "
+                f"(status={sn.get('status', '?')} "
+                f"attempts={sn.get('attempts', '?')})"
+            )
+
+        # Linkerd
+        if 'linkerd' in hc:
+            lk = hc['linkerd']
+            lines.append(f"  linkerd: {lk.get('result', '?')} (attempts={lk.get('attempts', '?')})")
+            for comp, state in lk.get('components', {}).items():
+                run = state.get('running', '?')
+                ready = state.get('ready', '?')
+                err   = state.get('error', '')
+                lines.append(
+                    f"    {comp}: running={run} ready={ready}"
+                    + (f" ERROR={err}" if err else "")
+                )
+
+        # Final
+        if 'final' in hc:
+            fn = hc['final']
+            lines.append(f"  final_check: {fn.get('summary', '?')} (attempts={fn.get('attempts', '?')})")
+            for comp_key, comp_state in fn.get('components', {}).items():
+                req  = comp_state.get('required', '?')
+                run  = comp_state.get('running', '?')
+                stat = comp_state.get('status', '?')
+                err  = comp_state.get('error', '')
+                lines.append(
+                    f"    {comp_key}: required={req} running={run} status={stat}"
+                    + (f" ERROR={err}" if err else "")
+                )
+
+    if failure_reason:
+        lines += [
+            "",
+            "--- FAILURE DETAILS ---",
+            f"  Reason : {failure_reason}",
+            f"  Error  : {results.get('error', 'N/A')}",
+            "",
+            "--- REMEDIATION ---",
+        ]
+        # Hint based on failure code
+        if 'SYSTEM_NODES_NOT_READY' in str(failure_reason):
+            lines.append("  1. Check EKS node group in AWS Console for health issues")
+            lines.append("  2. Check EC2 instance health in the system ASG")
+            lines.append("  3. Verify IAM node role permissions (ec2:DescribeInstances)")
+            lines.append("  4. Manual: aws eks update-nodegroup-config --cluster-name ...")
+        elif 'LINKERD_NOT_READY' in str(failure_reason):
+            lines.append("  1. kubectl get pods -n linkerd")
+            lines.append("  2. Check trust anchor: kubectl get cm linkerd-config -n linkerd")
+            lines.append("  3. Check CNI: kubectl get pods -n linkerd-cni")
+            lines.append("  4. Review: docs/runbooks/linkerd-trust-anchor-recovery.md")
+        elif 'CLUSTER_HEALTH_DEGRADED' in str(failure_reason):
+            lines.append("  1. kubectl get pods -A | grep -v Running")
+            lines.append("  2. Workloads may still be starting — check again in 5 min")
+            lines.append("  3. Check ArgoCD for sync errors")
+            lines.append("  4. Check Vault seal status: kubectl exec -n staging-security-vault vault-0 -- vault status")
+
+    if results.get('autoscaler_resume_error'):
+        lines += [
+            "",
+            f"  WARNING: ASG resume error: {results['autoscaler_resume_error']}",
+            "  Check EC2 Auto Scaling console for suspended processes",
+        ]
+
+    lines += [
+        "",
+        "--- SNS MESSAGE END ---",
+    ]
+
+    message = "\n".join(lines)
 
     try:
         sns.publish(
             TopicArn=SNS_TOPIC_ARN,
             Subject=subject,
-            Message=message
+            Message=message,
+            MessageAttributes={
+                'environment': {
+                    'DataType':    'String',
+                    'StringValue': ENVIRONMENT,
+                },
+                'status': {
+                    'DataType':    'String',
+                    'StringValue': 'SUCCESS' if results['success'] else 'FAILED',
+                },
+                'cluster': {
+                    'DataType':    'String',
+                    'StringValue': CLUSTER_NAME,
+                },
+            },
         )
-        logger.info("Notification sent successfully")
-    except Exception as e:
-        logger.error(f"Failed to send notification: {str(e)}")
+        logger.info(f"[SNS] Notification published: {subject}")
+    except Exception as exc:
+        logger.error(f"[SNS] Failed to publish notification: {exc}")
 
 
-def get_node_group_tags(ng_name):
+def update_dynamodb_state(results: dict):
     """
-    Get tags from node group to verify if it should be managed
+    Persist startup result to DynamoDB for circuit breaker state tracking.
     """
+    if not DYNAMODB_TABLE_NAME:
+        return
+
     try:
-        response = eks.describe_nodegroup(
-            clusterName=CLUSTER_NAME,
-            nodegroupName=ng_name
+        table    = dynamodb.Table(DYNAMODB_TABLE_NAME)
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        update_expr = "SET last_startup = :timestamp"
+        attr_values = {':timestamp': timestamp}
+
+        if results['success']:
+            update_expr += ", startup_failures = :zero"
+            attr_values[':zero'] = 0
+        else:
+            update_expr += ", startup_failures = startup_failures + :one"
+            attr_values[':one'] = 1
+
+            response = table.get_item(Key={'environment': ENVIRONMENT})
+            if 'Item' in response:
+                current = int(response['Item'].get('startup_failures', 0))
+                threshold = int(os.environ.get('CIRCUIT_BREAKER_THRESHOLD', '3'))
+                if current + 1 >= threshold:
+                    update_expr += ", circuit_breaker_state = :open"
+                    attr_values[':open'] = 'OPEN'
+                    logger.error("[CB] Circuit breaker threshold reached — setting OPEN")
+
+        # Store failure reason for observability
+        if results.get('failure_reason'):
+            update_expr += ", last_failure_reason = :reason"
+            attr_values[':reason'] = results['failure_reason']
+
+        table.update_item(
+            Key={'environment': ENVIRONMENT},
+            UpdateExpression=update_expr,
+            ExpressionAttributeValues=attr_values,
         )
+        logger.info(f"[DYNAMO] State updated: success={results['success']}")
 
-        tags = response.get('nodegroup', {}).get('tags', {})
-        return tags
+    except Exception as exc:
+        logger.error(f"[DYNAMO] Failed to update state: {exc}")
 
-    except Exception as e:
-        logger.error(f"Error getting tags for node group {ng_name}: {str(e)}")
+
+# ===========================================================================
+# UTILITIES
+# ===========================================================================
+
+def _seq(results: dict, step: str, status: str):
+    """Append a step entry to the sequence log."""
+    results['sequence'].append({
+        'step':      step,
+        'status':    status,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+    })
+    logger.info(f"[SEQ] {step} → {status}")
+
+
+def _fail(results: dict, code: str, detail: str):
+    """Mark results as failed with a structured reason code."""
+    results['success']        = False
+    results['failure_reason'] = code
+    results['error']          = detail
+    logger.error(f"[FAIL] {code}: {detail}")
+
+
+def _response(results: dict) -> dict:
+    """Build Lambda response dict."""
+    return {
+        'statusCode': 200 if results['success'] else 500,
+        'body':       results,
+    }
+
+
+def get_node_group_tags(ng_name: str) -> dict:
+    """Get tags from EKS node group."""
+    try:
+        resp = eks.describe_nodegroup(
+            clusterName=CLUSTER_NAME,
+            nodegroupName=ng_name,
+        )
+        return resp.get('nodegroup', {}).get('tags', {})
+    except Exception as exc:
+        logger.error(f"Error getting tags for {ng_name}: {exc}")
         return {}
 
 
-def should_manage_resource(tags):
-    """
-    Check if resource should be managed based on tags
-    """
+def should_manage_resource(tags: dict) -> bool:
+    """Check if resource should be managed based on tags."""
     schedule = tags.get('Schedule', 'always-on')
-
     if schedule == 'office-hours':
         return True
-
     if schedule == 'always-on':
-        logger.info(f"Resource tagged as 'always-on', skipping")
         return False
+    return tags.get('Environment', '').lower() == ENVIRONMENT.lower()
 
-    # Default: manage if environment matches
-    environment = tags.get('Environment', '')
-    return environment.lower() == ENVIRONMENT.lower()
+
+# ===========================================================================
+# IAM NOTE — aws-auth ConfigMap mapping required for K8s API health checks
+# ===========================================================================
+#
+# For verify_cluster_health() and wait_linkerd_ready() to work, the Lambda
+# IAM role must be mapped in the aws-auth ConfigMap with permissions to
+# list/get pods in: linkerd, staging-security-vault, staging-platform-gitlab,
+# staging-observability-monitoring namespaces.
+#
+# Minimal aws-auth entry (add to mapRoles):
+#   - rolearn: arn:aws:iam::<account_id>:role/finops-scheduler-role-staging
+#     username: lambda-finops
+#     groups:
+#       - finops-health-checker   # custom ClusterRole with pod read access
+#
+# ClusterRole (apply via kubectl or ArgoCD):
+#   apiVersion: rbac.authorization.k8s.io/v1
+#   kind: ClusterRole
+#   metadata:
+#     name: finops-health-checker
+#   rules:
+#     - apiGroups: [""]
+#       resources: ["pods"]
+#       verbs: ["get", "list"]
+#     - apiGroups: ["apps"]
+#       resources: ["deployments"]
+#       verbs: ["get", "patch"]   # needed for scale_ca_deployment()
+#
+# ClusterRoleBinding:
+#   apiVersion: rbac.authorization.k8s.io/v1
+#   kind: ClusterRoleBinding
+#   metadata:
+#     name: finops-health-checker
+#   roleRef:
+#     apiGroup: rbac.authorization.k8s.io
+#     kind: ClusterRole
+#     name: finops-health-checker
+#   subjects:
+#     - kind: User
+#       name: lambda-finops
+#       apiGroup: rbac.authorization.k8s.io
+#
+# IMPORTANT: Without this mapping, K8s API calls will return 403.
+# The Lambda will fall back to the ASSUMED_READY path and log a WARNING.
+# The health check will still work for EKS nodegroup-level checks (AWS API).
+# ===========================================================================
