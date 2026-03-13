@@ -32,7 +32,7 @@ backstage:
   image:
     registry: harbor.staging.internal
     repository: platform/backstage
-    tag: "1.48.0"
+    tag: "1.48.0-oidc"
     pullPolicy: Always
     pullSecrets:
       - harbor-registry-secret
@@ -42,7 +42,11 @@ backstage:
   # ---------------------------------------------------------------------------
   appConfig:
     app:
+      title: Backstage Platform
       baseUrl: https://backstage.staging.internal
+      signIn:
+        providers:
+          - oidc
 
     backend:
       baseUrl: https://backstage.staging.internal
@@ -71,12 +75,17 @@ backstage:
       session:
         secret: ${AUTH_SESSION_SECRET}
       providers:
-        keycloak:
+        oidc:
           production:
             metadataUrl: https://keycloak.staging.internal/realms/platform/.well-known/openid-configuration
             clientId: ${KEYCLOAK_CLIENT_ID}
             clientSecret: ${KEYCLOAK_CLIENT_SECRET}
             prompt: auto
+            callbackUrl: https://backstage.staging.internal/api/auth/oidc/handler/frame
+            scope: 'openid profile email'
+            signIn:
+              resolvers:
+                - resolver: emailMatchingUserEntityProfileEmail
 
     # -------------------------------------------------------------------------
     # Integracoes de Source Control
@@ -92,6 +101,13 @@ backstage:
     # Schedule minimo 30min — rate limit GitLab 18.6+ (BAIXO-1)
     # -------------------------------------------------------------------------
     catalog:
+      locations:
+        - type: url
+          target: https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/catalog-info.yaml
+          rules:
+            - allow: [Location, Domain, System, Component, API, Group, User, Template, Resource]
+      rules:
+        - allow: [Component, System, API, Group, User, Domain, Location, Template, Resource]
       providers:
         gitlab:
           selfHosted:

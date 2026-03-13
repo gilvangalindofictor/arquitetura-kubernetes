@@ -218,6 +218,25 @@ stop_rds_instance() {
     esac
 }
 
+suspend_cluster_autoscaler() {
+    log "🤖 Suspendendo Cluster Autoscaler (evita restauração de desired=0)..."
+
+    # Scale down CA Deployment to 0 replicas to prevent it from restoring desired counts
+    kubectl scale deploy cluster-autoscaler-aws-cluster-autoscaler \
+        -n kube-system --replicas=0 2>&1 | tee -a "$LOG_FILE" || true
+
+    # Verify CA is down
+    local ca_replicas
+    ca_replicas=$(kubectl get deploy cluster-autoscaler-aws-cluster-autoscaler \
+        -n kube-system -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "unknown")
+
+    if [ "$ca_replicas" = "0" ]; then
+        log_success "Cluster Autoscaler suspenso (replicas=0)"
+    else
+        log_warning "Cluster Autoscaler pode não ter suspenso (replicas=$ca_replicas) — continuando"
+    fi
+}
+
 stop_node_groups() {
     log "🛑 Parando node groups do cluster $CLUSTER_NAME..."
 
@@ -226,10 +245,11 @@ stop_node_groups() {
 
         log "  → Scaling node group: $ng_name (min=$min, desired=$desired)"
 
+        # Fix 2026-03-12: Always set minSize=0 explicitly to prevent minSize blocking desired=0
         aws eks update-nodegroup-config \
             --cluster-name "$CLUSTER_NAME" \
             --nodegroup-name "$ng_name" \
-            --scaling-config minSize="$min",desiredSize="$desired",maxSize="$max" \
+            --scaling-config minSize=0,desiredSize="$desired",maxSize="$max" \
             --region "$AWS_REGION" \
             --output text >> "$LOG_FILE" 2>&1
 
@@ -415,6 +435,9 @@ main() {
 
     # Shutdown sequence
     drain_critical_pods || log_warning "Drain falhou, continuando..."
+
+    # Fix 2026-03-12: Suspend CA before scaling nodegroups to prevent desired=0 being restored
+    suspend_cluster_autoscaler
 
     create_rds_snapshot || log_warning "Snapshot falhou, continuando com stop..."
     stop_rds_instance || log_warning "RDS stop teve problemas"

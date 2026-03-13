@@ -108,6 +108,13 @@ extraEnv: |
     value: "INFO"
   - name: KC_HTTP_MANAGEMENT_HEALTH_ENABLED
     value: "false"  # Expose health on main HTTP port 8080 (mgmt port 9000 auto-disabled)
+  # S6-A (2026-03-12): KC_HOSTNAME fix — issuer deve ser URL externa (HTTPS) para browser.
+  # KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true: backend usa URL interna svc.cluster.local;
+  # browser recebe issuer https://keycloak.staging.internal (ALB internet-facing porta 80 → HTTPS).
+  - name: KC_HOSTNAME
+    value: "https://keycloak.staging.internal"
+  - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+    value: "true"
 
 # HTTP configuration
 http:
@@ -200,3 +207,17 @@ serviceMonitor:
   labels:
     release: prometheus
 %{ endif ~}
+
+# -----------------------------------------------------------------------------
+# Ingress — AWS ALB (internet-facing) com TLS terminado no ALB via ACM
+# CLEANUP-S6A (2026-03-12): certificate-arn movido para variável TF `acm_certificate_arn`.
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: "${acm_certificate_arn}"

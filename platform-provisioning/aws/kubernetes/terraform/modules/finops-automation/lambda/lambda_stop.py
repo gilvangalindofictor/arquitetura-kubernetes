@@ -136,14 +136,38 @@ def lambda_handler(event, context):
 
 def suspend_cluster_autoscaler(results):
     """
-    Suspend Cluster Autoscaler ASG scaling processes (Launch, Terminate)
-    to prevent DaemonSet Pending pods from triggering node scale-up after shutdown.
+    Suspend Cluster Autoscaler by:
+    1. Scaling down the CA Deployment to 0 replicas (prevents active CA from restoring desired counts)
+    2. Suspending ASG Launch/Terminate processes (prevents DaemonSet Pending pods from triggering scale-up)
+    Fix 2026-03-12: CA was restoring workloads nodegroup from desired=0 to desired=6 during shutdown.
     FinOps fix: weekend costs $38-39/dia → $8-12/dia (2026-03-11)
     """
     if not SUSPEND_AUTOSCALER_ON_STOP:
         logger.info("Cluster Autoscaler suspension disabled, skipping")
         return
 
+    # Step 1: Scale down CA Deployment to 0 replicas via kubectl
+    # This is the critical fix: CA Pod must stop running BEFORE nodegroup scale-down,
+    # otherwise CA actively restores desired counts after each EKS API call.
+    try:
+        import subprocess
+        cmd = [
+            'kubectl', 'scale', 'deploy',
+            'cluster-autoscaler-aws-cluster-autoscaler',
+            '-n', 'kube-system', '--replicas=0'
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode == 0:
+            logger.info(f"Cluster Autoscaler Deployment scaled to 0: {proc.stdout.strip()}")
+            results['cluster_autoscaler_deployment'] = 'suspended_replicas_0'
+        else:
+            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
+            results['cluster_autoscaler_deployment'] = f'suspend_failed: {proc.stderr.strip()}'
+    except Exception as e:
+        logger.warning(f"Failed to scale down CA Deployment via kubectl (non-blocking): {str(e)}")
+        results['cluster_autoscaler_deployment'] = f'suspend_error: {str(e)}'
+
+    # Step 2: Suspend ASG scaling processes (belt-and-suspenders)
     try:
         cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
         paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
@@ -164,35 +188,38 @@ def suspend_cluster_autoscaler(results):
         results['autoscaler_suspended'] = suspended_asgs
         logger.info(f"Cluster Autoscaler ASG processes suspended: {len(suspended_asgs)} ASGs")
     except Exception as e:
-        logger.error(f"Failed to suspend Cluster Autoscaler: {str(e)}")
+        logger.error(f"Failed to suspend Cluster Autoscaler ASG processes: {str(e)}")
         results['autoscaler_suspend_error'] = str(e)
         # Non-blocking: continue with shutdown even if this fails
 
 
 def stop_node_group(ng_name, config, results):
     """
-    Stop (scale to 0) an EKS node group
+    Stop (scale to 0) an EKS node group.
+    Fix 2026-03-12: minSize is always forced to 0 during shutdown regardless of protection config.
+    A nodegroup minSize > 0 blocks desiredSize=0 — the EKS API rejects the call.
+    Protection is a runtime concern (startup), not a shutdown concern.
     """
-    logger.info(f"Scaling node group {ng_name} to 0 nodes...")
+    logger.info(f"Scaling node group {ng_name} to 0 nodes (minSize forced to 0)...")
 
     response = eks.update_nodegroup_config(
         clusterName=CLUSTER_NAME,
         nodegroupName=ng_name,
         scalingConfig={
-            'minSize': config['min'],
-            'desiredSize': config['desired'],
+            'minSize': 0,  # Always 0 during shutdown — minSize > 0 blocks desiredSize=0
+            'desiredSize': 0,
             'maxSize': config['max']
         }
     )
 
     update_id = response.get('update', {}).get('id', 'unknown')
 
-    logger.info(f"Node group {ng_name} scale-down initiated. Update ID: {update_id}")
+    logger.info(f"Node group {ng_name} scale-down initiated (minSize=0, desiredSize=0). Update ID: {update_id}")
 
     results['node_groups'][ng_name] = {
         'status': 'stop_initiated',
         'update_id': update_id,
-        'config': config
+        'config': {**config, 'min': 0, 'desired': 0}
     }
 
 

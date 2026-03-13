@@ -13,6 +13,7 @@ Environment Variables:
 import boto3
 import os
 import logging
+import subprocess
 from datetime import datetime
 
 # Setup logging
@@ -45,6 +46,31 @@ RDS_INSTANCES = {
 }
 
 
+def resume_cluster_autoscaler(results):
+    """
+    Scale Cluster Autoscaler Deployment back to 1 replica after startup.
+    Fix 2026-03-12: pairs with suspend_cluster_autoscaler in lambda-stop-nodes.py.
+    """
+    try:
+        logger.info("Resuming Cluster Autoscaler (scale deploy to 1)...")
+        cmd = [
+            'kubectl', 'scale', 'deploy',
+            'cluster-autoscaler-aws-cluster-autoscaler',
+            '-n', 'kube-system', '--replicas=1'
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode == 0:
+            logger.info(f"Cluster Autoscaler resumed: {proc.stdout.strip()}")
+            results['cluster_autoscaler'] = 'resumed'
+        else:
+            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
+            results['cluster_autoscaler'] = f'resume_failed: {proc.stderr.strip()}'
+    except Exception as e:
+        logger.warning(f"Failed to resume Cluster Autoscaler (non-blocking): {str(e)}")
+        results['cluster_autoscaler'] = f'resume_error: {str(e)}'
+    # Non-blocking: continue startup even if CA resume fails
+
+
 def lambda_handler(event, context):
     """
     Main handler for Lambda function
@@ -70,6 +96,9 @@ def lambda_handler(event, context):
                 logger.error(f"Error starting node group {ng_name}: {str(e)}")
                 results['node_groups'][ng_name] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
+
+        # Fix 2026-03-12: Resume CA after nodegroups are started
+        resume_cluster_autoscaler(results)
 
         # Start RDS if applicable
         rds_instance = RDS_INSTANCES.get(ENVIRONMENT)

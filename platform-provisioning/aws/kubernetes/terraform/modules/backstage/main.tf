@@ -808,14 +808,14 @@ resource "kubectl_manifest" "redis_allow_backstage" {
     kind: NetworkPolicy
     metadata:
       name: redis-allow-backstage
-      namespace: staging-security-redis
+      namespace: staging-data-infrastructure
       labels:
         app.kubernetes.io/managed-by: terraform
         purpose: backstage-session-cache
     spec:
       podSelector:
         matchLabels:
-          app: redis-ha
+          app: redis
       policyTypes:
         - Ingress
       ingress:

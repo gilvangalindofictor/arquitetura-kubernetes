@@ -177,6 +177,25 @@ start_rds_instance() {
     esac
 }
 
+resume_cluster_autoscaler() {
+    log "🤖 Reativando Cluster Autoscaler..."
+
+    # Scale CA Deployment back to 1 replica (was suspended during shutdown)
+    kubectl scale deploy cluster-autoscaler-aws-cluster-autoscaler \
+        -n kube-system --replicas=1 2>&1 | tee -a "$LOG_FILE" || true
+
+    # Verify CA is running
+    local ca_replicas
+    ca_replicas=$(kubectl get deploy cluster-autoscaler-aws-cluster-autoscaler \
+        -n kube-system -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "unknown")
+
+    if [ "$ca_replicas" = "1" ]; then
+        log_success "Cluster Autoscaler reativado (replicas=1)"
+    else
+        log_warning "Cluster Autoscaler pode não ter reativado (replicas=$ca_replicas) — verificar manualmente"
+    fi
+}
+
 wait_for_rds() {
     local rds_name="${RDS_INSTANCES[$ENVIRONMENT]}"
 
@@ -331,6 +350,9 @@ main() {
     # Start resources
     start_node_groups || { log_error "Falha ao iniciar node groups"; exit 1; }
     wait_for_nodes || { log_error "Falha aguardando nodes"; exit 1; }
+
+    # Fix 2026-03-12: Resume CA after nodes are ready (was suspended during shutdown)
+    resume_cluster_autoscaler
 
     start_rds_instance || { log_warning "RDS start teve problemas"; }
     wait_for_rds || { log_warning "RDS pode não estar ready"; }

@@ -14,6 +14,7 @@ Environment Variables:
 import boto3
 import os
 import logging
+import subprocess
 from datetime import datetime
 
 # Setup logging
@@ -47,6 +48,32 @@ RDS_INSTANCES = {
 }
 
 
+def suspend_cluster_autoscaler(results):
+    """
+    Scale down Cluster Autoscaler Deployment to 0 replicas before nodegroup scale-down.
+    Fix 2026-03-12: CA was restoring workloads nodegroup from desired=0 to desired=6.
+    Requires kubectl configured with cluster credentials in Lambda environment.
+    """
+    try:
+        logger.info("Suspending Cluster Autoscaler (scale deploy to 0)...")
+        cmd = [
+            'kubectl', 'scale', 'deploy',
+            'cluster-autoscaler-aws-cluster-autoscaler',
+            '-n', 'kube-system', '--replicas=0'
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode == 0:
+            logger.info(f"Cluster Autoscaler suspended: {proc.stdout.strip()}")
+            results['cluster_autoscaler'] = 'suspended'
+        else:
+            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
+            results['cluster_autoscaler'] = f'suspend_failed: {proc.stderr.strip()}'
+    except Exception as e:
+        logger.warning(f"Failed to suspend Cluster Autoscaler (non-blocking): {str(e)}")
+        results['cluster_autoscaler'] = f'suspend_error: {str(e)}'
+    # Non-blocking: continue shutdown even if CA suspension fails
+
+
 def lambda_handler(event, context):
     """
     Main handler for Lambda function
@@ -78,6 +105,9 @@ def lambda_handler(event, context):
                 logger.error(f"Error stopping RDS {rds_instance}: {str(e)}")
                 results['rds'] = {'status': 'error', 'message': str(e)}
                 results['success'] = False
+
+        # Fix 2026-03-12: Suspend CA before scaling nodegroups to prevent desired=0 being restored
+        suspend_cluster_autoscaler(results)
 
         # Stop node groups (scale to 0)
         for ng_name, config in NODE_GROUPS_CONFIG.items():

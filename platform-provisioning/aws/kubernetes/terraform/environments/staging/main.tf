@@ -860,6 +860,9 @@ module "keycloak_staging" {
   # Monitoring
   enable_monitoring = true
 
+  # ACM certificate for ALB HTTPS ingress (CLEANUP-S6A 2026-03-12)
+  acm_certificate_arn = "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a"
+
   # Tags
   common_tags = local.common_tags
 }
@@ -2597,17 +2600,19 @@ module "backstage_staging" {
 
   # Backstage chart + image
   backstage_chart_version  = "2.6.3"
-  backstage_image_tag      = "1.48.0"
+  backstage_image_tag      = "1.48.0-oidc"
   backstage_image_registry = "harbor.staging.internal"
-  replicas                 = 1 # Staging M1: 1 replica aceito. M4: aumentar para 2 (HA)
+  replicas                 = 2 # GAP-S6-PDB-01: PDB minAvailable=1 exige 2 pods (HA S6-A)
 
   # External service hosts
   keycloak_host = "keycloak.staging.internal"
   gitlab_host   = "gitlab.staging.internal"
 
   # PostgreSQL RDS (shared — backstage database)
-  backstage_db_host     = "postgresql-external.default.svc.cluster.local"
-  backstage_db_user     = "backstage_user"
+  # ATENCAO: usar RDS endpoint direto e user 'backstage' (como configurado no RDS)
+  # Host alternativo via ExternalName: postgresql-external.default.svc.cluster.local
+  backstage_db_host     = "k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com"
+  backstage_db_user     = "backstage"
   backstage_db_password = var.backstage_db_password
   backstage_db_port     = 5432
 

@@ -44,5 +44,5 @@ provider "keycloak" {
   # With base_path="/auth", provider uses: http://localhost:18080/auth/realms/...
   base_path = "/auth"
 
-  initial_login = true
+  initial_login = false
 }

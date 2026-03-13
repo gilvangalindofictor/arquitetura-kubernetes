@@ -107,10 +107,32 @@ def lambda_handler(event, context):
 
 def resume_cluster_autoscaler(results):
     """
-    Resume Cluster Autoscaler ASG scaling processes (Launch, Terminate)
-    that were suspended during shutdown to prevent DaemonSet re-scaling.
+    Resume Cluster Autoscaler by:
+    1. Scaling the CA Deployment back to 1 replica (re-enables active autoscaling)
+    2. Resuming ASG Launch/Terminate processes that were suspended during shutdown
+    Fix 2026-03-12: CA Deployment was scaled to 0 during shutdown (paired with lambda_stop.py fix).
     FinOps fix: pair with suspend in lambda_stop.py (2026-03-11)
     """
+    # Step 1: Scale CA Deployment back to 1 replica via kubectl
+    try:
+        import subprocess
+        cmd = [
+            'kubectl', 'scale', 'deploy',
+            'cluster-autoscaler-aws-cluster-autoscaler',
+            '-n', 'kube-system', '--replicas=1'
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode == 0:
+            logger.info(f"Cluster Autoscaler Deployment scaled to 1: {proc.stdout.strip()}")
+            results['cluster_autoscaler_deployment'] = 'resumed_replicas_1'
+        else:
+            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
+            results['cluster_autoscaler_deployment'] = f'resume_failed: {proc.stderr.strip()}'
+    except Exception as e:
+        logger.warning(f"Failed to scale up CA Deployment via kubectl (non-blocking): {str(e)}")
+        results['cluster_autoscaler_deployment'] = f'resume_error: {str(e)}'
+
+    # Step 2: Resume ASG scaling processes
     try:
         cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
         paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
@@ -137,7 +159,7 @@ def resume_cluster_autoscaler(results):
         results['autoscaler_resumed'] = resumed_asgs
         logger.info(f"Cluster Autoscaler ASG processes resumed: {len(resumed_asgs)} ASGs")
     except Exception as e:
-        logger.error(f"Failed to resume Cluster Autoscaler: {str(e)}")
+        logger.error(f"Failed to resume Cluster Autoscaler ASG processes: {str(e)}")
         results['autoscaler_resume_error'] = str(e)
         # Non-blocking: continue with startup even if this fails
 

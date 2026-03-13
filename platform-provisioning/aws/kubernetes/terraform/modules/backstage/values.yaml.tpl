@@ -6,7 +6,23 @@
 # ADR: ADR-055
 # =============================================================================
 
+# =============================================================================
+# Labels comuns aplicados a TODOS os recursos gerados pelo Helm (ADR-048)
+# Kyverno policy require-corporate-labels exige: domain, owner, environment,
+# app.kubernetes.io/name, app.kubernetes.io/part-of
+# =============================================================================
+commonLabels:
+  domain: platform
+  owner: platform-team
+  environment: staging
+  app.kubernetes.io/part-of: platform-core
+
 backstage:
+  # GAP-S6-PDB-01: minAvailable=1 com 1 réplica → 0 disruptions permitidas
+  # Mínimo 2 réplicas para backstage-pdb permitir pelo menos 1 disruption
+  # NOTA: chart 2.6.3+ renomeou replicaCount → replicas
+  replicas: 2
+
   image:
     registry: ${image_registry}
     repository: platform/backstage
@@ -26,6 +42,11 @@ backstage:
         port: 7007
       cors:
         origin: https://backstage.staging.internal
+      reading:
+        allow:
+          - host: "${gitlab_host}"
+          - host: "gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local"
+          - host: "*.staging-platform-gitlab.svc.cluster.local"
       database:
         client: pg
         connection:
@@ -47,12 +68,19 @@ backstage:
       session:
         secret: $${AUTH_SESSION_SECRET}
       providers:
-        keycloak:
+        oidc:
           production:
-            metadataUrl: https://${keycloak_host}/realms/platform/.well-known/openid-configuration
+            # OIDC discovery via service DNS interno (HTTP/80 funcional). Issuer externo via KC_HOSTNAME no Keycloak.
+            metadataUrl: http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local/auth/realms/platform/.well-known/openid-configuration
             clientId: $${KEYCLOAK_CLIENT_ID}
             clientSecret: $${KEYCLOAK_CLIENT_SECRET}
             prompt: auto
+            callbackUrl: https://backstage.staging.internal/api/auth/oidc/handler/frame
+            # NOTA: 1.48.0-oidc (Backstage 1.34+): 'scope' foi removido, usar additionalScopes
+            additionalScopes: 'profile email'
+            signIn:
+              resolvers:
+                - resolver: emailMatchingUserEntityProfileEmail
 
     # -------------------------------------------------------------------------
     # Integrações de Source Control
@@ -61,6 +89,11 @@ backstage:
     integrations:
       gitlab:
         - host: ${gitlab_host}
+          # ATENCAO: apiBaseUrl obrigatório para hosts self-hosted (chart 2.6.3+)
+          # Sem apiBaseUrl, o plugin-scaffolder-module-github falha com 'undefined'
+          # NOTA: ALB só serve HTTP:80 internamente — usar http:// para API calls
+          baseUrl: http://${gitlab_host}
+          apiBaseUrl: http://${gitlab_host}/api/v4
           token: $${GITLAB_TOKEN}
 
     # -------------------------------------------------------------------------
@@ -77,6 +110,12 @@ backstage:
                 minutes: 30
               timeout:
                 minutes: 3
+      locations:
+        - type: url
+          # GAP-GITLAB-HTTP: ALB só serve HTTP:80 internamente (HTTPS:443 timeout)
+          target: http://${gitlab_host}/platform/backstage-catalog/-/blob/main/catalog-info.yaml
+          rules:
+            - allow: [Location, Domain, System, Component, API, Group, User, Template]
 
     # -------------------------------------------------------------------------
     # Kubernetes Plugin
@@ -244,15 +283,29 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: harbor-robot-token
+    - name: NODE_EXTRA_CA_CERTS
+      value: /etc/ssl/certs/staging-internal-ca.crt
 
-  # ---------------------------------------------------------------------------
-  # Service Account com IRSA (AWS EKS IAM Roles for Service Accounts)
-  # ---------------------------------------------------------------------------
-  serviceAccount:
-    create: true
-    name: backstage
-    annotations:
-      eks.amazonaws.com/role-arn: arn:aws:iam::${aws_account_id}:role/backstage-irsa-role
+  extraVolumes:
+    - name: staging-internal-ca
+      configMap:
+        name: staging-internal-ca
+
+  extraVolumeMounts:
+    - name: staging-internal-ca
+      mountPath: /etc/ssl/certs/staging-internal-ca.crt
+      subPath: ca.crt
+      readOnly: true
+
+# =============================================================================
+# Service Account com IRSA (AWS EKS IAM Roles for Service Accounts)
+# NOTA: chart 2.6.3+ moveu serviceAccount para o nível raiz (fora de backstage:)
+# =============================================================================
+serviceAccount:
+  create: true
+  name: backstage
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${aws_account_id}:role/backstage-irsa-role
 
 # =============================================================================
 # Ingress — ALB interno
