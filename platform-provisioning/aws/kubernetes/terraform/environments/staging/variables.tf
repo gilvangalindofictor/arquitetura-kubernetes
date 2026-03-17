@@ -314,3 +314,74 @@ variable "backstage_harbor_robot_token" {
   sensitive   = true
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Hatch ETL — Vault KV secret provisioning
+# GAP-TF-01/02: hatch_etl_enabled=true applied (2026-03-13)
+# Vault paths: secret/staging/hatch-etl/{database,redis,api}
+# Passed via TF_VAR_* in CI/CD pipeline or terraform.tfvars (sensitive values)
+# -----------------------------------------------------------------------------
+
+variable "hatch_etl_db_host" {
+  description = "Hatch ETL PostgreSQL host (RDS endpoint)"
+  type        = string
+  default     = ""
+}
+
+variable "hatch_etl_db_password" {
+  description = "Hatch ETL PostgreSQL user password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_db_name" {
+  description = "Hatch ETL database name"
+  type        = string
+  default     = "hatch_dw"
+}
+
+variable "hatch_etl_redis_host" {
+  description = "Hatch ETL Redis host"
+  type        = string
+  default     = "redis.data-services.svc.cluster.local"
+}
+
+variable "hatch_etl_redis_password" {
+  description = "Hatch ETL Redis password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_api_base_url" {
+  description = "Hatch external API base URL"
+  type        = string
+  default     = "https://backendhatchbank.hatchst.com.br"
+}
+
+variable "hatch_etl_api_username" {
+  description = "Hatch external API username"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hatch_etl_api_password" {
+  description = "Hatch external API password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+#------------------------------------------------------------------------------
+# PostgreSQL Provider — Local Override (port-forward / VPC tunnel)
+# Use when running TF locally to bypass VPC-only RDS constraint.
+# Example: -var postgresql_host_override=localhost (with kubectl port-forward active)
+#------------------------------------------------------------------------------
+
+variable "postgresql_host_override" {
+  description = "Override PostgreSQL provider host for local TF runs via port-forward. Default null = use VPC RDS address."
+  type        = string
+  default     = null
+}

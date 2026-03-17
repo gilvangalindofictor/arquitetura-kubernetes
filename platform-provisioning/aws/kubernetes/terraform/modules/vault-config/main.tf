@@ -528,9 +528,10 @@ resource "vault_kv_secret_v2" "keycloak_admin" {
 
 # -----------------------------------------------------------------------------
 # Vault KV v2 — Hatch ETL Database credentials
-# Vault path: secret/staging/hatch/database
+# Vault path: secret/staging/hatch-etl/database
 # ESO ExternalSecret: hatch-database-credentials (staging-data-hatch)
 # Resolves: 3/3 SecretSyncedError 403 Forbidden (eso-reader policy gap)
+# GAP-TF-06: path corrected from staging/hatch/ to staging/hatch-etl/ (2026-03-13)
 # -----------------------------------------------------------------------------
 resource "random_password" "hatch_etl_db" {
   count            = var.hatch_etl_enabled && var.hatch_etl_db_password == "" ? 1 : 0
@@ -546,7 +547,7 @@ locals {
 resource "vault_kv_secret_v2" "hatch_etl_database" {
   count      = var.hatch_etl_enabled ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch/database"
+  name       = "staging/hatch-etl/database"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
@@ -571,13 +572,14 @@ resource "vault_kv_secret_v2" "hatch_etl_database" {
 
 # -----------------------------------------------------------------------------
 # Vault KV v2 — Hatch ETL Redis credentials
-# Vault path: secret/staging/hatch/redis
+# Vault path: secret/staging/hatch-etl/redis
 # ESO ExternalSecret: hatch-redis-connection (staging-data-hatch)
+# GAP-TF-06: path corrected from staging/hatch/ to staging/hatch-etl/ (2026-03-13)
 # -----------------------------------------------------------------------------
 resource "vault_kv_secret_v2" "hatch_etl_redis" {
   count      = var.hatch_etl_enabled ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch/redis"
+  name       = "staging/hatch-etl/redis"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
@@ -601,14 +603,15 @@ resource "vault_kv_secret_v2" "hatch_etl_redis" {
 
 # -----------------------------------------------------------------------------
 # Vault KV v2 — Hatch ETL external API credentials
-# Vault path: secret/staging/hatch/api
+# Vault path: secret/staging/hatch-etl/api
 # ESO ExternalSecret: hatch-api-credentials (staging-data-hatch)
 # Security: API_USERNAME/API_PASSWORD NEVER in ConfigMap — only via this Secret
+# GAP-TF-06: path corrected from staging/hatch/ to staging/hatch-etl/ (2026-03-13)
 # -----------------------------------------------------------------------------
 resource "vault_kv_secret_v2" "hatch_etl_api" {
   count      = var.hatch_etl_enabled && var.hatch_etl_api_username != "" ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch/api"
+  name       = "staging/hatch-etl/api"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({

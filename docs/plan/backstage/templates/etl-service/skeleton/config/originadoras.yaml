@@ -1,0 +1,24 @@
+# Gerado automaticamente pelo Backstage Scaffolder
+# Este arquivo é montado como Secret {{ values.name }}-auth-config em /app/config/originadoras.yaml
+# Edite para adicionar/remover originadoras após o scaffold
+# IMPORTANTE: as credenciais são injetadas via variáveis de ambiente (não ficam neste arquivo)
+
+jwt_logins:
+{%- if values.originadoras %}
+{%- for orig in values.originadoras %}
+  - codigo: {{ orig.codigo }}
+    nome: "{{ orig.nome }}"
+    jwt_multi_tenant: {{ orig.multiTenant | default(false) | string | lower }}
+    api:
+      url: "{{ orig.apiUrl }}"
+      username: "${{"{"}}{{ orig.codigo | upper }}_API_USERNAME{{"}"}}"
+      password: "${{"{"}}{{ orig.codigo | upper }}_API_PASSWORD{{"}"}}"
+      timeout: 30
+    ativo: true
+    config:
+      auto_discover: {{ orig.multiTenant | default(false) | string | lower }}
+      auto_provision: {{ orig.multiTenant | default(false) | string | lower }}
+{%- endfor %}
+{%- else %}
+  [] # Nenhuma originadora configurada
+{%- endif %}

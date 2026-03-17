@@ -1,0 +1,57 @@
+# =============================================================================
+# catalog-info.yaml — Backstage Component + API entity (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template api-service-template
+# Registrado no catálogo automaticamente após publicação no GitLab
+# =============================================================================
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ values.name }}
+  title: "{{ values.name }}"
+  description: "{{ values.description }}"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/blob/main/catalog-info.yaml"
+    # TechDocs — documentação gerada a partir do diretório configurado
+    backstage.io/techdocs-ref: "dir:{{ values.techdocsPath }}"
+    # Integração Kubernetes — exibe pods em tempo real no Backstage
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    backstage.io/kubernetes-namespace: "staging-{{ values.domain }}-{{ values.name }}"
+    # Integração ArgoCD
+    argocd/app-name: "{{ values.name }}"
+    # Integração GitLab
+    gitlab.com/project-slug: "{{ values.gitlabGroup }}/{{ values.name }}"
+    # Plataforma
+    platform.io/domain: "{{ values.domain }}"
+    platform.io/type: "api-rest"
+  tags:
+    - api-rest
+    - {{ values.domain }}
+spec:
+  type: service
+  lifecycle: experimental
+  owner: {{ values.owner }}
+  {%- if values.system %}
+  system: {{ values.system }}
+  {%- endif %}
+  domain: {{ values.domain }}
+  providesApis:
+    - {{ values.name }}-api
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: {{ values.name }}-api
+  title: "{{ values.name }} API"
+  description: "OpenAPI spec para {{ values.name }}"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/blob/main/catalog-info.yaml"
+    gitlab.com/project-slug: "{{ values.gitlabGroup }}/{{ values.name }}"
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: {{ values.owner }}
+  definition:
+    $text: "https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/raw/main/{{ values.openapiSpecPath }}"

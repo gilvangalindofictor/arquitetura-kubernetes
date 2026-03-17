@@ -8,8 +8,8 @@
 # Abra um novo issue no Backstage para alterar configurações.
 # =============================================================================
 
-apiVersion: platform.io/v1alpha1
-kind: Application
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
 metadata:
   name: {{ values.name }}
   namespace: staging-{{ values.domain }}-{{ values.name }}

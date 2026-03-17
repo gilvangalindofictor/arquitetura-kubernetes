@@ -2339,8 +2339,269 @@ Federar identidades do Microsoft Entra ID (Azure AD) no Keycloak via OIDC Identi
 
 ## Atualização
 
-Última atualização: 2026-03-05 (confrontação backlog × cluster real)
+Última atualização: 2026-03-17 (Mesa Técnica — Health Check + novas demandas identificadas)
 
 - DEC-074 50%→100% ✅ | CICD-003/005 [x] | GAP-007 enforcement ⚠️ | INFRA-001 step 2 + runner + PVC Gitaly | IaC Compliance 4/4 ✅
 - Confrontação 2026-03-05: #1 helm upgrade gitlab FECHADO (rev 14, existingSecret ativo) | #4 lifecycle ignore_changes FECHADO (removidos commit 05f9d57) | DT-005 status atualizado (PrometheusRules ativas, Teams webhooks = REPLACE) | V-010 backup disponível (daily-full-backup-20260305020022) | Loki chunksCache TF não alinhado (só comentário no loki.tf)
+- 2026-03-17: 5 novas demandas adicionadas ao backlog (Mesa Técnica — Health Check) | harbor-jobservice CrashLoopBackOff resolvido | cluster 12/12 nodes Ready
+- 2026-03-17 (pós-UP): DEM-2026-03-17-06 adicionada — GAP IaC harbor-jobservice skip-outbound-ports ausente no values.yaml.tpl (P1, fix cirúrgico antes do próximo helm upgrade harbor)
+
+---
+
+## Sessão Mesa Técnica — 2026-03-17 (Health Check + Novas Demandas)
+
+> **Data**: 2026-03-17
+> **Origem**: Mesa Técnica — Sessão de Health Check
+> **Incidente tratado**: harbor-jobservice CrashLoopBackOff (32 restarts, annotation Linkerd perdida após rollout restart)
+> **Resultado**: 5 demandas identificadas e registradas no backlog
+
+### Demandas Identificadas — 2026-03-17
+
+| ID | Título | Prioridade | Arquivo | Status |
+| --- | --- | --- | --- | --- |
+| DEM-2026-03-17-01 | ESO para harbor-registry-secret | P1 | [2026-03-17-eso-harbor-registry-secret.md](demands/2026-03-17-eso-harbor-registry-secret.md) | BACKLOG |
+| DEM-2026-03-17-02 | Cluster Autoscaler Resiliência | P1 | [2026-03-17-cluster-autoscaler-resiliencia.md](demands/2026-03-17-cluster-autoscaler-resiliencia.md) | BACKLOG |
+| DEM-2026-03-17-03 | Observabilidade Capacity + Alertas | P1 | [2026-03-17-observabilidade-capacity-alertas.md](demands/2026-03-17-observabilidade-capacity-alertas.md) | BACKLOG |
+| DEM-2026-03-17-04 | Revisão Capacidade + Karpenter Migration | P2 | [2026-03-17-revisao-capacidade-karpenter.md](demands/2026-03-17-revisao-capacidade-karpenter.md) | BACKLOG |
+| DEM-2026-03-17-05 | Harbor Helm Drift + Linkerd Audit | P2 | [2026-03-17-harbor-helm-linkerd-audit.md](demands/2026-03-17-harbor-helm-linkerd-audit.md) | BACKLOG |
+| DEM-2026-03-17-06 | GAP IaC — Harbor jobservice: codificar `skip-outbound-ports` Linkerd permanentemente | P1 | [2026-03-17-harbor-linkerd-skip-outbound-ports.md](demands/2026-03-17-harbor-linkerd-skip-outbound-ports.md) | BACKLOG |
+
+---
+
+### DEM-2026-03-17-01 — ESO para harbor-registry-secret (P1)
+
+**Prioridade**: P1
+**Status**: BACKLOG
+**Origem**: Mesa Técnica 2026-03-17
+**Arquivo**: `docs/demands/2026-03-17-eso-harbor-registry-secret.md`
+**Tipo**: Security / Platform Reliability
+
+**Descrição**:
+O `harbor-registry-secret` (imagePullSecret usado pelos workloads para autenticar no Harbor) é
+atualmente um Kubernetes Secret gerenciado manualmente, fora do ciclo de vida do ESO (External
+Secrets Operator). Isso significa que:
+
+- A secret não é rotacionada automaticamente;
+- Não há auditoria via Vault do ciclo de vida da credencial;
+- Em caso de rotação manual da senha do Harbor, todos os namespaces precisam ser atualizados
+  manualmente, gerando risco operacional e janela de downtime.
+
+**Objetivo**: Migrar `harbor-registry-secret` para ExternalSecret gerenciado pelo ESO, com
+credenciais armazenadas no Vault e rotação automática. Garantir que todos os namespaces que usam
+imagePullSecrets do Harbor recebam a secret atualizada automaticamente via ESO.
+
+**Critérios de Aceite**:
+
+- [ ] Credencial Harbor armazenada no Vault (`secret/staging/harbor/registry`)
+- [ ] ExternalSecret criado para `harbor-registry-secret` em todos os namespaces relevantes
+- [ ] Rotação automática configurada (refreshInterval)
+- [ ] `kubectl get externalsecret` mostra status `SecretSynced` em todos os namespaces
+- [ ] Teste de rotação executado: senha alterada no Vault → secret atualizada automaticamente
+
+**Dependências**:
+
+- ESO operacional no cluster (já disponível)
+- Vault operacional com política ESO configurada
+- Harbor operacional com credencial válida para registry
+
+---
+
+### DEM-2026-03-17-02 — Cluster Autoscaler Resiliência (P1)
+
+**Prioridade**: P1
+**Status**: BACKLOG
+**Origem**: Mesa Técnica 2026-03-17
+**Arquivo**: `docs/demands/2026-03-17-cluster-autoscaler-resiliencia.md`
+**Tipo**: Platform Reliability / FinOps
+
+**Descrição**:
+Durante a sessão de 2026-03-17, foi identificado que o Cluster Autoscaler pode não estar
+configurado com os parâmetros de resiliência adequados para o perfil de workload atual (ETL jobs,
+Backstage, Harbor, GitLab). Pontos específicos a investigar e corrigir:
+
+- Configuração de `scale-down-delay-after-add` e `scale-down-unneeded-time` pode estar muito
+  agressiva, causando scale-down prematuro de nós que serão necessários em minutos;
+- Ausência de `PodDisruptionBudget` em componentes críticos pode permitir evições agressivas
+  durante scale-down;
+- Integração com o mecanismo de shutdown schedule (FinOps Lambda) pode não ter proteção contra
+  scale-down durante janelas de carga ETL;
+- Logs e métricas do Cluster Autoscaler não estão adequadamente expostos no Grafana para
+  observabilidade das decisões de scaling.
+
+**Objetivo**: Revisar e ajustar configurações do Cluster Autoscaler para garantir resiliência
+durante picos de carga (ETL jobs) e operações de manutenção, sem perder os savings FinOps já
+conquistados (R$ 61.638/ano).
+
+**Critérios de Aceite**:
+
+- [ ] Parâmetros de scale-down revisados e documentados
+- [ ] PDBs criados para componentes críticos (Harbor, GitLab, Vault, ArgoCD)
+- [ ] Dashboard Grafana com métricas Cluster Autoscaler (decisões de scale, eventos)
+- [ ] Teste de stress: ETL job pesado não causa evição de pods críticos
+- [ ] Savings FinOps mantidos (Lambda shutdown schedule sem regressão)
+
+**Dependências**:
+
+- Cluster Autoscaler já deployado no cluster
+- FinOps Lambda + shutdown schedule operacional
+- Grafana + Prometheus operacional
+
+---
+
+### DEM-2026-03-17-03 — Observabilidade Capacity + Alertas (P1)
+
+**Prioridade**: P1
+**Status**: BACKLOG
+**Origem**: Mesa Técnica 2026-03-17
+**Arquivo**: `docs/demands/2026-03-17-observabilidade-capacity-alertas.md`
+**Tipo**: Observability / SRE
+
+**Descrição**:
+A sessão de 2026-03-17 revelou lacunas na observabilidade de capacidade do cluster. Não há alertas
+proativos para situações de pressão de recursos que precedem incidentes como o
+CrashLoopBackOff do harbor-jobservice. Necessidades identificadas:
+
+- Alertas para pods em estado `Pending` por mais de N minutos (indicador de pressão de recursos);
+- Alertas para nodes com utilização de CPU/memória acima de threshold crítico;
+- Dashboard de capacity planning mostrando tendência de uso por namespace e por node group;
+- Alertas para crescimento anômalo de restarts de pods (indicador precoce de CrashLoopBackOff);
+- Integração dos alertas com canal Teams da plataforma;
+- Alert para Helm values drift detectado (futuro — integração com auditoria da DEM-2026-03-17-05).
+
+**Objetivo**: Implementar conjunto de PrometheusRules e dashboards Grafana para observabilidade
+proativa de capacidade, garantindo que a equipe seja alertada antes que incidentes de recursos
+causem downtime.
+
+**Critérios de Aceite**:
+
+- [ ] PrometheusRule: alerta `PodPendingTooLong` (> 5 min) com severidade warning
+- [ ] PrometheusRule: alerta `NodeHighMemoryPressure` e `NodeHighCPUPressure`
+- [ ] PrometheusRule: alerta `PodRestartRateHigh` (> 10 restarts/hora por pod)
+- [ ] Dashboard Grafana: "Cluster Capacity Planning" com top namespaces por consumo
+- [ ] Alertas integrados ao canal Teams da plataforma
+- [ ] Runbook linkado em cada alerta (anotação `runbook_url`)
+
+**Dependências**:
+
+- Prometheus + AlertManager operacional (já disponível)
+- Grafana operacional com datasource Prometheus configurado
+- Canal Teams configurado para receber webhooks do AlertManager
+
+---
+
+### DEM-2026-03-17-04 — Revisão Capacidade + Karpenter Migration (P2)
+
+**Prioridade**: P2
+**Status**: BACKLOG
+**Origem**: Mesa Técnica 2026-03-17
+**Arquivo**: `docs/demands/2026-03-17-revisao-capacidade-karpenter.md`
+**Tipo**: Platform Reliability / FinOps / Performance
+
+**Descrição**:
+Com o crescimento da plataforma (Harbor, GitLab, Backstage, ETL workloads), o modelo atual de
+node groups fixos com Cluster Autoscaler pode não ser o mais eficiente. A sessão de 2026-03-17
+identificou a necessidade de:
+
+1. **Revisão de capacidade**: avaliar se os node groups atuais (system, workloads, critical) têm
+   sizing adequado para o perfil de carga atual e projetado (próximos 6 meses);
+
+2. **Karpenter Migration Assessment**: avaliar a viabilidade de migrar do Cluster Autoscaler +
+   managed node groups para Karpenter, que oferece:
+   - Provisionamento just-in-time de nós com tipos de instância otimizados por workload;
+   - Consolidação automática de nós (bin packing), potencializando savings FinOps;
+   - Suporte a Spot instances com fallback automático para On-Demand;
+   - Integração nativa com EKS e AWS Graviton (arm64).
+
+3. **Right-sizing de node groups**: identificar nós superprovisionados ou subprovisionados com
+   base em métricas reais de utilização (últimas 4 semanas).
+
+**Objetivo**: Produzir assessment técnico e, se aprovado, plano de migração para Karpenter com
+estimativa de impacto em custo e resiliência.
+
+**Critérios de Aceite**:
+
+- [ ] Relatório de utilização real dos node groups (CPU/memória, últimas 4 semanas)
+- [ ] Análise comparativa Cluster Autoscaler vs Karpenter para o perfil atual
+- [ ] Estimativa de saving adicional com Karpenter + Spot instances
+- [ ] Se aprovado: plano de migração faseado com rollback strategy
+- [ ] ADR criado documentando a decisão (migrar ou manter Cluster Autoscaler)
+- [ ] Right-sizing proposto para node groups atuais (independente da decisão sobre Karpenter)
+
+**Dependências**:
+
+- Métricas de utilização disponíveis no Prometheus/Grafana
+- Acesso AWS para análise de Savings Plans e Spot pricing
+- DEM-2026-03-17-03 (Observabilidade Capacity) recomendada como pré-requisito
+
+---
+
+### DEM-2026-03-17-05 — Harbor Helm Values Drift + Auditoria Linkerd Annotations (P2)
+
+**Prioridade**: P2
+**Status**: BACKLOG
+**Origem**: Mesa Técnica 2026-03-17
+**Arquivo**: `docs/demands/2026-03-17-harbor-helm-linkerd-audit.md`
+**Tipo**: Platform Reliability
+
+**Descrição resumida**:
+Incidente 2026-03-17: `harbor-jobservice` CrashLoopBackOff após rollout restart por perda da
+annotation `config.linkerd.io/skip-outbound-ports: "80"`, que estava no Deployment mas não nos
+Helm values. Fix manual aplicado. Necessário: auditoria completa de annotations Linkerd em todos
+os Deployments vs Helm values + correção do drift de strategy (`Recreate` declarado vs
+`RollingUpdate` no cluster).
+
+**Ver documento completo**: `docs/demands/2026-03-17-harbor-helm-linkerd-audit.md`
+
+**Critérios de Aceite (resumo)**:
+
+- [ ] Auditoria completa: Deployments críticos vs Helm values
+- [ ] Drift harbor-jobservice strategy corrigido
+- [ ] Annotation `skip-outbound-ports` nos Helm values do Harbor
+- [ ] `rollout restart` harbor-jobservice não causa CrashLoopBackOff (teste de regressão)
+- [ ] ADR política de annotations Linkerd criado
+- [ ] Logbook incidente 2026-03-17 documentado com RCA
+
+**Dependências**:
+
+- Harbor operacional em `harbor-system`
+- Linkerd operacional
+- Módulo Terraform Harbor (`modules/harbor/`) para zero drift IaC
 - DT-005 requalificado 2026-03-06: Slack -> Teams | ADR-103 criado | sem implementação no cluster
+
+---
+
+### DEM-2026-03-17-06 — GAP IaC: Harbor jobservice `skip-outbound-ports` Linkerd (P1)
+
+**Prioridade**: P1
+**Status**: BACKLOG
+**Origem**: Incidente pós-UP 2026-03-17 — harbor-jobservice CrashLoopBackOff após helm upgrade
+**Arquivo**: `docs/demands/2026-03-17-harbor-linkerd-skip-outbound-ports.md`
+**Tipo**: IaC Compliance / Platform Reliability
+**Relacionado a**: DEM-2026-03-17-05 (Harbor Helm Drift + Linkerd Audit)
+
+**Descrição resumida**:
+Fix cirúrgico P1: a annotation `config.linkerd.io/skip-outbound-ports: "80"` está ausente no
+`values.yaml.tpl` do módulo Terraform Harbor (`platform-provisioning/aws/kubernetes/terraform/modules/harbor/values.yaml.tpl`),
+seção `jobservice.podAnnotations`. Sem ela, qualquer `helm upgrade harbor` reproduz o
+CrashLoopBackOff no harbor-jobservice (Linkerd intercepta conexões jobservice→harbor-core:80
+causando HTTP 504 timeout). Fix paliativo aplicado: `kubectl rollout undo` para revisão 25.
+
+**Ver documento completo**: `docs/demands/2026-03-17-harbor-linkerd-skip-outbound-ports.md`
+
+**Critérios de Aceite (resumo)**:
+
+- [ ] `podAnnotations.config.linkerd.io/skip-outbound-ports: "80"` adicionado na seção `jobservice:` do `values.yaml.tpl`
+- [ ] `terraform plan -target=module.harbor_staging` → "No changes" após apply
+- [ ] `helm upgrade harbor --dry-run` confirma annotation no Deployment template
+- [ ] `kubectl rollout restart deployment/harbor-jobservice` → 1/1 Running sem CrashLoop
+- [ ] `kubectl get deployment harbor-jobservice -n harbor-system -o jsonpath='{.spec.template.metadata.annotations}'` mostra `skip-outbound-ports: "80"`
+
+**Arquivo IaC alvo**:
+`platform-provisioning/aws/kubernetes/terraform/modules/harbor/values.yaml.tpl` — seção `jobservice:` (linha ~109)
+
+**Dependências**:
+
+- Harbor operacional em `harbor-system` (atualmente em revisão 25 via rollback)
+- Linkerd operacional
+- Terraform state staging desbloqueado
+- Janela de manutenção para `helm upgrade harbor` (obrigatório para ativar o fix)

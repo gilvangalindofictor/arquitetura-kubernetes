@@ -1,0 +1,124 @@
+# =============================================================================
+# ArgoCD Application — Hatch ETL
+# Cluster:    k8s-platform-prod (EKS us-east-1, conta 891377105802)
+# Namespace:  staging-data-hatch-etl
+# GitOps:     Kustomize overlay em ETL/Hatch/k8s/overlays/staging/
+# Criado:     2026-03-15
+# ADR:        ADR-104 (CI/CD Onboarding via Manifesto Base)
+# Fase:       DEPLOYMENT-CHECKLIST Fase 6
+#
+# Aplicar: kubectl apply -f argocd-hatch-etl-application.yaml -n staging-platform-argocd
+# Sync:    argocd app sync hatch-etl --timeout 120
+# Status:  argocd app wait hatch-etl --health --timeout 180
+# =============================================================================
+#
+# IMPORTANTE — Estratégia de Secrets:
+# Os ExternalSecrets em k8s/base/ (externalsecret-database.yaml, -redis.yaml, -keycloak.yaml, -hatch.yaml)
+# são gerenciados pelo ArgoCD (source of truth).
+# O arquivo docs/plan/backstage/hatch-etl-external-secret.yaml é um artefato de BOOTSTRAP
+# para uso manual antes do primeiro sync ArgoCD (GAP-VAULT-HATCH).
+# Após o primeiro sync ArgoCD bem-sucedido, o bootstrap artifact não deve ser reaplicado.
+#
+# PREREQUISITO — AppProject "data" sourceRepos:
+# O AppProject "data" (gerado por appproject-template.yaml) permite apenas:
+#   sourceRepos: ["https://${GITLAB_HOST}/corporate-domains/data/*"]
+# O repositório ETL/Hatch (https://gitlab.staging.internal/etl/hatch.git) está fora desse padrão.
+# AÇÃO NECESSÁRIA: atualizar o AppProject "data" instanciado em staging-platform-argocd para
+# incluir "https://gitlab.staging.internal/etl/*" no sourceRepos.
+# Arquivo de template: Arquitetura/Kubernetes/domains/platform-core/app-provisioning/templates/appproject-template.yaml
+#
+# PREREQUISITO — AppProject "data" namespaceResourceWhitelist:
+# O AppProject "data" precisa incluir no namespaceResourceWhitelist:
+#   - group: "", kind: ResourceQuota
+#   - group: "", kind: LimitRange
+#   - group: "", kind: PersistentVolumeClaim
+# E no clusterResourceWhitelist:
+#   - group: "", kind: Namespace
+# Arquivo: Arquitetura/Kubernetes/domains/platform-core/app-provisioning/templates/appproject-template.yaml
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hatch-etl
+  namespace: staging-platform-argocd
+  labels:
+    environment: staging
+    domain: data
+    owner: data-team
+    app: hatch-etl
+    app.kubernetes.io/name: hatch-etl
+    app.kubernetes.io/part-of: data-platform
+    managed-by: argocd
+  annotations:
+    # Sync wave 10: após infra (wave 0-5), após backstage (wave 2), após secrets (wave 5)
+    argocd.argoproj.io/sync-wave: "10"
+    backstage.io/component-id: hatch-etl
+
+spec:
+  # AppProject do domínio data — provisionado por provision-argocd.sh
+  # ATENÇÃO: o sourceRepos do AppProject "data" deve ser atualizado para incluir
+  # https://gitlab.staging.internal/etl/* (ver comentário no topo deste arquivo)
+  project: data
+
+  source:
+    # Repositório GitLab onde vivem os manifests do Hatch ETL
+    repoURL: https://gitlab.staging.internal/etl/hatch.git
+    # Branch de integração ativa no repositório ETL/Hatch
+    # NC-01 (2026-03-15): corrigido de 'staging' para 'develop' — branch 'staging' não existe
+    targetRevision: develop
+    # Kustomize overlay de staging (GAP-A3-01: bases→resources, GAP-A3-03: DEPLOY_TAG)
+    path: k8s/overlays/staging
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging-data-hatch-etl
+
+  syncPolicy:
+    automated:
+      # Remove recursos do cluster que foram deletados do repositório
+      prune: true
+      # Reverte drifts manuais (kubectl apply direto) para o estado do Git
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      # Valida manifests antes de aplicar
+      - Validate=true
+      # NC-05 (2026-03-15): CreateNamespace=false — k8s/base/namespace.yaml gerencia o
+      # Namespace declarativamente via Kustomize. Manter CreateNamespace=true causaria
+      # duplo gerenciamento: com prune:true, remoção do namespace.yaml do Git faria o
+      # ArgoCD tentar deletar o namespace inteiro.
+      - CreateNamespace=false
+      # Server-side Apply: necessário para CRDs com campos gerenciados (ExternalSecret, HPA)
+      - ServerSideApply=true
+      # Propaga deleção em cascata (Deployments → ReplicaSets → Pods)
+      - PrunePropagationPolicy=foreground
+      # Prune após sync bem-sucedido (proteção contra remoção prematura)
+      - PruneLast=true
+      # Respeita ignoreDifferences para campos voláteis (replicas gerenciadas por HPA)
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  revisionHistoryLimit: 5
+
+  # Ignora campos que são gerenciados dinamicamente pelo cluster
+  ignoreDifferences:
+    # HPA gerencia replicas — ignorar para evitar conflito entre ArgoCD e HPA
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    # ExternalSecrets Operator sobrescreve status — ignorar drifts de status
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jsonPointers:
+        - /status
+    # HPA: status gerenciado pelo metrics-server
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /status

@@ -1,0 +1,1 @@
+"""Extractors para ${{ values.name }}."""

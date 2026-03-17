@@ -41,6 +41,7 @@
     "@backstage-community/plugin-sonarqube-backend": "0.14.0",
     "@backstage-community/plugin-catalog-backend-module-keycloak": "3.17.2",
     "@roadiehq/backstage-plugin-argo-cd-backend": "4.5.1",
+    "@internal/plugin-platform-scaffolder-actions": "link:../../../plugins/platform-scaffolder-actions",
     "app": "link:../app",
     "node-gyp": "^10.0.0"
   },

@@ -1,9 +1,10 @@
 # =============================================================================
 # entities/systems/data/catalog-info.yaml — System entity: data-hatch-etl
-# Representa o sistema ETL Hatch no domínio data-services
-# Namespace K8s padrão: staging-data-hatch (ADR-048)
+# Representa o sistema ETL Hatch no domínio data
+# Namespace K8s padrão: staging-data-hatch-etl (ADR-048)
 #
 # Sprint S6-A / M2 — ADR-055, ADR-102
+# Sprint S6-D — Observability Links (Grafana, ArgoCD, Vault) — 2026-03-13
 # =============================================================================
 
 apiVersion: backstage.io/v1alpha1
@@ -15,24 +16,34 @@ metadata:
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/systems/data/catalog-info.yaml"
     backstage.io/techdocs-ref: "dir:."
-    # Links de observabilidade (S6-D)
-    grafana/dashboard-selector: "hatch"
-    argocd/app-name: "hatch-etl"
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
   tags:
     - etl
     - python
     - data-pipeline
     - cronjob
   links:
-    - title: "ArgoCD Application"
-      url: "https://argocd.staging.internal/applications/hatch-etl"
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
       icon: "dashboard"
-    - title: "Grafana Dashboard"
-      url: "https://grafana.staging.internal/d/hatch-etl"
-      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch"
+      title: "Vault — Secrets Hatch"
+      icon: "security"
+      type: secrets
     - title: "GitLab Repository"
       url: "https://gitlab.staging.internal/etl/hatch"
       icon: "gitlab"
+      type: website
 spec:
   owner: data-team
-  domain: data-services
+  domain: data

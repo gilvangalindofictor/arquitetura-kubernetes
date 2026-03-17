@@ -1,0 +1,20 @@
+# Helm values para staging — ${{ values.name }}
+# Override de recursos para ambiente staging (50% dos valores de produção)
+
+replicaCount:
+  min: "${{ values.replicasMin | default(1) }}"
+  max: "${{ values.replicasMax | default(3) }}"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+ingress:
+  enabled: true
+  host: "${{ values.name }}.staging.internal"
+  class: internal
+  tls: true

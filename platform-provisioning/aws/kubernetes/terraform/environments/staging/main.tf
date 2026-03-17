@@ -207,6 +207,10 @@ module "postgresql_staging" {
   # This override uses the actual SM password so the PostgreSQL provider can connect.
   master_password_override = data.aws_secretsmanager_secret_version.rds_actual_master.secret_string
 
+  # Local TF runs: pass -var postgresql_host_override=localhost with port-forward active.
+  # Default null → uses VPC RDS address (normal CI/CD flow).
+  postgresql_host_override = var.postgresql_host_override
+
   # Bootstrap additional databases (Harbor, Keycloak)
   additional_databases = [
     {
@@ -489,18 +493,23 @@ resource "null_resource" "gitlab_runner_envfrom" {
 # Helm lifecycle.ignore_changes=all → must patch configmap directly
 # Uses python3 interpreter to avoid bash quoting issues with TOML content
 # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
+# Fix GAP-NODE-PRESSURE (2026-03-16): Reduced cpu/memory requests + concurrent 10→4 to relieve scheduler pressure
 resource "null_resource" "gitlab_runner_namespace_fix" {
   depends_on = [module.gitlab_staging]
 
   triggers = {
     executor_namespace = "staging-platform-gitlab"
     s3_bucket          = "k8s-platform-gitlab-artifacts-891377105802"
+    # GAP-NODE-PRESSURE: bump this to force re-apply of reduced resource requests
+    resource_profile = "cpu50m-mem128mi-concurrent4"
   }
 
   provisioner "local-exec" {
     interpreter = ["python3", "-c"]
     command     = <<-EOT
       import json, subprocess
+
+      # Patch config.template.toml: per-job-pod resource requests
       toml = "\n".join([
         "[[runners]]",
         "  clone_url = \"http://gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local:8181\"",
@@ -508,12 +517,12 @@ resource "null_resource" "gitlab_runner_namespace_fix" {
         "    namespace = \"staging-platform-gitlab\"",
         "    image = \"ubuntu:22.04\"",
         "    privileged = false",
-        "    cpu_request = \"100m\"",
-        "    memory_request = \"256Mi\"",
-        "    service_cpu_request = \"50m\"",
-        "    service_memory_request = \"128Mi\"",
-        "    helper_cpu_request = \"50m\"",
-        "    helper_memory_request = \"128Mi\"",
+        "    cpu_request = \"50m\"",
+        "    memory_request = \"128Mi\"",
+        "    service_cpu_request = \"10m\"",
+        "    service_memory_request = \"64Mi\"",
+        "    helper_cpu_request = \"10m\"",
+        "    helper_memory_request = \"64Mi\"",
         "  [runners.cache]",
         "    Type = \"s3\"",
         "    Shared = true",
@@ -522,13 +531,31 @@ resource "null_resource" "gitlab_runner_namespace_fix" {
         "      BucketLocation = \"us-east-1\"",
         ""
       ])
-      patch = json.dumps({"data": {"config.template.toml": toml}})
+
+      # Patch config.toml: global concurrent limit 10→4
+      config_toml = "\n".join([
+        "shutdown_timeout = 0",
+        "concurrent = 4",
+        "check_interval = 3",
+        "log_level = \"info\"",
+        ""
+      ])
+
+      patch = json.dumps({"data": {"config.template.toml": toml, "config.toml": config_toml}})
       r = subprocess.run(
         ["kubectl", "patch", "configmap", "gitlab-gitlab-runner",
          "-n", "staging-platform-gitlab", "--type", "merge", "-p", patch],
         capture_output=True
       )
       print(r.stdout.decode() + r.stderr.decode())
+
+      # Restart runner deployment to pick up new config
+      r2 = subprocess.run(
+        ["kubectl", "rollout", "restart", "deployment/gitlab-gitlab-runner",
+         "-n", "staging-platform-gitlab"],
+        capture_output=True
+      )
+      print(r2.stdout.decode() + r2.stderr.decode())
     EOT
   }
 }
@@ -711,6 +738,19 @@ module "vault_config_staging" {
   # alertmanager_teams_webhook_warning       = "REPLACE_TEAMS_WEBHOOK_URL_WARNING"
   # alertmanager_teams_webhook_data_services = "REPLACE_TEAMS_WEBHOOK_URL_DATA_SERVICES"
   # alertmanager_teams_webhook_security      = "REPLACE_TEAMS_WEBHOOK_URL_SECURITY"
+
+  # Hatch ETL secrets — GAP-TF-01/02 resolution (2026-03-13)
+  # Vault paths: secret/staging/hatch-etl/{database,redis,api}
+  # ESO ExternalSecrets: hatch-database-credentials, hatch-redis-connection, hatch-api-credentials
+  hatch_etl_enabled        = true
+  hatch_etl_db_host        = var.hatch_etl_db_host
+  hatch_etl_db_password    = var.hatch_etl_db_password
+  hatch_etl_db_name        = var.hatch_etl_db_name
+  hatch_etl_redis_host     = var.hatch_etl_redis_host
+  hatch_etl_redis_password = var.hatch_etl_redis_password
+  hatch_etl_api_base_url   = var.hatch_etl_api_base_url
+  hatch_etl_api_username   = var.hatch_etl_api_username
+  hatch_etl_api_password   = var.hatch_etl_api_password
 
   common_tags = local.common_tags
 }
@@ -1612,6 +1652,55 @@ module "ecr" {
 
   repositories = {
     hatch-sync = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    # GAP-TF-07: Hatch ETL service repos (2026-03-13)
+    hatch-etl-core = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-api-gateway = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-worker = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-poller = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-anexos = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-web = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-dashboard = {
+      image_tag_mutability = "MUTABLE"
+      scan_on_push         = false
+      encryption_type      = "AES256"
+      kms_key_arn          = null
+    }
+    hatch-etl-prometheus-exporter = {
       image_tag_mutability = "MUTABLE"
       scan_on_push         = false
       encryption_type      = "AES256"

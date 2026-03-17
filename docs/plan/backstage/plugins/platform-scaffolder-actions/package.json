@@ -1,0 +1,36 @@
+{
+  "name": "@internal/plugin-platform-scaffolder-actions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom Scaffolder actions da plataforma Kubernetes — platform:manifest:validate (ADR-104, Sprint S6-C)",
+  "main": "dist/index.cjs",
+  "types": "src/index.ts",
+  "backstage": {
+    "role": "backend-plugin-module",
+    "pluginId": "scaffolder",
+    "pluginPackage": "@backstage/plugin-scaffolder-backend"
+  },
+  "scripts": {
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "tsc": "tsc --build"
+  },
+  "dependencies": {
+    "@backstage/backend-plugin-api": "1.2.1",
+    "@backstage/plugin-scaffolder-node": "0.7.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "0.29.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "~5.7.0"
+  },
+  "peerDependencies": {
+    "@backstage/plugin-scaffolder-backend": "3.1.3"
+  }
+}

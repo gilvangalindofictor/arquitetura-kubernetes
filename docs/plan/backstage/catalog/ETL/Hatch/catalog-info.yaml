@@ -1,0 +1,708 @@
+# =============================================================================
+# ETL/Hatch/catalog-info.yaml — 12 Component entities do sistema data-hatch-etl
+# Cada serviço é um Component independente no Backstage Catalog
+# Namespace K8s: staging-data-hatch-etl (ADR-048)
+#
+# Serviços reais (8 Deployments K8s — CLAUDE.md Services Inventory):
+#   1. api-gateway            — type: service
+#   2. worker                 — type: service
+#   3. etl-core               — type: service
+#   4. dashboard              — type: service
+#   5. web                    — type: frontend   [BCG-P0-02 ADICIONADO]
+#   6. poller                 — type: worker     [BCG-P0-02 ADICIONADO]
+#   7. prometheus-exporter    — type: worker     [BCG-P0-02 ADICIONADO]
+#   8. anexos-service         — type: service    [BCG-P0-02 ADICIONADO]
+#
+# Jobs K8s:
+#   9.  cronjob-etl-extraction — type: job
+#   10. migration-runner       — type: job
+#
+# Entidades internas reclassificadas (não são Deployments K8s separados):
+#   11. data-processor  — type: library [BCG-P1-08: lógica interna do etl-core]
+#   12. scheduler       — type: library [BCG-P1-08: funcionalidade do CronJob K8s]
+#
+# Sprint S6-A / M2 — ADR-055, ADR-102, GAP-S6-10
+# Sprint S6-D — Observability Links (Grafana, ArgoCD, Vault) — 2026-03-13
+# BCG-P0-02 — 4 serviços ausentes adicionados — 2026-03-15
+# BCG-P1-07 — vault-path: hatch/ → hatch-etl/ — 2026-03-15
+# BCG-P2-02 — lifecycle: production → staging — 2026-03-15
+# BCG-P1-08 — data-processor + scheduler reclassificados como library — 2026-03-15
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Componente 1: api-gateway
+# Responsável por expor endpoints REST do sistema ETL/Hatch
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-api-gateway
+  title: "Hatch API Gateway"
+  description: "API Gateway do sistema ETL Hatch — expõe endpoints REST para ingestão e consulta de dados"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/api-gateway"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - api
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: service
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+    - resource:default/staging-data-hatch-etl-postgresql
+
+---
+# ---------------------------------------------------------------------------
+# Componente 2: worker
+# Processa tasks assíncronas da fila ETL
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-worker
+  title: "Hatch Worker"
+  description: "Worker assíncrono do sistema ETL Hatch — processa tarefas da fila de transformação de dados"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/worker"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - worker
+    - async
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: service
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+    - resource:default/staging-data-hatch-etl-postgresql
+
+---
+# ---------------------------------------------------------------------------
+# Componente 3: etl-core
+# Núcleo de orquestração do pipeline ETL
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-etl-core
+  title: "Hatch ETL Core"
+  description: "Núcleo de orquestração do pipeline ETL Hatch — gerencia fluxo de ingestão, transformação e carga"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/etl-core"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - core
+    - orchestration
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: service
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-data-processor
+    - resource:default/staging-data-hatch-etl-postgresql
+    - resource:default/staging-data-hatch-etl-s3
+
+---
+# ---------------------------------------------------------------------------
+# Componente 4: data-processor
+# [BCG-P1-08] RECLASSIFICADO: não é um Deployment K8s separado.
+# Lógica de transformação/validação é interna ao etl-core (main_dynamic.py).
+# Mantido como entidade de catálogo para rastreabilidade de responsabilidades.
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-data-processor
+  title: "Hatch Data Processor"
+  description: "[BCG-P1-08] Módulo interno de processamento de dados do ETL Hatch — aplica transformações, validações e enriquecimento de dados. NÃO é um Deployment K8s independente: lógica embutida no etl-core (main_dynamic.py)."
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/orphan: "false"
+    backstage.io/techdocs-ref: "dir:."
+    # BCG-P1-08: Não existe Deployment K8s "data-processor" — funcionalidade interna do etl-core
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - data-processor
+    - transformation
+    - python
+    - data-services
+    - internal-module
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+spec:
+  type: library
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+
+---
+# ---------------------------------------------------------------------------
+# Componente 5: scheduler
+# [BCG-P1-08] RECLASSIFICADO: não é um Deployment K8s separado.
+# Agendamento é implementado pelo CronJob K8s (hatch-cronjob-etl-extraction).
+# Mantido como entidade de catálogo para rastreabilidade de responsabilidades.
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-scheduler
+  title: "Hatch Scheduler"
+  description: "[BCG-P1-08] Módulo de agendamento do ETL Hatch — agenda e dispara execuções de pipeline. NÃO é um Deployment K8s independente: funcionalidade implementada pelo CronJob K8s hatch-cronjob-etl-extraction."
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/orphan: "false"
+    backstage.io/techdocs-ref: "dir:."
+    # BCG-P1-08: Não existe Deployment K8s "scheduler" — agendamento via CronJob hatch-cronjob-etl-extraction
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - scheduler
+    - cron
+    - python
+    - data-services
+    - internal-module
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+spec:
+  type: library
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+    - component:default/hatch-cronjob-etl-extraction
+
+---
+# ---------------------------------------------------------------------------
+# Componente 6: dashboard
+# Interface web de monitoramento do ETL Hatch
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-dashboard
+  title: "Hatch Dashboard"
+  description: "Dashboard web do sistema ETL Hatch — visualização de status de pipelines, métricas e histórico de execuções"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/dashboard"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - dashboard
+    - frontend
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: service
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-api-gateway
+
+---
+# ---------------------------------------------------------------------------
+# Componente 7: cronjob-etl-extraction
+# CronJob K8s de extração periódica de dados
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-cronjob-etl-extraction
+  title: "Hatch CronJob ETL Extraction"
+  description: "CronJob Kubernetes do sistema ETL Hatch — executa extração periódica de dados das fontes configuradas"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/cronjob-etl-extraction"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - cronjob
+    - extraction
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: job
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+    - resource:default/staging-data-hatch-etl-s3
+
+---
+# ---------------------------------------------------------------------------
+# Componente 8: migration-runner
+# Job de migração de schema do banco de dados
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-migration-runner
+  title: "Hatch Migration Runner"
+  description: "Job de migração do sistema ETL Hatch — aplica migrações de schema do banco de dados (Alembic/Flyway)"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/migration-runner"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - migration
+    - database
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: job
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - resource:default/staging-data-hatch-etl-postgresql
+
+---
+# ---------------------------------------------------------------------------
+# Componente 9: web  [BCG-P0-02 ADICIONADO — serviço real ausente do catalog]
+# Frontend React + Vite servido via nginx — portal web do Hatch ETL
+# Confirmado como Deployment K8s em CLAUDE.md Services Inventory
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-web
+  title: "Hatch Web"
+  description: "Frontend React + Vite + nginx — portal web do Hatch ETL para gestão e monitoramento de pipelines"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/web"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - frontend
+    - react
+    - vite
+    - nginx
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: frontend
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-api-gateway
+
+---
+# ---------------------------------------------------------------------------
+# Componente 10: poller  [BCG-P0-02 ADICIONADO — serviço real ausente do catalog]
+# Scheduled API polling sidecar — busca dados periodicamente da Hatch API
+# Confirmado como Deployment K8s em CLAUDE.md Services Inventory
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-poller
+  title: "Hatch Poller"
+  description: "Scheduled API polling sidecar — busca dados periodicamente da Hatch API externa para ingestão no pipeline ETL"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/poller"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - poller
+    - sidecar
+    - polling
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: worker
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+    - component:default/hatch-api-gateway
+
+---
+# ---------------------------------------------------------------------------
+# Componente 11: prometheus-exporter  [BCG-P0-02 ADICIONADO — serviço real ausente do catalog]
+# Metrics exporter — expõe métricas ETL para Prometheus scraping (porta 9090)
+# Confirmado como Deployment K8s em CLAUDE.md Services Inventory
+# METRICS_PORT=9090, METRICS_PATH=/metrics (manifest.yaml observability section)
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-prometheus-exporter
+  title: "Hatch Prometheus Exporter"
+  description: "Prometheus metrics exporter — expõe métricas ETL para Prometheus scraping na porta 9090 (/metrics)"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    gitlab.com/project-slug: "etl/hatch"
+    # prometheus-exporter não consome secrets via Vault — expõe apenas métricas
+    # públicas (Prometheus scraping, porta 9090). Sem credenciais necessárias.
+  tags:
+    - etl
+    - prometheus
+    - metrics
+    - observability
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+spec:
+  type: worker
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-etl-core
+
+---
+# ---------------------------------------------------------------------------
+# Componente 12: anexos-service  [BCG-P0-02 ADICIONADO — serviço real ausente do catalog]
+# Attachment cataloging microservice — FastAPI + Redis Queue + PostgreSQL + S3
+# Confirmado como Deployment K8s em CLAUDE.md Services Inventory
+# Phase 5.2: Code Complete (2026-01-23) | Deploy pending
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: hatch-anexos-service
+  title: "Hatch Anexos Service"
+  description: "Attachment cataloging microservice — gerencia upload e catalogação de anexos via FastAPI + Redis Queue + PostgreSQL metadata + S3 (s3://hatch-anexos-staging/)"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/ETL/Hatch/catalog-info.yaml"
+    backstage.io/source-location: "url:https://gitlab.staging.internal/etl/hatch"
+    backstage.io/kubernetes-id: "hatch-etl"
+    backstage.io/kubernetes-namespace: "staging-data-hatch-etl"
+    backstage.io/techdocs-ref: "dir:."
+    # S6-D: Observability annotations (canonical)
+    grafana/dashboard-selector: "app=hatch-etl"
+    grafana/alert-label-selector: "app=hatch-etl"
+    argocd/app-name: "staging-data-hatch-etl"
+    argocd/app-namespace: "staging-data-hatch-etl"
+    vault.io/role: "hatch-etl"
+    vault/path: "secret/staging/hatch-etl/anexos"
+    gitlab.com/project-slug: "etl/hatch"
+  tags:
+    - etl
+    - anexos
+    - s3
+    - fastapi
+    - microservice
+    - python
+    - data-services
+  labels:
+    domain: data
+    product: hatch-etl
+  links:
+    - url: "https://grafana.staging.internal/d/hatch-etl-overview"
+      title: "Grafana — Hatch ETL Dashboard"
+      icon: "dashboard"
+      type: monitoring
+    - url: "https://argocd.staging.internal/applications/staging-data-hatch-etl"
+      title: "ArgoCD — staging deployment"
+      icon: "argoCD"
+      type: deployment
+    - url: "https://vault.staging.internal/ui/vault/secrets/secret/staging/hatch-etl"
+      title: "Vault — Secrets Hatch ETL"
+      icon: "security"
+      type: secrets
+spec:
+  type: service
+  lifecycle: staging
+  owner: data-team
+  system: data-hatch-etl
+  dependsOn:
+    - component:default/hatch-api-gateway
+    - component:default/hatch-etl-core
+    - resource:default/staging-data-hatch-etl-postgresql
+    - resource:default/staging-data-hatch-etl-s3

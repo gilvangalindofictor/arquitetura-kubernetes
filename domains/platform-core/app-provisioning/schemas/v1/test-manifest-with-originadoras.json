@@ -1,0 +1,48 @@
+{
+  "apiVersion": "platform.k8s/v1",
+  "kind": "ApplicationManifest",
+  "metadata": {
+    "name": "test-etl-smoketest",
+    "domain": "data",
+    "product": "test-etl-smoketest",
+    "type": "etl",
+    "owner": "data-team",
+    "description": "Teste de validação do schema com originadoras e APIs externas"
+  },
+  "originadoras": [
+    {
+      "codigo": "aspbras_jwt",
+      "nome": "Aspbras JWT Multi-Tenant",
+      "apiUrl": "https://api.aspbras.com.br",
+      "authType": "jwt_multi_tenant",
+      "multiTenant": true,
+      "secretKeyRef": "aspbras"
+    }
+  ],
+  "externalAPIs": [
+    {
+      "name": "enrichment-api",
+      "url": "https://enrich.example.com",
+      "authType": "apikey",
+      "secretKeyRef": "enrichment",
+      "timeout": 30
+    }
+  ],
+  "resources": {
+    "requests": { "cpu": "100m", "memory": "256Mi" },
+    "limits":   { "cpu": "500m", "memory": "512Mi" },
+    "replicas": { "min": 1, "max": 3 }
+  },
+  "config": {
+    "port": 8000,
+    "healthCheck": {
+      "liveness": "/healthz",
+      "readiness": "/healthz"
+    },
+    "env": {
+      "APP_ENV": "staging",
+      "LOG_LEVEL": "INFO"
+    },
+    "secretKeys": ["DATABASE_URL", "ASPBRAS_API_USERNAME", "ASPBRAS_API_PASSWORD", "ENRICHMENT_API_KEY"]
+  }
+}

@@ -12,6 +12,8 @@ metadata:
   description: "{{ values.description }}"
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlab_group }}/{{ values.name }}/-/blob/main/catalog-info.yaml"
+    # TechDocs — documentação gerada a partir do diretório raiz
+    backstage.io/techdocs-ref: "dir:."
     # Integração Kubernetes — exibe pods em tempo real no Backstage
     backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
     backstage.io/kubernetes-namespace: "staging-{{ values.domain }}-{{ values.name }}"

@@ -1,21 +1,21 @@
 # =============================================================================
 # entities/domains/catalog-info.yaml — 5 Domain entities da plataforma
-# Mapeamento: domínio → team owner → namespace padrão
-# Convenção de namespace: staging-{domain}-{service} (ADR-048)
+# Mapeamento: domínio → team owner (ADR-047)
+# Nomes canônicos: platform, integration, data, operations, shared-services
 #
-# Sprint S6-A / M2 — ADR-055, ADR-102
+# Sprint S6-A / M2 — ADR-055, ADR-102, ADR-047
 # =============================================================================
 
 # ---------------------------------------------------------------------------
-# Domínio 1: platform-core
-# Owner: Platform Team
+# Domínio 1: platform
+# Owner: platform-team
 # Sistemas: backstage, argocd, keycloak, harbor, vault
 # ---------------------------------------------------------------------------
 apiVersion: backstage.io/v1alpha1
 kind: Domain
 metadata:
-  name: platform-core
-  title: "Platform Core"
+  name: platform
+  title: "Platform"
   description: "Infraestrutura de plataforma — IDP, GitOps, Auth, Registry e Secrets Management"
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
@@ -31,15 +31,39 @@ spec:
 
 ---
 # ---------------------------------------------------------------------------
-# Domínio 2: data-services
-# Owner: Data Team
-# Sistemas: data-hatch-etl, data-pipelines
+# Domínio 2: integration
+# Owner: integration-team
+# Sistemas: api-gateway, event-bus, webhooks, message-broker
 # ---------------------------------------------------------------------------
 apiVersion: backstage.io/v1alpha1
 kind: Domain
 metadata:
-  name: data-services
-  title: "Data Services"
+  name: integration
+  title: "Integration"
+  description: "Camada de integração — API Gateway, Event Bus, Webhooks e Message Broker"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
+    backstage.io/techdocs-ref: "dir:."
+  tags:
+    - integration
+    - api-gateway
+    - event-bus
+    - webhooks
+    - rabbitmq
+spec:
+  owner: integration-team
+
+---
+# ---------------------------------------------------------------------------
+# Domínio 3: data
+# Owner: data-team
+# Sistemas: data-hatch-etl, data-pipelines, data-warehouse
+# ---------------------------------------------------------------------------
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: data
+  title: "Data"
   description: "Serviços de dados — pipelines ETL, ingestão, transformação e entrega de dados"
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
@@ -49,79 +73,61 @@ metadata:
     - etl
     - pipeline
     - python
+    - data-warehouse
 spec:
   owner: data-team
 
 ---
 # ---------------------------------------------------------------------------
-# Domínio 3: cicd-platform
-# Owner: DevOps Team
-# Sistemas: gitlab-ci, sonarqube, quality-gates, argo-rollouts
+# Domínio 4: operations
+# Owner: operations-team
+# Sistemas: prometheus-stack, loki, tempo, grafana, alertmanager, velero
 # ---------------------------------------------------------------------------
 apiVersion: backstage.io/v1alpha1
 kind: Domain
 metadata:
-  name: cicd-platform
-  title: "CI/CD Platform"
-  description: "Plataforma de CI/CD — pipelines, quality gates, SAST/DAST, deploy automation"
+  name: operations
+  title: "Operations"
+  description: "Operações de plataforma — observabilidade, alertas, backup, disaster recovery e CI/CD"
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
     backstage.io/techdocs-ref: "dir:."
   tags:
-    - cicd
-    - gitlab
-    - sonarqube
-    - devops
-    - argo-rollouts
-spec:
-  owner: devops-team
-
----
-# ---------------------------------------------------------------------------
-# Domínio 4: observability
-# Owner: SRE Team
-# Sistemas: prometheus-stack, loki, tempo, grafana, alertmanager
-# ---------------------------------------------------------------------------
-apiVersion: backstage.io/v1alpha1
-kind: Domain
-metadata:
-  name: observability
-  title: "Observability"
-  description: "Stack de observabilidade — métricas, logs, traces, alertas e dashboards"
-  annotations:
-    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
-    backstage.io/techdocs-ref: "dir:."
-  tags:
+    - operations
     - observability
     - prometheus
     - loki
     - tempo
     - grafana
+    - cicd
+    - backup
     - sre
 spec:
-  owner: sre-team
+  owner: operations-team
 
 ---
 # ---------------------------------------------------------------------------
-# Domínio 5: security
-# Owner: Security Team
-# Sistemas: vault, kyverno, linkerd, external-secrets, waf
+# Domínio 5: shared-services
+# Owner: shared-services-team
+# Sistemas: vault, kyverno, linkerd, external-secrets, cert-manager, waf
 # ---------------------------------------------------------------------------
 apiVersion: backstage.io/v1alpha1
 kind: Domain
 metadata:
-  name: security
-  title: "Security"
-  description: "Stack de segurança — secrets management, policy enforcement, mTLS e WAF"
+  name: shared-services
+  title: "Shared Services"
+  description: "Serviços compartilhados — secrets management, policy enforcement, mTLS, certificates e WAF"
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/entities/domains/catalog-info.yaml"
     backstage.io/techdocs-ref: "dir:."
   tags:
-    - security
+    - shared-services
     - vault
     - kyverno
     - linkerd
     - mtls
+    - cert-manager
+    - external-secrets
     - waf
 spec:
-  owner: security-team
+  owner: shared-services-team

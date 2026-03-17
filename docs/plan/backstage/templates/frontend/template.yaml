@@ -8,7 +8,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: frontend-service
+  name: frontend-template
   title: "Frontend Service (React + nginx + K8s)"
   description: "Cria aplicação Frontend React servida por nginx com Kubernetes manifests e Ingress"
   tags:
@@ -19,6 +19,7 @@ metadata:
     - recommended
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/frontend/template.yaml"
+    backstage.io/techdocs-ref: "dir:."
 spec:
   owner: platform-team
   type: website
@@ -116,14 +117,30 @@ spec:
           ingress_host: ${{ parameters.ingress_host }}
           gitlab_group: ${{ parameters.gitlab_group }}
 
+    - id: validate-manifest
+      name: "Validar Manifest da Plataforma"
+      action: platform:manifest:validate
+      # Frontend não requer .platform/manifest.yaml (sem AppRole Vault — ADR-102).
+      # continueOnError: true permite scaffold mesmo sem manifest válido.
+      continueOnError: true
+      input:
+        manifestPath: .platform/manifest.yaml
+
     - id: publish-gitlab
-      name: "Criar repositório no GitLab"
+      name: "Criar repositório e abrir MR no GitLab"
       action: publish:gitlab
       input:
         repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=frontend-${{ parameters.name }}"
         description: ${{ parameters.description }}
         defaultBranch: main
         repoVisibility: ${{ parameters.repo_visibility }}
+        # GAP-SEC-S6-11: 'error' falha explicitamente se branch já existe — evita push acidental
+        onExistingBranch: error
+        gitCommitMessage: "feat: scaffold frontend service ${{ parameters.name }} via Backstage Golden Path"
+        branchName: "scaffold/${{ parameters.name }}"
+        sourceBranch: "scaffold/${{ parameters.name }}"
+        title: "feat: scaffold frontend service ${{ parameters.name }}"
+        mrDescription: "Frontend service scaffolded via Backstage Software Template\n\nService: ${{ parameters.name }}\nOwner: ${{ parameters.owner }}\nGitLab Group: ${{ parameters.gitlab_group }}"
 
     - id: register-catalog
       name: "Registrar no Backstage Catalog"
@@ -139,6 +156,10 @@ spec:
     links:
       - title: "Repositório GitLab"
         url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+        icon: gitlab
+      - title: "Pull Request aberto"
+        url: ${{ steps['publish-gitlab'].output.mergeRequestUrl }}
+        icon: gitlab
       - title: "Ver no Backstage Catalog"
         icon: catalog
         entityRef: ${{ steps['register-catalog'].output.entityRef }}

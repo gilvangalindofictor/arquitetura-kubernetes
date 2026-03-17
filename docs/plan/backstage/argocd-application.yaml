@@ -4,9 +4,11 @@
 # Namespace:  staging-platform-backstage
 # Helm chart: backstage/backstage v2.6.3
 # Criado:     2026-03-06
+# Atualizado: 2026-03-15 — S6C: imagem 1.48.0-s6c-202603151531, ConfigMaps S6C, sem initContainers
 # ADR:        ADR-055
 #
 # Aplicar: kubectl apply -f argocd-application.yaml -n staging-platform-argocd
+# Estado: Helm revision 25, deployed 2026-03-15T15:40 (BRT)
 # =============================================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -37,7 +39,7 @@ spec:
           image:
             registry: harbor.staging.internal
             repository: platform/backstage
-            tag: "1.48.0-oidc"
+            tag: "1.48.0-s6c-202603151531"
             pullPolicy: Always
             pullSecrets:
               - harbor-registry-secret
@@ -107,19 +109,36 @@ spec:
                 secretKeyRef:
                   name: backstage-secrets
                   key: eks-cluster-url
+            # GAP-S6A-12: NODE_OPTIONS — heap limit para evitar OOMKill (1536Mi limits → 75% = ~1100Mi)
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=1100"
+            # GAP-S6A-13: NODE_EXTRA_CA_CERTS — CA interna para TLS *.staging.internal
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/ssl/certs/staging-internal-ca.crt
+            # GAP-S6A-10: Harbor secrets ausentes
+            - name: HARBOR_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: harbor-url
+            - name: HARBOR_ROBOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-secrets
+                  key: harbor-robot-token
+            # S6-C: Path do JSON Schema da plataforma para a custom action platform:manifest:validate
+            - name: PLATFORM_SCHEMA_PATH
+              value: /app/schemas/v1/manifest-schema.json
           podAnnotations:
             linkerd.io/inject: "enabled"
             config.linkerd.io/proxy-await: "enabled"
-            config.linkerd.io/skip-outbound-ports: "443"
+            config.linkerd.io/skip-outbound-ports: "443,5432"
           podLabels:
             domain: platform
             environment: staging
             owner: platform-team
             app.kubernetes.io/name: backstage
             app.kubernetes.io/part-of: platform-core
-          args:
-            - "--config"
-            - "/app/app-config-from-configmap.yaml"
           resources:
             requests:
               cpu: 250m
@@ -127,59 +146,153 @@ spec:
             limits:
               cpu: 1000m
               memory: 1536Mi
-          initContainers:
-            - name: install-oidc
-              image: node:22-bookworm-slim
-              imagePullPolicy: IfNotPresent
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  set -e
-                  cd /tmp
-                  printf '{"name":"tmp","version":"1.0.0"}' > package.json
-                  npm install @backstage/plugin-auth-backend-module-oidc-provider@0.4.13 openid-client@5 \
-                    --legacy-peer-deps --no-audit --no-fund --no-workspaces --prefix /tmp/oidc
-                  cp -r /tmp/oidc/node_modules/@backstage/plugin-auth-backend-module-oidc-provider/. /mnt/oidc-module/
-                  node -e "
-                  const fs = require('fs');
-                  const pkg = JSON.parse(fs.readFileSync('/mnt/oidc-module/package.json', 'utf8'));
-                  pkg.exports = {
-                    '.': { 'require': './dist/index.cjs.js', 'default': './dist/index.cjs.js' },
-                    './package.json': './package.json'
-                  };
-                  fs.writeFileSync('/mnt/oidc-module/package.json', JSON.stringify(pkg, null, 2));
-                  console.log('exports field added to package.json');
-                  "
-                  mkdir -p /mnt/oidc-module/node_modules
-                  cp -r /tmp/oidc/node_modules/openid-client /mnt/oidc-module/node_modules/openid-client
-                  for dep in jose lru-cache object-hash oidc-token-hash; do
-                    if [ -d /tmp/oidc/node_modules/$dep ]; then
-                      cp -r /tmp/oidc/node_modules/$dep /mnt/oidc-module/node_modules/$dep
-                    fi
-                  done
-                  echo 'Init complete. OIDC module + openid-client@5 + exports field.'
-              volumeMounts:
-                - name: oidc-module
-                  mountPath: /mnt/oidc-module
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 512Mi
-                limits:
-                  cpu: 500m
-                  memory: 1Gi
+          replicas: 2
+          # S6-C: initContainers vazio — OIDC e plugin ja embutidos na imagem 1.48.0-s6c-*
+          initContainers: []
           extraVolumes:
-            - name: oidc-module
-              emptyDir: {}
-            - name: patched-dist
+            # GAP-S6A-13: CA interna para TLS de hosts *.staging.internal
+            - name: staging-internal-ca
               configMap:
-                name: backstage-patched-index
+                name: staging-internal-ca
+            # S6-C: JSON Schema da plataforma para custom action platform:manifest:validate
+            - name: platform-manifest-schema
+              configMap:
+                name: platform-manifest-schema
+            # S6-C-FIX: index.cjs.js com plugin platform-scaffolder-actions registrado
+            - name: backstage-s6c-index
+              configMap:
+                name: backstage-s6c-index
+            # S6-C-FIX: plugin platform-scaffolder-actions montado em node_modules/@internal
+            - name: backstage-s6c-plugin
+              configMap:
+                name: backstage-s6c-plugin
           extraVolumeMounts:
-            - name: oidc-module
-              mountPath: /app/node_modules/@backstage/plugin-auth-backend-module-oidc-provider
-            - name: patched-dist
+            # GAP-S6A-13: mount do certificado CA interno
+            - name: staging-internal-ca
+              mountPath: /etc/ssl/certs/staging-internal-ca.crt
+              subPath: ca.crt
+              readOnly: true
+            # S6-C: mount do schema da plataforma
+            - name: platform-manifest-schema
+              mountPath: /app/schemas/v1
+              readOnly: true
+            # S6-C-FIX: sobrescreve index.cjs.js com versão S6C (plugin platform-scaffolder-actions)
+            - name: backstage-s6c-index
               mountPath: /app/packages/backend/dist/index.cjs.js
               subPath: index.cjs.js
+              readOnly: true
+            # S6-C-FIX: plugin platform-scaffolder-actions em node_modules
+            - name: backstage-s6c-plugin
+              mountPath: /app/node_modules/@internal/plugin-platform-scaffolder-actions/index.cjs
+              subPath: index.cjs
+              readOnly: true
+            - name: backstage-s6c-plugin
+              mountPath: /app/node_modules/@internal/plugin-platform-scaffolder-actions/package.json
+              subPath: package.json
+              readOnly: true
+          appConfig:
+            app:
+              title: Backstage IDP — Platform Engineering
+              baseUrl: https://backstage.staging.internal
+            backend:
+              baseUrl: https://backstage.staging.internal
+              listen:
+                port: 7007
+              cors:
+                origin: https://backstage.staging.internal
+                methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+                credentials: true
+              reading:
+                allow:
+                  - host: gitlab.staging.internal
+                  - host: "gitlab-webservice-default.staging-platform-gitlab.svc.cluster.local"
+                  - host: "*.staging-platform-gitlab.svc.cluster.local"
+              database:
+                client: pg
+                connection:
+                  host: ${POSTGRES_HOST}
+                  port: 5432
+                  user: ${POSTGRES_USER}
+                  password: ${POSTGRES_PASSWORD}
+                  database: backstage
+                  ssl:
+                    require: true
+                    rejectUnauthorized: false
+            auth:
+              session:
+                secret: ${AUTH_SESSION_SECRET}
+                cookie:
+                  maxAge: 86400000
+                  secure: true
+                  sameSite: lax
+              providers:
+                oidc:
+                  production:
+                    metadataUrl: http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local/auth/realms/platform/.well-known/openid-configuration
+                    clientId: ${KEYCLOAK_CLIENT_ID}
+                    clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+                    prompt: auto
+                    callbackUrl: https://backstage.staging.internal/api/auth/oidc/handler/frame
+                    additionalScopes: 'profile email'
+                    signIn:
+                      resolvers:
+                        - resolver: emailMatchingUserEntityProfileEmail
+            integrations:
+              gitlab:
+                - host: gitlab.staging.internal
+                  baseUrl: http://gitlab.staging.internal
+                  apiBaseUrl: http://gitlab.staging.internal/api/v4
+                  token: ${GITLAB_TOKEN}
+            catalog:
+              rules:
+                - allow: [Component, System, API, Group, User, Domain, Location, Template, Resource]
+              locations:
+                - type: url
+                  target: https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/catalog-info.yaml
+                  rules:
+                    - allow: [Location, Domain, System, Component, API, Group, User, Template, Resource]
+              providers:
+                gitlab:
+                  selfHosted:
+                    host: gitlab.staging.internal
+                    schedule:
+                      frequency:
+                        minutes: 30
+                      timeout:
+                        minutes: 3
+                keycloakOrg:
+                  default:
+                    baseUrl: http://keycloak-keycloakx-http.staging-platform-keycloak.svc.cluster.local/auth
+                    loginRealm: platform
+                    realm: platform
+                    clientId: ${KEYCLOAK_CLIENT_ID}
+                    clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+                    schedule:
+                      frequency:
+                        minutes: 30
+                      timeout:
+                        minutes: 3
+            harbor:
+              baseUrl: ${HARBOR_URL}
+              username: robot$backstage-puller
+              token: ${HARBOR_ROBOT_TOKEN}
+            techdocs:
+              builder: 'external'
+              generator:
+                runIn: 'external'
+              publisher:
+                type: 'awsS3'
+                awsS3:
+                  bucketName: 'backstage-techdocs-891377105802-us-east-1'
+                  region: 'us-east-1'
+                  bucketRootPath: '/'
+                  credentials:
+                    roleArn: 'arn:aws:iam::891377105802:role/backstage-irsa-role'
+            scaffolder:
+              defaultAuthor:
+                name: Platform Bot
+                email: platform-bot@empresa.com.br
+              defaultCommitMessage: "feat: scaffold via Backstage"
         serviceAccount:
           create: true
           name: backstage
@@ -189,11 +302,15 @@ spec:
           enabled: true
           className: alb
           annotations:
-            alb.ingress.kubernetes.io/scheme: internet-facing
+            kubernetes.io/ingress.class: alb
+            alb.ingress.kubernetes.io/scheme: internal
             alb.ingress.kubernetes.io/target-type: ip
-            alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-            alb.ingress.kubernetes.io/group.name: platform-staging
+            alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+            alb.ingress.kubernetes.io/ssl-redirect: "443"
+            alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a"
+            alb.ingress.kubernetes.io/group.name: backstage-staging
             alb.ingress.kubernetes.io/healthcheck-path: /healthcheck
+            alb.ingress.kubernetes.io/success-codes: "200,301,302"
           host: backstage.staging.internal
           path: /
         postgresql:

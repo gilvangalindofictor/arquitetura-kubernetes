@@ -1,7 +1,8 @@
 # PostgreSQL Provider Configuration
 # Connects to the RDS instance created in main.tf
+# For local TF runs via port-forward, set postgresql_host_override = "localhost"
 provider "postgresql" {
-  host            = aws_db_instance.postgresql.address
+  host            = var.postgresql_host_override != null ? var.postgresql_host_override : aws_db_instance.postgresql.address
   port            = aws_db_instance.postgresql.port
   username        = aws_db_instance.postgresql.username
   password        = var.master_password_override != null ? var.master_password_override : random_password.master.result

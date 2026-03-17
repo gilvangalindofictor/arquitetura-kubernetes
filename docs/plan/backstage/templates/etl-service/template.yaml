@@ -1,153 +1,605 @@
 # =============================================================================
-# Backstage Software Template: ETL Service
-# Cria um novo serviço ETL Python com K8s, ESO, Vault AppRole
-# Sprint S6 / M2 — ADR-055
+# Backstage Software Template: ETL Service (Especializado)
+# Template para criação de serviços ETL, workers e CronJobs de processamento
+# de dados — com manifest spec completo, presets e validação via pipeline.
+#
+# Sprint S6-B / M2 — ADR-055, ADR-102
+# Substitui: template genérico new-service para workloads data/etl
 # =============================================================================
 
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: etl-service
-  title: "ETL Service (Python + K8s + Vault)"
-  description: "Cria serviço ETL Python com Kubernetes manifests, ExternalSecret ESO e AppRole Vault isolado"
+  name: etl-service-template
+  title: "Novo Serviço ETL/Worker"
+  description: "Template para criação de serviços ETL, workers e CronJobs de processamento de dados"
   tags:
-    - python
     - etl
-    - kubernetes
-    - recommended
+    - worker
+    - data
+    - python
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/etl-service/template.yaml"
+    backstage.io/techdocs-ref: "dir:."
 spec:
   owner: platform-team
   type: service
 
   # ---------------------------------------------------------------------------
-  # Parameters — GAP-008: validação de input com regex obrigatória
+  # Parameters — validação de input com regex obrigatória (GAP-008)
   # NUNCA usar title como identificador direto (XSS/injection via UI)
   # ---------------------------------------------------------------------------
   parameters:
-    - title: "Informações do Serviço"
+
+    # -------------------------------------------------------------------------
+    # Passo 1 — Informações Básicas
+    # Domain fixo em "data". Type restrito a etl|worker|cronjob.
+    # -------------------------------------------------------------------------
+    - title: "Informações Básicas"
       required:
         - name
         - description
         - owner
+        - serviceType
+        - product
       properties:
         name:
           title: "Nome do serviço"
           type: string
-          description: "Identificador único. Letras minúsculas, números e hífens. Ex: meu-etl-servico"
+          description: "Identificador único. Letras minúsculas, números e hífens (3–40 chars). Ex: sales-etl-processor"
           pattern: '^[a-z][a-z0-9-]{2,40}$'
           ui:autofocus: true
-          ui:help: "Será usado como nome do repositório GitLab, namespace Vault e labels Kubernetes"
+          ui:help: "Usado como nome do repositório GitLab, namespace K8s (staging-data-{name}) e path Vault"
         description:
           title: "Descrição"
           type: string
-          description: "Descrição curta do propósito do serviço ETL"
+          description: "Descrição curta do propósito do serviço (máx 200 caracteres)"
           maxLength: 200
+        product:
+          title: "Produto"
+          type: string
+          description: "Grupo de microsserviços / produto de negócio ao qual este serviço pertence"
+          pattern: '^[a-z][a-z0-9-]{1,40}$'
+          ui:help: "Ex: data-pipeline, analytics-platform, billing-etl"
         owner:
           title: "Squad responsável"
           type: string
-          description: "Squad dona do serviço"
+          description: "Squad dona do serviço — usada para RBAC e alertas"
           enum:
-            - "platform-team"
             - "data-team"
-            - "backend-team"
+            - "platform-team"
             - "ops-team"
           enumNames:
-            - "Platform Team"
             - "Data Team"
-            - "Backend Team"
+            - "Platform Team"
             - "Ops Team"
+        serviceType:
+          title: "Tipo de serviço"
+          type: string
+          description: "Tipo de workload — define o comportamento do manifest gerado"
+          enum:
+            - "etl"
+            - "worker"
+            - "cronjob"
+          enumNames:
+            - "ETL (pipeline de dados, pode ter agendamento)"
+            - "Worker (processo background contínuo, sem ingress)"
+            - "CronJob (execução periódica agendada, sem réplicas estáticas)"
+          ui:widget: radio
+        system:
+          title: "Sistema Backstage (opcional)"
+          type: string
+          description: "Sistema Backstage ao qual o serviço pertence. Deixe em branco para standalone"
+          default: ""
 
-    - title: "Configuração ETL"
-      required:
-        - source
-        - destination
+    # -------------------------------------------------------------------------
+    # Passo 2 — Configuração de Schedule (ativa apenas para cronjob/etl)
+    # -------------------------------------------------------------------------
+    - title: "Configuração de Schedule"
       properties:
-        source:
-          title: "Fonte de dados (source)"
-          type: string
-          description: "Origem dos dados. Ex: s3://bucket/prefix, postgresql://host/db, rabbitmq://queue"
-          pattern: '^(s3|postgresql|rabbitmq|kafka|http|https|file)://.+'
-          ui:help: "URI da fonte de dados que o ETL vai consumir"
-        destination:
-          title: "Destino dos dados (destination)"
-          type: string
-          description: "Destino dos dados transformados. Ex: s3://bucket/output, postgresql://host/db"
-          pattern: '^(s3|postgresql|kafka|http|https|file)://.+'
-          ui:help: "URI do destino onde os dados processados serão escritos"
         schedule:
-          title: "Schedule Cron"
+          title: "Expressão Cron"
           type: string
-          description: "Expressão cron para execução periódica. Ex: '0 2 * * *' (2am diário)"
+          description: "Expressão cron para execução periódica. Obrigatório para CronJob. Ex: '0 2 * * *' (2h diário)"
           default: "0 2 * * *"
           pattern: '^(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)\s+(\*|[0-9,\-\*/]+)$'
-        python_version:
-          title: "Versão Python"
+          ui:help: "Formato: minuto hora dia-mês mês dia-semana. Padrão: 0 2 * * * (todo dia 02:00 UTC)"
+        concurrencyPolicy:
+          title: "Política de Concorrência (CronJob)"
           type: string
-          description: "Versão Python para o runtime"
-          default: "3.12"
-          enum: ["3.11", "3.12"]
+          description: "Define o comportamento quando uma execução anterior ainda está em andamento"
+          default: "Forbid"
+          enum:
+            - "Allow"
+            - "Forbid"
+            - "Replace"
+          enumNames:
+            - "Allow — permite execuções simultâneas"
+            - "Forbid — pula execução se anterior ainda está rodando (recomendado)"
+            - "Replace — cancela execução anterior e inicia nova"
 
+    # -------------------------------------------------------------------------
+    # Passo 3 — Dependências de Dados
+    # Database (PostgreSQL), RabbitMQ para filas, Redis para cache
+    # -------------------------------------------------------------------------
+    - title: "Dependências de Dados"
+      properties:
+        databaseEnabled:
+          title: "Habilitar banco de dados (PostgreSQL)"
+          type: boolean
+          default: false
+          description: "Provisionar ExternalSecret com credenciais de banco de dados"
+        databaseType:
+          title: "Tipo de banco"
+          type: string
+          default: "shared"
+          enum:
+            - "shared"
+            - "dedicated"
+          enumNames:
+            - "Shared — instância compartilhada (staging)"
+            - "Dedicated — instância própria (produção futura)"
+          ui:widget: radio
+        databaseName:
+          title: "Nome do banco de dados"
+          type: string
+          description: "Nome do banco PostgreSQL. Deixe em branco para usar o nome do serviço"
+          default: ""
+          pattern: '^$|^[a-z][a-z0-9_]{1,62}$'
+        databaseExtensions:
+          title: "Extensões PostgreSQL"
+          type: array
+          description: "Extensões PostgreSQL necessárias. Ex: uuid-ossp, pg_trgm, postgis"
+          items:
+            type: string
+            enum:
+              - "uuid-ossp"
+              - "pg_trgm"
+              - "postgis"
+              - "pg_stat_statements"
+              - "hstore"
+              - "btree_gin"
+          uniqueItems: true
+          ui:widget: checkboxes
+        rabbitmqEnabled:
+          title: "Habilitar RabbitMQ"
+          type: boolean
+          default: false
+          description: "Habilitar RabbitMQ? (padrão: false — ETL services usam Redis para filas)"
+        rabbitmqReplicas:
+          title: "Réplicas RabbitMQ"
+          type: integer
+          default: 1
+          minimum: 1
+          maximum: 3
+          description: "Número de réplicas do RabbitMQ (apenas se habilitado)"
+        rabbitmqVhosts:
+          title: "VHosts RabbitMQ"
+          type: array
+          description: "Lista de VHosts RabbitMQ que o serviço vai usar"
+          default: []
+          items:
+            type: string
+            pattern: '^[a-z][a-z0-9/-]{0,63}$'
+        redisEnabled:
+          title: "Habilitar Redis (cache)"
+          type: boolean
+          default: false
+          description: "Cache para resultados intermediários ou locks distribuídos"
+        redisMode:
+          title: "Modo Redis"
+          type: string
+          default: "standalone"
+          enum:
+            - "standalone"
+            - "sentinel"
+          enumNames:
+            - "Standalone (staging)"
+            - "Sentinel (HA — produção futura)"
+        keycloakEnabled:
+          title: "Habilitar Keycloak (OIDC)"
+          type: boolean
+          default: false
+          description: "Provisionar ExternalSecret com credenciais Keycloak OIDC. Requer client_secret e admin_password no Vault."
+        etlTestMode:
+          title: "ETL Test Mode"
+          type: boolean
+          default: false
+          description: "Habilitar ETL_TEST_MODE? (se true, execuções limitadas a <30s com dados reduzidos)"
+          ui:widget: radio
+        multiTenantCount:
+          title: "Número de Tenants"
+          type: integer
+          default: 1
+          description: "Quantos tenants este serviço ETL suporta? (para multi-tenant, provisionar schemas separadamente via provision_tenant_schema.py após o deploy)"
+
+    # -------------------------------------------------------------------------
+    # Passo 4 — Recursos Computacionais
+    # Preset ETL: 200m/800m CPU, 256Mi/1Gi Memória, replicas 1/4
+    # -------------------------------------------------------------------------
+    - title: "Recursos Computacionais"
+      properties:
+        cpuRequest:
+          title: "CPU Request"
+          type: string
+          description: "CPU mínima garantida. Preset ETL: 200m | Worker: 100m"
+          default: "200m"
+          pattern: '^[0-9]+m$'
+        cpuLimit:
+          title: "CPU Limit"
+          type: string
+          description: "CPU máxima permitida. Preset ETL: 800m | Worker: 400m"
+          default: "800m"
+          pattern: '^[0-9]+m$'
+        memoryRequest:
+          title: "Memory Request"
+          type: string
+          description: "Memória mínima garantida. Preset ETL: 256Mi | Worker: 128Mi"
+          default: "256Mi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+        memoryLimit:
+          title: "Memory Limit"
+          type: string
+          description: "Memória máxima permitida. Preset ETL: 1Gi | Worker: 512Mi"
+          default: "1Gi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+        replicasMin:
+          title: "Réplicas mínimas"
+          type: integer
+          description: "Número mínimo de réplicas. Preset ETL: 1 | Worker: 1. N/A para CronJob."
+          default: 1
+          minimum: 1
+          maximum: 4
+        replicasMax:
+          title: "Réplicas máximas"
+          type: integer
+          description: "Número máximo de réplicas. Preset ETL: 4 | Worker: 6."
+          default: 4
+          minimum: 1
+          maximum: 10
+
+    # -------------------------------------------------------------------------
+    # Passo 5 — Observabilidade
+    # Metrics port obrigatório para ETL, tracing habilitado por padrão
+    # -------------------------------------------------------------------------
+    - title: "Observabilidade"
+      required:
+        - metricsPort
+      properties:
+        metricsEnabled:
+          title: "Habilitar métricas Prometheus"
+          type: boolean
+          default: true
+          description: "Expor endpoint /metrics para scraping pelo Prometheus"
+        metricsPath:
+          title: "Path das métricas"
+          type: string
+          default: "/metrics"
+          pattern: '^/[a-zA-Z0-9/_-]*$'
+          description: "Endpoint HTTP das métricas Prometheus"
+        metricsPort:
+          title: "Porta das métricas"
+          type: integer
+          description: "Porta HTTP onde as métricas serão expostas. Obrigatório para ETL."
+          default: 9090
+          minimum: 1024
+          maximum: 65535
+        tracingEnabled:
+          title: "Habilitar tracing distribuído (OpenTelemetry)"
+          type: boolean
+          default: true
+          description: "Instrumentação OpenTelemetry para rastreamento de execuções ETL — recomendado habilitado"
+
+    # -------------------------------------------------------------------------
+    # Passo 6 — Repositório GitLab
+    # -------------------------------------------------------------------------
     - title: "Repositório GitLab"
       required:
-        - gitlab_group
+        - gitlabGroup
       properties:
-        gitlab_group:
+        gitlabGroup:
           title: "Grupo GitLab"
           type: string
           description: "Grupo GitLab onde o repositório será criado"
-          default: "etl"
+          default: "data"
           enum:
-            - "etl"
             - "data"
+            - "etl"
             - "platform"
-        repo_visibility:
-          title: "Visibilidade"
+          enumNames:
+            - "data — serviços de dados gerais"
+            - "etl — pipelines e jobs ETL"
+            - "platform — infraestrutura da plataforma"
+        repoVisibility:
+          title: "Visibilidade do repositório"
           type: string
-          description: "Visibilidade do repositório"
+          description: "Visibilidade do repositório no GitLab"
           default: "private"
           enum: ["private", "internal"]
+          enumNames:
+            - "Private (apenas o grupo)"
+            - "Internal (toda a organização)"
+
+    # -------------------------------------------------------------------------
+    # Passo 7 — Origens de Dados (Originadoras)
+    # APIs externas autenticadas que fornecem dados para este ETL.
+    # Cada originadora gera credenciais no Vault e config em originadoras.yaml.
+    # -------------------------------------------------------------------------
+    - title: "Origens de Dados (Originadoras)"
+      description: "APIs externas autenticadas que fornecem dados para este ETL. Cada originadora gera credenciais no Vault e configuração em config/originadoras.yaml."
+      properties:
+        originadoras:
+          title: "Originadoras"
+          type: array
+          description: "Liste cada origem de dados autenticada. Deixe vazio se não houver."
+          items:
+            type: object
+            required:
+              - codigo
+              - nome
+              - apiUrl
+              - authType
+            properties:
+              codigo:
+                title: "Código (snake_case)"
+                type: string
+                pattern: '^[a-z][a-z0-9_]{1,40}$'
+                description: "Identificador único em snake_case. Ex: aspbras_jwt, eicard_data"
+                ui:autofocus: true
+              nome:
+                title: "Nome"
+                type: string
+                maxLength: 100
+                description: "Nome descritivo da originadora"
+              apiUrl:
+                title: "URL da API"
+                type: string
+                pattern: '^https?://'
+                description: "URL base da API. Ex: https://api.parceiro.com.br"
+              authType:
+                title: "Tipo de Autenticação"
+                type: string
+                enum:
+                  - jwt_multi_tenant
+                  - apikey
+                  - oauth2
+                  - basic
+                  - none
+                enumNames:
+                  - "JWT Multi-Tenant (padrão Hatch — descobre tenants via /empresa/pesquisa)"
+                  - "API Key (header ou query param)"
+                  - "OAuth2 Client Credentials"
+                  - "Basic Auth (usuário/senha)"
+                  - "Sem autenticação (API pública)"
+                default: jwt_multi_tenant
+              multiTenant:
+                title: "Multi-Tenant (descoberta automática)"
+                type: boolean
+                default: false
+                description: "Se ativado, descobre e provisiona tenants automaticamente"
+              secretKeyRef:
+                title: "Nome da secret no Vault"
+                type: string
+                pattern: '^[a-z][a-z0-9-]{0,40}$'
+                description: "Sufixo do path Vault: secret/staging/{servico}/{secretKeyRef}. Ex: aspbras, eicard"
+          ui:ArrayFieldTemplate: ArrayFieldTemplate
+          ui:options:
+            addable: true
+            orderable: false
+            removable: true
+
+    # -------------------------------------------------------------------------
+    # Passo 8 — APIs Externas
+    # APIs de terceiros consumidas pelo serviço (não são fontes primárias).
+    # -------------------------------------------------------------------------
+    - title: "APIs Externas"
+      description: "APIs de terceiros consumidas pelo serviço (não são fontes de dados primárias). Ex: serviços de enriquecimento, webhooks, APIs de notificação."
+      properties:
+        externalAPIs:
+          title: "APIs Externas"
+          type: array
+          description: "Liste cada API externa. Deixe vazio se não houver."
+          items:
+            type: object
+            required:
+              - name
+              - url
+              - authType
+            properties:
+              name:
+                title: "Nome (kebab-case)"
+                type: string
+                pattern: '^[a-z][a-z0-9-]{1,40}$'
+                description: "Identificador único em kebab-case. Ex: enrichment-api, notification-svc"
+                ui:autofocus: true
+              url:
+                title: "URL Base"
+                type: string
+                pattern: '^https?://'
+                description: "URL base da API. Ex: https://enrich.example.com"
+              authType:
+                title: "Tipo de Autenticação"
+                type: string
+                enum:
+                  - apikey
+                  - oauth2
+                  - basic
+                  - bearer_token
+                  - none
+                enumNames:
+                  - "API Key"
+                  - "OAuth2 Client Credentials"
+                  - "Basic Auth"
+                  - "Bearer Token"
+                  - "Sem autenticação"
+              secretKeyRef:
+                title: "Nome da secret no Vault (opcional)"
+                type: string
+                pattern: '^[a-z][a-z0-9-]{0,40}$'
+                description: "Sufixo do path Vault para as credenciais desta API. Deixe vazio se authType=none."
+              timeout:
+                title: "Timeout (segundos)"
+                type: integer
+                default: 30
+                minimum: 5
+                maximum: 300
+          ui:ArrayFieldTemplate: ArrayFieldTemplate
+          ui:options:
+            addable: true
+            orderable: false
+            removable: true
+
+    # -------------------------------------------------------------------------
+    # Passo 9 — Secrets Externas
+    # Secrets de terceiros que não se encaixam nas categorias anteriores.
+    # -------------------------------------------------------------------------
+    - title: "Secrets Externas"
+      description: "Secrets de terceiros que não se encaixam nas categorias anteriores (tokens de parceiros, chaves S3 customizadas, senhas legadas). Cada item gera uma entrada no ExternalSecret e uma variável de ambiente no pod."
+      properties:
+        externalSecrets:
+          title: "Secrets Externas"
+          type: array
+          description: "Liste cada secret externa. Deixe vazio se não houver."
+          items:
+            type: object
+            required:
+              - envVarName
+              - vaultPath
+              - secretProperty
+            properties:
+              envVarName:
+                title: "Nome da Variável de Ambiente"
+                type: string
+                pattern: '^[A-Z][A-Z0-9_]{1,60}$'
+                description: "Nome UPPER_SNAKE_CASE da env var no pod. Ex: PARTNER_API_TOKEN, S3_CUSTOM_KEY"
+                ui:autofocus: true
+              vaultPath:
+                title: "Path no Vault (KV v2)"
+                type: string
+                description: "Path KV v2 completo. Ex: secret/staging/meu-etl/partner-api"
+              secretProperty:
+                title: "Propriedade no Vault"
+                type: string
+                description: "Chave dentro do path Vault. Ex: token, password, api_key"
+              description:
+                title: "Descrição (opcional)"
+                type: string
+                maxLength: 200
+                description: "Explique o propósito desta secret"
+          ui:ArrayFieldTemplate: ArrayFieldTemplate
+          ui:options:
+            addable: true
+            orderable: false
+            removable: true
 
   # ---------------------------------------------------------------------------
-  # Steps — ações executadas sequencialmente pelo Scaffolder
+  # Steps — executados sequencialmente pelo Backstage Scaffolder
   # ---------------------------------------------------------------------------
   steps:
+
     - id: fetch-template
-      name: "Gerar estrutura do projeto"
+      name: "Gerar estrutura do projeto ETL"
       action: fetch:template
       input:
         url: ./skeleton
         values:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
+          product: ${{ parameters.product }}
           owner: ${{ parameters.owner }}
-          source: ${{ parameters.source }}
-          destination: ${{ parameters.destination }}
+          serviceType: ${{ parameters.serviceType }}
+          system: ${{ parameters.system }}
           schedule: ${{ parameters.schedule }}
-          python_version: ${{ parameters.python_version }}
-          gitlab_group: ${{ parameters.gitlab_group }}
+          concurrencyPolicy: ${{ parameters.concurrencyPolicy }}
+          databaseEnabled: ${{ parameters.databaseEnabled }}
+          databaseType: ${{ parameters.databaseType }}
+          databaseName: ${{ parameters.databaseName }}
+          databaseExtensions: ${{ parameters.databaseExtensions }}
+          rabbitmqEnabled: ${{ parameters.rabbitmqEnabled }}
+          rabbitmqReplicas: ${{ parameters.rabbitmqReplicas }}
+          rabbitmqVhosts: ${{ parameters.rabbitmqVhosts }}
+          redisEnabled: ${{ parameters.redisEnabled }}
+          redisMode: ${{ parameters.redisMode }}
+          keycloakEnabled: ${{ parameters.keycloakEnabled }}
+          cpuRequest: ${{ parameters.cpuRequest }}
+          cpuLimit: ${{ parameters.cpuLimit }}
+          memoryRequest: ${{ parameters.memoryRequest }}
+          memoryLimit: ${{ parameters.memoryLimit }}
+          replicasMin: ${{ parameters.replicasMin }}
+          replicasMax: ${{ parameters.replicasMax }}
+          metricsEnabled: ${{ parameters.metricsEnabled }}
+          metricsPath: ${{ parameters.metricsPath }}
+          metricsPort: ${{ parameters.metricsPort }}
+          tracingEnabled: ${{ parameters.tracingEnabled }}
+          etlTestMode: ${{ parameters.etlTestMode }}
+          multiTenantCount: ${{ parameters.multiTenantCount }}
+          gitlabGroup: ${{ parameters.gitlabGroup }}
+          originadoras: ${{ parameters.originadoras | dump }}
+          externalAPIs: ${{ parameters.externalAPIs | dump }}
+          externalSecrets: ${{ parameters.externalSecrets | dump }}
+
+    - id: validate-manifest
+      name: "Validar manifest da plataforma"
+      action: platform:manifest:validate
+      input:
+        manifestPath: ".platform/manifest.yaml"
 
     - id: publish-gitlab
-      name: "Criar repositório no GitLab"
+      name: "Criar repositório e abrir MR no GitLab"
       action: publish:gitlab
       input:
-        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=etl-${{ parameters.name }}"
+        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlabGroup }}&repo=${{ parameters.name }}"
         description: ${{ parameters.description }}
         defaultBranch: main
-        repoVisibility: ${{ parameters.repo_visibility }}
+        repoVisibility: ${{ parameters.repoVisibility }}
+        # GAP-SEC-S6-11: 'error' falha explicitamente se branch já existe — evita push acidental
+        onExistingBranch: error
+        # S6-C: commit message e autor via scaffolder.defaultAuthor (helm-values-staging.yaml)
+        gitCommitMessage: "feat: scaffold inicial via Backstage — ${{ parameters.name }} (${{ parameters.serviceType }})"
+        # S6-C: MR automático — branch scaffold/<name> → main
+        branchName: "scaffold/${{ parameters.name }}"
+        sourceBranch: "scaffold/${{ parameters.name }}"
+        title: "feat: scaffold ${{ parameters.name }} (${{ parameters.serviceType }}) via Backstage"
+        mrDescription: |
+          ## Scaffold automático via Backstage — ETL/Worker
 
-    - id: vault-namespace
-      name: "Provisionar namespace Vault"
-      action: catalog:vault:write-namespace
-      input:
-        appName: "etl-${{ parameters.name }}"
-        pathPrefix: "secret/data/apps/etl"
-        createAppRole: true
-        appRoleConfig:
-          secret_id_ttl: "24h"
-          token_ttl: "1h"
-          token_max_ttl: "4h"
+          **Serviço:** `${{ parameters.name }}`
+          **Tipo:** `${{ parameters.serviceType }}`
+          **Domínio:** `data`
+          **Owner:** `${{ parameters.owner }}`
+          **Produto:** `${{ parameters.product }}`
+
+          ### Configuração
+          - **Schedule:** `${{ parameters.schedule }}`
+          - **CPU:** `${{ parameters.cpuRequest }}` → `${{ parameters.cpuLimit }}`
+          - **Memória:** `${{ parameters.memoryRequest }}` → `${{ parameters.memoryLimit }}`
+          - **Database:** `${{ parameters.databaseEnabled }}`
+          - **RabbitMQ:** `${{ parameters.rabbitmqEnabled }}`
+
+          ### Checklist
+          - [ ] Revisar `.platform/manifest.yaml`
+          - [ ] Verificar cron schedule se aplicável
+          - [ ] Pipeline `validate:manifest` passou ✅
+          - [ ] Solicitar review ao Platform/Data Team
+
+          ## Novas Configurações
+
+          ### Originadoras (${{ parameters.originadoras | length }} configuradas)
+          ${% for orig in parameters.originadoras %}- **${{ orig.codigo }}** — ${{ orig.nome }} (${{ orig.authType }})
+          ${% endfor %}
+
+          ### APIs Externas (${{ parameters.externalAPIs | length }} configuradas)
+          ${% for api in parameters.externalAPIs %}- **${{ api.name }}** — ${{ api.url }} (${{ api.authType }})
+          ${% endfor %}
+
+          ### Próximos Passos Obrigatórios
+          1. Configure as credenciais das originadoras no Vault ANTES do primeiro push para staging:
+             `vault kv put secret/staging/${{ parameters.name }}/{secretKeyRef} username=... password=...`
+          2. Configure as variáveis CI/CD no GitLab: KUBECONFIG_STAGING, VAULT_ADDR, CI_REGISTRY_USER, CI_REGISTRY_PASSWORD
+          3. Faça push para a branch `staging` para disparar o deploy automático
+
+          ---
+          *Gerado automaticamente pelo Backstage Scaffolder (Sprint S6-C)*
 
     - id: register-catalog
       name: "Registrar no Backstage Catalog"
@@ -157,12 +609,35 @@ spec:
         catalogInfoPath: "/catalog-info.yaml"
 
   # ---------------------------------------------------------------------------
-  # Output
+  # Output — links exibidos ao usuário após a execução
   # ---------------------------------------------------------------------------
   output:
     links:
       - title: "Repositório GitLab"
         url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+        icon: gitlab
+      - title: "MR Aberto — revisar e fazer merge"
+        url: ${{ steps['publish-gitlab'].output.mergeRequestUrl }}
+        icon: gitlab
       - title: "Ver no Backstage Catalog"
         icon: catalog
         entityRef: ${{ steps['register-catalog'].output.entityRef }}
+      - title: "Checklist de Vault — configurar credenciais antes do deploy"
+        url: "https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/docs/vault-setup-checklist.md"
+        icon: docs
+    text:
+      - title: "Próximos passos"
+        content: |
+          Seu serviço ETL/Worker foi criado com sucesso! Um MR foi aberto automaticamente no GitLab.
+
+          **Namespace Kubernetes:** `staging-data-${{ parameters.name }}`
+          **Tipo:** `${{ parameters.serviceType }}`
+          **Owner:** `${{ parameters.owner }}`
+          **Branch:** `scaffold/${{ parameters.name }}` → `main`
+
+          **Próximos passos:**
+          1. Acesse o MR gerado e revise o `.platform/manifest.yaml`
+          2. O pipeline `validate:manifest` rodará automaticamente no MR
+          3. Solicite review ao Platform/Data Team
+          4. Após merge, o ArgoCD provisionará o namespace e agendará o job
+          5. Verifique as métricas no Grafana: `staging-data-${{ parameters.name }}`

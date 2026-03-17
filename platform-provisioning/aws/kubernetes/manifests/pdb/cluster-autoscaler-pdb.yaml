@@ -1,0 +1,38 @@
+# PodDisruptionBudget — Cluster Autoscaler
+#
+# CONTEXTO:
+#   Incidente 2026-03-17: CA com replicas=0 por ~26h → 35 pods Pending sem escalonamento.
+#   O PDB gerado pelo Helm chart (cluster-autoscaler-aws-cluster-autoscaler) usa seletor
+#   app.kubernetes.io/name=aws-cluster-autoscaler, mas os pods reais têm o label
+#   app.kubernetes.io/name=cluster-autoscaler (via podLabels no values.yaml).
+#   Resultado: PDB do Helm com Current=0/Desired=0 — completamente inefetivo.
+#
+# SOLUÇÃO:
+#   PDB suplementar com seletor correto matching os pods reais.
+#   Combinado com annotation safe-to-evict=false, impede eviction do pod pelo próprio autoscaler.
+#
+# OPERAÇÃO:
+#   Para drenagem planejada de node: NÃO deletar este PDB.
+#   O CA usa priorityClassName=system-cluster-critical — eviction requer --disable-eviction.
+#   Para manutenção emergencial: kubectl delete pdb cluster-autoscaler-pdb -n kube-system
+#     (restaurar após manutenção com: kubectl apply -f este arquivo)
+#
+# GATE: kubectl get pdb cluster-autoscaler-pdb -n kube-system
+#   ALLOWED DISRUPTIONS deve ser 0 quando 1 réplica ativa (minAvailable=1 com 1 pod)
+#
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cluster-autoscaler-pdb
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/managed-by: platform-team
+    app.kubernetes.io/component: cluster-autoscaler
+    app.kubernetes.io/part-of: kube-system-protection
+    created-by: demand-2026-03-17-cluster-autoscaler-resiliencia
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-autoscaler
+      app.kubernetes.io/instance: cluster-autoscaler

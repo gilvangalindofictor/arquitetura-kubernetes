@@ -1,0 +1,111 @@
+# =============================================================================
+# .platform/manifest.yaml — Platform Application Manifest (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template api-service-template
+# Namespace K8s: staging-{{ values.domain }}-{{ values.name }} (ADR-048)
+# Validado pelo pipeline platform:manifest:validate antes do merge
+#
+# ATENÇÃO: Este arquivo é gerado automaticamente. Não editar manualmente.
+# Abra um novo issue no Backstage para alterar configurações.
+# =============================================================================
+
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
+metadata:
+  name: {{ values.name }}
+  domain: {{ values.domain }}
+  product: {{ values.product }}
+  type: api-rest
+  owner: {{ values.owner }}
+  description: "{{ values.description }}"
+  tags:
+    - api-rest
+    - {{ values.domain }}
+  labels:
+    app.kubernetes.io/name: {{ values.name }}
+    app.kubernetes.io/managed-by: backstage-scaffolder
+    platform.io/domain: {{ values.domain }}
+    platform.io/type: api-rest
+    platform.io/owner: {{ values.owner }}
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/blob/main/.platform/manifest.yaml"
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    platform.io/generated-by: "backstage-scaffolder"
+    platform.io/template: "api-service-template"
+spec:
+
+  dependencies:
+    database:
+      enabled: {{ values.databaseEnabled }}
+      {%- if values.databaseEnabled %}
+      type: "{{ values.databaseType }}"
+      name: "{{ values.databaseName if values.databaseName else values.name }}"
+      extensions: []
+      {%- endif %}
+    redis:
+      enabled: {{ values.redisEnabled }}
+      {%- if values.redisEnabled %}
+      mode: "{{ values.redisMode }}"
+      {%- endif %}
+    rabbitmq:
+      enabled: false
+    keycloak:
+      enabled: {{ values.keycloakEnabled }}
+      {%- if values.keycloakEnabled %}
+      clientType: "{{ values.keycloakClientType }}"
+      redirectUris:
+        {%- if values.keycloakRedirectUris and values.keycloakRedirectUris | length > 0 %}
+        {%- for uri in values.keycloakRedirectUris %}
+        - "{{ uri }}"
+        {%- endfor %}
+        {%- else %}
+        - "https://{{ values.name }}.staging.internal/auth/callback"
+        {%- endif %}
+      {%- endif %}
+
+  resources:
+    requests:
+      cpu: "{{ values.cpuRequest }}"
+      memory: "{{ values.memoryRequest }}"
+    limits:
+      cpu: "{{ values.cpuLimit }}"
+      memory: "{{ values.memoryLimit }}"
+    replicas:
+      min: {{ values.replicasMin }}
+      max: {{ values.replicasMax }}
+
+  config:
+    port: {{ values.port }}
+    healthCheck:
+      liveness: "{{ values.healthLiveness }}"
+      readiness: "{{ values.healthReadiness }}"
+    ingress:
+      enabled: {{ values.ingressEnabled }}
+      {%- if values.ingressEnabled %}
+      host: "{{ values.ingressHost if values.ingressHost else values.name + '.staging.internal' }}"
+      class: "{{ values.ingressClass }}"
+      tls: {{ values.ingressTls }}
+      {%- endif %}
+    env: {}
+    secretKeys: []
+
+  observability:
+    metrics:
+      enabled: true
+      path: "/metrics"
+      port: {{ values.port }}
+    tracing:
+      enabled: false
+
+  # Vault AppRole — secrets isolados por serviço (ADR-102)
+  vault:
+    enabled: true
+    namespace: "apps/{{ values.domain }}/{{ values.name }}"
+    createAppRole: true
+
+  # GitOps — ArgoCD Application criada automaticamente pelo provision:onboarding
+  gitops:
+    enabled: true
+    argocdProject: "applications"
+    syncPolicy: automated
+    selfHeal: true
+    prune: true

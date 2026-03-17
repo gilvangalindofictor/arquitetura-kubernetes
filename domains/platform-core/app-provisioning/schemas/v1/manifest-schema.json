@@ -27,6 +27,106 @@
       "type": "string",
       "pattern": "^https?://",
       "description": "String que representa uma URI HTTP/HTTPS. Wildcards permitidos para redirectUris (ex: https://app.staging.internal/*)."
+    },
+    "auth-type-enum": {
+      "type": "string",
+      "enum": ["jwt_multi_tenant", "apikey", "oauth2", "basic", "bearer_token", "none"],
+      "description": "Tipo de autenticação suportado para originadoras e APIs externas"
+    },
+    "originadora-item": {
+      "type": "object",
+      "required": ["codigo", "nome", "apiUrl", "authType"],
+      "additionalProperties": false,
+      "description": "Uma fonte de dados autenticada (originadora) consumida pelo ETL",
+      "properties": {
+        "codigo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,40}$",
+          "description": "Identificador único em snake_case. Ex: aspbras_jwt, eicard_jwt"
+        },
+        "nome": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Nome descritivo da originadora"
+        },
+        "apiUrl": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "URL base da API da originadora"
+        },
+        "authType": {
+          "$ref": "#/$defs/auth-type-enum"
+        },
+        "multiTenant": {
+          "type": "boolean",
+          "default": false,
+          "description": "Se true, descobre tenants automaticamente via /empresa/pesquisa"
+        },
+        "secretKeyRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,40}$",
+          "description": "Nome do path Vault: secret/staging/{service}/{secretKeyRef}"
+        }
+      }
+    },
+    "external-api-item": {
+      "type": "object",
+      "required": ["name", "url", "authType"],
+      "additionalProperties": false,
+      "description": "Uma API externa consumida pelo serviço (não é fonte de dados primária)",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,40}$",
+          "description": "Nome identificador em kebab-case. Ex: enrichment-api"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "URL base da API externa"
+        },
+        "authType": {
+          "$ref": "#/$defs/auth-type-enum"
+        },
+        "secretKeyRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,40}$",
+          "description": "Opcional. Path Vault: secret/staging/{service}/{secretKeyRef}"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 300,
+          "default": 30,
+          "description": "Timeout em segundos para chamadas a esta API"
+        }
+      }
+    },
+    "external-secret-item": {
+      "type": "object",
+      "required": ["envVarName", "vaultPath", "secretProperty"],
+      "additionalProperties": false,
+      "description": "Uma secret externa de terceiros que o serviço precisa (não coberta por database/redis/keycloak)",
+      "properties": {
+        "envVarName": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{1,60}$",
+          "description": "Nome da variável de ambiente no pod. Ex: ENRICHMENT_API_KEY"
+        },
+        "vaultPath": {
+          "type": "string",
+          "description": "Path KV v2 completo. Ex: secret/staging/meu-etl/partner-api"
+        },
+        "secretProperty": {
+          "type": "string",
+          "description": "Propriedade dentro do path Vault. Ex: token, password, api_key"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Descrição do propósito desta secret"
+        }
+      }
     }
   },
 
@@ -360,6 +460,89 @@
           "type": "string",
           "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot)|(((\\*(\\/[0-9]+)?|[0-9,\\-]+)\\s+){4}(\\*(\\/[0-9]+)?|[0-9,\\-]+)))$",
           "description": "Expressao cron para agendamento (somente para type=etl ou type=cronjob). Formato: '* * * * *' (minuto hora dia mes dia_semana) ou aliases como @daily."
+        },
+        "storage": {
+          "type": "object",
+          "description": "Configuracao de PersistentVolume para dados de staging do ETL",
+          "required": ["storageClass", "size", "mountPath"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Habilitar PersistentVolumeClaim para este servico"
+            },
+            "storageClass": {
+              "type": "string",
+              "description": "StorageClass do PVC (ex: gp3)"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi|Ti)$",
+              "description": "Tamanho do volume (ex: 10Gi)"
+            },
+            "mountPath": {
+              "type": "string",
+              "description": "Caminho de montagem no container (ex: /app/data)"
+            },
+            "accessMode": {
+              "type": "string",
+              "enum": ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"],
+              "default": "ReadWriteOnce",
+              "description": "Modo de acesso do PVC"
+            }
+          },
+          "additionalProperties": false
+        },
+        "extraConfigMaps": {
+          "type": "array",
+          "description": "ConfigMaps adicionais a montar no container",
+          "items": {
+            "type": "object",
+            "required": ["name", "mountPath"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Nome do ConfigMap no namespace"
+              },
+              "mountPath": {
+                "type": "string",
+                "description": "Caminho de montagem no container"
+              },
+              "subPath": {
+                "type": "string",
+                "description": "Subpath opcional dentro do volume"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "extraSecretVolumes": {
+          "type": "array",
+          "description": "Secret volumes adicionais a montar no container (ex: configs de autenticacao)",
+          "items": {
+            "type": "object",
+            "required": ["name", "secretName", "mountPath"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Nome do volume no pod spec"
+              },
+              "secretName": {
+                "type": "string",
+                "description": "Nome do Secret Kubernetes no namespace"
+              },
+              "mountPath": {
+                "type": "string",
+                "description": "Caminho de montagem no container"
+              },
+              "readOnly": {
+                "type": "boolean",
+                "default": true,
+                "description": "Montar o volume como somente leitura"
+              }
+            },
+            "additionalProperties": false
+          }
         }
       }
     },
@@ -411,6 +594,24 @@
           }
         }
       }
+    },
+
+    "originadoras": {
+      "type": "array",
+      "description": "Fontes de dados autenticadas (originadoras) consumidas pelo ETL. Geram config/originadoras.yaml e ExternalSecrets por originadora.",
+      "items": {
+        "$ref": "#/$defs/originadora-item"
+      },
+      "minItems": 0
+    },
+
+    "externalAPIs": {
+      "type": "array",
+      "description": "APIs externas consumidas pelo serviço. Cada item gera variáveis de ambiente e, se secretKeyRef presente, um ExternalSecret.",
+      "items": {
+        "$ref": "#/$defs/external-api-item"
+      },
+      "minItems": 0
     }
   }
 }

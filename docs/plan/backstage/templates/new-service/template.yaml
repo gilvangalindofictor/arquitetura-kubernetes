@@ -10,7 +10,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: new-service
+  name: new-service-template
   title: "Novo Serviço (Genérico)"
   description: "Template base para criação de qualquer serviço na plataforma — API, Worker ou ETL com K8s manifests e Vault AppRole"
   tags:
@@ -20,6 +20,7 @@ metadata:
     - platform
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/new-service/template.yaml"
+    backstage.io/techdocs-ref: "dir:."
 spec:
   owner: platform-team
   type: service
@@ -81,17 +82,17 @@ spec:
           type: string
           description: "Domínio da plataforma ao qual o serviço pertence — define namespace K8s"
           enum:
-            - "platform-core"
-            - "data-services"
-            - "cicd-platform"
-            - "observability"
-            - "security"
+            - "platform"
+            - "integration"
+            - "data"
+            - "operations"
+            - "shared-services"
           enumNames:
-            - "platform-core"
-            - "data-services"
-            - "cicd-platform"
-            - "observability"
-            - "security"
+            - "platform — infraestrutura e plataforma"
+            - "integration — integrações externas e webhooks"
+            - "data — APIs de dados e analytics"
+            - "operations — automação operacional"
+            - "shared-services — serviços compartilhados"
         system:
           title: "Sistema (opcional)"
           type: string
@@ -178,15 +179,47 @@ spec:
           memory_limit: ${{ parameters.memory_limit }}
           gitlab_group: ${{ parameters.gitlab_group }}
 
+    - id: validate-manifest
+      name: Validar manifest.yaml
+      action: platform:manifest:validate
+      input:
+        manifestPath: .platform/manifest.yaml
+
     - id: publish-gitlab
-      name: "Criar repositório no GitLab"
+      name: "Criar repositório e abrir MR no GitLab"
       action: publish:gitlab
       input:
         repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=${{ parameters.name }}"
         description: ${{ parameters.description }}
         defaultBranch: main
         repoVisibility: ${{ parameters.repo_visibility }}
-        onExistingBranch: force
+        # GAP-SEC-S6-11 (MÉDIO): 'error' falha explicitamente se branch já existe — evita push acidental
+        onExistingBranch: error
+        # S6-C: commit message e autor via scaffolder.defaultAuthor (helm-values-staging.yaml)
+        gitCommitMessage: "feat: scaffold inicial via Backstage — ${{ parameters.name }}"
+        # S6-C: MR automático — branch scaffold/<name> → main
+        # O publish:gitlab cria o repo em main e faz push do scaffold em scaffold/<name>,
+        # abrindo o MR automaticamente se branchName difere de defaultBranch.
+        branchName: "scaffold/${{ parameters.name }}"
+        sourceBranch: "scaffold/${{ parameters.name }}"
+        # Título e descrição do MR aberto automaticamente
+        title: "feat: scaffold ${{ parameters.name }} via Backstage"
+        mrDescription: |
+          ## Scaffold automático via Backstage
+
+          **Serviço:** `${{ parameters.name }}`
+          **Domínio:** `${{ parameters.domain }}`
+          **Tipo:** `${{ parameters.type }}`
+          **Owner:** `${{ parameters.owner }}`
+
+          ### Checklist
+          - [ ] Revisar `.platform/manifest.yaml`
+          - [ ] Verificar recursos (CPU/memória) em `k8s/`
+          - [ ] Pipeline `validate:manifest` passou ✅
+          - [ ] Solicitar review ao Platform Team
+
+          ---
+          *Gerado automaticamente pelo Backstage Scaffolder (Sprint S6-C)*
 
     - id: register-catalog
       name: "Registrar no Backstage Catalog"
@@ -203,18 +236,22 @@ spec:
       - title: "Repositório GitLab"
         url: ${{ steps['publish-gitlab'].output.remoteUrl }}
         icon: gitlab
+      - title: "MR Aberto — revisar e fazer merge"
+        url: ${{ steps['publish-gitlab'].output.mergeRequestUrl }}
+        icon: gitlab
       - title: "Ver no Backstage Catalog"
         icon: catalog
         entityRef: ${{ steps['register-catalog'].output.entityRef }}
     text:
       - title: "Próximos passos"
         content: |
-          Seu serviço foi criado com sucesso!
+          Seu serviço foi criado com sucesso! Um MR foi aberto automaticamente no GitLab.
 
           **Namespace Kubernetes:** `staging-${{ parameters.domain }}-${{ parameters.name }}`
+          **Branch:** `scaffold/${{ parameters.name }}` → `main`
 
           **Próximos passos:**
-          1. Clone o repositório e revise o `.platform/manifest.yaml` gerado
-          2. Abra um MR com as configurações do seu serviço
-          3. O pipeline `validate:manifest` rodará automaticamente no MR
+          1. Acesse o MR gerado e revise o `.platform/manifest.yaml`
+          2. O pipeline `validate:manifest` rodará automaticamente no MR
+          3. Solicite review ao Platform Team
           4. Após merge, o ArgoCD provisionará o namespace e deployará a aplicação

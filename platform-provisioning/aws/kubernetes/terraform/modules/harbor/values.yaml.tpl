@@ -86,6 +86,9 @@ redis:
 core:
   serviceAccountName: ${service_account}
   replicas: 2
+  podAnnotations:
+    # Linkerd: core connects to Redis:6379 and PostgreSQL:5432 — skip to avoid Linkerd interception of non-HTTP traffic
+    config.linkerd.io/skip-outbound-ports: "6379,5432"
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)
@@ -111,6 +114,9 @@ jobservice:
   replicas: 1  # FIXED: RWO PVC doesn't support multiple replicas (ADR-039)
   strategy:
     type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
+  podAnnotations:
+    # Linkerd: jobservice connects to harbor-core:80 (HTTP) — skip to avoid 504 via sidecar (incident 2026-03-17)
+    config.linkerd.io/skip-outbound-ports: "80"
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)

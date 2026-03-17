@@ -178,9 +178,12 @@ Arquivo de referência central para todos os documentos, relatórios, scripts e 
 
 | Documento | Descrição |
 | --------- | --------- |
+| [docs/finops/finops-status-2026-03-13.md](../finops/finops-status-2026-03-13.md) | Status FinOps 2026-03-13 — MTD $539.50 (12d), forecast CE $1.330,90, ajustado $1.145, NLB confirmado (-$1.10/dia) |
+| [docs/reports/aws-costs-raw-2026-03-13.json](../reports/aws-costs-raw-2026-03-13.json) | Raw JSON diário por serviço 01-12/03/2026 (coletado 2026-03-13 via AWS CE CLI) |
+| [docs/finops/finops-status-2026-03-12.md](../finops/finops-status-2026-03-12.md) | Status FinOps 2026-03-12 — savings R$ 61.638/ano, apply Lambda+RabbitMQ 14:39 BRT, P0 Linkerd resolvido |
 | [docs/finops/finops-status-2026-03-10.md](../finops/finops-status-2026-03-10.md) | Status FinOps 2026-03-10 — savings R$ 58.258/ano, DT-005 COMPLETO, VPA pendente |
 | [docs/finops/finops-status-2026-03-06.md](../finops/finops-status-2026-03-06.md) | Status FinOps 2026-03-06 — savings R$ 56.546/ano, VPA decisao, estrategia producao |
-| [docs/reports/aws-costs-consolidated-2026-03.md](../reports/aws-costs-consolidated-2026-03.md) | Relatório consolidado Mar 2026 (gerado pelo FinOps agent) |
+| [docs/reports/aws-costs-consolidated-2026-03.md](../reports/aws-costs-consolidated-2026-03.md) | Relatório consolidado Mar 2026 — atualizado 2026-03-13 com dados reais 01-12/03 |
 
 ---
 

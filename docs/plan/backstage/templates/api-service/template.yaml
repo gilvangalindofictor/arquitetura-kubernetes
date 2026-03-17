@@ -1,54 +1,69 @@
 # =============================================================================
-# Backstage Software Template: API Service
-# Cria um novo serviço API FastAPI com K8s, Ingress, HPA e Vault AppRole
-# Sprint S6 / M2 — ADR-055
+# Backstage Software Template: API REST Service (Especializado)
+# Template para criação de APIs REST com Ingress, Keycloak, HPA e métricas
+#
+# Sprint S6-B / M2 — ADR-055, ADR-102
+# Substitui: template genérico new-service para workloads api-rest
 # =============================================================================
 
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: api-service
-  title: "API Service (FastAPI + K8s + Vault)"
-  description: "Cria serviço API FastAPI com Kubernetes manifests, Ingress, HPA e AppRole Vault isolado"
+  name: api-service-template
+  title: "Nova API REST"
+  description: "Template especializado para APIs REST com Ingress, Keycloak OIDC, HPA, métricas e documentação OpenAPI"
   tags:
-    - python
-    - fastapi
-    - kubernetes
     - api
-    - recommended
+    - rest
+    - backend
+    - service
   annotations:
     backstage.io/managed-by-location: "url:https://gitlab.staging.internal/platform/backstage-catalog/-/blob/main/templates/api-service/template.yaml"
+    backstage.io/techdocs-ref: "dir:."
 spec:
   owner: platform-team
   type: service
 
   # ---------------------------------------------------------------------------
-  # Parameters — GAP-008: validação de input com regex obrigatória
+  # Parameters — validação de input com regex obrigatória (GAP-008)
   # NUNCA usar title como identificador direto (XSS/injection via UI)
   # ---------------------------------------------------------------------------
   parameters:
-    - title: "Informações do Serviço"
+
+    # -------------------------------------------------------------------------
+    # Passo 1 — Informações Básicas
+    # Domain: qualquer dos 5 domínios. Type: api-rest (fixo).
+    # -------------------------------------------------------------------------
+    - title: "Informações Básicas"
       required:
         - name
         - description
         - owner
+        - domain
+        - product
       properties:
         name:
-          title: "Nome do serviço"
+          title: "Nome da API"
           type: string
-          description: "Identificador único. Letras minúsculas, números e hífens. Ex: minha-api"
+          description: "Identificador único. Letras minúsculas, números e hífens (3–40 chars). Ex: orders-api"
           pattern: '^[a-z][a-z0-9-]{2,40}$'
           ui:autofocus: true
-          ui:help: "Será usado como nome do repositório GitLab, namespace Vault e labels Kubernetes"
+          ui:help: "Usado como nome do repo GitLab, namespace K8s (staging-{domain}-{name}), host de Ingress e path Vault"
         description:
           title: "Descrição"
           type: string
-          description: "Descrição curta do propósito da API"
+          description: "Descrição curta do propósito da API (máx 200 caracteres)"
           maxLength: 200
+        product:
+          title: "Produto"
+          type: string
+          description: "Grupo de microsserviços / produto de negócio ao qual esta API pertence"
+          pattern: '^[a-z][a-z0-9-]{1,40}$'
+          ui:help: "Ex: checkout, billing, catalog, auth-platform"
         owner:
           title: "Squad responsável"
           type: string
-          description: "Squad dona do serviço"
+          description: "Squad dona da API — usada para RBAC e alertas"
           enum:
             - "platform-team"
             - "data-team"
@@ -59,95 +74,358 @@ spec:
             - "Data Team"
             - "Backend Team"
             - "Ops Team"
+        domain:
+          title: "Domínio de negócio"
+          type: string
+          description: "Domínio da plataforma ao qual a API pertence — define namespace K8s"
+          enum:
+            - "platform"
+            - "integration"
+            - "data"
+            - "operations"
+            - "shared-services"
+          enumNames:
+            - "platform — infraestrutura e plataforma"
+            - "integration — integrações externas e webhooks"
+            - "data — APIs de dados e analytics"
+            - "operations — automação operacional"
+            - "shared-services — serviços compartilhados"
+        system:
+          title: "Sistema Backstage (opcional)"
+          type: string
+          description: "Sistema Backstage ao qual a API pertence. Deixe em branco para standalone"
+          default: ""
 
-    - title: "Configuração da API"
+    # -------------------------------------------------------------------------
+    # Passo 2 — Configuração HTTP
+    # Porta padrão 8080, health checks padronizados
+    # -------------------------------------------------------------------------
+    - title: "Configuração HTTP"
+      required:
+        - port
       properties:
         port:
           title: "Porta da aplicação"
           type: integer
-          description: "Porta TCP em que a API vai escutar (1024–65535)"
-          default: 8000
+          description: "Porta TCP em que a API vai escutar (1024–65535). Padrão: 8080"
+          default: 8080
           minimum: 1024
           maximum: 65535
-        enable_hpa:
-          title: "Habilitar HPA"
+        healthLiveness:
+          title: "Path do Liveness Probe"
+          type: string
+          description: "Endpoint HTTP para verificação de vida da aplicação"
+          default: "/health/liveness"
+          pattern: '^/[a-zA-Z0-9/_-]*$'
+        healthReadiness:
+          title: "Path do Readiness Probe"
+          type: string
+          description: "Endpoint HTTP para verificação de prontidão da aplicação"
+          default: "/health/readiness"
+          pattern: '^/[a-zA-Z0-9/_-]*$'
+
+    # -------------------------------------------------------------------------
+    # Passo 3 — Ingress
+    # Habilitado por padrão para APIs. Host pattern: {name}.staging.internal
+    # -------------------------------------------------------------------------
+    - title: "Configuração de Ingress"
+      properties:
+        ingressEnabled:
+          title: "Habilitar Ingress"
           type: boolean
-          description: "Criar HorizontalPodAutoscaler para escalonamento automático"
           default: true
-        hpa_min_replicas:
+          description: "Expor a API via Ingress Kubernetes (recomendado para APIs REST)"
+        ingressHost:
+          title: "Host do Ingress"
+          type: string
+          description: "Hostname para roteamento. Padrão gerado automaticamente: {name}.staging.internal"
+          pattern: '^$|^[a-z0-9][a-z0-9.-]{1,253}$'
+          ui:help: "Deixe em branco para usar o padrão {nome-da-api}.staging.internal"
+        ingressClass:
+          title: "Classe do Ingress"
+          type: string
+          description: "Ingress controller a ser usado"
+          default: "internal"
+          enum:
+            - "internal"
+            - "external"
+          enumNames:
+            - "internal — rede interna, VPN e cluster (recomendado)"
+            - "external — internet pública (requer aprovação de segurança)"
+          ui:widget: radio
+        ingressTls:
+          title: "Habilitar TLS"
+          type: boolean
+          default: true
+          description: "Habilitar TLS/HTTPS no Ingress via cert-manager"
+
+    # -------------------------------------------------------------------------
+    # Passo 4 — Autenticação Keycloak
+    # OIDC/OAuth2 via Keycloak — clientType confidential/public
+    # -------------------------------------------------------------------------
+    - title: "Autenticação (Keycloak OIDC)"
+      properties:
+        keycloakEnabled:
+          title: "Habilitar autenticação Keycloak"
+          type: boolean
+          default: false
+          description: "Configurar client OIDC no Keycloak para proteger endpoints da API"
+        keycloakClientType:
+          title: "Tipo de client Keycloak"
+          type: string
+          default: "confidential"
+          enum:
+            - "confidential"
+            - "public"
+          enumNames:
+            - "Confidential — backend-to-backend, client_credentials (recomendado para APIs)"
+            - "Public — SPA/mobile, authorization_code + PKCE"
+          ui:widget: radio
+        keycloakRedirectUris:
+          title: "Redirect URIs autorizadas"
+          type: array
+          description: "URIs de redirecionamento autorizadas (necessário para flows de autorização)"
+          default: []
+          items:
+            type: string
+            pattern: '^https?://.+'
+          ui:help: "Ex: https://minha-api.staging.internal/auth/callback"
+
+    # -------------------------------------------------------------------------
+    # Passo 5 — Dependências
+    # Database opcional, Redis para cache — sem RabbitMQ por padrão para APIs
+    # -------------------------------------------------------------------------
+    - title: "Dependências"
+      properties:
+        databaseEnabled:
+          title: "Habilitar banco de dados (PostgreSQL)"
+          type: boolean
+          default: false
+          description: "Provisionar ExternalSecret com credenciais de banco de dados"
+        databaseType:
+          title: "Tipo de banco"
+          type: string
+          default: "shared"
+          enum:
+            - "shared"
+            - "dedicated"
+          enumNames:
+            - "Shared — instância compartilhada (staging)"
+            - "Dedicated — instância própria (produção futura)"
+          ui:widget: radio
+        databaseName:
+          title: "Nome do banco de dados"
+          type: string
+          description: "Nome do banco PostgreSQL. Deixe em branco para usar o nome da API"
+          default: ""
+          pattern: '^$|^[a-z][a-z0-9_]{1,62}$'
+        redisEnabled:
+          title: "Habilitar Redis (cache)"
+          type: boolean
+          default: false
+          description: "Cache de respostas, rate limiting ou sessões"
+        redisMode:
+          title: "Modo Redis"
+          type: string
+          default: "standalone"
+          enum:
+            - "standalone"
+            - "sentinel"
+          enumNames:
+            - "Standalone (staging)"
+            - "Sentinel (HA — produção futura)"
+
+    # -------------------------------------------------------------------------
+    # Passo 6 — Recursos Computacionais
+    # Preset API REST: 100m/400m CPU, 128Mi/512Mi Mem, replicas 2/8
+    # -------------------------------------------------------------------------
+    - title: "Recursos Computacionais"
+      properties:
+        cpuRequest:
+          title: "CPU Request"
+          type: string
+          description: "CPU mínima garantida. Preset API: 100m"
+          default: "100m"
+          pattern: '^[0-9]+m$'
+        cpuLimit:
+          title: "CPU Limit"
+          type: string
+          description: "CPU máxima permitida. Preset API: 400m"
+          default: "400m"
+          pattern: '^[0-9]+m$'
+        memoryRequest:
+          title: "Memory Request"
+          type: string
+          description: "Memória mínima garantida. Preset API: 128Mi"
+          default: "128Mi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+        memoryLimit:
+          title: "Memory Limit"
+          type: string
+          description: "Memória máxima permitida. Preset API: 512Mi"
+          default: "512Mi"
+          pattern: '^[0-9]+(Mi|Gi)$'
+        replicasMin:
           title: "Réplicas mínimas (HPA)"
           type: integer
-          description: "Número mínimo de réplicas quando HPA estiver habilitado"
+          description: "Número mínimo de réplicas. Preset API: 2 (alta disponibilidade)"
           default: 2
           minimum: 1
-          maximum: 10
-        hpa_max_replicas:
+          maximum: 8
+        replicasMax:
           title: "Réplicas máximas (HPA)"
           type: integer
-          description: "Número máximo de réplicas quando HPA estiver habilitado"
-          default: 10
+          description: "Número máximo de réplicas. Preset API: 8"
+          default: 8
           minimum: 2
-          maximum: 50
+          maximum: 20
 
+    # -------------------------------------------------------------------------
+    # Passo 7 — Documentação
+    # OpenAPI spec link, TechDocs path
+    # -------------------------------------------------------------------------
+    - title: "Documentação"
+      properties:
+        openapiSpecPath:
+          title: "Path do OpenAPI Spec"
+          type: string
+          description: "Caminho relativo do arquivo OpenAPI/Swagger no repositório. Ex: docs/openapi.yaml"
+          default: "docs/openapi.yaml"
+          pattern: '^[a-zA-Z0-9/_.-]+\.(yaml|yml|json)$'
+          ui:help: "Será usado para registrar a API Definition no Backstage Catalog"
+        techdocsPath:
+          title: "Path do TechDocs"
+          type: string
+          description: "Diretório raiz da documentação TechDocs (deve conter mkdocs.yml)"
+          default: "."
+          pattern: '^\.?[a-zA-Z0-9/_-]*$'
+          ui:help: "Padrão: '.' (raiz do repositório). Backstage lerá mkdocs.yml neste diretório"
+
+    # -------------------------------------------------------------------------
+    # Passo 8 — Repositório GitLab
+    # -------------------------------------------------------------------------
     - title: "Repositório GitLab"
       required:
-        - gitlab_group
+        - gitlabGroup
       properties:
-        gitlab_group:
+        gitlabGroup:
           title: "Grupo GitLab"
           type: string
           description: "Grupo GitLab onde o repositório será criado"
           default: "backend"
           enum:
             - "backend"
+            - "data"
             - "platform"
             - "services"
-        repo_visibility:
-          title: "Visibilidade"
+            - "integration"
+          enumNames:
+            - "backend — APIs e serviços de backend"
+            - "data — APIs de dados"
+            - "platform — infraestrutura"
+            - "services — serviços compartilhados"
+            - "integration — integrações externas"
+        repoVisibility:
+          title: "Visibilidade do repositório"
           type: string
-          description: "Visibilidade do repositório"
+          description: "Visibilidade do repositório no GitLab"
           default: "private"
           enum: ["private", "internal"]
+          enumNames:
+            - "Private (apenas o grupo)"
+            - "Internal (toda a organização)"
 
   # ---------------------------------------------------------------------------
-  # Steps — ações executadas sequencialmente pelo Scaffolder
+  # Steps — executados sequencialmente pelo Backstage Scaffolder
   # ---------------------------------------------------------------------------
   steps:
+
     - id: fetch-template
-      name: "Gerar estrutura do projeto"
+      name: "Gerar estrutura da API REST"
       action: fetch:template
       input:
         url: ./skeleton
         values:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
+          product: ${{ parameters.product }}
           owner: ${{ parameters.owner }}
+          domain: ${{ parameters.domain }}
+          system: ${{ parameters.system }}
           port: ${{ parameters.port }}
-          enable_hpa: ${{ parameters.enable_hpa }}
-          hpa_min_replicas: ${{ parameters.hpa_min_replicas }}
-          hpa_max_replicas: ${{ parameters.hpa_max_replicas }}
-          gitlab_group: ${{ parameters.gitlab_group }}
+          healthLiveness: ${{ parameters.healthLiveness }}
+          healthReadiness: ${{ parameters.healthReadiness }}
+          ingressEnabled: ${{ parameters.ingressEnabled }}
+          ingressHost: ${{ parameters.ingressHost }}
+          ingressClass: ${{ parameters.ingressClass }}
+          ingressTls: ${{ parameters.ingressTls }}
+          keycloakEnabled: ${{ parameters.keycloakEnabled }}
+          keycloakClientType: ${{ parameters.keycloakClientType }}
+          keycloakRedirectUris: ${{ parameters.keycloakRedirectUris }}
+          databaseEnabled: ${{ parameters.databaseEnabled }}
+          databaseType: ${{ parameters.databaseType }}
+          databaseName: ${{ parameters.databaseName }}
+          redisEnabled: ${{ parameters.redisEnabled }}
+          redisMode: ${{ parameters.redisMode }}
+          cpuRequest: ${{ parameters.cpuRequest }}
+          cpuLimit: ${{ parameters.cpuLimit }}
+          memoryRequest: ${{ parameters.memoryRequest }}
+          memoryLimit: ${{ parameters.memoryLimit }}
+          replicasMin: ${{ parameters.replicasMin }}
+          replicasMax: ${{ parameters.replicasMax }}
+          openapiSpecPath: ${{ parameters.openapiSpecPath }}
+          techdocsPath: ${{ parameters.techdocsPath }}
+          gitlabGroup: ${{ parameters.gitlabGroup }}
+
+    - id: validate-manifest
+      name: "Validar manifest da plataforma"
+      action: platform:manifest:validate
+      input:
+        manifestPath: ".platform/manifest.yaml"
 
     - id: publish-gitlab
-      name: "Criar repositório no GitLab"
+      name: "Criar repositório e abrir MR no GitLab"
       action: publish:gitlab
       input:
-        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlab_group }}&repo=api-${{ parameters.name }}"
+        repoUrl: "gitlab.staging.internal?owner=${{ parameters.gitlabGroup }}&repo=${{ parameters.name }}"
         description: ${{ parameters.description }}
         defaultBranch: main
-        repoVisibility: ${{ parameters.repo_visibility }}
+        repoVisibility: ${{ parameters.repoVisibility }}
+        # GAP-SEC-S6-11: 'error' falha explicitamente se branch já existe — evita push acidental
+        onExistingBranch: error
+        # S6-C: commit message e autor via scaffolder.defaultAuthor (helm-values-staging.yaml)
+        gitCommitMessage: "feat: scaffold inicial via Backstage — ${{ parameters.name }} (api-rest)"
+        # S6-C: MR automático — branch scaffold/<name> → main
+        branchName: "scaffold/${{ parameters.name }}"
+        sourceBranch: "scaffold/${{ parameters.name }}"
+        title: "feat: scaffold ${{ parameters.name }} (api-rest) via Backstage"
+        mrDescription: |
+          ## Scaffold automático via Backstage — API REST
 
-    - id: vault-namespace
-      name: "Provisionar namespace Vault"
-      action: catalog:vault:write-namespace
-      input:
-        appName: "api-${{ parameters.name }}"
-        pathPrefix: "secret/data/apps/api"
-        createAppRole: true
-        appRoleConfig:
-          secret_id_ttl: "24h"
-          token_ttl: "1h"
-          token_max_ttl: "4h"
+          **API:** `${{ parameters.name }}`
+          **Domínio:** `${{ parameters.domain }}`
+          **Owner:** `${{ parameters.owner }}`
+          **Produto:** `${{ parameters.product }}`
+
+          ### Configuração HTTP
+          - **Porta:** `${{ parameters.port }}`
+          - **Ingress:** `${{ parameters.ingressEnabled }}` — host: `${{ parameters.ingressHost or parameters.name }}.staging.internal`
+          - **TLS:** `${{ parameters.ingressTls }}`
+          - **Keycloak:** `${{ parameters.keycloakEnabled }}`
+
+          ### Recursos
+          - **CPU:** `${{ parameters.cpuRequest }}` → `${{ parameters.cpuLimit }}`
+          - **Memória:** `${{ parameters.memoryRequest }}` → `${{ parameters.memoryLimit }}`
+          - **Réplicas HPA:** `${{ parameters.replicasMin }}` → `${{ parameters.replicasMax }}`
+
+          ### Checklist
+          - [ ] Revisar `.platform/manifest.yaml`
+          - [ ] Adicionar OpenAPI spec em `${{ parameters.openapiSpecPath }}`
+          - [ ] Pipeline `validate:manifest` passou ✅
+          - [ ] Solicitar review ao Platform/Backend Team
+
+          ---
+          *Gerado automaticamente pelo Backstage Scaffolder (Sprint S6-C)*
 
     - id: register-catalog
       name: "Registrar no Backstage Catalog"
@@ -157,12 +435,33 @@ spec:
         catalogInfoPath: "/catalog-info.yaml"
 
   # ---------------------------------------------------------------------------
-  # Output
+  # Output — links exibidos ao usuário após a execução
   # ---------------------------------------------------------------------------
   output:
     links:
       - title: "Repositório GitLab"
         url: ${{ steps['publish-gitlab'].output.remoteUrl }}
+        icon: gitlab
+      - title: "MR Aberto — revisar e fazer merge"
+        url: ${{ steps['publish-gitlab'].output.mergeRequestUrl }}
+        icon: gitlab
       - title: "Ver no Backstage Catalog"
         icon: catalog
         entityRef: ${{ steps['register-catalog'].output.entityRef }}
+    text:
+      - title: "Próximos passos"
+        content: |
+          Sua API REST foi criada com sucesso! Um MR foi aberto automaticamente no GitLab.
+
+          **Namespace Kubernetes:** `staging-${{ parameters.domain }}-${{ parameters.name }}`
+          **Ingress Host:** `${{ parameters.ingressHost if parameters.ingressHost else parameters.name }}.staging.internal`
+          **Owner:** `${{ parameters.owner }}`
+          **Branch:** `scaffold/${{ parameters.name }}` → `main`
+
+          **Próximos passos:**
+          1. Acesse o MR gerado e revise o `.platform/manifest.yaml`
+          2. Adicione o OpenAPI spec em `${{ parameters.openapiSpecPath }}`
+          3. O pipeline `validate:manifest` rodará automaticamente no MR
+          4. Solicite review ao Platform/Backend Team
+          5. Após merge, o ArgoCD provisionará o namespace com Ingress e HPA
+          6. Acesse a API em: `https://${{ parameters.name }}.staging.internal`

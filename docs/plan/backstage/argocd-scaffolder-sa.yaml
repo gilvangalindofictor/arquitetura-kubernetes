@@ -60,8 +60,51 @@ subjects:
     namespace: staging-platform-argocd
 
 ---
-# Secret para gerar token long-lived do SA (ArgoCD API token para Scaffolder)
-# Após apply: kubectl get secret backstage-scaffolder-token -n staging-platform-argocd -o jsonpath='{.data.token}' | base64 -d
+# =============================================================================
+# GAP-SEC-S6-17 (MÉDIO): Token long-lived para SA backstage-scaffolder (DEPRECATED)
+# =============================================================================
+# O Secret abaixo usa kubernetes.io/service-account-token (token estático sem expiração).
+# Este padrão foi DEPRECATED no Kubernetes 1.24+ e é um risco de segurança:
+#   - Token não expira → comprometimento = acesso permanente até remoção manual
+#   - Token não é rotacionado automaticamente
+#   - kubernetes.io/service-account-token secrets serão removidos em versão futura do K8s
+#
+# SOLUÇÃO RECOMENDADA — Projeção de volume com TokenRequest API (TTL 1h):
+#
+#   volumes:
+#     - name: scaffolder-token
+#       projected:
+#         sources:
+#           - serviceAccountToken:
+#               path: token
+#               expirationSeconds: 3600   # TTL 1h — rotacionado automaticamente pelo kubelet
+#               audience: argocd-server   # Audience restrito ao ArgoCD — evita replay em outros serviços
+#
+#   volumeMounts:
+#     - name: scaffolder-token
+#       mountPath: /var/run/secrets/scaffolder
+#       readOnly: true
+#
+# O token fica disponível em /var/run/secrets/scaffolder/token no pod do Backstage.
+# O Scaffolder deve ser configurado para ler o token deste path (não de uma variável de ambiente).
+#
+# REFERÊNCIA: https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/
+#             #bound-service-account-token-volume
+#
+# TODO GAP-SEC-S6-17: Migrar para TokenRequest API após validação do Scaffolder.
+#   Passos:
+#     1. Adicionar volume projetado no Deployment do Backstage (via helm-values-staging.yaml)
+#     2. Configurar @backstage/plugin-scaffolder-backend para ler token do volume
+#     3. Validar que o Scaffolder consegue criar ArgoCD Applications com o token projetado
+#     4. Remover este Secret após validação (sprint S6-B ou S6-C)
+#   BLOQUEADOR: Requer validação do comportamento do Scaffolder com TokenRequest API
+#               Não executar antes de teste em staging controlado
+# =============================================================================
+#
+# ATENÇÃO: O Secret abaixo é MANTIDO temporariamente para não quebrar o Scaffolder.
+# PRAZO MÁXIMO para migração: Sprint S6-B (estimado 2026-04-01).
+# Após a migração, DELETAR este Secret e o bloco abaixo.
+#
 apiVersion: v1
 kind: Secret
 metadata:
@@ -69,4 +112,6 @@ metadata:
   namespace: staging-platform-argocd
   annotations:
     kubernetes.io/service-account.name: backstage-scaffolder
+    # GAP-SEC-S6-17: este Secret long-lived é DEPRECATED — migrar para TokenRequest API
+    # Ver comentário acima para o plano de migração completo
 type: kubernetes.io/service-account-token

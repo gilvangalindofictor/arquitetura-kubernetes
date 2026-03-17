@@ -1,0 +1,46 @@
+# Helm values base — ${{ values.name }}
+# Gerado pelo Backstage Scaffolder — ajuste conforme necessário
+
+image:
+  repository: "harbor.staging.internal/data/${{ values.name }}"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+replicaCount:
+  min: ${{ values.replicasMin | default(1) }}
+  max: ${{ values.replicasMax | default(4) }}
+
+resources:
+  requests:
+    cpu: "${{ values.cpuRequest | default('100m') }}"
+    memory: "${{ values.memoryRequest | default('256Mi') }}"
+  limits:
+    cpu: "${{ values.cpuLimit | default('500m') }}"
+    memory: "${{ values.memoryLimit | default('512Mi') }}"
+
+service:
+  port: ${{ values.port | default(8000) }}
+
+envFrom:
+  - configMapRef:
+      name: "${{ values.name }}-config"
+  - secretRef:
+      name: "${{ values.name }}-secrets"
+
+{%- if values.originadoras and (values.originadoras | length) > 0 %}
+extraVolumes:
+  - name: "auth-config"
+    secret:
+      secretName: "${{ values.name }}-auth-config"
+
+extraVolumeMounts:
+  - name: "auth-config"
+    mountPath: /app/config/originadoras.yaml
+    subPath: originadoras.yaml
+    readOnly: true
+{%- endif %}
+
+metrics:
+  enabled: ${{ values.metricsEnabled | default(true) | string | lower }}
+  port: ${{ values.metricsPort | default(9090) }}
+  path: "${{ values.metricsPath | default('/metrics') }}"

@@ -1,0 +1,150 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cluster-capacity-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/managed-by: terraform
+    environment: staging
+    owner: platform-team
+    domain: capacity
+spec:
+  groups:
+    - name: cluster.autoscaler
+      interval: 60s
+      rules:
+        - alert: ClusterAutoscalerDown
+          expr: kube_deployment_status_replicas_available{deployment="cluster-autoscaler"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Cluster Autoscaler sem réplicas disponíveis — scale-out impossível"
+            description: >-
+              O Cluster Autoscaler está com 0 réplicas disponíveis. Scale-out automático
+              está impossibilitado. Acionar runbook: docs/runbooks/cluster-capacity-crisis.md
+
+    - name: cluster.capacity.rules
+      interval: 60s
+      rules:
+        - alert: NodeCPUCritical
+          expr: (1 - avg by(node)(rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node {{ $labels.node }} — CPU crítica ({{ $value | humanizePercentage }})"
+            description: >-
+              Node acima de 90% de uso de CPU por mais de 5 minutos.
+              Risco de throttling severo e scheduling failures.
+
+        - alert: NodeMemoryCritical
+          expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node {{ $labels.node }} — memória crítica ({{ $value | humanizePercentage }})"
+            description: >-
+              Node acima de 85% de uso de memória por mais de 5 minutos.
+              Risco de OOMKill e evictions.
+
+        - alert: NodePodDensityCritical
+          expr: (sum by (node) (kube_pod_info{node!=""}) / kube_node_status_allocatable{resource="pods"} * 100) > 90
+          for: 3m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node {{ $labels.node }} — pod density {{ $value | humanize }}%"
+            description: >-
+              Node acima de 90% de capacidade de pods. Risco de scheduling failures.
+
+        - alert: NodePodDensityHigh
+          expr: (sum by (node) (kube_pod_info{node!=""}) / kube_node_status_allocatable{resource="pods"} * 100) > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node {{ $labels.node }} — pod density alta ({{ $value | humanize }}%)"
+            description: >-
+              Node acima de 80% de capacidade de pods.
+
+        - alert: PodsPendingTooLong
+          expr: count(kube_pod_status_phase{phase="Pending"}) > 3
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "{{ $value }} pods em Pending por mais de 10 minutos"
+            description: >-
+              Verificar capacity, Cluster Autoscaler e node taints/tolerations.
+              Acionar runbook: docs/runbooks/cluster-capacity-crisis.md
+
+        - alert: NodeCountBelowMinimum
+          expr: count(kube_node_status_condition{condition="Ready",status="true"}) < 4
+          for: 3m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Apenas {{ $value }} nodes Ready — abaixo do mínimo de 4"
+            description: >-
+              O cluster tem menos que 4 nodes Ready.
+              Verificar ASG, instâncias terminadas e Karpenter.
+
+        - alert: ClusterPodCapacityLow
+          expr: (sum(kube_node_status_allocatable{resource="pods"}) - sum(kube_pod_info)) / sum(kube_node_status_allocatable{resource="pods"}) * 100 < 15
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Capacidade de pods do cluster abaixo de 15%"
+            description: >-
+              Avaliar scale-up de node groups. Cluster próximo de esgotamento de
+              capacidade de scheduling.
+
+        - alert: NodeMemoryPressure
+          expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node {{ $labels.node }} em MemoryPressure"
+            description: >-
+              Risco de OOMKill e evictions imediatas.
+              Acionar escalonamento de nodes.
+
+        - alert: HighPendingPodsCluster
+          expr: sum(kube_pod_status_phase{phase="Pending"}) > 10
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "{{ $value }} pods Pending no cluster"
+            description: >-
+              Verificar capacity e Cluster Autoscaler.
+
+    - name: observability.watchdog
+      interval: 60s
+      rules:
+        - alert: ObservabilityStackDegraded
+          expr: absent(up{job="prometheus"}) or absent(up{job="alertmanager"})
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Stack de observabilidade degradada — Prometheus ou AlertManager offline"
+            description: >-
+              O Prometheus ou o AlertManager está offline por mais de 5 minutos.
+              A plataforma está cega para alertas.

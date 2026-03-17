@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dead-mans-switch
+  namespace: staging-observability-monitoring
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/managed-by: terraform
+    environment: staging
+    owner: platform-team
+    domain: observability
+spec:
+  groups:
+    - name: dead-mans-switch
+      interval: 30s
+      rules:
+        - alert: DeadMansSwitch
+          expr: vector(1)
+          labels:
+            severity: none
+            team: platform
+          annotations:
+            summary: "Prometheus operacional — Dead Man's Switch ativo"
+            description: >-
+              Se este alerta parar de disparar, o Prometheus ou o cluster está DOWN.
+              Este alerta SEMPRE deve estar ativo no AlertManager.
+              Incidente 2026-03-17: cluster ficou DOWN 26h sem auto-alerta detectado.

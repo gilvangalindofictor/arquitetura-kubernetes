@@ -1,0 +1,20 @@
+# =============================================================================
+# .platform/manifest.yaml — Frontend Service Stub
+# ADR-102: Frontend services não utilizam AppRole Vault nem secrets gerenciados
+# pela plataforma. Este manifest é um stub mínimo para satisfazer o step
+# platform:manifest:validate (continueOnError: true no template).
+#
+# NOTA: Preencha os campos obrigatórios abaixo conforme a documentação da
+# plataforma antes de fazer merge do MR de scaffold.
+# =============================================================================
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+spec:
+  type: frontend
+  owner: ${{ values.owner }}
+  lifecycle: staging
+  # Frontend não requer configuração de secrets/vault (ADR-102)
+  # Ingress configurado via K8s Ingress manifest no skeleton

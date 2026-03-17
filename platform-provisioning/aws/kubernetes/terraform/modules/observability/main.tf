@@ -112,3 +112,34 @@ resource "kubernetes_config_map" "grafana_dashboard_finops_visibility" {
 resource "kubectl_manifest" "prometheus_alert_finops_costs" {
   yaml_body = file("${path.module}/prometheus-alerts/finops-cost-alerts.yaml")
 }
+
+################################################################################
+# Dead Man's Switch — PrometheusRule
+#
+# Heartbeat: vector(1) always fires. If it disappears from AlertManager,
+# Prometheus itself is down. Incidente 2026-03-17: 26h downtime sem auto-alerta.
+################################################################################
+
+resource "kubectl_manifest" "prometheus_alert_dead_mans_switch" {
+  yaml_body = file("${path.module}/prometheus-alerts/dead-mans-switch.yaml")
+
+  force_conflicts   = true
+  server_side_apply = true
+}
+
+################################################################################
+# Cluster Capacity Alerts — PrometheusRule
+#
+# 9 alertas cobrindo: ClusterAutoscalerDown, NodeCPUCritical, NodeMemoryCritical,
+# NodePodDensityCritical, NodePodDensityHigh, PodsPendingTooLong,
+# NodeCountBelowMinimum, ClusterPodCapacityLow, NodeMemoryPressure,
+# HighPendingPodsCluster, ObservabilityStackDegraded.
+# Origem: Demanda 2026-03-17-observabilidade-capacity-alertas.md
+################################################################################
+
+resource "kubectl_manifest" "prometheus_alert_cluster_capacity" {
+  yaml_body = file("${path.module}/prometheus-alerts/cluster-capacity-alerts.yaml")
+
+  force_conflicts   = true
+  server_side_apply = true
+}

@@ -1,0 +1,193 @@
+# =============================================================================
+# .platform/manifest.yaml — Platform Application Manifest (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template etl-service-template
+# Namespace K8s: staging-data-{{ values.name }} (ADR-048)
+# Validado pelo pipeline platform:manifest:validate antes do merge
+#
+# ATENÇÃO: Este arquivo é gerado automaticamente. Não editar manualmente.
+# Abra um novo issue no Backstage para alterar configurações.
+# =============================================================================
+
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
+metadata:
+  name: {{ values.name }}
+  domain: data
+  product: {{ values.product }}
+  type: {{ values.serviceType }}
+  owner: {{ values.owner }}
+  description: "{{ values.description }}"
+  tags:
+    - {{ values.serviceType }}
+    - data
+    - python
+  labels:
+    app.kubernetes.io/name: {{ values.name }}
+    app.kubernetes.io/managed-by: backstage-scaffolder
+    platform.io/domain: data
+    platform.io/type: {{ values.serviceType }}
+    platform.io/owner: {{ values.owner }}
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/blob/main/.platform/manifest.yaml"
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    platform.io/generated-by: "backstage-scaffolder"
+    platform.io/template: "etl-service-template"
+spec:
+
+  dependencies:
+    database:
+      enabled: {{ values.databaseEnabled }}
+      {%- if values.databaseEnabled %}
+      type: "{{ values.databaseType }}"
+      name: "{{ values.databaseName if values.databaseName else values.name }}"
+      extensions:
+        {%- if values.databaseExtensions and values.databaseExtensions | length > 0 %}
+        {%- for ext in values.databaseExtensions %}
+        - "{{ ext }}"
+        {%- endfor %}
+        {%- else %}
+        []
+        {%- endif %}
+      {%- endif %}
+    redis:
+      enabled: {{ values.redisEnabled }}
+      {%- if values.redisEnabled %}
+      mode: "{{ values.redisMode }}"
+      {%- endif %}
+    rabbitmq:
+      enabled: {{ values.rabbitmqEnabled }}
+      {%- if values.rabbitmqEnabled %}
+      replicas: {{ values.rabbitmqReplicas }}
+      vhosts:
+        {%- if values.rabbitmqVhosts and values.rabbitmqVhosts | length > 0 %}
+        {%- for vhost in values.rabbitmqVhosts %}
+        - "{{ vhost }}"
+        {%- endfor %}
+        {%- else %}
+        []
+        {%- endif %}
+      {%- endif %}
+    keycloak:
+      enabled: {{ values.keycloakEnabled | default(false) | string | lower }}
+
+  resources:
+    requests:
+      cpu: "{{ values.cpuRequest }}"
+      memory: "{{ values.memoryRequest }}"
+    limits:
+      cpu: "{{ values.cpuLimit }}"
+      memory: "{{ values.memoryLimit }}"
+    {%- if values.serviceType != "cronjob" %}
+    replicas:
+      min: {{ values.replicasMin }}
+      max: {{ values.replicasMax }}
+    {%- endif %}
+
+  config:
+    port: "{{ values.port | default(8000) }}"
+    healthCheck:
+      liveness: ""
+      readiness: ""
+    ingress:
+      enabled: false
+    env:
+      ETL_TEST_MODE: "{{ 'true' if values.etlTestMode else 'false' }}"
+      ETL_TEST_LIMIT_RECORDS: "{{ '100' if values.etlTestMode else '0' }}"
+      ETL_TEST_LIMIT_PAGES: "{{ '3' if values.etlTestMode else '0' }}"
+{%- if values.externalAPIs %}
+{%- for api in values.externalAPIs %}
+      {{ api.name | upper | replace("-", "_") }}_API_URL: "{{ api.url }}"
+{%- endfor %}
+{%- endif %}
+{%- if values.originadoras %}
+{%- for orig in values.originadoras %}
+      {{ orig.codigo | upper }}_API_URL: "{{ orig.apiUrl }}"
+{%- endfor %}
+{%- endif %}
+    secretKeys:
+{%- if values.databaseEnabled %}
+      - DATABASE_URL
+      - DATABASE_PASSWORD
+{%- endif %}
+{%- if values.redisEnabled %}
+      - REDIS_URL
+      - REDIS_PASSWORD
+{%- endif %}
+{%- if values.keycloakEnabled %}
+      - KEYCLOAK_CLIENT_SECRET
+      - KEYCLOAK_ADMIN_PASSWORD
+{%- endif %}
+{%- if values.originadoras %}
+{%- for orig in values.originadoras %}
+      - {{ orig.codigo | upper }}_API_USERNAME
+      - {{ orig.codigo | upper }}_API_PASSWORD
+{%- endfor %}
+{%- endif %}
+{%- if values.externalSecrets %}
+{%- for secret in values.externalSecrets %}
+      - {{ secret.envVarName }}
+{%- endfor %}
+{%- endif %}
+    {%- if values.serviceType == "cronjob" or values.serviceType == "etl" %}
+    schedule: "{{ values.schedule }}"
+    {%- endif %}
+    {%- if values.serviceType == "cronjob" %}
+    concurrencyPolicy: "{{ values.concurrencyPolicy }}"
+    {%- endif %}
+{%- if values.originadoras and (values.originadoras | length) > 0 %}
+    extraSecretVolumes:
+      - name: "{{ values.name }}-auth-config"
+        secretName: "{{ values.name }}-auth-config"
+        mountPath: /app/config/originadoras.yaml
+        subPath: originadoras.yaml
+        readOnly: true
+{%- endif %}
+
+  observability:
+    metrics:
+      enabled: {{ values.metricsEnabled }}
+      path: "{{ values.metricsPath }}"
+      port: {{ values.metricsPort }}
+    tracing:
+      enabled: {{ values.tracingEnabled }}
+
+{%- if values.originadoras and (values.originadoras | length) > 0 %}
+  originadoras:
+{%- for orig in values.originadoras %}
+    - codigo: "{{ orig.codigo }}"
+      nome: "{{ orig.nome }}"
+      apiUrl: "{{ orig.apiUrl }}"
+      authType: "{{ orig.authType }}"
+      multiTenant: {{ orig.multiTenant | default(false) | string | lower }}
+{%- if orig.secretKeyRef %}
+      secretKeyRef: "{{ orig.secretKeyRef }}"
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if values.externalAPIs and (values.externalAPIs | length) > 0 %}
+  externalAPIs:
+{%- for api in values.externalAPIs %}
+    - name: "{{ api.name }}"
+      url: "{{ api.url }}"
+      authType: "{{ api.authType }}"
+{%- if api.secretKeyRef %}
+      secretKeyRef: "{{ api.secretKeyRef }}"
+{%- endif %}
+      timeout: {{ api.timeout | default(30) }}
+{%- endfor %}
+{%- endif %}
+
+  # Vault AppRole — secrets isolados por serviço (ADR-102)
+  vault:
+    enabled: true
+    namespace: "apps/data/{{ values.name }}"
+    createAppRole: true
+
+  # GitOps — ArgoCD Application criada automaticamente pelo provision:onboarding
+  gitops:
+    enabled: true
+    argocdProject: "applications"
+    syncPolicy: automated
+    selfHeal: true
+    prune: true

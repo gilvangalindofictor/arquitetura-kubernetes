@@ -225,11 +225,19 @@ resource "helm_release" "gitlab" {
         install = true
         runners = {
           config = <<-EOT
+            concurrent = 4
             [[runners]]
+              request_concurrency = 2
               [runners.kubernetes]
                 namespace = "${kubernetes_namespace.gitlab.metadata[0].name}"
                 image = "ubuntu:22.04"
                 privileged = false
+                cpu_request = "50m"
+                memory_request = "128Mi"
+                helper_cpu_request = "10m"
+                helper_memory_request = "64Mi"
+                service_cpu_request = "10m"
+                service_memory_request = "64Mi"
           EOT
         }
       }

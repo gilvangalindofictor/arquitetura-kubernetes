@@ -1,0 +1,124 @@
+# PrometheusRule — Cluster Autoscaler Resilience Alerts
+#
+# CONTEXTO:
+#   Incidente 2026-03-17: CA com replicas=0 por ~26h → detecção manual → MTTD desconhecido.
+#   Esta PrometheusRule cobre os 4 cenários de falha identificados no RCA.
+#
+# PROMETHEUS SELECTOR:
+#   O Prometheus CR em staging-observability-monitoring usa:
+#     ruleSelector.matchLabels: release: kube-prometheus-stack
+#     ruleNamespaceSelector: {} (qualquer namespace)
+#   Este recurso é criado em staging-observability-monitoring para coesão com demais regras.
+#
+# GATE:
+#   kubectl get prometheusrule cluster-autoscaler-resilience -n staging-observability-monitoring
+#   Verificar no Prometheus UI: /alerts?search=ClusterAutoscaler
+#
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cluster-autoscaler-resilience
+  namespace: staging-observability-monitoring
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/component: cluster-autoscaler
+    app.kubernetes.io/part-of: platform-reliability
+    created-by: demand-2026-03-17-cluster-autoscaler-resiliencia
+spec:
+  groups:
+    - name: cluster-autoscaler.rules
+      interval: 30s
+      rules:
+
+        # CRITICO: Cluster Autoscaler com zero réplicas disponíveis
+        # Incidente original: CA ficou 0 replicas por ~26h sem alerta.
+        - alert: ClusterAutoscalerDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="cluster-autoscaler",
+              namespace="kube-system"
+            } == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+            component: cluster-autoscaler
+          annotations:
+            summary: "Cluster Autoscaler DOWN — 0 replicas disponíveis"
+            description: |
+              O Deployment cluster-autoscaler em kube-system tem 0 réplicas disponíveis
+              há mais de 2 minutos. Pods pendentes NÃO serão escalonados automaticamente.
+              AÇÃO IMEDIATA: kubectl scale deployment cluster-autoscaler --replicas=1 -n kube-system
+              Verificar causa: kubectl describe deployment cluster-autoscaler -n kube-system
+              Verificar logs: kubectl logs -n kube-system deployment/cluster-autoscaler --tail=50
+            runbook_url: "https://gitlab.internal/platform/runbooks/-/blob/main/cluster-autoscaler-recovery.md"
+
+        # AVISO: Cluster Autoscaler com spec.replicas != available (pod crashando ou pendente)
+        - alert: ClusterAutoscalerReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas{
+              deployment="cluster-autoscaler",
+              namespace="kube-system"
+            }
+            !=
+            kube_deployment_status_replicas_available{
+              deployment="cluster-autoscaler",
+              namespace="kube-system"
+            }
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+            component: cluster-autoscaler
+          annotations:
+            summary: "Cluster Autoscaler: replicas spec != available por 5min"
+            description: |
+              Deployment cluster-autoscaler: spec.replicas ({{ $value }}) != status.availableReplicas.
+              O CA pode estar em estado de restart loop ou aguardando scheduling.
+              Verificar: kubectl describe deployment cluster-autoscaler -n kube-system
+              Verificar: kubectl get events -n kube-system --field-selector reason=BackOff
+
+        # CRITICO: Pods Unschedulable por mais de 15 minutos (autoscaler inativo?)
+        # Threshold >3 para evitar falsos positivos em deployments normais.
+        # Usa kube_pod_status_scheduled condition=false para filtrar apenas pods sem node atribuído.
+        - alert: KubePodsPendingUnschedulable
+          expr: |
+            count(
+              kube_pod_status_scheduled{condition="false"} == 1
+            ) > 3
+          for: 15m
+          labels:
+            severity: critical
+            team: platform
+            component: cluster-autoscaler
+          annotations:
+            summary: "{{ $value }} pods Unschedulable há mais de 15 minutos"
+            description: |
+              {{ $value }} pods estão em estado Unschedulable (sem node atribuído) por mais de 15min.
+              Causas prováveis:
+              1. Cluster Autoscaler inativo (verificar: kubectl get deploy cluster-autoscaler -n kube-system)
+              2. ASG no limite max_size (verificar AWS Console → EC2 → Auto Scaling Groups)
+              3. Taint/tolerations incompatíveis nos pods pendentes
+              Listar pods: kubectl get pods --all-namespaces --field-selector=status.phase=Pending
+              Logs CA: kubectl logs -n kube-system deployment/cluster-autoscaler --tail=100
+
+        # AVISO: Cluster utilizando >85% da capacidade máxima de nodes
+        # Métrica nativa do Cluster Autoscaler (exposta via /metrics porta 8085).
+        - alert: ClusterAutoscalerNearMaxCapacity
+          expr: |
+            cluster_autoscaler_nodes_count
+            /
+            cluster_autoscaler_max_nodes_count > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+            component: cluster-autoscaler
+          annotations:
+            summary: "Cluster usando {{ $value | humanizePercentage }} da capacidade máxima de nodes"
+            description: |
+              O cluster está utilizando mais de 85% da capacidade máxima configurada nos ASGs.
+              Nodes atuais: {{ $value }} * max.
+              Ação preventiva: aumentar max_size nos node groups (node-groups.tf) antes de atingir 100%.
+              Verificar: kubectl get nodes | wc -l
+              AWS: EC2 → Auto Scaling Groups → k8s-platform-prod-*

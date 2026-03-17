@@ -1,0 +1,66 @@
+# =============================================================================
+# catalog-info.yaml — Backstage Component entity (Nunjucks skeleton)
+# Gerado pelo Backstage Scaffolder via template etl-service-template
+# Registrado no catálogo automaticamente após publicação no GitLab
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ values.name }}
+  title: "{{ values.name }}"
+  description: "{{ values.description }}"
+  annotations:
+    backstage.io/managed-by-location: "url:https://gitlab.staging.internal/{{ values.gitlabGroup }}/{{ values.name }}/-/blob/main/catalog-info.yaml"
+    # TechDocs — documentação gerada a partir do diretório docs/
+    backstage.io/techdocs-ref: "dir:."
+    # Integração Kubernetes — exibe pods em tempo real no Backstage
+    backstage.io/kubernetes-label-selector: "app.kubernetes.io/name={{ values.name }}"
+    backstage.io/kubernetes-namespace: "staging-data-{{ values.name }}"
+    # Integração ArgoCD
+    argocd/app-name: "{{ values.name }}"
+    # Integração GitLab
+    gitlab.com/project-slug: "{{ values.gitlabGroup }}/{{ values.name }}"
+    # Integração Vault
+    vault.io/role: "{{ values.name }}"
+    # Observabilidade Prometheus
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ values.metricsPort | default('9090') }}"
+    prometheus.io/path: "{{ values.metricsPath | default('/metrics') }}"
+    # Plataforma
+    platform.io/domain: "data"
+    platform.io/type: "{{ values.serviceType }}"
+{%- if values.originadoras and (values.originadoras | length) > 0 %}
+    platform.io/originadoras: "{% for orig in values.originadoras %}{{ orig.codigo }}{% if not loop.last %},{% endif %}{% endfor %}"
+{%- endif %}
+{%- if values.externalAPIs and (values.externalAPIs | length) > 0 %}
+    platform.io/external-apis: "{% for api in values.externalAPIs %}{{ api.name }}{% if not loop.last %},{% endif %}{% endfor %}"
+{%- endif %}
+  tags:
+    - {{ values.serviceType }}
+    - data
+    - python
+{%- if values.databaseEnabled %}
+    - postgresql
+{%- endif %}
+{%- if values.redisEnabled %}
+    - redis
+{%- endif %}
+{%- if values.keycloakEnabled %}
+    - keycloak
+{%- endif %}
+  links:
+    - url: "https://argocd.staging.internal/applications/{{ values.name }}"
+      title: ArgoCD Application
+      icon: dashboard
+    - url: "https://grafana.staging.internal/d/{{ values.name }}"
+      title: Grafana Dashboard
+      icon: dashboard
+spec:
+  type: {{ values.serviceType }}
+  lifecycle: experimental
+  owner: {{ values.owner }}
+  {%- if values.system %}
+  system: {{ values.system }}
+  {%- endif %}
+  domain: data

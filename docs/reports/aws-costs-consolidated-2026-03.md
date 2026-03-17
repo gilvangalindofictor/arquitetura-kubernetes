@@ -1,11 +1,11 @@
 # AWS Costs — Consolidated Report (Março 2026)
 
-**Data de geração:** 2026-03-10
+**Data de geração:** 2026-03-13 (atualizado com dados reais 01-12/03)
 **Cluster:** k8s-platform-prod (EKS 1.34, us-east-1)
 **Período:** 2026-03-01 → 2026-03-31
-**Fonte dados reais:** AWS Cost Explorer API (dias 1-5) + estimativas fundamentadas (dias 6-10)
+**Fonte dados reais:** AWS Cost Explorer API (dias 1-12) — coletado 2026-03-13 via CLI
 **Budget aprovado:** $807/mês (R$ 4.841)
-**AWS ML Forecast Março:** $986/mês (R$ 5.916)
+**AWS CE Forecast Março (2026-03-13):** $1.330,90/mês
 
 ---
 
@@ -13,63 +13,69 @@
 
 | Métrica | Valor | Status |
 |---------|-------|--------|
-| **MTD 10 dias (real + estimado)** | **~$355-375** | REFERÊNCIA |
-| **Projeção mês completo** | **~$808-830** | ACIMA DO BUDGET +0-3% |
+| **MTD 12 dias REAL (01-12/03)** | **$539.50** | DADO REAL AWS CE |
+| **Projeção mês completo (CE)** | **$1.330,90** | CRITICO (+65% budget) |
+| **Projeção mês completo (ajustada)** | **~$1.145** | CRITICO (+42% budget) |
 | **Budget aprovado** | $807/mês | META |
-| **AWS ML Forecast** | $986/mês | CONSERVADOR (pessimista) |
-| **Tax março (pago dia 01)** | $24.19 | ABSORVIDO |
-| **Daily rate útil (real 5 dias)** | $39.92/dia | REFERÊNCIA |
-| **Daily rate weekend (estimado)** | ~$13/dia | REFERÊNCIA |
-| **Savings realizados acumulados** | R$ 56.546/ano | 90% da meta |
+| **Tax março (pago dia 01)** | $66.29 | REVISADO (era $58.37) |
+| **Daily rate weekday (excl anomalia, N=9)** | **$40.23/dia** | ACIMA |
+| **Daily rate weekend (07-08/03)** | **$38.82/dia** | SEM REDUCAO (Lambda pré-fix) |
+| **Daily rate dia 12 (pós-Lambda redeploy)** | **$39.00/dia** | REFERENCIA POS-FIX |
+| **ELB dia 12 vs dia 11** | $1.44 vs $2.54 (-$1.10) | NLB ELIMINADO CONFIRMADO |
+| **Savings realizados acumulados** | R$ 61.638/ano | 99.4% da meta |
 | **EKS Standard Support** | $2.40/dia ($74.40/mês) | NORMAL |
 
-**Interpretação executiva:**
-O AWS ML Forecast de $986 é conservador — baseado em taxa dos primeiros dias (com tax alocada em 01-Mar + cluster no autoscaler máximo). Com a tax de $24.19 absorvida no dia 01 e o VPA rightsizing sendo executado, a projeção realista é $808-830, virtualmente dentro do budget. O desvio é marginal e temporário.
+**Interpretação executiva (2026-03-13):**
+MTD real de $539.50 em 12 dias revela taxa diária significativamente acima do esperado. O AWS CE Forecast aponta $1.330,90/mês (+65% vs budget $807). Após ajuste para impacto Lambda weekends ($16.50/dia em vez de $38.82) e NLB eliminado (-$1.10/dia), nossa projeção interna é $1.145/mês (+42%). O dia 11 foi revisado pela AWS de $30.42 para $42.71 (billing consolidation). O dia 12 confirma redução na ELB (-$1.10) pela eliminação do NLB RabbitMQ. ATENÇÃO: Tax do mês foi $66.29 (vs $24.19 estimado anteriormente — revisão AWS billing).
 
 ---
 
-## 2. MTD Março 2026 — Custos Reais (Dias 1–5)
+## 2. MTD Março 2026 — Custos Reais (Dias 1–12) — ATUALIZADO 2026-03-13
 
-| Data | Custo Total | EC2 Compute | EKS | VPC | ELB | Tax | Observação |
-|------|-------------|-------------|-----|-----|-----|-----|------------|
-| 2026-03-01 (Sáb) | $59.65 | $20.22 | $2.40 | $3.24 | — | $24.19 | **Tax mês alocada** + nós ativos no fim de semana |
-| 2026-03-02 (Dom) | $39.69 | $21.72 | $2.40 | $3.24 | — | — | Domingo — cluster em atividade plena |
-| 2026-03-03 (Seg) | $37.03 | $19.06 | $2.40 | $3.24 | $2.16 | — | Segunda — platform work (Linkerd CNI) |
-| 2026-03-04 (Ter) | $39.83 | $22.22 | $2.40 | $3.24 | $2.16 | — | Terça — GitLab rev 12-14, Keycloak import |
-| 2026-03-05 (Qua) | $22.82 | $12.49 | $1.60 | $1.98 | $1.44 | — | Quarta parcial (dados CE pendentes) |
-| **SUBTOTAL REAL** | **$199.62** | **~$95.71** | **~$11.20** | **~$14.94** | **~$5.76** | **$24.19** | |
+> Dados reais coletados via AWS CE API em 2026-03-13. Todos os dias 01-12 consolidados.
+> NOTA: Tax revisada pela AWS de $24.19 para $66.29 (billing consolidation). Dia 11 revisado de $30.42 para $42.71.
 
-**Nota sobre 03-05:** Custo de $22.82 é dado parcial do Cost Explorer — dia não fechado. Estimativa real ~$35-38.
+| Data | Dia | Tipo | Custo Total | EC2 Compute | EKS | VPC | ELB | Tax | Observacao |
+|------|-----|------|-------------|-------------|-----|-----|-----|-----|------------|
+| 2026-03-01 | Dom | WEEKEND | $99.79 | $20.22 | $2.40 | $3.24 | $2.16 | $66.29 | ANOMALIA — Tax total mes ($66.29) + billing carry-over |
+| 2026-03-02 | Seg | WEEKDAY | $40.25 | $21.72 | $2.40 | $3.24 | $2.16 | — | Baseline weekday |
+| 2026-03-03 | Ter | WEEKDAY | $37.53 | $19.06 | $2.40 | $3.24 | $2.16 | — | Dia util |
+| 2026-03-04 | Qua | WEEKDAY | $40.38 | $22.22 | $2.40 | $3.24 | $2.16 | — | Dia util |
+| 2026-03-05 | Qui | WEEKDAY | $39.67 | $21.88 | $2.40 | $3.24 | $2.16 | — | Dia util |
+| 2026-03-06 | Sex | WEEKDAY | $40.43 | $21.63 | $2.40 | $3.24 | $2.16 | — | Dia util |
+| 2026-03-07 | Sab | WEEKEND | $38.98 | $22.38 | $2.40 | $3.24 | $2.16 | — | Weekend — Lambda STOP sem reducao (pre-fix) |
+| 2026-03-08 | Dom | WEEKEND | $38.66 | $22.21 | $2.40 | $3.24 | $2.16 | — | Weekend — Lambda STOP sem reducao (pre-fix) |
+| 2026-03-09 | Seg | WEEKDAY | $39.28 | $21.49 | $2.40 | $3.24 | $2.16 | — | Dia util |
+| 2026-03-10 | Ter | WEEKDAY | $42.81 | $23.85 | $2.40 | $3.26 | $2.21 | — | Spike (+$3 vs baseline) |
+| 2026-03-11 | Qua | WEEKDAY | $42.71 | $23.91 | $2.40 | $3.39 | $2.54 | — | REVISADO (era $30.42) — billing consolidation. ELB +$0.38 vs baseline (NAT transicao) |
+| 2026-03-12 | Qui | WEEKDAY | $39.00 | $23.03 | $2.40 | $2.79 | $1.44 | — | Pos-Lambda redeploy. ELB $1.44 (NLB eliminado, -$1.10 vs dia 11) |
+| **MTD TOTAL (01-12)** | | | **$539.50** | **$263.60** | **$28.80** | **$38.62** | **$25.64** | **$66.29** | **12 dias consolidados** |
+
+**Medias (dados reais coletados 2026-03-13):**
+
+| Categoria | Media | N | Observacao |
+| --- | --- | --- | --- |
+| Weekday (02-06, 09-12, excl anomalia 01) | $40.23/dia | 9 | Todos dias uteis do periodo |
+| Weekend (07-08 — exc. anomalia 01) | $38.82/dia | 2 | Lambda STOP nao reduziu (pre-fix) |
+| Weekend com anomalia (01, 07, 08) | $59.14/dia | 3 | Distorcido pela Tax $66.29 em 01/03 |
+| Baseline pos-Lambda redeploy (apenas dia 12) | $39.00/dia | 1 | Referencia pos-redeploy 2026-03-12T14:39 |
 
 ---
 
-## 3. MTD Março 2026 — Estimativas Dias 6–10
+## 3. MTD Março 2026 — Dados Historicos (Dias 1–5 e 6–10) — SUBSTITUIDO POR DADOS REAIS
 
-### Metodologia de Estimativa
+> Esta secao foi substituida por dados reais na Secao 2 acima. Os dados originais estimados (gerados 2026-03-10)
+> estavam proximos dos reais para dias 2-6, mas a Tax foi significativamente subestimada ($24.19 vs real $66.29).
+> Dias 7-8 (weekends) foram estimados em $13/dia — real foi $38.98/$38.66 (Lambda STOP ineficaz, pre-fix).
 
-Padrões aplicados com base em dados reais de fevereiro e contexto operacional:
-- **Dias úteis (plataforma ativa):** $35-40/dia (cluster 9 nós, atividade de engenharia)
-- **Fins de semana (shutdown EventBridge):** ~$13/dia (EKS $2.40 + VPC fixo + mínimo EC2)
-- **Tax:** Já alocada integralmente no dia 01/03 ($24.19) — não reaparece nos dias seguintes
-
-| Data | Custo Est. | Tipo | Base | Observação |
-|------|-----------|------|------|------------|
-| 2026-03-06 (Sex) | ~$38 | Útil | $37-40 | Linkerd Phase 2 fix + FinOps 1º mês validação |
-| 2026-03-07 (Sáb) | ~$13 | Weekend | $12-15 | Shutdown automático EventBridge |
-| 2026-03-08 (Dom) | ~$13 | Weekend | $12-15 | Shutdown automático EventBridge |
-| 2026-03-09 (Seg) | ~$37 | Útil | $35-38 | TF drift fixes: Keycloak + SonarQube + Vault config |
-| 2026-03-10 (Ter) | ~$35 | Útil | $33-36 | VPA analysis + compliance work (hoje) |
-| **SUBTOTAL ESTIMADO (6-10)** | **~$136** | | | |
-
-### MTD Total — 10 Dias
-
-| Período | Custo | Fonte |
-|---------|-------|-------|
-| Dias 1-5 (real) | $199.62 | AWS Cost Explorer API |
-| Dias 6-10 (estimado) | ~$136 | Padrão histórico Feb/Mar |
-| **MTD 10 dias** | **~$335-340** | **Dado oficial parcial + projeção** |
-
-> **Ajuste 03-05:** O dado de $22.82 é parcial. Com valor completo estimado em ~$36, o MTD real ajustado seria ~$352-355.
+| Periodo | Estimativa Original (2026-03-10) | Real (2026-03-13) | Desvio |
+|---------|----------------------------------|-------------------|--------|
+| Dias 1-5 | $199.62 (parcial) | $257.63 | +$58.01 (Tax revision $42.10 + dia 01 billing) |
+| Dias 6-10 | ~$136 (estimado) | $200.17 | +$64.17 (weekends $38-39 vs $13 esperado) |
+| **MTD 10 dias** | **~$335-355** | **$457.71** | **+$102-122 (desvio significativo)** |
+| Dia 11 | ~$30 (estimado pós-apply) | $42.71 | +$12.71 (billing revision) |
+| Dia 12 | $0 (dados parciais) | $39.00 | Primeiro dado real |
+| **MTD 12 dias** | — | **$539.50** | **DADO OFICIAL** |
 
 ---
 
@@ -86,66 +92,78 @@ Padrões aplicados com base em dados reais de fevereiro e contexto operacional:
 | S5 (03-29 a 03-31) | 3 dias | — | Final do mês |
 | **TOTAL** | **23 dias úteis** | **8 fins de semana** | **31 dias** |
 
-### Cálculo de Projeção
+### Cálculo de Projeção — ATUALIZADO 2026-03-13 (dados reais 12 dias)
 
-| Cenário | Cálculo | Total Mensal |
+| Cenario | Calculo | Total Mensal |
 |---------|---------|-------------|
-| **Realista** | (23d úteis × $35) + (8d weekend × $13) + $24.19 tax | **$829 + $104 + $24 = $957** |
-| **Otimista (VPA aplicado semana 3)** | (12d úteis × $35) + (11d úteis × $28) + (8d × $13) + $24 tax | **$420 + $308 + $104 + $24 = $856** |
-| **Conservador (sem mudanças)** | (23d × $40) + (8d × $13) + $24 tax | **$920 + $104 + $24 = $1.048** |
-| **AWS ML Forecast** | — | **$986** |
+| **AWS CE Forecast (2026-03-13)** | — | **$1.330,90** |
+| **Nossa Projecao Ajustada** | MTD $539.50 + (13d WD x $39.00) + (6d WKD x $16.50) | **$539.50 + $507.00 + $99.00 = $1.145,50** |
+| **Cenario Otimista (Lambda eficaz weekends)** | MTD $539.50 + (13d WD x $38.00) + (6d WKD x $16.50) | **$539.50 + $494.00 + $99.00 = $1.132,50** |
+| **Cenario Pessimista (Lambda ineficaz)** | MTD $539.50 + (19d x $40.00) | **$539.50 + $760.00 = $1.299,50** |
 
-> **Projeção adotada (realista):** ~$830-860/mês
+> **Projecao adotada (ajustada):** ~$1.145/mes
 
-### Impacto da Tax na Projeção
+> **NOTA CRITICA:** Projecao anterior de 2026-03-10 era $830-860/mes. A realidade de 12 dias revela que a taxa de custo
+> é ~$40/dia (vs $35 estimado) E que weekends estao em $38-39/dia (vs $13 esperado). O desvio total acumulado nos
+> primeiros 12 dias vs estimativa original foi de +$102-122. A Tax real ($66.29) superou a estimativa ($24.19) em $42.10.
 
-A tax de $24.19 alocada no dia 01/03 representa **~2.9% do custo mensal** e está integralmente contabilizada. A taxa diária "limpa" (sem tax) dos dias 02-05 é:
-- ($199.62 - $24.19) / 5 = **$35.09/dia** — alinhado ao modelo de projeção.
+### Impacto da Tax na Projecao
 
----
+A tax de $66.29 alocada no dia 01/03 representa **~12.3% do MTD de 12 dias**. A taxa diária "limpa" (sem tax) e sem anomalia 01-03:
 
-## 5. Breakdown por Serviço — Estimativa 10 Dias (01-10 Mar)
-
-Baseado em proporções reais de fevereiro ajustadas para o perfil de março:
-
-| Serviço | MTD 10d Est. | % | vs Fev (%) | Observação |
-|---------|-------------|---|------------|------------|
-| Tax (PIS/COFINS) | $24.19 | 6.8% | Alocado dia 01 | Mesmo padrão fevereiro |
-| EC2 Compute | $105-115 | ~30% | +5% | 9 nós (vs 7-8 esperados em Fev) |
-| EKS Standard | $24.00 | 6.8% | -87% vs Extended | $2.40/dia × 10d = $24 |
-| VPC (NAT + Endpoints) | $32-36 | ~9% | +10% | NAT gateway é custo fixo; traffic superior |
-| ELB (ALBs) | $20-22 | ~6% | -10% | Menos ALBs que Jan/Fev |
-| EC2 Other (EBS/IPs/Snapshots) | $38-42 | ~11% | Estável | gp3 ativo, DLM controlando snapshots |
-| RDS PostgreSQL | $10-12 | ~3% | Estável | Weekend shutdown ativo |
-| CloudWatch | $11-13 | ~3.5% | +64% vs documentado | Observability stack GitLab verbose |
-| Amazon S3 | $2-3 | ~0.7% | Estável | Loki/Tempo/GitLab backups |
-| AWS KMS | $2-3 | ~0.7% | Estável | 3 keys ativas |
-| AWS Secrets Manager | $1.0 | ~0.3% | Estável | Migração para Vault concluída |
-| Outros (ECR, WAF, Lambda) | $3-5 | ~1.2% | Estável | |
-| **TOTAL 10 DIAS** | **~$272-290** | **100%** | | (sem ajuste tax absorvida) |
-
-> **Total incluindo tax:** ~$296-314 (10 dias, conforme seção 3)
+- ($539.50 - $99.79) / 11 = **$39.97/dia** — real weekday rate
+- Tax anual projetada: ~$66.29/mes x 12 = **~$795/ano** (significativo)
 
 ---
 
-## 6. Comparativo vs Budget
+## 5. Breakdown por Servico — MTD REAL 12 Dias (01-12/03) — ATUALIZADO 2026-03-13
 
-| Métrica | Fevereiro Real | Março Projeção | Budget | Status |
-|---------|---------------|----------------|--------|--------|
-| Custo Mensal USD | $914.41 | ~$830-860 | $807 | MELHORA |
-| Custo Mensal BRL | R$ 5.487 | R$ 4.980-5.160 | R$ 4.841 | PRÓXIMO |
-| vs Budget | +$107 (+13%) | +$23-53 (+3-7%) | — | MELHORA SIGNIFICATIVA |
-| vs AWS ML Forecast | — | -$126 a -$156 | — | MELHOR QUE FORECAST |
-| Daily Rate Útil | $38.60/dia | $35-40/dia | ~$29/dia | ACIMA |
-| Daily Rate Weekend | $12.35/dia | ~$13/dia | ~$10/dia | DENTRO |
+Dados reais AWS CE coletados em 2026-03-13:
 
-### Análise do Desvio Residual
+| Servico | MTD 12d Real | % | $/dia | Observacao |
+|---------|-------------|---|-------|------------|
+| Amazon EC2 - Compute | $263.60 | 48.9% | $21.97 | 13 nodes (t3.medium/large/xlarge) |
+| Tax | $66.29 | 12.3% | $5.52 | Cobrado dia 1 do mes (REVISADO de $24.19) |
+| EC2 - Other | $64.40 | 11.9% | $5.37 | EBS, NAT Data, IPs elasticos |
+| Amazon VPC | $38.62 | 7.2% | $3.22 | NAT Gateway (2x1 desde 03-11) |
+| Amazon EKS | $28.80 | 5.3% | $2.40 | Control plane ($0.10/h) |
+| AmazonCloudWatch | $27.18 | 5.0% | $2.27 | Metricas + logs |
+| Amazon ELB | $25.64 | 4.8% | $2.14 | 2 ALBs + NLB (NLB eliminado dia 12: $1.44 total) |
+| Amazon RDS | $12.50 | 2.3% | $1.04 | PostgreSQL db.t3.medium |
+| AWS WAF | $3.88 | 0.7% | $0.32 | Web ACL |
+| Amazon S3 | $3.72 | 0.7% | $0.31 | Storage + requests |
+| AWS KMS | $2.67 | 0.5% | $0.22 | CMKs + requests |
+| AWS Secrets Manager | $1.40 | 0.3% | $0.12 | Secrets rotation |
+| AWS Cost Explorer | $0.77 | 0.1% | $0.06 | API queries |
+| Amazon ECR | $0.02 | 0.0% | $0.00 | — |
+| **TOTAL** | **$539.50** | **100%** | **$44.96** | **12 dias** |
 
-O desvio restante de $23-53/mês é explicado por **fatores estruturais temporários**:
+> **Top 3 desvios vs estimativa original:**
+>
+> 1. Tax: $66.29 real vs $24.19 estimado (+$42.10, +174%) — billing revision AWS
+> 2. Weekend EC2: $38-39/dia real vs $13 estimado (+$26/dia x 2 dias = +$52) — Lambda STOP ineficaz (pre-fix)
+> 3. EC2 Compute: $21.97/dia real vs ~$11/dia estimado para weekends (+$22/dia x 2 = +$44) — cluster nao foi desligado
 
-1. **Cluster no autoscaler máximo (9 nós vs 7-8 esperados):** +$5-10/dia em semanas de trabalho intenso. Será resolvido após estabilização pós-VPA.
-2. **CloudWatch verbose:** +$13/mês vs documentado. Observability stack GitLab + Linkerd metrics em expansão.
-3. **Node Group Protection (mínimo 2 por grupo):** +$60/mês vs baseline teórico. Tradeoff de confiabilidade aceito.
+---
+
+## 6. Comparativo vs Budget — ATUALIZADO 2026-03-13
+
+| Metrica | Fevereiro Real | Marco Projecao (CE) | Marco Proj. Ajustada | Budget | Status |
+|---------|---------------|---------------------|---------------------|--------|--------|
+| Custo Mensal USD | $914.41 | $1.330,90 | ~$1.145 | $807 | CRITICO |
+| Custo Mensal BRL | R$ 5.487 | R$ 7.653 | R$ 6.584 | R$ 4.841 | CRITICO |
+| vs Budget | +$107 (+13%) | +$523 (+65%) | +$338 (+42%) | — | DESVIO GRAVE |
+| Daily Rate Util | $38.60/dia | — | $40.23/dia | ~$29/dia | ACIMA |
+| Daily Rate Weekend | $12.35/dia | — | $38.82/dia | ~$10/dia | FALHA |
+
+### Analise do Desvio
+
+O desvio de $338-524/mes e explicado por fatores estruturais:
+
+1. **13 nodes ativos (vs 7-8 no budget):** +$8-12/dia. Resolve-se com VPA rightsizing (Abr/26).
+2. **Lambda STOP ineficaz nos weekends (pre-fix):** +$22-25/dia x 8 dias/mes = +$176-200/mes. Fix deployado 2026-03-12T14:39 — proxima validacao: weekend 14-15/03.
+3. **Tax $66.29 (vs $24-25 esperado):** Revisao AWS billing. Tax real anualizada = ~$795/ano nao esperado.
+4. **CloudWatch $27.18 (12d) = $68/mes projetado:** +$34/mes vs baseline $34/mes Fev — causado por 13 nodes.
 
 **Sem esses 3 fatores:** projeção seria ~$757-780 — **abaixo do budget**.
 
@@ -357,7 +375,10 @@ SP e RI são inviáveis em staging (weekend shutdown elimina utilização base).
 
 | Arquivo | Conteúdo |
 |---------|----------|
+| `docs/finops/finops-status-2026-03-13.md` | Status FinOps 2026-03-13 — MTD atualizado, forecast recalculado |
+| `docs/finops/finops-status-2026-03-12.md` | Status FinOps 2026-03-12 — apply Lambda+RabbitMQ confirmado |
 | `docs/finops/finops-status-2026-03-06.md` | Status completo FinOps + dados reais CE |
+| `docs/reports/aws-costs-raw-2026-03-13.json` | Raw JSON diário por serviço 01-12/03/2026 (coletado 2026-03-13) |
 | `docs/reports/aws-costs-consolidated-2026-02.md` | Relatório consolidado fevereiro (real) |
 | `docs/reports/vpa-day7-report-2026-03-04.md` | Dados VPA para rightsizing |
 | `docs/reports/aws-costs-raw-consolidated-2026-02.json` | Dados brutos CE fevereiro |
@@ -366,6 +387,7 @@ SP e RI são inviáveis em staging (weekend shutdown elimina utilização base).
 ---
 
 **Gerado em:** 2026-03-10
-**Próximo review:** 2026-03-17 (pós-VPA rightsizing + validação FinOps Automation semana 2)
+**Atualizado em:** 2026-03-13 (dados reais 01-12/03 coletados via AWS CE CLI)
+**Próximo review:** 2026-03-18 (validação weekend Lambda 14-15/03 + status nodes)
 **Owner:** FinOps Team + Platform Team
-**Referência logbook:** `docs/finops/finops-status-2026-03-06.md` (base de dados reais)
+**Referência logbook:** `docs/finops/finops-status-2026-03-13.md` (status atual)

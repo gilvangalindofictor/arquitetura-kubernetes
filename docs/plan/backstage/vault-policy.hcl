@@ -1,68 +1,54 @@
 # =============================================================================
-# Vault policy: backstage-policy
+# Vault policy: backstage-scaffolder
 # Role: backstage (Kubernetes auth method)
-# Cluster: k8s-platform-prod (EKS, us-east-1)
 # Namespace SA: staging-platform-backstage
-# Criado: 2026-03-05
-# ADR: ADR-055
+# Criado via: configmap-setup.sh (GAP-S6C-01)
 #
-# Aplicar:
-#   vault policy write backstage-policy vault-policy.hcl
-#
-# Criar role Kubernetes auth:
-#   vault write auth/kubernetes/role/backstage \
-#     bound_service_account_names=backstage \
-#     bound_service_account_namespaces=staging-platform-backstage \
-#     policies=backstage-policy \
-#     ttl=1h
-#
-# NOTA (MEDIO-1): Nao existe action oficial do Scaffolder para escrever no
-# Vault KV v2 (RFC #32600 aberto). As capabilities create/update abaixo
-# serao usadas por action customizada catalog:vault:write-namespace.
+# Complementa backstage-policy com capabilities para o Scaffolder criar
+# namespaces de novas apps via action customizada catalog:vault:write-namespace
+# Ref: ADR-055, MEDIO-1 (RFC #32600)
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# Listar paths disponiveis (plugin Vault UI — navegacao sem expor valores)
-# -----------------------------------------------------------------------------
+# Listar todos os paths de secrets (navegacao UI)
 path "secret/metadata/*" {
   capabilities = ["list"]
 }
 
-# -----------------------------------------------------------------------------
-# Ler secrets da plataforma (integracoes externas — uso dos plugins)
-# Ex: tokens ArgoCD, SonarQube, Harbor robot account
-# -----------------------------------------------------------------------------
+# Ler secrets de integracoes da plataforma (ArgoCD, GitLab, SonarQube, Harbor)
 path "secret/data/platform/integrations/*" {
   capabilities = ["read"]
 }
 
-# -----------------------------------------------------------------------------
-# Listar secrets por app (UI list-only — nao expoe valores)
-# -----------------------------------------------------------------------------
+# Listar secrets por ambiente (UI list-only — nao expoe valores)
 path "secret/metadata/staging/+/*" {
-  capabilities = ["list"]
+  capabilities = ["read", "list"]
 }
 
-# -----------------------------------------------------------------------------
-# Scaffolder: criar namespace de nova app no Vault KV v2
-# Usado pela action customizada catalog:vault:write-namespace (MEDIO-1)
-# -----------------------------------------------------------------------------
+# Scaffolder: criar e atualizar namespace KV v2 de novas apps no staging
+# Usado pela action catalog:vault:write-namespace (MEDIO-1)
 path "secret/data/staging/+/*" {
-  capabilities = ["create", "update"]
+  capabilities = ["create", "update", "read", "list"]
 }
 
-# -----------------------------------------------------------------------------
-# Scaffolder: criar policy de nova app
-# Necessario para o template criar policy isolada por servico
-# -----------------------------------------------------------------------------
+# Scaffolder: criar policies isoladas por servico
 path "sys/policies/acl/+*" {
   capabilities = ["create", "update", "read"]
 }
 
-# -----------------------------------------------------------------------------
-# Scaffolder: criar AppRole de nova app
-# Necessario para o template criar AppRole isolada por servico
-# -----------------------------------------------------------------------------
+# Scaffolder: criar e ler AppRoles para novas apps
 path "auth/approle/role/+*" {
-  capabilities = ["create", "update", "read"]
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+# Scaffolder: gerar role-id e secret-id para AppRoles criadas
+path "auth/approle/role/+/role-id" {
+  capabilities = ["read"]
+}
+path "auth/approle/role/+/secret-id" {
+  capabilities = ["create", "update"]
+}
+
+# Kubernetes auth: criar roles de novas apps (vincula SA ao AppRole/policy)
+path "auth/kubernetes/role/+*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
 }

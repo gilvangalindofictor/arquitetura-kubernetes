@@ -60,6 +60,12 @@ variable "master_password_override" {
   sensitive   = true
 }
 
+variable "postgresql_host_override" {
+  description = "Override for the PostgreSQL provider host (used for local TF runs via port-forward tunnel). Default null = use aws_db_instance.postgresql.address (VPC-only RDS address)."
+  type        = string
+  default     = null
+}
+
 variable "additional_databases" {
   description = "List of additional databases to create (with user/password)"
   type = list(object({
