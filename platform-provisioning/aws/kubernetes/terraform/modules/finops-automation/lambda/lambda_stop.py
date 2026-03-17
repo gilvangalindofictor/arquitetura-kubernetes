@@ -3,7 +3,15 @@ Lambda Function: Stop EKS Node Groups + RDS
 Trigger: EventBridge cron (Segunda-Sexta 18:00 BRT = 21:00 UTC)
 Author: FinOps Team
 Date: 2026-01-29
-Updated: 2026-03-13
+Updated: 2026-03-17
+
+Changelog 2026-03-17:
+- GAP-LAMBDA-RC3 FIX: Replaced kubectl subprocess in suspend_cluster_autoscaler()
+  with direct K8s API PATCH using STS presigned token bearer auth (same pattern
+  as lambda_start.py). kubectl is not available in the Lambda runtime — the old
+  code emitted a non-blocking warning on every execution and CA was never scaled
+  to 0, allowing it to fight the EKS scale-down during shutdown windows.
+  No Lambda layer required; uses only standard library + boto3.
 
 Changelog 2026-03-13:
 - BUG-001 FIX: Removed hardcoded NODE_GROUPS_CONFIG (max values were wrong).
@@ -22,9 +30,16 @@ Environment Variables:
 - NODE_GROUP_NAMES: comma-separated list of node group names (default: system,workloads,critical)
 """
 
+import base64
 import boto3
-import os
+import json
 import logging
+import os
+import ssl
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 
 # Setup logging
@@ -144,38 +159,114 @@ def lambda_handler(event, context):
         }
 
 
+# ===========================================================================
+# K8s API CLIENT — STS token bearer auth (no kubectl required)
+# Ported from lambda_start.py — GAP-LAMBDA-RC3 fix (2026-03-17)
+# ===========================================================================
+
+def _get_k8s_token() -> str:
+    """
+    Generate a short-lived STS presigned token for K8s API authentication.
+
+    Uses SigV4QueryAuth (presigned URL) — identical to `aws eks get-token`.
+    Token lifetime: 60 seconds.
+    """
+    from botocore.auth import SigV4QueryAuth
+    from botocore.awsrequest import AWSRequest
+
+    session = boto3.session.Session()
+    credentials = session.get_credentials().get_frozen_credentials()
+
+    request = AWSRequest(
+        method='GET',
+        url=f'https://sts.{AWS_REGION}.amazonaws.com/?Action=GetCallerIdentity&Version=2011-06-15',
+        headers={'x-k8s-aws-id': CLUSTER_NAME},
+    )
+    signer = SigV4QueryAuth(credentials, 'sts', AWS_REGION, expires=60)
+    signer.add_auth(request)
+
+    token_bytes = request.url.encode('utf-8')
+    b64 = base64.urlsafe_b64encode(token_bytes).rstrip(b'=').decode('utf-8')
+    return f"k8s-aws-v1.{b64}"
+
+
+def _get_cluster_endpoint() -> tuple:
+    """Return (endpoint, ca_data) from EKS DescribeCluster."""
+    resp = eks.describe_cluster(name=CLUSTER_NAME)
+    cluster = resp['cluster']
+    return cluster['endpoint'], cluster['certificateAuthority']['data']
+
+
+def _scale_ca_deployment(replicas: int, results: dict):
+    """
+    Scale the Cluster Autoscaler Deployment via K8s API PATCH (no kubectl).
+
+    Uses STS presigned token bearer auth — same pattern as lambda_start.py.
+    The Lambda IAM role must be mapped in aws-auth with sufficient RBAC
+    permissions (patch apps/v1 deployments in kube-system).
+    """
+    deployment_name = 'cluster-autoscaler-aws-cluster-autoscaler'
+    namespace       = 'kube-system'
+
+    patch_body = json.dumps({'spec': {'replicas': replicas}}).encode('utf-8')
+    endpoint, ca_data = _get_cluster_endpoint()
+    token = _get_k8s_token()
+
+    ca_bytes = base64.b64decode(ca_data)
+    with tempfile.NamedTemporaryFile(suffix='.crt', delete=False) as f:
+        f.write(ca_bytes)
+        ca_file = f.name
+
+    try:
+        url = (
+            f"{endpoint.rstrip('/')}/apis/apps/v1/namespaces/{namespace}"
+            f"/deployments/{deployment_name}"
+        )
+        ctx = ssl.create_default_context(cafile=ca_file)
+        req = urllib.request.Request(
+            url,
+            data=patch_body,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Content-Type':  'application/merge-patch+json',
+                'Accept':        'application/json',
+            },
+            method='PATCH',
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=20):
+            pass
+        logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} replica(s) via K8s API")
+        results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}'
+    finally:
+        try:
+            os.unlink(ca_file)
+        except Exception:
+            pass
+
+
 def suspend_cluster_autoscaler(results):
     """
     Suspend Cluster Autoscaler by:
     1. Scaling down the CA Deployment to 0 replicas (prevents active CA from restoring desired counts)
     2. Suspending ASG Launch/Terminate processes (prevents DaemonSet Pending pods from triggering scale-up)
     Fix 2026-03-12: CA was restoring workloads nodegroup from desired=0 to desired=6 during shutdown.
+    Fix 2026-03-17: Step 1 now uses K8s API PATCH (STS bearer token) — kubectl not available in Lambda.
     FinOps fix: weekend costs $38-39/dia → $8-12/dia (2026-03-11)
     """
     if not SUSPEND_AUTOSCALER_ON_STOP:
         logger.info("Cluster Autoscaler suspension disabled, skipping")
         return
 
-    # Step 1: Scale down CA Deployment to 0 replicas via kubectl
+    # Step 1: Scale down CA Deployment to 0 replicas via K8s API
+    # GAP-LAMBDA-RC3 fix (2026-03-17): replaced kubectl subprocess (not in Lambda runtime)
+    # with direct K8s API PATCH using STS presigned token bearer auth.
     # This is the critical fix: CA Pod must stop running BEFORE nodegroup scale-down,
     # otherwise CA actively restores desired counts after each EKS API call.
     try:
-        import subprocess
-        cmd = [
-            'kubectl', 'scale', 'deploy',
-            'cluster-autoscaler-aws-cluster-autoscaler',
-            '-n', 'kube-system', '--replicas=0'
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if proc.returncode == 0:
-            logger.info(f"Cluster Autoscaler Deployment scaled to 0: {proc.stdout.strip()}")
-            results['cluster_autoscaler_deployment'] = 'suspended_replicas_0'
-        else:
-            logger.warning(f"kubectl scale CA failed (non-blocking): {proc.stderr.strip()}")
-            results['cluster_autoscaler_deployment'] = f'suspend_failed: {proc.stderr.strip()}'
+        _scale_ca_deployment(0, results)
     except Exception as e:
-        logger.warning(f"Failed to scale down CA Deployment via kubectl (non-blocking): {str(e)}")
-        results['cluster_autoscaler_deployment'] = f'suspend_error: {str(e)}'
+        logger.warning(f"[CA] K8s API scale-to-0 failed (non-blocking): {e}")
+        results['cluster_autoscaler_deployment'] = f'suspend_error: {e}'
 
     # Step 2: Suspend ASG scaling processes (belt-and-suspenders)
     try:

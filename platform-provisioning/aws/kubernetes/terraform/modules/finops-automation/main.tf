@@ -30,15 +30,17 @@ terraform {
 # -----------------------------------------------------------------------------
 
 data "archive_file" "lambda_start" {
-  type        = "zip"
-  source_file = "${path.module}/lambda/lambda_start.py"
-  output_path = "${path.module}/lambda_start.zip"
+  type             = "zip"
+  source_file      = "${path.module}/lambda/lambda_start.py"
+  output_path      = "${path.module}/lambda_start.zip"
+  output_file_mode = "0666" # stable hash across TF runs
 }
 
 data "archive_file" "lambda_stop" {
-  type        = "zip"
-  source_file = "${path.module}/lambda/lambda_stop.py"
-  output_path = "${path.module}/lambda_stop.zip"
+  type             = "zip"
+  source_file      = "${path.module}/lambda/lambda_stop.py"
+  output_path      = "${path.module}/lambda_stop.zip"
+  output_file_mode = "0666" # stable hash across TF runs
 }
 
 # -----------------------------------------------------------------------------
