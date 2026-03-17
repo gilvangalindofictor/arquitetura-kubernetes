@@ -208,6 +208,35 @@ resource "aws_cloudwatch_event_target" "weekend_shutdown_target" {
   })
 }
 
+# GAP-LAMBDA-RC2 fix (2026-03-17): Sunday preventive shutdown
+# Purpose: Prevent residual billing when Lambda START is invoked manually on weekends.
+#          Without this rule, nodes started on Sunday remain up until Monday 23:00 UTC.
+# Savings: +$9.72/Sunday × 4/month = ~$39/month
+resource "aws_cloudwatch_event_rule" "sunday_shutdown" {
+  name                = "finops-sunday-shutdown-${var.environment}"
+  description         = "Preventive stop ${var.environment} on Sunday 20:00 BRT (23:00 UTC) — GAP-LAMBDA-RC2"
+  schedule_expression = var.sunday_shutdown_schedule
+  state               = var.enable_automation ? "ENABLED" : "DISABLED"
+
+  tags = merge(local.security_tags, {
+    Name     = "finops-sunday-shutdown-${var.environment}"
+    Schedule = "20:00 BRT Sunday"
+    Purpose  = "GAP-LAMBDA-RC2-sunday-preventive-shutdown"
+  })
+}
+
+resource "aws_cloudwatch_event_target" "sunday_shutdown_target" {
+  rule      = aws_cloudwatch_event_rule.sunday_shutdown.name
+  target_id = "lambda-finops-sunday-stop"
+  arn       = aws_lambda_function.finops_stop.arn
+
+  input = jsonencode({
+    action       = "stop"
+    environment  = var.environment
+    triggered_by = "eventbridge-sunday-scheduler"
+  })
+}
+
 # -----------------------------------------------------------------------------
 # Lambda Permissions for EventBridge
 # -----------------------------------------------------------------------------
@@ -234,6 +263,14 @@ resource "aws_lambda_permission" "allow_eventbridge_weekend_stop" {
   function_name = aws_lambda_function.finops_stop.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.weekend_shutdown.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_sunday_stop" {
+  statement_id  = "AllowExecutionFromEventBridgeSundayShutdown"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.finops_stop.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.sunday_shutdown.arn
 }
 
 # -----------------------------------------------------------------------------

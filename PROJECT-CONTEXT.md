@@ -1,11 +1,11 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-03-12 ~21:00 BRT — SESSÃO COMPLETA | P0 linkerd RESOLVIDO | AlertManager CRD aplicado (KubeSchedulerDown+KubeControllerManagerDown suprimidos) | 0 pendências
+> **Última Atualização**: 2026-03-17 — [GAP-LAMBDA] INVESTIGADO: Lambda FUNCIONA, savings REAL $9.72/dia (não $22/dia) | RC2: Lambda START manual dom 15/Mar 17:16 UTC | MTD $709.56 (16d) | Forecast $1.309/mês
 > **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 em execucao — Sprint S0 | Enterprise Assessment **4.4/5.0** Advanced++)
 > **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
-> **Custo AWS (Mar/2026 MTD)**: $480.28 (11 dias) | Forecast AWS CE: $1.251/mes (+55% budget) | Nossa projeção ajustada: $1.116/mes (+38%) | FinOps Savings: R$ 61.638/ano realizados (99.4% meta)
+> **Custo AWS (Mar/2026 MTD)**: $709.56 (16 dias) | Forecast CE: $1.309/mês (+62% budget $807) | Daily rate: $39.82/dia | FinOps Savings: R$ 54.454/ano (87.8% meta) | [GAP-LAMBDA] RC confirmados 17/Mar
 > **Health (2026-03-12 ~21:00 BRT)**: 12/12 nodes Ready | Linkerd OPERATIONAL (destination 4/4, identity 2/2, proxy-injector 2/2) | GitLab 11/11 pods Running | Vault OK | RDS AVAILABLE | AlertManager CRD atualizado (EKS falsos positivos suprimidos) | 0 alertas P0/P1 ativos
 > **Apply 2026-03-12 14:39**: Lambda finops_stop/start atualizadas (suspend_cluster_autoscaler ativo) | RabbitMQ ClusterIP confirmado (NLB eliminado)
 > **Apply 2026-03-12 ~17:00-19:00**: module.linkerd (1 changed — system ASG max 4→5) | module.vault_staging (1 changed — telemetry unauthenticated_metrics_access=true) | zero drift pós-apply confirmado

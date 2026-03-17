@@ -61,6 +61,12 @@ variable "weekend_shutdown_schedule" {
   default     = "cron(0 3 ? * SAT *)"
 }
 
+variable "sunday_shutdown_schedule" {
+  description = "Cron expression for Sunday shutdown (UTC) - Default: 20:00 BRT Sunday (23:00 UTC) — prevents manual START residual cost (GAP-LAMBDA-RC2 fix, 2026-03-17)"
+  type        = string
+  default     = "cron(0 23 ? * SUN *)"
+}
+
 variable "enable_automation" {
   description = "Enable EventBridge rules (disable for testing)"
   type        = bool
