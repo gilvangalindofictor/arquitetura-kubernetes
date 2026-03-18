@@ -73,7 +73,7 @@ parse_args() {
     ENV_OVERRIDE=""
     DRY_RUN=false
     SKIP_VALIDATION=false
-    TOTAL_STEPS=8
+    TOTAL_STEPS=10
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -377,6 +377,36 @@ main() {
         || { log_error "Falha ao criar ArgoCD Application"; exit 1; }
 
     log_success "ArgoCD Application criado"
+
+    # -----------------------------------------------------------------
+    # STEP 9: Observabilidade (ServiceMonitor, PrometheusRule, Grafana) — GAP-PLAT-OBS-04
+    # -----------------------------------------------------------------
+    log_step 9 "$TOTAL_STEPS" "Observabilidade (ServiceMonitor / PrometheusRule / Grafana)"
+
+    if [[ -x "${PROVISIONING_DIR}/provision-observability.sh" ]]; then
+        OBS_ARGS=(--manifest "$MANIFEST_PATH" --app "$APP_NAME" --namespace "$NAMESPACE" --env "$ENV" --domain "$DOMAIN")
+        [[ "$DRY_RUN" == "true" ]] && OBS_ARGS+=(--dry-run)
+        bash "${PROVISIONING_DIR}/provision-observability.sh" "${OBS_ARGS[@]}" \
+            || { log_error "Falha ao provisionar observabilidade"; exit 1; }
+        log_success "Observabilidade provisionada"
+    else
+        log_warn "provision-observability.sh nao disponivel, pulando observabilidade"
+    fi
+
+    # -----------------------------------------------------------------
+    # STEP 10: Ingress (se enabled) — GAP-PLAT-ING-04
+    # -----------------------------------------------------------------
+    log_step 10 "$TOTAL_STEPS" "Ingress (se habilitado no manifesto)"
+
+    if [[ -x "${PROVISIONING_DIR}/provision-ingress.sh" ]]; then
+        ING_ARGS=(--manifest "$MANIFEST_PATH" --app "$APP_NAME" --namespace "$NAMESPACE" --env "$ENV" --domain "$DOMAIN")
+        [[ "$DRY_RUN" == "true" ]] && ING_ARGS+=(--dry-run)
+        bash "${PROVISIONING_DIR}/provision-ingress.sh" "${ING_ARGS[@]}" \
+            || { log_error "Falha ao provisionar Ingress"; exit 1; }
+        log_success "Ingress verificado/provisionado"
+    else
+        log_warn "provision-ingress.sh nao disponivel, pulando Ingress"
+    fi
 
     # -----------------------------------------------------------------
     # Sumario

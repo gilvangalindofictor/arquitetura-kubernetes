@@ -1,0 +1,29 @@
+{%- if values.metricsEnabled %}
+---
+# ServiceMonitor — gerado automaticamente pelo Backstage scaffold
+# App: {{ values.appName }} | Tier: {{ values.observabilityTier | default("standard") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ values.appName }}
+  namespace: {{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}
+  labels:
+    app: {{ values.appName }}
+    app.kubernetes.io/name: {{ values.appName }}
+    release: prometheus
+    team: {{ values.owner | default("data-team") }}
+    environment: staging
+spec:
+  selector:
+    matchLabels:
+      app: {{ values.appName }}
+  namespaceSelector:
+    matchNames:
+      - {{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ values.scrapeInterval | default("30s") }}
+      scrapeTimeout: 10s
+      scheme: http
+{%- endif %}

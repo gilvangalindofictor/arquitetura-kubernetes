@@ -1,0 +1,87 @@
+---
+# IngressGroups internos de plataforma — AWS ALB Controller
+# Ref: GAP-PLAT-ING-05 | 2026-03-18
+#
+# Cada IngressGroup representa um ALB compartilhado. Apps referenciam o grupo via:
+#   alb.ingress.kubernetes.io/group.name: <group-name>
+#
+# IngressGroups internos (scheme=internal, VPC only, requer VPN para acesso):
+#   - data-internal      → ETLs, workers, APIs de dados internas
+#   - platform-internal  → Backstage, ArgoCD, GitLab (serviços de plataforma)
+#   - integration-internal → iPaaS, conectores, webhooks recebidos
+
+# ─── data-internal ─────────────────────────────────────────────────────────────
+# Uso: ETLs, workers, APIs internas de dados (domain=data)
+# Custo: ZERO incremental (compartilhado entre todos os apps data-*)
+# Acesso: VPN + *.staging.internal
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ingressgroup-data-internal
+  namespace: ${ARGOCD_NAMESPACE}
+  annotations:
+    # Anchor ingress — registra o grupo no ALB Controller sem definir rotas
+    alb.ingress.kubernetes.io/group.name: data-internal
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/group.order: "0"
+  labels:
+    managed-by: platform-provisioner
+    ingressgroup: data-internal
+    environment: ${ENV}
+spec:
+  ingressClassName: alb
+  rules: []   # Sem rotas — âncora do grupo apenas
+---
+# ─── platform-internal ──────────────────────────────────────────────────────────
+# Uso: Backstage, ArgoCD, GitLab runners, ferramentas de plataforma
+# Custo: ZERO incremental (compartilhado entre serviços de plataforma)
+# Acesso: VPN + *.staging.internal (restrito a platform-team)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ingressgroup-platform-internal
+  namespace: ${ARGOCD_NAMESPACE}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: platform-internal
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/group.order: "0"
+  labels:
+    managed-by: platform-provisioner
+    ingressgroup: platform-internal
+    environment: ${ENV}
+spec:
+  ingressClassName: alb
+  rules: []
+---
+# ─── integration-internal ───────────────────────────────────────────────────────
+# Uso: iPaaS, conectores B2B, webhooks recebidos (domain=integration)
+# Custo: ZERO incremental
+# Acesso: VPN + *.staging.internal
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ingressgroup-integration-internal
+  namespace: ${ARGOCD_NAMESPACE}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: integration-internal
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/group.order: "0"
+  labels:
+    managed-by: platform-provisioner
+    ingressgroup: integration-internal
+    environment: ${ENV}
+spec:
+  ingressClassName: alb
+  rules: []

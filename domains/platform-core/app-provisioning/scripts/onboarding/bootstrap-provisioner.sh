@@ -140,6 +140,14 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["create", "get", "update", "patch"]
+  # Prometheus Operator CRDs (ServiceMonitor, PrometheusRule) — GAP-PLAT-RBAC-01
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors", "prometheusrules"]
+    verbs: ["create", "get", "update", "patch", "delete"]
+  # Ingress resources — GAP-PLAT-RBAC-01
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["create", "get", "update", "patch", "delete"]
   # ArgoCD Applications
   - apiGroups: ["argoproj.io"]
     resources: ["applications", "appprojects"]

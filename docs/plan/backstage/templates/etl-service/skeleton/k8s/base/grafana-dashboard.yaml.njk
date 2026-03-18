@@ -1,0 +1,31 @@
+{%- if values.dashboardEnabled %}
+---
+# Grafana Dashboard ConfigMap — gerado automaticamente pelo Backstage scaffold
+# Preset: {{ values.dashboardPreset | default("etl") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-{{ values.appName }}
+  namespace: {{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}
+  labels:
+    grafana_dashboard: "true"
+    app: {{ values.appName }}
+    dashboard-preset: {{ values.dashboardPreset | default("etl") }}
+data:
+  dashboard.json: |
+    {
+      "uid": "{{ values.appName }}-overview",
+      "title": "{{ values.appName }} — Overview",
+      "tags": ["platform", "auto-generated", "{{ values.dashboardPreset | default('etl') }}"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "panels": [
+        {"id":1,"title":"Pod Status","type":"stat","gridPos":{"x":0,"y":0,"w":4,"h":4},"targets":[{"expr":"up{job=\"{{ values.appName }}\"}"}]},
+        {"id":2,"title":"Request Rate","type":"timeseries","gridPos":{"x":4,"y":0,"w":10,"h":8},"targets":[{"expr":"rate(http_requests_total{job=\"{{ values.appName }}\"}[5m])"}]},
+        {"id":3,"title":"Error Rate","type":"timeseries","gridPos":{"x":14,"y":0,"w":10,"h":8},"targets":[{"expr":"rate(http_requests_total{job=\"{{ values.appName }}\",status=~\"5..\"}[5m])/rate(http_requests_total{job=\"{{ values.appName }}\"}[5m])*100"}]},
+        {"id":4,"title":"Latency P50/P95/P99","type":"timeseries","gridPos":{"x":0,"y":8,"w":12,"h":8}},
+        {"id":5,"title":"Container Restarts","type":"timeseries","gridPos":{"x":12,"y":8,"w":12,"h":8}},
+        {"id":6,"title":"Logs","type":"logs","gridPos":{"x":0,"y":16,"w":24,"h":8},"targets":[{"expr":"{namespace=\"{{ values.namespace | default('staging-' + values.domain + '-' + values.appName) }}\",app=\"{{ values.appName }}\"}"}]}
+      ]
+    }
+{%- endif %}

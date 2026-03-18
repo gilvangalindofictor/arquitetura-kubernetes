@@ -431,6 +431,57 @@
             "tls": {
               "type": "boolean",
               "description": "Habilita TLS/HTTPS no Ingress com ssl-redirect automatico."
+            },
+            "ingressGroup": {
+              "type": "string",
+              "enum": ["data-internal", "data-public", "platform-internal", "integration-internal"],
+              "default": "data-internal",
+              "description": "IngressGroup predefinido de plataforma. data-internal=ETLs/data (default), data-public=APIs publicas (requer aprovacao), platform-internal=servicos plataforma, integration-internal=iPaaS/conectores."
+            },
+            "costTier": {
+              "type": "string",
+              "enum": ["shared", "dedicated"],
+              "default": "shared",
+              "description": "Tier de custo. shared=usa ALB compartilhado (zero custo incremental). dedicated=ALB proprio (~$16-20/mes, requer dedicatedJustification)."
+            },
+            "pathPrefix": {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Prefixo de path no ALB compartilhado (ex: /hatch). Necessario quando costTier=shared para evitar conflito de paths entre apps."
+            },
+            "rateLimit": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Rate limiting via annotation do ALB.",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Habilita rate limiting no ALB para este servico."
+                },
+                "requestsPerMinute": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000,
+                  "default": 1000,
+                  "description": "Limite de requisicoes por minuto por IP de origem."
+                }
+              }
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Anotacoes adicionais para o Ingress. Campos de seguranca (scheme, ssl-policy, wafv2-acl-arn) sao imutaveis e nao podem ser sobrescritos via este campo."
+            },
+            "dedicatedJustification": {
+              "type": "string",
+              "maxLength": 500,
+              "description": "Obrigatorio quando costTier=dedicated. Justificativa para provisionar ALB proprio (aprovacao manual no pipeline)."
+            },
+            "healthCheckPath": {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Path de health check do ALB. Default: config.healthCheck.liveness. Sobrescreve apenas o health check do ALB (nao afeta probes K8s)."
             }
           },
           "if": {
@@ -572,6 +623,12 @@
               "minimum": 1,
               "maximum": 65535,
               "description": "Porta do endpoint de metricas, se diferente da porta principal. Exemplo: 9090."
+            },
+            "scrapeInterval": {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m)$",
+              "default": "30s",
+              "description": "Intervalo de scraping Prometheus. Formato: '30s', '1m'. Reducao aumenta carga no Prometheus."
             }
           },
           "if": {
@@ -590,6 +647,74 @@
             "enabled": {
               "type": "boolean",
               "description": "Habilita instrumentacao OTEL e exportacao de traces para o Collector."
+            },
+            "samplingRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.1,
+              "description": "Taxa de amostragem de traces OTEL (0.0 a 1.0). 0.1 = 10% dos traces coletados. Aumentar apenas para debug (custo de retencao no Tempo)."
+            }
+          }
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["minimal", "standard", "full"],
+          "default": "standard",
+          "description": "Tier de observabilidade. minimal=so alertas basicos, standard=SM+PR+dashboard (DEFAULT), full=standard+tracing+SLO"
+        },
+        "alerting": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Configuracao de alertas via PrometheusRule.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Habilita criacao de PrometheusRule com alertas padrao."
+            },
+            "thresholds": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "errorRate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "default": 0.05,
+                  "description": "Taxa de erro HTTP 5xx para disparo de alerta (0.05 = 5%)."
+                },
+                "podRestarts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 3,
+                  "description": "Numero de restarts em 1h para alerta warning."
+                },
+                "latencyP99ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 2000,
+                  "description": "Latencia P99 em ms para alerta warning."
+                }
+              }
+            }
+          }
+        },
+        "dashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Configuracao de Grafana dashboard provisionado automaticamente.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Habilita criacao de ConfigMap com dashboard Grafana."
+            },
+            "preset": {
+              "type": "string",
+              "enum": ["etl", "api", "worker", "batch"],
+              "default": "etl",
+              "description": "Preset de dashboard. etl=metricas de extracao, api=latencia+throughput, worker=jobs+filas, batch=runs+duracao."
             }
           }
         }

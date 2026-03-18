@@ -1,0 +1,40 @@
+---
+# ServiceMonitor Template — Platform Standard
+# Ref: GAP-PLAT-TEMPL-01 | 2026-03-18
+# Usage: sed -e 's/${APP_NAME}/meu-app/g' \
+#             -e 's/${NAMESPACE}/staging-data-meu-app/g' \
+#             -e 's/${METRICS_PORT}/metrics/g' \
+#             -e 's/${METRICS_PATH}/\/metrics/g' \
+#             -e 's/${SCRAPE_INTERVAL}/30s/g' \
+#             servicemonitor-template.yaml | kubectl apply -f -
+# Placeholders: APP_NAME, METRICS_PORT, METRICS_PATH, SCRAPE_INTERVAL, NAMESPACE
+#
+# Notas de uso:
+#   - METRICS_PORT: nome da porta (string) definida no Service do app (ex: "metrics", "http")
+#   - METRICS_PATH: caminho do endpoint de metricas (ex: /metrics)
+#   - SCRAPE_INTERVAL: intervalo de scraping (ex: 30s, 60s)
+#   - O label `release: prometheus` eh obrigatorio para o Prometheus Operator descobrir este ServiceMonitor
+#   - Porta dedicada para metrics (ex: 9090) eh recomendada — evitar uso da porta HTTP de negocio
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ${APP_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: ${APP_NAME}
+    app.kubernetes.io/name: ${APP_NAME}
+    release: prometheus       # obrigatorio — Prometheus Operator descobre por este label
+    managed-by: platform-provisioner
+spec:
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  namespaceSelector:
+    matchNames:
+      - ${NAMESPACE}
+  endpoints:
+    - port: ${METRICS_PORT}
+      path: ${METRICS_PATH}
+      interval: ${SCRAPE_INTERVAL}
+      scrapeTimeout: 10s
+      scheme: http

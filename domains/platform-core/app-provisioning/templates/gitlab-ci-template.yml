@@ -86,6 +86,46 @@ validate:labels:
         --domain "$DOMAIN"
     - echo "Labels validas!"
 
+validate:observability:
+  extends: .validate_base
+  allow_failure: true   # Phase 1 — observacao inicial, nao bloqueia merge
+  script:
+    - echo "Validando artefatos de observabilidade..."
+    - |
+      METRICS_ENABLED=$(yq '.observability.metrics.enabled // false' "$MANIFEST_PATH")
+      if [ "$METRICS_ENABLED" = "true" ]; then
+        # Verificar que ServiceMonitor existe em k8s/
+        if ! find . -path "*/k8s/*" -name "servicemonitor.yaml" -o -path "*/k8s/*" -name "servicemonitor.yaml.njk" | grep -q .; then
+          echo "AVISO: observability.metrics.enabled=true mas ServiceMonitor nao encontrado em k8s/"
+          echo "Esperado: k8s/base/servicemonitor.yaml ou k8s/base/servicemonitor.yaml.njk"
+          exit 1
+        fi
+        echo "ServiceMonitor encontrado"
+
+        # Verificar que a porta do SM bate com manifest
+        METRICS_PORT=$(yq '.observability.metrics.port // ""' "$MANIFEST_PATH")
+        if [ -n "$METRICS_PORT" ] && [ "$METRICS_PORT" != "null" ]; then
+          SM_FILE=$(find . -path "*/k8s/*" -name "servicemonitor.yaml" | head -1)
+          if [ -n "$SM_FILE" ]; then
+            SM_PORT=$(yq '.spec.endpoints[0].port' "$SM_FILE" 2>/dev/null || echo "")
+            if [ -n "$SM_PORT" ] && [ "$SM_PORT" != "null" ]; then
+              echo "ServiceMonitor porta: $SM_PORT (manifesto: $METRICS_PORT) — verificacao manual recomendada"
+            fi
+          fi
+        fi
+      else
+        echo "Metricas desabilitadas — validacao de ServiceMonitor pulada"
+      fi
+    - echo "Validacao de observabilidade concluida"
+
+validate:platform-artifacts:
+  extends: .validate_base
+  allow_failure: false
+  script:
+    - echo "Validando artefatos de plataforma..."
+    - bash /tmp/provisioning-${CI_JOB_ID}/scripts/validation/validate-platform-artifacts.sh "$MANIFEST_PATH"
+    - echo "Artefatos de plataforma validos!"
+
 # ---------------------------------------------------------------------------
 # Stage: provision — Executa onboarding (apenas em staging/main)
 # Auth: Vault Kubernetes Auth Method — token dinamico via JWT do SA (GAP-009)

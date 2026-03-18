@@ -86,6 +86,7 @@ No Claude Code, **"despachar agente" = usar o `Task tool`** com o `subagent_type
 | Documentation Specialist 📝     | `general-purpose`     | Logbook, ADRs, strategies-history sync   |
 | GAP Resolver 🔍                 | `general-purpose`     | Resolução do GAP-NNN detectado           |
 | Mesa Técnica (Blocker) 🔴       | múltiplos em paralelo | Lançar AWS + TF + Security + Obs juntos  |
+| Cloud Debug Specialist 🐛       | `general-purpose`     | `docs/prompts/cloud-debug-specialist.md` — diagnóstico K8s para ETL/Hatch, VemSoft, iPaaS |
 
 ### Formato de Dispatch via Task
 

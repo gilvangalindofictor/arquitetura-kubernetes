@@ -289,6 +289,62 @@ spec:
           type: boolean
           default: true
           description: "Instrumentação OpenTelemetry para rastreamento de execuções ETL — recomendado habilitado"
+        scrapeInterval:
+          title: "Intervalo de Scraping Prometheus"
+          type: string
+          default: "30s"
+          description: "Frequência de coleta de métricas. Menor intervalo = maior carga no Prometheus."
+          enum:
+            - "15s"
+            - "30s"
+            - "1m"
+            - "2m"
+          enumNames:
+            - "15 segundos (alta frequência - serviços críticos)"
+            - "30 segundos (padrão recomendado)"
+            - "1 minuto (baixa carga)"
+            - "2 minutos (minimal / batch jobs)"
+          ui:widget: select
+        observabilityTier:
+          title: "Nível de Observabilidade"
+          type: string
+          default: "standard"
+          description: "Define o conjunto de métricas, alertas e dashboards provisionados para este serviço."
+          enum:
+            - "minimal"
+            - "standard"
+            - "full"
+          enumNames:
+            - "Minimal — apenas métricas básicas de saúde (batch jobs, workers internos)"
+            - "Standard — métricas + alertas de SLO + dashboard básico (recomendado)"
+            - "Full — métricas detalhadas + alertas avançados + dashboard completo + tracing"
+          ui:widget: radio
+        alertingEnabled:
+          title: "Habilitar alertas Prometheus"
+          type: boolean
+          default: true
+          description: "Provisionar PrometheusRule com alertas de SLO para este serviço"
+        dashboardEnabled:
+          title: "Habilitar dashboard Grafana"
+          type: boolean
+          default: true
+          description: "Provisionar ConfigMap com dashboard Grafana para este serviço"
+        dashboardPreset:
+          title: "Preset do Dashboard Grafana"
+          type: string
+          default: "etl"
+          description: "Preset de dashboard a ser provisionado. Define painéis e variáveis disponíveis."
+          enum:
+            - "etl"
+            - "api"
+            - "worker"
+            - "batch"
+          enumNames:
+            - "ETL — pipeline de dados (throughput, latência de extração, erros de transformação)"
+            - "API — serviços HTTP (rate, erros, latência p50/p95/p99)"
+            - "Worker — processos background (queue depth, processamento, dead-letters)"
+            - "Batch — jobs agendados (duração de execução, sucesso/falha, última execução)"
+          ui:widget: select
 
     # -------------------------------------------------------------------------
     # Passo 6 — Repositório GitLab
@@ -492,6 +548,110 @@ spec:
             orderable: false
             removable: true
 
+    # -------------------------------------------------------------------------
+    # Passo 10 — Exposição HTTP (Ingress)
+    # Configuração de Ingress para serviços que expõem endpoints HTTP.
+    # Worker e CronJob normalmente NÃO devem habilitar Ingress.
+    # -------------------------------------------------------------------------
+    - title: "Exposição HTTP (Ingress)"
+      description: "Configure a exposição HTTP do serviço via Ingress. Deixe desabilitado para workers e CronJobs sem endpoint HTTP."
+      properties:
+        ingressEnabled:
+          title: "Habilitar Ingress"
+          type: boolean
+          default: false
+          description: "Expor o serviço via Ingress Controller (HTTP/HTTPS). Não recomendado para workers e CronJobs."
+        ingressClass:
+          title: "Classe do Ingress"
+          type: string
+          default: "internal"
+          description: "Tipo de Ingress Controller a usar. Internal: acesso apenas dentro da VPC. External: acesso público."
+          enum:
+            - "internal"
+            - "external"
+          enumNames:
+            - "Internal — acesso restrito à VPC (padrão para serviços de dados)"
+            - "External — acesso público via ALB externo (requer aprovação de segurança)"
+          ui:widget: select
+        ingressGroup:
+          title: "Grupo do Ingress (ALB Group)"
+          type: string
+          default: "data-internal"
+          description: "ALB Group ao qual este serviço será associado. Define qual Load Balancer compartilhado será usado."
+          enum:
+            - "data-internal"
+            - "data-public"
+            - "platform-internal"
+            - "integration-internal"
+          enumNames:
+            - "data-internal — ALB interno do domínio de dados (recomendado para ETL/workers)"
+            - "data-public — ALB público do domínio de dados (APIs de dados expostas externamente)"
+            - "platform-internal — ALB interno da plataforma (backstage, argocd, vault)"
+            - "integration-internal — ALB interno de integrações (iPaaS, webhooks, gateways)"
+          ui:widget: select
+        ingressHost:
+          title: "Hostname do Ingress"
+          type: string
+          description: "FQDN do endpoint HTTP. Deve seguir o padrão DNS interno ou externo configurado no cluster."
+          ui:placeholder: "meu-app.staging.internal"
+          pattern: '^$|^[a-z0-9][a-z0-9.-]{1,253}$'
+        rateLimitEnabled:
+          title: "Habilitar Rate Limiting"
+          type: boolean
+          default: false
+          description: "Aplicar limite de requisições por minuto via anotações do Ingress Controller"
+        rateLimitRpm:
+          title: "Limite de Requisições por Minuto (RPM)"
+          type: integer
+          default: 1000
+          minimum: 10
+          maximum: 100000
+          description: "Número máximo de requisições por minuto por IP de origem. Ativo somente se Rate Limiting estiver habilitado."
+          ui:help: "Recomendado: 1000 RPM para APIs internas, 100 RPM para endpoints públicos sensíveis"
+        costTier:
+          title: "Tier de Custo do Ingress"
+          type: string
+          default: "shared"
+          description: "Define se o serviço usa ALB compartilhado (menor custo) ou dedicado (maior isolamento)."
+          enum:
+            - "shared"
+            - "dedicated"
+          enumNames:
+            - "Shared — ALB compartilhado por grupo (menor custo, padrão recomendado)"
+            - "Dedicated — ALB exclusivo para este serviço (maior isolamento, custo adicional)"
+          ui:widget: radio
+      dependencies:
+        ingressEnabled:
+          oneOf:
+            - properties:
+                ingressEnabled:
+                  const: false
+            - properties:
+                ingressEnabled:
+                  const: true
+                ingressClass:
+                  type: string
+                ingressGroup:
+                  type: string
+                ingressHost:
+                  type: string
+                rateLimitEnabled:
+                  type: boolean
+                costTier:
+                  type: string
+              required:
+                - ingressHost
+        rateLimitEnabled:
+          oneOf:
+            - properties:
+                rateLimitEnabled:
+                  const: false
+            - properties:
+                rateLimitEnabled:
+                  const: true
+                rateLimitRpm:
+                  type: integer
+
   # ---------------------------------------------------------------------------
   # Steps — executados sequencialmente pelo Backstage Scaffolder
   # ---------------------------------------------------------------------------
@@ -531,6 +691,18 @@ spec:
           metricsPath: ${{ parameters.metricsPath }}
           metricsPort: ${{ parameters.metricsPort }}
           tracingEnabled: ${{ parameters.tracingEnabled }}
+          scrapeInterval: ${{ parameters.scrapeInterval }}
+          observabilityTier: ${{ parameters.observabilityTier }}
+          alertingEnabled: ${{ parameters.alertingEnabled }}
+          dashboardEnabled: ${{ parameters.dashboardEnabled }}
+          dashboardPreset: ${{ parameters.dashboardPreset }}
+          ingressEnabled: ${{ parameters.ingressEnabled }}
+          ingressClass: ${{ parameters.ingressClass }}
+          ingressGroup: ${{ parameters.ingressGroup }}
+          ingressHost: ${{ parameters.ingressHost }}
+          rateLimitEnabled: ${{ parameters.rateLimitEnabled }}
+          rateLimitRpm: ${{ parameters.rateLimitRpm }}
+          costTier: ${{ parameters.costTier }}
           etlTestMode: ${{ parameters.etlTestMode }}
           multiTenantCount: ${{ parameters.multiTenantCount }}
           gitlabGroup: ${{ parameters.gitlabGroup }}

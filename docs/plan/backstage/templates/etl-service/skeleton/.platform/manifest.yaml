@@ -90,6 +90,17 @@ spec:
       readiness: ""
     ingress:
       enabled: false
+      host: ""
+      class: internal
+      tls: true
+      costTier: shared           # shared (default) | dedicated
+      ingressGroup: data-internal # IngressGroup predefinido
+      pathPrefix: ""             # prefixo de path no ALB compartilhado
+      rateLimit:
+        enabled: false
+        requestsPerMinute: 1000
+      annotations: {}            # anotacoes adicionais (seguranca imutavel)
+      healthCheckPath: /health   # health check do ALB
     env:
       ETL_TEST_MODE: "{{ 'true' if values.etlTestMode else 'false' }}"
       ETL_TEST_LIMIT_RECORDS: "{{ '100' if values.etlTestMode else '0' }}"
@@ -148,6 +159,17 @@ spec:
       enabled: {{ values.metricsEnabled }}
       path: "{{ values.metricsPath }}"
       port: {{ values.metricsPort }}
+      scrapeInterval: 30s    # NOVO — intervalo de scraping (padrao: 30s)
+    tier: standard           # NOVO — minimal | standard | full (padrao: standard)
+    alerting:                # NOVO
+      enabled: true
+      thresholds:
+        errorRate: 0.05      # 5% de erros HTTP 5xx
+        podRestarts: 3       # restarts em 1h
+        latencyP99ms: 2000   # 2 segundos P99
+    dashboard:               # NOVO
+      enabled: true
+      preset: etl            # etl | api | worker | batch
     tracing:
       enabled: {{ values.tracingEnabled }}
 

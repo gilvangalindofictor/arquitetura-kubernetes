@@ -1,0 +1,38 @@
+---
+# IngressGroup externo de plataforma — AWS ALB Controller
+# Ref: GAP-PLAT-ING-05 | 2026-03-18
+#
+# ATENÇÃO — uso restrito:
+#   O IngressGroup data-public usa scheme=internet-facing.
+#   Apps só podem usar este grupo com APROVAÇÃO EXPLÍCITA no pipeline
+#   (campo dedicatedJustification no manifest + job de validação no CI).
+#   USO INCORRETO = exposição pública não autorizada de APIs internas.
+
+# ─── data-public ────────────────────────────────────────────────────────────────
+# Uso: APIs de dados expostas publicamente (ex: webhooks de parceiros, APIs B2C)
+# Custo: ZERO incremental (compartilhado) — mas requer aprovação explícita
+# Acesso: PÚBLICO (internet-facing) — requer WAF obrigatório
+# Pré-requisito: WAF ARN configurado via platform-waf-config ConfigMap
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ingressgroup-data-public
+  namespace: ${ARGOCD_NAMESPACE}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: data-public
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    # WAF obrigatório para internet-facing — ARN via ConfigMap platform-waf-config
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: <WAF_ARN>  # Descomentar após criar WAF
+    alb.ingress.kubernetes.io/group.order: "0"
+  labels:
+    managed-by: platform-provisioner
+    ingressgroup: data-public
+    environment: ${ENV}
+    requires-approval: "true"
+spec:
+  ingressClassName: alb
+  rules: []

@@ -1,0 +1,326 @@
+---
+# Grafana Dashboard Template — Platform Standard (6 panels)
+# Ref: GAP-PLAT-TEMPL-01 | 2026-03-18
+# Datasources: Prometheus (metrics) + Loki (logs) + Tempo (traces) via variaveis Grafana
+# Usage: sed -e 's/${APP_NAME}/meu-app/g' \
+#             -e 's/${NAMESPACE}/staging-data-meu-app/g' \
+#             grafana-dashboard-template.yaml | kubectl apply -f -
+# Placeholders: APP_NAME, NAMESPACE
+#
+# Paineis incluidos (6):
+#   1. Pod Status (UP/DOWN)    — up{job, namespace}
+#   2. Request Rate (req/s)    — rate(http_requests_total[5m])
+#   3. Error Rate (%)          — taxa de erros 5xx vs total
+#   4. Latency P50/P95/P99     — histogram_quantile sobre http_request_duration_seconds_bucket
+#   5. Container Restarts      — rate(kube_pod_container_status_restarts_total[1h])
+#   6. Logs (Loki)             — {namespace, app} via datasource Loki
+#
+# Autodiscovery: o label grafana_dashboard: "true" ativa o Grafana sidecar (kiwigrid/k8s-sidecar)
+# e o Grafana Operator. Usar "1" se o sidecar do cluster estiver configurado para esse valor.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-${APP_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    grafana_dashboard: "true"   # obrigatorio — autodiscovery pelo Grafana sidecar/operator
+    app: ${APP_NAME}
+    managed-by: platform-provisioner
+data:
+  dashboard.json: |
+    {
+      "uid": "${APP_NAME}-overview",
+      "title": "${APP_NAME} — Overview",
+      "description": "Dashboard padrao de observabilidade para ${APP_NAME}. Gerado por platform-provisioner (GAP-PLAT-TEMPL-01).",
+      "tags": ["platform", "auto-generated"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "editable": true,
+      "graphTooltip": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "timepicker": {},
+      "templating": {
+        "list": [
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Prometheus",
+            "multi": false,
+            "name": "datasource_prometheus",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Loki",
+            "multi": false,
+            "name": "datasource_loki",
+            "options": [],
+            "query": "loki",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Tempo",
+            "multi": false,
+            "name": "datasource_tempo",
+            "options": [],
+            "query": "tempo",
+            "refresh": 1,
+            "type": "datasource"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pod Status (UP/DOWN)",
+          "type": "stat",
+          "description": "Status atual dos pods do servico. 1 = UP, 0 = DOWN.",
+          "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_prometheus}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [
+                { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": 0 },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "up{job=\"${APP_NAME}\", namespace=\"${NAMESPACE}\"}",
+              "legendFormat": "{{ pod }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Request Rate (req/s)",
+          "type": "timeseries",
+          "description": "Taxa de requisicoes HTTP recebidas pelo servico nos ultimos 5 minutos.",
+          "gridPos": {"x": 4, "y": 0, "w": 10, "h": 8},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_prometheus}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisLabel": "req/s",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "rate(http_requests_total{job=\"${APP_NAME}\"}[5m])",
+              "legendFormat": "{{ method }} {{ status }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Error Rate (%)",
+          "type": "timeseries",
+          "description": "Percentual de requisicoes com status HTTP 5xx. Threshold de alerta: >5%.",
+          "gridPos": {"x": 14, "y": 0, "w": 10, "h": 8},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_prometheus}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "red" },
+              "custom": {
+                "axisLabel": "% erros",
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "rate(http_requests_total{job=\"${APP_NAME}\",status=~\"5..\"}[5m]) / rate(http_requests_total{job=\"${APP_NAME}\"}[5m])",
+              "legendFormat": "% 5xx",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Latency P50/P95/P99",
+          "type": "timeseries",
+          "description": "Latencia de resposta nos percentis 50, 95 e 99. Requer http_request_duration_seconds_bucket.",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_prometheus}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisLabel": "segundos",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"${APP_NAME}\"}[5m]))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"${APP_NAME}\"}[5m]))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"${APP_NAME}\"}[5m]))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Container Restarts",
+          "type": "timeseries",
+          "description": "Taxa de restarts do container por hora. Alerta dispara se > 3/h por 10 minutos.",
+          "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource_prometheus}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "orange" },
+              "custom": {
+                "axisLabel": "restarts/h",
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource_prometheus}" },
+              "expr": "rate(kube_pod_container_status_restarts_total{namespace=\"${NAMESPACE}\",container=\"${APP_NAME}\"}[1h])",
+              "legendFormat": "{{ pod }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Logs (Loki)",
+          "type": "logs",
+          "description": "Logs estruturados de todos os pods do namespace via Loki. Correlacao automatica com traces via trace_id.",
+          "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8},
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource_loki}"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "${datasource_loki}" },
+              "expr": "{namespace=\"${NAMESPACE}\",app=\"${APP_NAME}\"}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }

@@ -1,0 +1,21 @@
+---
+# kustomization.yaml — gerado pelo Backstage scaffold
+# Inclui recursos OBS e Ingress condicionalmente baseado no manifest.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+{%- if values.metricsEnabled %}
+  - servicemonitor.yaml
+{%- endif %}
+{%- if values.alertingEnabled %}
+  - prometheusrule.yaml
+{%- endif %}
+{%- if values.dashboardEnabled %}
+  - grafana-dashboard.yaml
+{%- endif %}
+{%- if values.ingressEnabled %}
+  - ingress.yaml
+{%- endif %}

@@ -75,6 +75,10 @@ spec:
       kind: CronJob
     - group: "batch"
       kind: Job
+    - group: "monitoring.coreos.com"
+      kind: ServiceMonitor
+    - group: "monitoring.coreos.com"
+      kind: PrometheusRule
 
   # RBAC roles scoped to this domain
   roles:

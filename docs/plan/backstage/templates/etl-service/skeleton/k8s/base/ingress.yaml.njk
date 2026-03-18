@@ -1,0 +1,54 @@
+{%- if values.ingressEnabled %}
+---
+# Ingress — gerado automaticamente pelo Backstage scaffold
+# IngressGroup: {{ values.ingressGroup | default("data-internal") }}
+# CostTier: {{ values.costTier | default("shared") }}
+{%- if values.ingressClass == "external" %}
+# AVISO: Ingress externo (internet-facing). Requer aprovacao explicita no pipeline.
+# Certifique-se de que dedicatedJustification foi preenchido no manifest.yaml.
+{%- endif %}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ values.appName }}
+  namespace: {{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}
+  annotations:
+    alb.ingress.kubernetes.io/group.name: {{ values.ingressGroup | default("data-internal") }}
+{%- if values.ingressClass == "external" %}
+    alb.ingress.kubernetes.io/scheme: internet-facing
+{%- else %}
+    alb.ingress.kubernetes.io/scheme: internal
+{%- endif %}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: {{ values.healthCheckPath | default("/health") }}
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+{%- if values.rateLimitEnabled %}
+    # Rate limiting: {{ values.rateLimitRpm | default(1000) }} req/min
+    # Implementado via AWS WAF WebACL — configurar rate-based rule apos deploy.
+    # Referencia: platform-waf-config ConfigMap no namespace da plataforma.
+{%- endif %}
+    # WAF: configurar apos ARN disponivel via platform-waf-config
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: <WAF_ARN>
+  labels:
+    app: {{ values.appName }}
+    environment: staging
+    domain: {{ values.domain }}
+    cost-tier: {{ values.costTier | default("shared") }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ values.ingressHost | default(values.appName + ".staging.internal") }}
+      http:
+        paths:
+          - path: {{ values.pathPrefix | default("/") }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ values.appName }}
+                port:
+                  number: {{ values.port | default(8000) }}
+{%- endif %}

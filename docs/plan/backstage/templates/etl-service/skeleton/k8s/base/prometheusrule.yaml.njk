@@ -1,0 +1,60 @@
+{%- if values.alertingEnabled %}
+---
+# PrometheusRule — gerado automaticamente pelo Backstage scaffold
+# Tier: {{ values.observabilityTier | default("standard") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ values.appName }}
+  namespace: {{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}
+  labels:
+    app: {{ values.appName }}
+    release: prometheus
+    obs-tier: {{ values.observabilityTier | default("standard") }}
+spec:
+  groups:
+    - name: {{ values.appName }}.availability
+      rules:
+        - alert: AppPodDown
+          expr: up{job="{{ values.appName }}", namespace="{{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: {{ values.owner | default("data-team") }}
+          annotations:
+            summary: "Pod do servico {{ values.appName }} esta DOWN"
+            description: "O servico {{ values.appName }} nao esta respondendo ha mais de 5 minutos."
+{%- if values.observabilityTier != "minimal" %}
+    - name: {{ values.appName }}.errors
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            rate(http_requests_total{job="{{ values.appName }}",status=~"5.."}[5m])
+            / rate(http_requests_total{job="{{ values.appName }}"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: {{ values.owner | default("data-team") }}
+          annotations:
+            summary: "Taxa de erro alta em {{ values.appName }}"
+            description: "Taxa de erros HTTP 5xx acima de 5% nos ultimos 5 minutos."
+        - alert: HighRestartRate
+          expr: rate(kube_pod_container_status_restarts_total{namespace="{{ values.namespace | default("staging-" + values.domain + "-" + values.appName) }}",container="{{ values.appName }}"}[1h]) > 3
+          for: 10m
+          labels:
+            severity: warning
+            team: {{ values.owner | default("data-team") }}
+          annotations:
+            summary: "{{ values.appName }} com restarts frequentes"
+            description: "Container reiniciando mais de 3 vezes por hora."
+        - alert: HighLatencyP99
+          expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="{{ values.appName }}"}[5m])) > 2
+          for: 5m
+          labels:
+            severity: warning
+            team: {{ values.owner | default("data-team") }}
+          annotations:
+            summary: "Latencia P99 alta em {{ values.appName }}"
+            description: "P99 acima de 2 segundos nos ultimos 5 minutos."
+{%- endif %}
+{%- endif %}

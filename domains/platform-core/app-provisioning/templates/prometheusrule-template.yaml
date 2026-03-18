@@ -1,0 +1,93 @@
+---
+# PrometheusRule Template — Platform Standard
+# Ref: GAP-PLAT-TEMPL-01 | 2026-03-18
+# Usage: sed -e 's/${APP_NAME}/meu-app/g' \
+#             -e 's/${NAMESPACE}/staging-data-meu-app/g' \
+#             -e 's/${TIER}/standard/g' \
+#             -e 's/${TEAM}/data-team/g' \
+#             -e 's/${OWNER}/eng-plataforma/g' \
+#             prometheusrule-template.yaml | kubectl apply -f -
+# Placeholders: APP_NAME, NAMESPACE, TIER, TEAM, OWNER
+#
+# Tiers de observabilidade:
+#   minimal  — apenas AppPodDown (grupo availability)
+#              comentar grupos: errors
+#   standard — AppPodDown + HighErrorRate + HighRestartRate + HighLatencyP99
+#              ativar todos os grupos
+#   full     — tudo do standard (extensivel com SLOs e alertas custom)
+#              ativar todos os grupos e adicionar regras SLO abaixo
+#
+# Para tier=minimal: remover/comentar o grupo ${APP_NAME}.errors inteiro
+# Para tier=standard|full: manter todos os grupos
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ${APP_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: ${APP_NAME}
+    release: prometheus       # obrigatorio — Prometheus Operator descobre por este label
+    managed-by: platform-provisioner
+    obs-tier: ${TIER}
+spec:
+  groups:
+    - name: ${APP_NAME}.availability
+      interval: 60s
+      rules:
+        # Tier: minimal | standard | full
+        # Dispara quando nenhum pod do servico esta disponivel por 5 minutos
+        # Cobre: CrashLoopBackOff, OOMKill, falha no readinessProbe
+        - alert: AppPodDown
+          expr: up{job="${APP_NAME}", namespace="${NAMESPACE}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            team: ${TEAM}
+            owner: ${OWNER}
+          annotations:
+            summary: "Pod {{ $labels.pod }} do servico ${APP_NAME} esta DOWN"
+            description: "O pod {{ $labels.pod }} nao esta respondendo ha mais de 5 minutos. Verificar logs e eventos K8s."
+
+    # Tier: standard | full
+    # Para tier=minimal: comentar ou remover este grupo inteiro
+    - name: ${APP_NAME}.errors
+      interval: 60s
+      rules:
+        # Tier: standard | full
+        # Dispara quando a taxa de erros HTTP 5xx excede 5% do total por 5 minutos
+        - alert: HighErrorRate
+          expr: |
+            rate(http_requests_total{job="${APP_NAME}", status=~"5.."}[5m])
+            / rate(http_requests_total{job="${APP_NAME}"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: ${TEAM}
+          annotations:
+            summary: "Taxa de erro alta em ${APP_NAME}"
+            description: "Taxa de erros HTTP 5xx acima de 5% nos ultimos 5 minutos. Taxa atual: {{ $value | humanizePercentage }}."
+
+        # Tier: standard | full
+        # Dispara quando o container reinicia mais de 3 vezes por hora por 10 minutos
+        - alert: HighRestartRate
+          expr: rate(kube_pod_container_status_restarts_total{namespace="${NAMESPACE}", container="${APP_NAME}"}[1h]) > 3
+          for: 10m
+          labels:
+            severity: warning
+            team: ${TEAM}
+          annotations:
+            summary: "${APP_NAME} com restarts frequentes"
+            description: "Container ${APP_NAME} reiniciando mais de 3 vezes por hora. Verificar OOMKill, liveness probe e dependencias."
+
+        # Tier: standard | full
+        # Dispara quando a latencia P99 excede 2 segundos por 5 minutos
+        # Requer que o servico exporte histogram: http_request_duration_seconds_bucket
+        - alert: HighLatencyP99
+          expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="${APP_NAME}"}[5m])) > 2
+          for: 5m
+          labels:
+            severity: warning
+            team: ${TEAM}
+          annotations:
+            summary: "Latencia P99 alta em ${APP_NAME}"
+            description: "Latencia P99 acima de 2 segundos nos ultimos 5 minutos. Valor atual: {{ $value | humanizeDuration }}."
