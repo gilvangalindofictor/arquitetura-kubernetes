@@ -163,6 +163,7 @@ ALLOWED_DOC_PATHS=(
     "^README\.md$"
     "^PROJECT-CONTEXT\.md$"
     "^ARCHITECTURE-DIAGRAMS\.md$"
+    "^CLAUDE\.md$"
     "^docs/"
     "^SAD/"
     "^domains/.*/docs/"
