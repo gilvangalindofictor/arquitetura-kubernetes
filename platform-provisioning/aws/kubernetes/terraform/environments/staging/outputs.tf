@@ -274,6 +274,11 @@ output "waf_rules_summary" {
   value       = module.waf_staging.waf_rules_summary
 }
 
+output "waf_additional_alb_association_ids" {
+  description = "Map of WAF WebACL association IDs for additional ALBs (GitLab, Keycloak). Codified from CLI associations (2026-03-18)."
+  value       = module.waf_staging.waf_additional_alb_association_ids
+}
+
 #------------------------------------------------------------------------------
 # GAP-011: Linkerd Service Mesh Outputs
 # RE-ENABLED (2026-03-03) — dashboard blocker resolved, module uncommented

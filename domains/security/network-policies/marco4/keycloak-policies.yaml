@@ -16,7 +16,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: keycloak-ingress
-  namespace: keycloak
+  namespace: staging-platform-keycloak
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow ingress to Keycloak from ALB and SSO clients (audit mode)"
@@ -49,7 +49,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: argocd
+          kubernetes.io/metadata.name: staging-platform-argocd
       podSelector:
         matchLabels:
           app.kubernetes.io/name: argocd-server
@@ -60,7 +60,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: sonarqube
+          kubernetes.io/metadata.name: staging-platform-sonarqube
       podSelector:
         matchLabels:
           app: sonarqube
@@ -71,7 +71,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: gitlab-staging
+          kubernetes.io/metadata.name: staging-platform-gitlab
       podSelector:
         matchLabels:
           app: webservice
@@ -82,7 +82,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
       podSelector:
         matchLabels:
           app.kubernetes.io/name: grafana
@@ -116,7 +116,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
     ports:
     - protocol: TCP
       port: 9000
@@ -131,7 +131,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: keycloak-egress
-  namespace: keycloak
+  namespace: staging-platform-keycloak
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow egress from Keycloak to RDS, DNS, and external services (audit mode)"
@@ -190,7 +190,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: keycloak-cluster-communication
-  namespace: keycloak
+  namespace: staging-platform-keycloak
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow Keycloak pods JGroups clustering communication (audit mode)"

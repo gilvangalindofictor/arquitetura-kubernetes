@@ -30,6 +30,25 @@ terraform {
       source  = "hashicorp/time"
       version = "~> 0.12"
     }
+    # P0-07: Providers faltantes — equalizados com staging
+    vault = {
+      source  = "hashicorp/vault"
+      version = "~> 3.25"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
+    # TASK-002: Keycloak IaC provider for realm, clients and groups management
+    keycloak = {
+      source  = "mrparkers/keycloak"
+      version = "~> 4.4.0"
+    }
+    # GAP-011: Linkerd mTLS — TLS provider for trust anchor + issuer PKI generation
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -73,6 +92,11 @@ data "aws_eks_cluster" "cluster" {
 
 data "aws_eks_cluster_auth" "cluster" {
   name = local.cluster_name
+}
+
+# P0-07: Get OIDC Provider for IRSA (equalizado com staging)
+data "aws_iam_openid_connect_provider" "eks" {
+  url = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
 }
 
 provider "kubernetes" {
@@ -142,6 +166,7 @@ module "postgresql_prod" {
   max_allocated_storage = var.postgresql_max_allocated_storage # 500 GB
   multi_az              = true                                 # DT-004: Multi-AZ mandatory for production (99.95% SLA)
   deletion_protection   = true                                 # DT-004: Protect against accidental deletion in production
+  environment           = "prod"                               # Secrets Manager prefix: prod/postgresql/...
   common_tags           = local.common_tags
 }
 
@@ -233,8 +258,8 @@ module "gitlab" {
   cluster_name   = local.cluster_name
   aws_account_id = var.aws_account_id
   aws_region     = var.aws_region
-  namespace      = "gitlab"
-  environment    = "shared" # Shared across STAGING and PROD
+  namespace      = "prod-platform-gitlab" # P0-08: DEC-074 namespace convention
+  environment    = "shared"               # Shared across STAGING and PROD
 
   # GitLab configuration
   gitlab_edition         = "ce"
@@ -301,22 +326,22 @@ resource "kubectl_manifest" "netpol_deny_staging_access" {
             - protocol: TCP
               port: 5672  # RabbitMQ
 
-        # Allow GitLab (shared namespace)
+        # Allow GitLab (shared namespace — P0-08: DEC-074 convention)
         - from:
           - namespaceSelector:
               matchLabels:
-                name: gitlab
+                name: prod-platform-gitlab
           ports:
             - protocol: TCP
               port: 5432  # GitLab uses PROD PostgreSQL
             - protocol: TCP
               port: 6379  # GitLab uses PROD Redis
 
-        # Allow monitoring (Prometheus scraping)
+        # Allow monitoring (Prometheus scraping — P0-08: DEC-074 convention)
         - from:
           - namespaceSelector:
               matchLabels:
-                name: observability
+                name: prod-observability-monitoring
           ports:
             - protocol: TCP
               port: 9187  # PostgreSQL exporter
@@ -370,7 +395,7 @@ resource "kubectl_manifest" "servicemonitor_gitlab" {
     kind: ServiceMonitor
     metadata:
       name: gitlab
-      namespace: gitlab
+      namespace: prod-platform-gitlab  # P0-08: DEC-074 namespace convention
       labels:
         app: gitlab
         environment: shared

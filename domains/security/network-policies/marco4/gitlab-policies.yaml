@@ -16,7 +16,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-webservice-ingress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow ingress to GitLab webservice (audit mode, additive to existing policies)"
@@ -71,7 +71,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
     ports:
     - protocol: TCP
       port: 8083
@@ -90,7 +90,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-webservice-egress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow egress from GitLab webservice to required services (audit mode)"
@@ -126,7 +126,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: keycloak
+          kubernetes.io/metadata.name: staging-platform-keycloak
       podSelector:
         matchLabels:
           app.kubernetes.io/name: keycloakx
@@ -145,7 +145,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: sonarqube
+          kubernetes.io/metadata.name: staging-platform-sonarqube
       podSelector:
         matchLabels:
           app: sonarqube
@@ -183,7 +183,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-sidekiq-ingress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow minimal ingress to GitLab sidekiq (audit mode)"
@@ -209,7 +209,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
     ports:
     - protocol: TCP
       port: 3807
@@ -220,7 +220,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-sidekiq-egress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow egress from GitLab sidekiq to required services (audit mode)"
@@ -295,7 +295,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-gitaly-ingress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow ingress to GitLab Gitaly from GitLab components (audit mode)"
@@ -337,7 +337,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-gitaly-egress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow egress from GitLab Gitaly to external repos (audit mode)"
@@ -382,7 +382,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-runner-ingress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow minimal ingress to GitLab runners (audit mode)"
@@ -400,7 +400,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
     ports:
     - protocol: TCP
       port: 9252
@@ -411,7 +411,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: gitlab-runner-egress
-  namespace: gitlab-staging
+  namespace: staging-platform-gitlab
   annotations:
     policy.cilium.io/audit-mode: "true"
     description: "Allow egress from GitLab runners to required services (audit mode)"
@@ -449,7 +449,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: sonarqube
+          kubernetes.io/metadata.name: staging-platform-sonarqube
       podSelector:
         matchLabels:
           app: sonarqube

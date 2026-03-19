@@ -43,6 +43,21 @@ variable "alb_arn" {
 }
 
 #------------------------------------------------------------------------------
+# Additional ALB Associations
+#------------------------------------------------------------------------------
+
+variable "additional_alb_arns" {
+  description = "Map of additional ALB ARNs to associate with the same WAF WebACL. Key = logical name (for Terraform addressing), Value = ALB ARN. Example: { gitlab = \"arn:aws:elasticloadbalancing:...\" }"
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.additional_alb_arns : can(regex("^arn:aws:elasticloadbalancing:", v))])
+    error_message = "All values in additional_alb_arns must be valid ALB ARNs starting with arn:aws:elasticloadbalancing:."
+  }
+}
+
+#------------------------------------------------------------------------------
 # Rate Limiting (Rule Priority 10)
 #------------------------------------------------------------------------------
 

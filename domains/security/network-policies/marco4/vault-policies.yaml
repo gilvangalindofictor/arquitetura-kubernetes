@@ -55,7 +55,7 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: monitoring
+          kubernetes.io/metadata.name: staging-observability-monitoring
     ports:
     - protocol: TCP
       port: 8200

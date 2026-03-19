@@ -93,3 +93,9 @@ variable "apply_immediately" {
   type        = bool
   default     = false
 }
+
+variable "environment" {
+  description = "Environment name used as prefix for Secrets Manager secret names (e.g. staging, prod)"
+  type        = string
+  default     = "staging" # Backward compatible: existing staging deployments work without changes
+}

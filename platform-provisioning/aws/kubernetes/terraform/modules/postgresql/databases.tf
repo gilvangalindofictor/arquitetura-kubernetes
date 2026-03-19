@@ -70,7 +70,7 @@ resource "random_password" "keycloak_user" {
 # FIX: garante que SM sempre reflete a senha atual no RDS — evita drift com Vault
 # Ver: docs/logbook/2026-02-19-post-up-investigation.md (STOP-AND-FIX Keycloak)
 resource "aws_secretsmanager_secret" "keycloak_user_password" {
-  name        = "staging/postgresql/keycloak-password"
+  name        = "${var.environment}/postgresql/keycloak-password"
   description = "Keycloak PostgreSQL user password (managed by Terraform — anti-drift)"
 
   tags = merge(var.common_tags, {
@@ -138,7 +138,7 @@ resource "random_password" "sonarqube_user" {
 # FIX: garante que SM sempre reflete a senha atual no RDS — evita drift com Vault
 # Ver: docs/logbook/2026-02-19-post-up-investigation.md (AVISO drift SonarQube)
 resource "aws_secretsmanager_secret" "sonarqube_user_password" {
-  name        = "staging/postgresql/sonarqube-password"
+  name        = "${var.environment}/postgresql/sonarqube-password"
   description = "SonarQube PostgreSQL user password (managed by Terraform — anti-drift)"
 
   tags = merge(var.common_tags, {

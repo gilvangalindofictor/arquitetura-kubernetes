@@ -1,0 +1,297 @@
+---
+# Harbor Default Deny All Policy
+# Denies all ingress and egress traffic by default.
+# Specific allow policies below grant only required flows.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-default-deny-all
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Default deny all ingress and egress for Harbor namespace (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Harbor Allow DNS Policy
+# Allows:
+#   - All Harbor pods → kube-dns:53 (UDP+TCP)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-allow-dns
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow DNS resolution from Harbor pods to CoreDNS (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Harbor Core Ingress Policy
+# Allows:
+#   - ALB Ingress Controller → harbor-core:8080 (external access)
+#   - GitLab runners → harbor-core:8080 (docker push from CI/CD)
+#   - GitLab webservice → harbor-core:8080 (API integration)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-core-ingress
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to Harbor core from ALB and GitLab (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector:
+    matchLabels:
+      app: harbor
+      component: core
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ALB Ingress Controller (kube-system)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: aws-load-balancer-controller
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow from GitLab runners (docker push)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: staging-platform-gitlab
+      podSelector:
+        matchLabels:
+          app: gitlab-gitlab-runner
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow from GitLab webservice (API integration)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: staging-platform-gitlab
+      podSelector:
+        matchLabels:
+          app: webservice
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# Harbor Registry Ingress Policy
+# Allows:
+#   - harbor-core → harbor-registry:5000 (image storage operations)
+#   - harbor-trivy → harbor-registry:5000 (vulnerability scanning pulls)
+#   - harbor-jobservice → harbor-registry:5000 (replication/GC jobs)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-registry-ingress
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow ingress to Harbor registry from internal Harbor components (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector:
+    matchLabels:
+      app: harbor
+      component: registry
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from harbor-core
+  - from:
+    - podSelector:
+        matchLabels:
+          app: harbor
+          component: core
+    ports:
+    - protocol: TCP
+      port: 5000
+  # Allow from harbor-trivy
+  - from:
+    - podSelector:
+        matchLabels:
+          app: harbor
+          component: trivy
+    ports:
+    - protocol: TCP
+      port: 5000
+  # Allow from harbor-jobservice
+  - from:
+    - podSelector:
+        matchLabels:
+          app: harbor
+          component: jobservice
+    ports:
+    - protocol: TCP
+      port: 5000
+
+---
+# Harbor Egress Policy
+# Allows:
+#   - Harbor → Keycloak OIDC (staging-platform-keycloak:8443)
+#   - Harbor → Redis (data-services:6379)
+#   - Harbor → S3 (HTTPS 443)
+#   - Harbor → PostgreSQL (data-services:5432)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-egress
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from Harbor to Keycloak, Redis, S3, and PostgreSQL (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector:
+    matchLabels:
+      app: harbor
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to Keycloak for OIDC authentication
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: staging-platform-keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloakx
+    ports:
+    - protocol: TCP
+      port: 8443
+  # Allow to Redis in data-services
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: data-services
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow to S3 (AWS endpoints, HTTPS)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow to PostgreSQL RDS (VPC CIDR)
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# Harbor Trivy Egress Policy
+# Allows:
+#   - harbor-trivy → Internet:443 (vulnerability database updates)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-trivy-egress
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow egress from Harbor Trivy to Internet for vulnerability DB updates (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector:
+    matchLabels:
+      app: harbor
+      component: trivy
+  policyTypes:
+  - Egress
+  egress:
+  # Allow to Internet for vulnerability database updates (GitHub, ghcr.io, etc.)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Harbor Allow Monitoring Policy
+# Allows:
+#   - Prometheus (staging-observability-monitoring) → Harbor pods (metrics scraping)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-allow-monitoring
+  namespace: harbor-system
+  annotations:
+    policy.cilium.io/audit-mode: "true"
+    description: "Allow Prometheus scraping from monitoring namespace to Harbor (audit mode)"
+    gap: "GAP-007"
+    phase: "audit"
+    enforced-after: "2026-03-26"
+spec:
+  podSelector:
+    matchLabels:
+      app: harbor
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from Prometheus in staging-observability-monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: staging-observability-monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8443
+    - protocol: TCP
+      port: 5000

@@ -342,6 +342,22 @@ resource "aws_wafv2_web_acl_association" "alb" {
 }
 
 # -----------------------------------------------------------------------------
+# Additional ALB Associations
+# One WAF WebACL can protect multiple ALBs. This resource creates associations
+# for ALBs beyond the primary one (var.alb_arn).
+# Use case: GitLab, Keycloak, and other ALBs created by the AWS Load Balancer
+# Controller that share the same WAF protection policy.
+# Previously associated via AWS CLI — codified here for zero drift.
+# -----------------------------------------------------------------------------
+
+resource "aws_wafv2_web_acl_association" "additional" {
+  for_each = var.additional_alb_arns
+
+  resource_arn = each.value
+  web_acl_arn  = aws_wafv2_web_acl.main.arn
+}
+
+# -----------------------------------------------------------------------------
 # WAF Logging Configuration
 # Enabled when var.enable_logging = true AND a log destination is available.
 # The log destination must be an S3 bucket whose name starts with "aws-waf-logs-".

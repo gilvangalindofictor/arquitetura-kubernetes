@@ -36,8 +36,13 @@ output "waf_web_acl_capacity" {
 #------------------------------------------------------------------------------
 
 output "waf_alb_association_id" {
-  description = "Terraform resource ID for the WAF WebACL → ALB association. Useful for explicit depends_on chains in consumer modules."
+  description = "Terraform resource ID for the WAF WebACL → primary ALB association. Useful for explicit depends_on chains in consumer modules."
   value       = aws_wafv2_web_acl_association.alb.id
+}
+
+output "waf_additional_alb_association_ids" {
+  description = "Map of Terraform resource IDs for additional WAF WebACL → ALB associations (keyed by the logical name from additional_alb_arns)."
+  value       = { for k, v in aws_wafv2_web_acl_association.additional : k => v.id }
 }
 
 #------------------------------------------------------------------------------
