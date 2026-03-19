@@ -871,6 +871,34 @@ def _k8s_patch(path: str, body: dict, content_type: str = 'application/strategic
             pass
 
 
+def _wait_identity_ready(timeout_sec: int = 120):
+    """
+    Wait for linkerd-identity Deployment to have at least 1 Ready pod.
+
+    Fix 2026-03-18: destination and proxy-injector proxies connect to
+    identity:8080 during startup to bootstrap mTLS certs. If identity is
+    still rolling (no Ready pod), the connection goes through the CNI
+    iptables → local proxy → deadlock (InvalidContentType). Waiting for
+    identity ensures the gRPC endpoint is serving before dependents restart.
+    """
+    deadline = time.time() + timeout_sec
+    attempt = 0
+    while time.time() < deadline:
+        attempt += 1
+        try:
+            pods = _list_pods('linkerd', 'linkerd.io/control-plane-component=identity')
+            ready_count = sum(1 for p in pods if p.get('ready'))
+            if ready_count >= 1:
+                logger.info(f"[LINKERD] identity ready ({ready_count} pod(s)) after {attempt} attempts")
+                return True
+            logger.info(f"[LINKERD] identity not ready yet (ready={ready_count}, attempt={attempt})")
+        except Exception as exc:
+            logger.warning(f"[LINKERD] identity check error (attempt={attempt}): {exc}")
+        time.sleep(POLL_INTERVAL_SEC)
+    logger.warning(f"[LINKERD] identity not ready after {timeout_sec}s — proceeding anyway")
+    return False
+
+
 def _rollout_restart_linkerd():
     """
     Rollout restart Linkerd control plane Deployments via K8s API.
@@ -881,8 +909,13 @@ def _rollout_restart_linkerd():
     `kubectl.kubernetes.io/restartedAt` annotation on the pod template)
     creates fresh pods that start clean.
 
-    Order matters: identity FIRST (other pods depend on it), then destination
-    (needed for service resolution), then proxy-injector.
+    CRITICAL ORDERING (fix 2026-03-18):
+      1. Restart identity FIRST
+      2. WAIT for identity to be Ready (at least 1 pod 2/2)
+      3. THEN restart destination + proxy-injector
+    Without the wait, destination/proxy-injector pods start before identity
+    finishes rolling → same CNI deadlock (InvalidContentType) because the
+    proxy can't reach identity:8080 to bootstrap its mTLS certificate.
     """
     now = datetime.now(timezone.utc).isoformat()
     patch_body = {
@@ -897,7 +930,22 @@ def _rollout_restart_linkerd():
         }
     }
 
-    for deploy in ('linkerd-identity', 'linkerd-destination', 'linkerd-proxy-injector'):
+    # Step 1: Restart identity
+    path = '/apis/apps/v1/namespaces/linkerd/deployments/linkerd-identity'
+    try:
+        _k8s_patch(path, patch_body)
+        logger.info("[LINKERD] Rollout restart: linkerd-identity OK")
+    except _K8sApiError as exc:
+        logger.warning(f"[LINKERD] Rollout restart linkerd-identity failed: {exc}")
+        # If identity restart fails, still try the others — they might recover
+        # from CrashLoopBackOff on their own with existing identity
+
+    # Step 2: Wait for identity to be Ready before restarting dependents
+    logger.info("[LINKERD] Waiting for identity to be Ready before restarting dependents...")
+    _wait_identity_ready(timeout_sec=120)
+
+    # Step 3: Restart destination + proxy-injector (identity is now serving)
+    for deploy in ('linkerd-destination', 'linkerd-proxy-injector'):
         path = f'/apis/apps/v1/namespaces/linkerd/deployments/{deploy}'
         try:
             _k8s_patch(path, patch_body)
