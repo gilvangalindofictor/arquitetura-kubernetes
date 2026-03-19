@@ -1,4 +1,4 @@
-# Sessao 2026-03-19 — Producao Fases 1, 2, 3 Concluidas
+# Sessao 2026-03-19 — Producao Fases 1, 2, 3, 4 Concluidas
 
 **Data:** 2026-03-19 | **Status:** CONCLUIDO | **Cluster:** k8s-platform-prod
 **Conta AWS:** 891377105802 | **Regiao:** us-east-1
@@ -8,9 +8,9 @@
 
 ## Resumo Executivo
 
-Sessao de execucao das Fases 1, 2 e 3 do plano de producao. Todas 3 fases concluidas com sucesso. Mesa tecnica Docker Hub rate limit resolvida com ECR mirror. 4 novos GAPs de seguranca de registry detectados (GAP-SEC-REGISTRY-01 a 04).
+Sessao de execucao das Fases 1, 2, 3 e 4 do plano de producao. Todas 4 fases concluidas com sucesso. Mesa tecnica Docker Hub rate limit resolvida com ECR mirror. 4 novos GAPs de seguranca de registry detectados (GAP-SEC-REGISTRY-01 a 04). Fase 4 entregou stack de observabilidade completa com 29/29 core pods.
 
-**Resultado:** Ambiente de producao com Vault HA, ESO, Keycloak, ArgoCD, Harbor e SonarQube operacionais.
+**Resultado:** Ambiente de producao com Vault HA, ESO, Keycloak, ArgoCD, Harbor, SonarQube e Observabilidade (Prometheus+Loki+Tempo+OTel) operacionais.
 
 ---
 
@@ -54,6 +54,27 @@ Sessao de execucao das Fases 1, 2 e 3 do plano de producao. Todas 3 fases conclu
 | SonarQube prod | CONCLUIDO | 1/1 Running (imagem via ECR mirror — Docker Hub rate limit workaround) |
 
 **NOTA:** Deploy via Helm direto — TF bloqueado por postgresql provider VPC-only. Codificar no TF quando tunnel disponivel.
+
+---
+
+## Fase 4 — Observabilidade (100%)
+
+| Item | Status | Detalhe |
+|------|--------|---------|
+| kube-prometheus-stack prod | CONCLUIDO | 5/5 Ready (Prometheus, Grafana, Alertmanager, Operator, KSM) |
+| Loki prod | CONCLUIDO | 10/10 Ready. S3 backend k8s-platform-loki-prod-891377105802. IRSA LokiS3Role |
+| Tempo prod | CONCLUIDO | 12/12 Ready. S3 backend k8s-platform-tempo-prod-891377105802. IRSA TempoS3Role |
+| OTel Collector prod | CONCLUIDO | 2/2 Ready |
+| S3 buckets | CONCLUIDO | loki-prod + tempo-prod criados |
+| IRSA roles | CONCLUIDO | LokiS3Role + TempoS3Role atualizados |
+| Cluster autoscaler | CONCLUIDO | workloads 5→6 nodes |
+| Node-exporter prod | DESABILITADO | Staging ja cobre todos os 13 nodes via hostNetwork (conflito de porta) |
+| loki-canary | PENDENTE (non-blocking) | 6 pods Pending — DaemonSet nodeAffinity |
+| ECR Pull-Through Cache | PARCIAL | Regra criada, credenciais Docker Hub invalidas (pendente PAT valido) |
+| WAF Bot Control | ADIADO Fase 5 | Sem ALBs prod (depende de hosted zone/dominio) |
+| External-DNS | ADIADO Fase 5 | Sem hosted zone prod (depende de delegacao NS) |
+
+**Total:** 29/29 core pods Running.
 
 ---
 
@@ -108,18 +129,19 @@ b46c064 feat(platform): Vault prod HA deployed — 3/3 Raft peers, KMS auto-unse
 
 ---
 
-## Proximos Passos (Fases 4-7)
+## Proximos Passos (Fases 5-7)
 
 | Fase | Descricao | Bloqueador |
 |------|-----------|------------|
-| Fase 4 | Observabilidade (Prometheus + Loki + Tempo + WAF prod) | Nenhum — pode iniciar |
-| Fase 5 | DNS + Certificados + ALBs prod | EXTERNO — delegacao NS prod.alvocard.com.br |
+| Fase 5 | DNS + Certificados + ALBs prod + WAF Bot Control + External-DNS | EXTERNO — delegacao NS prod.alvocard.com.br |
 | Fase 6 | Resiliencia e DR (Velero + Linkerd + VPA) | Fase 5 |
 | Fase 7 | VPN + Backstage prod | Fase 5 (Keycloak com URL publica) |
 
-**Pendente TF:** Keycloak, ArgoCD, Harbor e SonarQube prod deployados via Helm direto. Codificar no Terraform quando tunnel VPC-only disponivel (postgresql provider requer acesso direto ao RDS).
+**Pendente TF:** Keycloak, ArgoCD, Harbor, SonarQube e Observabilidade prod deployados via Helm direto. Codificar no Terraform quando tunnel VPC-only disponivel (postgresql provider requer acesso direto ao RDS).
 
-**ECR Pull-Through Cache:** Configurar para eliminar dependencia de Docker Hub em pulls futuros.
+**ECR Pull-Through Cache:** Regra criada, pendente PAT Docker Hub valido para credenciais. Configurar para eliminar dependencia de Docker Hub em pulls futuros.
+
+**loki-canary:** 6 pods Pending por nodeAffinity — non-blocking, avaliar na proxima sessao.
 
 ---
 

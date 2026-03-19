@@ -1,6 +1,6 @@
 # Plano de Estruturação do Ambiente de Produção
 
-**Data:** 2026-03-18 | **Status:** FASES 1-3 CONCLUIDAS (2026-03-19) | **Cluster:** k8s-platform-prod
+**Data:** 2026-03-18 | **Status:** FASES 1-4 CONCLUIDAS (2026-03-19) | **Cluster:** k8s-platform-prod
 **Conta AWS:** 891377105802 | **Região:** us-east-1 | **VPC:** vpc-0b1396a59c417c1f0
 
 ---
@@ -284,11 +284,15 @@ Controles obrigatórios:
 
 ---
 
-### Fase 4 — Observabilidade (Prometheus + Loki + Tempo + WAF)
+### Fase 4 — Observabilidade (Prometheus + Loki + Tempo + OTel) -- CONCLUIDA 2026-03-19
 
 **Pre-requisitos:** Fases 1-3 concluídas
 
 **Objetivo:** Observabilidade completa em produção com retenção correta e WAF prod.
+
+**STATUS: CONCLUIDA 2026-03-19** — kube-prometheus-stack prod 5/5 Ready (Prometheus, Grafana, Alertmanager, Operator, KSM). Loki prod 10/10 Ready (S3 backend k8s-platform-loki-prod-891377105802, IRSA LokiS3Role). Tempo prod 12/12 Ready (S3 backend k8s-platform-tempo-prod-891377105802, IRSA TempoS3Role). OTel Collector prod 2/2 Ready. Total 29/29 core pods + 6 loki-canary Pending (non-blocking, DaemonSet nodeAffinity). Cluster autoscaler workloads 5→6 nodes. Node-exporter desabilitado em prod (staging ja cobre todos os 13 nodes via hostNetwork — sem conflito de porta).
+
+**NOTA:** WAF Bot Control e External-DNS adiados para Fase 5 (sem ALBs/hosted zone prod ainda). ECR Pull-Through Cache regra criada mas credenciais Docker Hub invalidas (pendente PAT valido).
 
 | Ação | Módulo TF | Estimativa |
 |------|-----------|------------|
@@ -296,8 +300,8 @@ Controles obrigatórios:
 | Provisionar Loki prod (S3 backend, retenção 30d) | `modules/loki` | 2h |
 | Provisionar Tempo prod (retenção 14d) | `modules/tempo` | 2h |
 | Provisionar OpenTelemetry Collector prod | `modules/opentelemetry-collector` | 2h |
-| Criar WAF WebACL prod (novo, com regras em Block, Bot Control) | `modules/waf` | 2h |
-| Instalar External-DNS | Helm + IAM IRSA | 2h |
+| ~~Criar WAF WebACL prod (novo, com regras em Block, Bot Control)~~ | ~~`modules/waf`~~ | ~~2h~~ → **ADIADO Fase 5** |
+| ~~Instalar External-DNS~~ | ~~Helm + IAM IRSA~~ | ~~2h~~ → **ADIADO Fase 5** |
 | Configurar alertas SLO prod (latência P99, error rate, disponibilidade) | Prometheus rules | 3h |
 
 **Estimativa total:** 2 dias
@@ -305,11 +309,11 @@ Controles obrigatórios:
 
 ---
 
-### Fase 5 — DNS + Certificados + Domínio (DEPENDE DE AÇÃO EXTERNA)
+### Fase 5 — DNS + Certificados + Domínio + WAF prod + External-DNS (DEPENDE DE AÇÃO EXTERNA)
 
 **Pre-requisitos:** Gestor de domínio executa checklist do Documento 2; Fases 1-4 concluídas
 
-**Objetivo:** Tornar os serviços acessíveis via `*.prod.alvocard.com.br` com HTTPS real.
+**Objetivo:** Tornar os serviços acessíveis via `*.prod.alvocard.com.br` com HTTPS real. Inclui WAF Bot Control e External-DNS (adiados da Fase 4 por dependencia de ALBs/hosted zone prod).
 
 | Ação | Módulo TF | Estimativa |
 |------|-----------|------------|
@@ -391,10 +395,10 @@ Controles obrigatórios:
 [FASE 3] ArgoCD + Harbor + SonarQube
     │  (dependem de Vault/ESO para secrets)
     ▼
-[FASE 4] Observabilidade + WAF prod + External-DNS
-    │  (pode correr em paralelo parcial com Fase 3)
+[FASE 4] Observabilidade (Prometheus+Loki+Tempo+OTel) ✅ CONCLUIDA 2026-03-19
+    │  (WAF prod + External-DNS movidos para Fase 5)
     ▼
-[FASE 5] DNS + Certificados + ALBs prod  ← DEPENDE DO GESTOR EXTERNO
+[FASE 5] DNS + Certificados + ALBs prod + WAF prod + External-DNS  ← DEPENDE DO GESTOR EXTERNO
     │  (Route53 zona → NS delegation → ACM wildcard → ALBs → Ingresses)
     ▼
 [FASE 6] Velero + Linkerd + VPA        [FASE 7] VPN + Backstage prod
@@ -461,7 +465,7 @@ Controles obrigatórios:
 [x] Fase 1 concluida (2026-03-19) — TF sem drift, WAF em Block, providers completos, 24 NetworkPolicies
 [x] Fase 2 concluida (2026-03-19) — Vault prod HA 3/3, ESO sincronizando, Keycloak prod HA 2/2
 [x] Fase 3 concluida (2026-03-19) — ArgoCD 10/10 + Harbor 9/9 + SonarQube 1/1 Running (Helm direto, TF VPC-only)
-[ ] Fase 4 concluída — Observabilidade Running, WAF prod criado, External-DNS instalado
+[x] Fase 4 concluida (2026-03-19) — 29/29 core pods Running (Prometheus 5/5, Loki 10/10, Tempo 12/12, OTel 2/2). WAF prod + External-DNS adiados Fase 5
 [ ] Gestor de domínio executou checklist (Document 2)
 [ ] dig NS prod.alvocard.com.br retorna 4 NS do Route53
 [ ] ACM wildcard *.prod.alvocard.com.br: status ISSUED

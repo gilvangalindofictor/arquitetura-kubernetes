@@ -406,9 +406,19 @@ vault token revoke -self
 - GAP-SEC-REGISTRY-03: ECR Pull-Through Cache como solucao permanente
 - GAP-SEC-REGISTRY-04: 48 pods em ImagePullBackOff
 
+**Fase 4 — Observabilidade (2026-03-19):**
+
+- kube-prometheus-stack prod 5/5 Ready (Prometheus, Grafana, Alertmanager, Operator, KSM)
+- Loki prod 10/10 Ready (S3 backend k8s-platform-loki-prod-891377105802, IRSA LokiS3Role)
+- Tempo prod 12/12 Ready (S3 backend k8s-platform-tempo-prod-891377105802, IRSA TempoS3Role)
+- OTel Collector prod 2/2 Ready
+- Total: 29/29 core pods + 6 loki-canary Pending (DaemonSet nodeAffinity, non-blocking)
+- Node-exporter desabilitado em prod (hostNetwork conflito com staging)
+- ECR Pull-Through Cache: regra criada, credenciais Docker Hub invalidas (pendente PAT)
+
 **Commits:** 3a5912b, 0e51582, b46c064 + pendente
 
-**Pendentes:** TF state imports, ECR Pull-Through Cache, 48 pods ImagePullBackOff
+**Pendentes:** TF state imports, ECR Pull-Through Cache PAT Docker Hub, 6 loki-canary Pending
 
 **Referencias:**
 
@@ -559,6 +569,53 @@ spec:
 ```
 
 **Regra geral:** Kyverno `Enforce` + labels obrigatorios = INCOMPATIVEL com Helm charts de terceiros sem customizacao. Criar MutatingPolicy para injetar labels ANTES da validacao. Ordem: Mutate → Validate → Enforce.
+
+---
+
+### Licao 16 — Node-exporter compartilhado em cluster multi-env: hostNetwork conflito de porta
+
+**Problema:** Ao deployar kube-prometheus-stack em produção (namespace separado do staging), o node-exporter falhava com erro de porta já em uso. DaemonSet ficava em CrashLoopBackOff.
+
+**Causa raiz:** node-exporter usa `hostNetwork: true` e porta fixa 9100 no host. Como staging e prod compartilham os mesmos nodes físicos (cluster EKS único multi-environment), dois DaemonSets node-exporter tentavam bind na mesma porta 9100 — conflito direto.
+
+**Solucao aplicada:** Desabilitar node-exporter no kube-prometheus-stack de prod (`nodeExporter.enabled: false`). O node-exporter do staging já cobre todos os 13 nodes do cluster (DaemonSet = 1 pod por node, independente de namespace). Métricas de node são globais (CPU, memória, disco, rede do host) — não há distinção staging/prod no nível do node.
+
+**Regra geral:** Em clusters EKS multi-environment (staging + prod no mesmo cluster), deployar node-exporter em APENAS UM kube-prometheus-stack. O segundo ambiente deve desabilitar node-exporter e consumir métricas via federation ou remote-write do Prometheus que já tem os dados. Mesma regra aplica-se a qualquer DaemonSet com `hostNetwork: true` e porta fixa (e.g., promtail, fluent-bit).
+
+**Diagnostico:**
+
+```bash
+# Verificar se já existe node-exporter rodando:
+kubectl get ds -A | grep node-exporter
+# Se retornar mais de 1 DaemonSet → conflito de porta garantido
+```
+
+---
+
+### Licao 17 — ECR Pull-Through Cache requer PAT Docker Hub válido (não username/password)
+
+**Problema:** ECR Pull-Through Cache rule criada com sucesso (`aws ecr create-pull-through-cache-rule`), mas pulls via ECR falhavam com erro de autenticação no upstream Docker Hub.
+
+**Causa raiz:** O ECR Pull-Through Cache requer um Personal Access Token (PAT) do Docker Hub armazenado no AWS Secrets Manager — não aceita username/password tradicionais. O secret deve ter o formato `{"username":"<dockerhub-user>","accessToken":"<PAT>"}`. Credenciais de login normais (senha da conta Docker Hub) são rejeitadas pelo Docker Hub API v2 quando usadas como access token.
+
+**Solucao aplicada:**
+
+```text
+1. Criar PAT no Docker Hub: hub.docker.com → Account Settings → Security → New Access Token
+2. Criar secret no Secrets Manager:
+   aws secretsmanager create-secret \
+     --name ecr-pullthroughcache/docker-hub \
+     --secret-string '{"username":"<user>","accessToken":"<PAT>"}'
+3. Criar/atualizar a regra:
+   aws ecr create-pull-through-cache-rule \
+     --ecr-repository-prefix docker-hub \
+     --upstream-registry-url registry-1.docker.io \
+     --credential-arn arn:aws:secretsmanager:us-east-1:891377105802:secret:ecr-pullthroughcache/docker-hub-XXXXXX
+```
+
+**Regra geral:** Antes de criar ECR Pull-Through Cache rules para Docker Hub, gerar um PAT (Read-only scope suficiente) e armazená-lo no Secrets Manager. Nunca usar senha da conta Docker Hub — será rejeitada. Validar com `aws ecr batch-get-image` após configuração.
+
+**Anti-pattern:** Criar a regra de pull-through cache sem credenciais ou com credenciais inválidas — pulls falham silenciosamente e pods ficam em ImagePullBackOff sem mensagem clara sobre credenciais.
 
 ---
 
