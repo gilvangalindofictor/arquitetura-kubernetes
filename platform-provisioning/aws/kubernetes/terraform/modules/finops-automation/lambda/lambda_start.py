@@ -191,6 +191,22 @@ def lambda_handler(event, context):
         _seq(results, 'step_1_resume_asg_processes', 'done')
 
         # ------------------------------------------------------------------
+        # STEP 1b: Start RDS EARLY (fire-and-forget).
+        # Fix 2026-03-18: RDS takes 5-10 min to start. Previously at step 7,
+        # after Linkerd check. If Linkerd blocked (CrashLoopBackOff), RDS
+        # never started. Now fires immediately — runs in parallel with node
+        # provisioning. Step 7 still checks final RDS state.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_1b_start_rds_early', 'starting')
+        if RDS_INSTANCE_ID:
+            try:
+                start_rds(RDS_INSTANCE_ID, results)
+            except Exception as exc:
+                logger.warning(f"[RDS] Early start failed (non-blocking): {exc}")
+                results['rds'] = {'status': 'early_start_error', 'message': str(exc)}
+        _seq(results, 'step_1b_start_rds_early', 'done')
+
+        # ------------------------------------------------------------------
         # STEP 2: Scale CA Deployment to 1 replica.
         # Rationale: CA must be running before workload nodes join so it can
         # manage the node pool correctly. Starting CA before workloads node
@@ -247,6 +263,23 @@ def lambda_handler(event, context):
             time.sleep(120)
 
         # ------------------------------------------------------------------
+        # STEP 4b: Rollout restart Linkerd control plane.
+        # Fix 2026-03-18: After a stop/start cycle, Linkerd destination and
+        # proxy-injector pods enter CrashLoopBackOff because the proxy
+        # sidecar can't reconnect to identity/destination after nodes were
+        # terminated. A rollout restart creates fresh pods that start clean.
+        # This MUST run after system nodes are ready (step 4) so the new
+        # pods have nodes to schedule on.
+        # ------------------------------------------------------------------
+        _seq(results, 'step_4b_rollout_restart_linkerd', 'starting')
+        try:
+            _rollout_restart_linkerd()
+            _seq(results, 'step_4b_rollout_restart_linkerd', 'done')
+        except Exception as exc:
+            logger.warning(f"[LINKERD] Rollout restart failed (non-blocking): {exc}")
+            _seq(results, 'step_4b_rollout_restart_linkerd', 'WARNING')
+
+        # ------------------------------------------------------------------
         # STEP 5: Verify Linkerd control plane is Running.
         # Gate: linkerd-destination, linkerd-identity, linkerd-proxy-injector
         #       all have at least 1 Running pod in namespace 'linkerd'.
@@ -256,20 +289,25 @@ def lambda_handler(event, context):
         # its init phase. If either is not Running, pods hang in Init state
         # forever (no timeout in the webhook path by default). Starting
         # workload nodes BEFORE Linkerd is ready guarantees CrashLoops.
+        #
+        # Fix 2026-03-18: Linkerd failure is now a WARNING, not a hard stop.
+        # If Linkerd fails, workloads + RDS still start (DEGRADED mode).
+        # Previous behavior: return early → RDS never started → full outage.
         # ------------------------------------------------------------------
         if HEALTH_CHECK_ENABLED:
             _seq(results, 'step_5_verify_linkerd', 'starting')
             ok, diag = wait_linkerd_ready(timeout_sec=LINKERD_TIMEOUT_SEC)
             results['health_check']['linkerd'] = diag
-            _seq(results, 'step_5_verify_linkerd', 'ok' if ok else 'FAILED')
+            _seq(results, 'step_5_verify_linkerd', 'ok' if ok else 'DEGRADED')
 
             if not ok:
-                _fail(results, 'LINKERD_NOT_READY',
-                      f"Linkerd control plane not ready within {LINKERD_TIMEOUT_SEC}s. "
-                      f"Diag: {diag}")
-                update_dynamodb_state(results)
-                send_notification(results)
-                return _response(results)
+                logger.warning(
+                    f"[LINKERD] Control plane not ready within {LINKERD_TIMEOUT_SEC}s — "
+                    "continuing in DEGRADED mode. Workloads will start but may have "
+                    "init container delays until Linkerd recovers."
+                )
+                results['linkerd_degraded'] = True
+                # Do NOT return early — continue starting workloads + RDS
         else:
             logger.warning("[HEALTH_CHECK_DISABLED] Skipping Linkerd gate")
 
@@ -291,21 +329,20 @@ def lambda_handler(event, context):
         _seq(results, 'step_6_start_workload_critical_nodegroups', 'done')
 
         # ------------------------------------------------------------------
-        # STEP 7: Start RDS.
-        # Rationale: RDS is started after node groups so that if the RDS
-        # start has any issue it does not block node startup. RDS typically
-        # takes 3-5 minutes to become available — starting it here allows it
-        # to warm up while workload nodes are provisioning.
+        # STEP 7: Verify RDS status (started in step 1b).
+        # Fix 2026-03-18: RDS start moved to step 1b (fire-and-forget).
+        # This step now just re-checks status. If step 1b failed (e.g.
+        # timeout), retry the start here as fallback.
         # ------------------------------------------------------------------
-        _seq(results, 'step_7_start_rds', 'starting')
+        _seq(results, 'step_7_verify_rds', 'starting')
         if RDS_INSTANCE_ID:
             try:
                 start_rds(RDS_INSTANCE_ID, results)
             except Exception as exc:
-                logger.error(f"Error starting RDS {RDS_INSTANCE_ID}: {exc}")
+                logger.error(f"Error with RDS {RDS_INSTANCE_ID}: {exc}")
                 results['rds'] = {'status': 'error', 'message': str(exc)}
                 results['success'] = False
-        _seq(results, 'step_7_start_rds', 'done')
+        _seq(results, 'step_7_verify_rds', 'done')
 
         # ------------------------------------------------------------------
         # STEP 8: Final cluster health check.
@@ -328,6 +365,13 @@ def lambda_handler(event, context):
                 # Do NOT return early — fall through to notification
         else:
             logger.warning("[HEALTH_CHECK_DISABLED] Skipping final health gate")
+
+        # ------------------------------------------------------------------
+        # Mark overall result: DEGRADED if Linkerd was not ready
+        # ------------------------------------------------------------------
+        if results.get('linkerd_degraded') and results['success']:
+            _fail(results, 'LINKERD_NOT_READY',
+                  'Linkerd control plane did not become ready, but workloads + RDS started')
 
         # ------------------------------------------------------------------
         # Persist state + notify
@@ -781,6 +825,88 @@ def _k8s_get(path: str) -> dict:
             pass
 
 
+def _k8s_patch(path: str, body: dict, content_type: str = 'application/strategic-merge-patch+json') -> dict:
+    """
+    Perform a PATCH request against the K8s API server.
+
+    Args:
+        path: API path, e.g. '/apis/apps/v1/namespaces/linkerd/deployments/linkerd-destination'
+        body: Patch body dict.
+        content_type: Patch content type.
+
+    Returns: Parsed JSON response dict.
+    """
+    endpoint, ca_data = _get_cluster_endpoint()
+    token = _get_k8s_token()
+
+    url = f"{endpoint.rstrip('/')}{path}"
+
+    import tempfile
+    ca_bytes = base64.b64decode(ca_data)
+    with tempfile.NamedTemporaryFile(suffix='.crt', delete=False) as f:
+        f.write(ca_bytes)
+        ca_file = f.name
+
+    try:
+        ctx = ssl.create_default_context(cafile=ca_file)
+        data = json.dumps(body).encode('utf-8')
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Content-Type':  content_type,
+                'Accept':        'application/json',
+            },
+            method='PATCH',
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raise _K8sApiError(f"HTTP {exc.code} {exc.reason} — {path}") from exc
+    finally:
+        try:
+            os.unlink(ca_file)
+        except Exception:
+            pass
+
+
+def _rollout_restart_linkerd():
+    """
+    Rollout restart Linkerd control plane Deployments via K8s API.
+
+    Fix 2026-03-18: After a stop/start cycle, Linkerd destination and
+    proxy-injector pods enter CrashLoopBackOff because the proxy sidecar
+    can't reconnect after nodes were terminated. A rollout restart (setting
+    `kubectl.kubernetes.io/restartedAt` annotation on the pod template)
+    creates fresh pods that start clean.
+
+    Order matters: identity FIRST (other pods depend on it), then destination
+    (needed for service resolution), then proxy-injector.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    patch_body = {
+        'spec': {
+            'template': {
+                'metadata': {
+                    'annotations': {
+                        'kubectl.kubernetes.io/restartedAt': now,
+                    }
+                }
+            }
+        }
+    }
+
+    for deploy in ('linkerd-identity', 'linkerd-destination', 'linkerd-proxy-injector'):
+        path = f'/apis/apps/v1/namespaces/linkerd/deployments/{deploy}'
+        try:
+            _k8s_patch(path, patch_body)
+            logger.info(f"[LINKERD] Rollout restart: {deploy} OK")
+        except _K8sApiError as exc:
+            logger.warning(f"[LINKERD] Rollout restart {deploy} failed: {exc}")
+            # Non-blocking — continue with other deployments
+
+
 def _list_pods(namespace: str, label_selector: str = None) -> list:
     """
     List pods in a namespace via K8s API.
@@ -867,13 +993,17 @@ def scale_ca_deployment(replicas: int, results: dict):
     """
     Scale the Cluster Autoscaler Deployment to `replicas` via K8s API PATCH.
 
-    Falls back to kubectl subprocess if K8s API is unavailable (maintains
-    backward compatibility with the previous implementation).
+    Uses STS presigned token bearer auth — no kubectl required.
+    The Lambda IAM role must be mapped in aws-auth with sufficient RBAC
+    permissions (patch apps/v1 deployments in kube-system).
+
+    Non-blocking: if K8s API is unreachable (RBAC not configured), logs a
+    warning and continues. The startup sequence degrades gracefully — CA
+    will remain at its current replica count until manually scaled.
     """
     deployment_name = 'cluster-autoscaler-aws-cluster-autoscaler'
     namespace       = 'kube-system'
 
-    # Attempt via K8s API first (preferred — no subprocess)
     try:
         patch_body = json.dumps({
             'spec': {'replicas': replicas}
@@ -888,55 +1018,65 @@ def scale_ca_deployment(replicas: int, results: dict):
             f.write(ca_bytes)
             ca_file = f.name
 
-        url = (
-            f"{endpoint.rstrip('/')}/apis/apps/v1/namespaces/{namespace}"
-            f"/deployments/{deployment_name}"
-        )
-        ctx = ssl.create_default_context(cafile=ca_file)
-        req = urllib.request.Request(
-            url,
-            data=patch_body,
-            headers={
-                'Authorization':  f'Bearer {token}',
-                'Content-Type':   'application/merge-patch+json',
-                'Accept':         'application/json',
-            },
-            method='PATCH',
-        )
-        with urllib.request.urlopen(req, context=ctx, timeout=20):
-            pass
-
-        import os as _os
         try:
-            _os.unlink(ca_file)
-        except Exception:
-            pass
+            url = (
+                f"{endpoint.rstrip('/')}/apis/apps/v1/namespaces/{namespace}"
+                f"/deployments/{deployment_name}"
+            )
+            ctx = ssl.create_default_context(cafile=ca_file)
+            req = urllib.request.Request(
+                url,
+                data=patch_body,
+                headers={
+                    'Authorization':  f'Bearer {token}',
+                    'Content-Type':   'application/merge-patch+json',
+                    'Accept':         'application/json',
+                },
+                method='PATCH',
+            )
+            with urllib.request.urlopen(req, context=ctx, timeout=20):
+                pass
 
-        logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} replica(s) via K8s API")
-        results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}'
-        return
+            logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} replica(s) via K8s API")
+            results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}'
+        finally:
+            try:
+                os.unlink(ca_file)
+            except Exception:
+                pass
 
     except Exception as exc:
-        logger.warning(f"[CA] K8s API scale failed ({exc}), falling back to kubectl subprocess")
-
-    # Fallback: kubectl subprocess (original implementation)
-    try:
-        import subprocess
-        cmd = [
-            'kubectl', 'scale', 'deploy', deployment_name,
-            '-n', namespace,
-            f'--replicas={replicas}',
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if proc.returncode == 0:
-            logger.info(f"[CA] Cluster Autoscaler scaled to {replicas} via kubectl: {proc.stdout.strip()}")
-            results['cluster_autoscaler_deployment'] = f'scaled_to_{replicas}_via_kubectl'
-        else:
-            logger.warning(f"[CA] kubectl scale failed (non-blocking): {proc.stderr.strip()}")
-            results['cluster_autoscaler_deployment'] = f'scale_failed: {proc.stderr.strip()}'
-    except Exception as exc:
-        logger.warning(f"[CA] kubectl scale error (non-blocking): {exc}")
+        logger.warning(
+            f"[CA] K8s API scale failed (non-blocking): {exc}. "
+            "ACTION REQUIRED: Map Lambda IAM role in aws-auth ConfigMap "
+            "with RBAC permissions to patch deployments in kube-system."
+        )
         results['cluster_autoscaler_deployment'] = f'scale_error: {exc}'
+
+
+def _wait_nodegroup_not_updating(ng_name: str, timeout_sec: int = 120) -> str:
+    """
+    Wait for a nodegroup to leave UPDATING state before making changes.
+
+    Root cause (2026-03-18): resume_asg_processes() in Step 1 can trigger an
+    internal EKS nodegroup update (status=UPDATING). If start_node_group()
+    calls update_nodegroup_config while the nodegroup is still UPDATING, the
+    EKS API returns ResourceInUseException. This helper polls until the
+    nodegroup exits UPDATING, avoiding the race condition.
+
+    Returns: final status string (e.g. 'ACTIVE').
+    Raises: TimeoutError if still UPDATING after timeout_sec.
+    """
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        resp = eks.describe_nodegroup(clusterName=CLUSTER_NAME, nodegroupName=ng_name)
+        status = resp['nodegroup'].get('status', 'UNKNOWN')
+        if status != 'UPDATING':
+            logger.info(f"[NG] '{ng_name}' status={status} (ready for update)")
+            return status
+        logger.info(f"[NG] '{ng_name}' still UPDATING, waiting {POLL_INTERVAL_SEC}s...")
+        time.sleep(POLL_INTERVAL_SEC)
+    raise TimeoutError(f"Nodegroup '{ng_name}' still UPDATING after {timeout_sec}s")
 
 
 def start_node_group(ng_name: str, config: dict, results: dict):
@@ -948,6 +1088,12 @@ def start_node_group(ng_name: str, config: dict, results: dict):
     reset to a stale value embedded in this Lambda's configuration.
     """
     logger.info(f"[NG] Scaling '{ng_name}' → desired={config['desired']}")
+
+    # Wait for nodegroup to exit UPDATING state (race condition fix 2026-03-18).
+    # resume_asg_processes() or a prior update_nodegroup_config may have put the
+    # nodegroup into UPDATING. EKS rejects concurrent updates with
+    # ResourceInUseException.
+    _wait_nodegroup_not_updating(ng_name, timeout_sec=120)
 
     # Fetch current max_size from AWS — this is the source of truth.
     # Never pass a hardcoded max; doing so would silently override incident-time

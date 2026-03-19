@@ -37,6 +37,7 @@ import logging
 import os
 import ssl
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -248,9 +249,16 @@ def suspend_cluster_autoscaler(results):
     """
     Suspend Cluster Autoscaler by:
     1. Scaling down the CA Deployment to 0 replicas (prevents active CA from restoring desired counts)
-    2. Suspending ASG Launch/Terminate processes (prevents DaemonSet Pending pods from triggering scale-up)
+    2. Suspending ASG Launch process ONLY (prevents new instances from launching)
+
+    IMPORTANT (fix 2026-03-18): Only suspend Launch, NEVER Terminate.
+    Suspending Terminate blocks EKS node group scale-down — instances stay
+    InService even when desiredSize=0, because the ASG cannot terminate them.
+    This was the root cause of nodes persisting overnight after Lambda STOP.
+
     Fix 2026-03-12: CA was restoring workloads nodegroup from desired=0 to desired=6 during shutdown.
     Fix 2026-03-17: Step 1 now uses K8s API PATCH (STS bearer token) — kubectl not available in Lambda.
+    Fix 2026-03-18: Only suspend Launch (not Terminate) — Terminate must remain active for scale-down.
     FinOps fix: weekend costs $38-39/dia → $8-12/dia (2026-03-11)
     """
     if not SUSPEND_AUTOSCALER_ON_STOP:
@@ -268,7 +276,10 @@ def suspend_cluster_autoscaler(results):
         logger.warning(f"[CA] K8s API scale-to-0 failed (non-blocking): {e}")
         results['cluster_autoscaler_deployment'] = f'suspend_error: {e}'
 
-    # Step 2: Suspend ASG scaling processes (belt-and-suspenders)
+    # Step 2: Suspend ASG Launch process ONLY (belt-and-suspenders)
+    # NEVER suspend Terminate — it blocks EKS node group scale-down.
+    # Launch suspension prevents CA (if still running) or any other process
+    # from launching new instances while the environment is stopped.
     try:
         cluster_tag_key = f'k8s.io/cluster-autoscaler/{CLUSTER_NAME}'
         paginator = autoscaling.get_paginator('describe_auto_scaling_groups')
@@ -279,19 +290,45 @@ def suspend_cluster_autoscaler(results):
                 tags = {t['Key']: t['Value'] for t in asg.get('Tags', [])}
                 if cluster_tag_key in tags:
                     asg_name = asg['AutoScalingGroupName']
-                    logger.info(f"Suspending scaling processes for ASG: {asg_name}")
+                    logger.info(f"Suspending Launch process for ASG: {asg_name}")
                     autoscaling.suspend_processes(
                         AutoScalingGroupName=asg_name,
-                        ScalingProcesses=['Launch', 'Terminate']
+                        ScalingProcesses=['Launch']
                     )
                     suspended_asgs.append(asg_name)
 
         results['autoscaler_suspended'] = suspended_asgs
-        logger.info(f"Cluster Autoscaler ASG processes suspended: {len(suspended_asgs)} ASGs")
+        logger.info(f"Cluster Autoscaler ASG Launch suspended: {len(suspended_asgs)} ASGs")
     except Exception as e:
         logger.error(f"Failed to suspend Cluster Autoscaler ASG processes: {str(e)}")
         results['autoscaler_suspend_error'] = str(e)
         # Non-blocking: continue with shutdown even if this fails
+
+
+def _wait_nodegroup_not_updating(ng_name, timeout_sec=120):
+    """
+    Wait for a nodegroup to leave UPDATING state before making changes.
+
+    Defensive guard: if a prior operation (e.g. suspend_cluster_autoscaler
+    triggering an ASG change, or a concurrent Terraform apply) put the
+    nodegroup into UPDATING, the EKS API rejects update_nodegroup_config
+    with ResourceInUseException. This helper polls until the nodegroup
+    exits UPDATING.
+
+    Returns: final status string (e.g. 'ACTIVE').
+    Raises: TimeoutError if still UPDATING after timeout_sec.
+    """
+    poll_interval = 15
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        resp = eks.describe_nodegroup(clusterName=CLUSTER_NAME, nodegroupName=ng_name)
+        status = resp['nodegroup'].get('status', 'UNKNOWN')
+        if status != 'UPDATING':
+            logger.info(f"[NG] '{ng_name}' status={status} (ready for update)")
+            return status
+        logger.info(f"[NG] '{ng_name}' still UPDATING, waiting {poll_interval}s...")
+        time.sleep(poll_interval)
+    raise TimeoutError(f"Nodegroup '{ng_name}' still UPDATING after {timeout_sec}s")
 
 
 def stop_node_group(ng_name, results):
@@ -305,6 +342,10 @@ def stop_node_group(ng_name, results):
       EKS API to reject desiredSize=0. Protection is a startup concern, not shutdown.
     """
     logger.info(f"Describing node group {ng_name} to read current max_size...")
+
+    # Wait for nodegroup to exit UPDATING state (defensive guard 2026-03-18).
+    # Prevents ResourceInUseException if a prior operation is still in progress.
+    _wait_nodegroup_not_updating(ng_name, timeout_sec=120)
 
     describe_resp = eks.describe_nodegroup(
         clusterName=CLUSTER_NAME,
