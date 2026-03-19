@@ -393,6 +393,175 @@ vault token revoke -self
 
 ---
 
+## 2026-03-19 — Prod Readiness: Vault HA + Keycloak HA + Docker Hub Rate Limit
+
+**Tipo:** Plataforma — Deploy HA + Mesa Técnica Docker Hub
+
+**Contexto:** Sessão de produção readiness com 3 fases executadas. Vault HA 3/3 + Keycloak HA 2/2 + ArgoCD 10/10 + Harbor 9/9 + SonarQube 1/1 deployados. Mesa técnica convocada para resolver Docker Hub rate limit (429) afetando 30 imagens / 48 pods em ImagePullBackOff.
+
+**GAPs novos detectados:**
+
+- GAP-SEC-REGISTRY-01: Harbor Proxy Cache nao funciona como registry mirror para kubelet/containerd
+- GAP-SEC-REGISTRY-02: Docker Hub rate limit (429) — 30 imagens afetadas
+- GAP-SEC-REGISTRY-03: ECR Pull-Through Cache como solucao permanente
+- GAP-SEC-REGISTRY-04: 48 pods em ImagePullBackOff
+
+**Commits:** 3a5912b, 0e51582, b46c064 + pendente
+
+**Pendentes:** TF state imports, ECR Pull-Through Cache, 48 pods ImagePullBackOff
+
+**Referencias:**
+
+- logbook: sessao 2026-03-19
+
+---
+
+### Licao 9 — Harbor Proxy Cache NAO funciona como registry mirror para kubelet/containerd
+
+**Problema:** Tentativa de usar Harbor Proxy Cache como registry mirror para resolver Docker Hub rate limit (429). Pods continuaram com ImagePullBackOff mesmo com o proxy configurado.
+
+**Causa raiz:** containerd/kubelet roda no host (node EC2), fora do pod network do cluster. O Harbor Proxy Cache é acessível via DNS do CoreDNS (dentro do cluster), mas o containerd usa o DNS do host (/etc/resolv.conf do node). O node nao resolve nomes de servicos internos do Kubernetes (e.g., `harbor-core.harbor-system.svc.cluster.local`).
+
+**Solucao permanente:** ECR Pull-Through Cache — registry AWS nativo acessivel via endpoint regional, sem dependencia de DNS de cluster. containerd no node resolve `891377105802.dkr.ecr.us-east-1.amazonaws.com` normalmente via DNS publico/VPC.
+
+**Regra geral:** Para substituir registry mirrors em nivel de node (containerd/kubelet), usar APENAS registries acessiveis via DNS do host: ECR, registries publicos, ou registries com IP fixo. Harbor Proxy Cache so serve para pulls feitos de dentro de pods (via CoreDNS).
+
+**Anti-pattern:** Configurar Harbor Proxy Cache como `mirror` no containerd config do node. O node nao resolve DNS do CoreDNS do cluster.
+
+---
+
+### Licao 10 — Docker Hub rate limit (429) afeta pulls em escala: ECR Pull-Through Cache como solucao
+
+**Problema:** 30 imagens Docker Hub atingiram rate limit (429 Too Many Requests) simultaneamente, causando ImagePullBackOff em 48 pods. Cluster ficou parcialmente degradado.
+
+**Causa raiz:** Docker Hub impoe limite de 100 pulls/6h para IPs anonimos e 200 pulls/6h para contas free. Clusters com muitos pods fazendo pull simultaneo (scale-up, node replacement, rollout) esgotam o limite rapidamente via NAT Gateway IP unico.
+
+**Solucao:** ECR Pull-Through Cache — AWS gerencia cache local das imagens Docker Hub na mesma regiao. Pulls subsequentes vem do ECR (sem rate limit Docker Hub). Configuracao via `aws ecr create-pull-through-cache-rule`.
+
+**Regra geral:** Todo cluster EKS em producao deve usar ECR Pull-Through Cache para Docker Hub. Nao depender de pulls diretos ao Docker Hub — o rate limit e inevitavel em escala.
+
+---
+
+### Licao 11 — Modulos TF com providers internos sao incompativeis com depends_on
+
+**Problema:** `terraform plan` falhava com erro ao usar `depends_on` entre modulos que declaram providers internos (ex: vault-config, keycloak-clients).
+
+**Causa raiz:** Terraform exige que modulos referenciados em `depends_on` NAO possuam `configuration_aliases` ou providers internos com config dinamica. Quando um modulo define providers que dependem de outputs de outros modulos, o Terraform nao consegue resolver a ordem de avaliacao — resulta em ciclo ou erro de validacao.
+
+**Solucao aplicada:** Remover `depends_on` e usar data sources ou `terraform_remote_state` para criar dependencias implicitas. Alternativamente, separar em applies distintos (ex: `terraform apply -target=module.vault` seguido de `terraform apply -target=module.vault_config`).
+
+**Regra geral:** Nunca usar `depends_on` com modulos que declaram `required_providers` com `configuration_aliases` ou providers customizados. Usar dependencias implicitas via references ou applies separados.
+
+---
+
+### Licao 12 — AWS SSO cached credentials em ~/.aws/credentials tem prioridade sobre SSO tokens
+
+**Problema:** Terraform falhava com `ExpiredToken` mesmo apos `aws sso login` bem-sucedido. O `aws sts get-caller-identity` funcionava, mas o Terraform nao.
+
+**Causa raiz:** O arquivo `~/.aws/credentials` continha credenciais cacheadas (access key + secret key + session token) de uma sessao SSO anterior expirada. O provider AWS do Terraform lê `~/.aws/credentials` com PRIORIDADE sobre o cache SSO (`~/.aws/sso/cache/`). Como as credenciais no credentials file estavam expiradas, o TF falhava — mesmo com um SSO token valido disponivel.
+
+**Solucao aplicada:**
+
+```bash
+# Remover credenciais cacheadas expiradas:
+rm ~/.aws/credentials
+# OU remover apenas a secao do profile:
+sed -i '/\[k8s-platform-staging\]/,/^\[/d' ~/.aws/credentials
+# Depois: aws sso login --profile k8s-platform-staging
+```
+
+**Regra geral:** Antes de qualquer sessao Terraform com AWS SSO, verificar se `~/.aws/credentials` nao contem credenciais stale do mesmo profile. Se existir, deletar o arquivo ou a secao correspondente.
+
+**Diagnostico:**
+
+```bash
+# Verificar se ha credentials file com tokens expirados:
+cat ~/.aws/credentials | grep -A3 "\[k8s-platform"
+# Se existir session_token → provavelmente stale → deletar
+```
+
+---
+
+### Licao 13 — Vault Helm chart cria ClusterRoles cluster-scoped: segunda instancia requer fullnameOverride
+
+**Problema:** Deploy de segunda instancia do Vault (ex: para DR ou ambiente separado) falhava com erro de recurso duplicado em ClusterRole e ClusterRoleBinding.
+
+**Causa raiz:** O Helm chart do Vault cria ClusterRoles e ClusterRoleBindings com nomes fixos baseados no release name. Como sao cluster-scoped (sem namespace), uma segunda instancia com nome default colide com a primeira.
+
+**Solucao aplicada:**
+
+```yaml
+# values.yaml da segunda instancia:
+fullnameOverride: "vault-dr"  # Garante nomes unicos para ClusterRole/CRB
+injector:
+  enabled: false  # Desabilitar injector se ja existe um ativo (cluster-scoped)
+```
+
+**Regra geral:** Ao deployar multiplas instancias do Vault no mesmo cluster: (1) usar `fullnameOverride` unico; (2) desabilitar o injector na segunda instancia (injector e cluster-scoped, so pode ter um ativo).
+
+---
+
+### Licao 14 — ESO e cluster-wide operator: nao instalar segunda instancia, criar novo ClusterSecretStore
+
+**Problema:** Tentativa de instalar segunda instancia do External Secrets Operator (ESO) para um novo Vault resultou em conflitos de CRDs e webhook duplicado.
+
+**Causa raiz:** ESO instala CRDs e webhooks cluster-scoped. Uma segunda instancia tenta registrar os mesmos CRDs e webhooks, causando conflito. O ESO foi desenhado para ser singleton no cluster.
+
+**Solucao aplicada:** Nao instalar segundo ESO. Criar apenas um novo `ClusterSecretStore` apontando para o segundo Vault backend:
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: vault-dr-backend
+spec:
+  provider:
+    vault:
+      server: "http://vault-dr.staging-security-vault-dr.svc:8200"
+      path: "secret"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "eso-reader"
+```
+
+**Regra geral:** ESO = 1 instancia por cluster. Para multiplos backends (Vault, AWS SM, etc), criar multiplos ClusterSecretStore/SecretStore. Os ExternalSecrets referenciam o store desejado via `spec.secretStoreRef`.
+
+---
+
+### Licao 15 — Kyverno require-corporate-labels em Enforce bloqueia Helm deploys: usar MutatingPolicy
+
+**Problema:** Helm deploys falhavam com erro do Kyverno: pods/deployments rejeitados por nao terem labels corporativos obrigatorios (`domain`, `owner`, `environment`).
+
+**Causa raiz:** A ClusterPolicy `require-corporate-labels` estava em modo `Enforce` (rejeita recursos sem labels). Helm charts de terceiros (Vault, Keycloak, Harbor, etc) nao incluem esses labels nativamente. Resultado: todo `helm install/upgrade` falhava na admission.
+
+**Solucao aplicada:** Criar uma MutatingPolicy (ClusterPolicy com `mutate`) que injeta automaticamente os labels corporativos baseado no namespace:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: inject-corporate-labels
+spec:
+  rules:
+    - name: add-labels
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"]
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              domain: "{{request.namespace | split('-') | [1]}}"
+              owner: "platform-team"
+              environment: "staging"
+```
+
+**Regra geral:** Kyverno `Enforce` + labels obrigatorios = INCOMPATIVEL com Helm charts de terceiros sem customizacao. Criar MutatingPolicy para injetar labels ANTES da validacao. Ordem: Mutate → Validate → Enforce.
+
+---
+
 ## 2026-03-11 — Auditoria Pós-Entrega + Planejamento S6
 
 **Auditoria S0→S5:** 34 GAPs identificados, 30 corrigidos em paralelo.

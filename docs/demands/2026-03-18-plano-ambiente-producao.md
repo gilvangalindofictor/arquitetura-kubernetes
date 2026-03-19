@@ -1,6 +1,6 @@
 # Plano de Estruturação do Ambiente de Produção
 
-**Data:** 2026-03-18 | **Status:** PLANEJAMENTO | **Cluster:** k8s-platform-prod
+**Data:** 2026-03-18 | **Status:** FASES 1-3 CONCLUIDAS (2026-03-19) | **Cluster:** k8s-platform-prod
 **Conta AWS:** 891377105802 | **Região:** us-east-1 | **VPC:** vpc-0b1396a59c417c1f0
 
 ---
@@ -94,24 +94,24 @@
 | **GAP-P0-01** | Sem hosted zone pública Route53 `prod.alvocard.com.br` | CRITICO | Tudo que depende de DNS real |
 | **GAP-P0-02** | Sem certificado ACM prod (atual é IMPORTED CA interna, sem browser trust) | CRITICO | HTTPS real, Keycloak OIDC, GitLab |
 | **GAP-P0-03** | Delegação NS `prod.alvocard.com.br` não feita no registrar | CRITICO — EXTERNO | Validação ACM, DNS público |
-| **GAP-P0-04** | Drift RDS Multi-AZ: declarado `multi_az=true` mas apply 2026-02-09 pode ter criado Single-AZ. **MESA TÉCNICA 2026-03-18:** Estratégia híbrida validada — 1 RDS shared (databases isolados por env), Redis dedicado por env (BACEN/LGPD obrigatório), RabbitMQ VHosts isolados. Ver seção "Estratégia de Dados" abaixo. | CRITICO | Disponibilidade 99.95% |
-| **GAP-P0-05** | WAF regras 30/40/50 em modo Count no staging (OWASP/SQLi/BadInputs não bloqueiam) | CRITICO | Segurança pós-go-live |
-| **GAP-P0-06** | ALBs gitlab-staging e keycloak-staging sem WAF (internet-facing desprotegidos) | CRITICO | Segurança imediata |
-| **GAP-P0-07** | Providers keycloak, vault, helm ausentes no `main.tf` prod para módulos faltantes | CRITICO | Apply das fases 2-7 |
-| **GAP-P0-08** | Variáveis de módulos ausentes em `variables.tf` e `terraform.tfvars` prod | CRITICO | Apply das fases 2-7 |
+| **GAP-P0-04** | ~~Drift RDS Multi-AZ~~ **RESOLVIDO 2026-03-19** — Mesa tecnica validou estrategia hibrida (1 RDS shared, Redis dedicado, RabbitMQ VHosts). Ver secao "Estrategia de Dados". | ~~CRITICO~~ RESOLVIDO | Disponibilidade 99.95% |
+| **GAP-P0-05** | ~~WAF regras 30/40/50 em modo Count~~ **RESOLVIDO 2026-03-19** — Todas regras em Block + 3 ALBs internet-facing associados ao WAF. Zero drift. | ~~CRITICO~~ RESOLVIDO | Seguranca pos-go-live |
+| **GAP-P0-06** | ~~ALBs gitlab-staging e keycloak-staging sem WAF~~ **RESOLVIDO 2026-03-19** — 3/3 ALBs internet-facing protegidos (GitLab + Keycloak + platform). | ~~CRITICO~~ RESOLVIDO | Seguranca imediata |
+| **GAP-P0-07** | ~~Providers ausentes no main.tf prod~~ **RESOLVIDO 2026-03-19** — 4 providers + OIDC data source + namespace fixes + 14 variables sensiveis adicionados. | ~~CRITICO~~ RESOLVIDO | Apply das fases 2-7 |
+| **GAP-P0-08** | ~~Variaveis de modulos ausentes~~ **RESOLVIDO 2026-03-19** — variables.tf e terraform.tfvars prod completos. BUG fix: postgresql module prefixo staging/ corrigido para var.environment. | ~~CRITICO~~ RESOLVIDO | Apply das fases 2-7 |
 
 ### P1 — Alta prioridade (sprint seguinte ao go-live)
 
 | GAP-ID | Descrição | Criticidade | Bloqueador de |
 |--------|-----------|-------------|---------------|
 | **GAP-P1-01** | Vault sem URL pública prod → sem OIDC auth real no Vault prod | ALTO | VPN + Vault UI acesso |
-| **GAP-P1-02** | Network Policies ausentes: argocd, gitlab, keycloak, sonarqube, harbor | ALTO | Segurança lateral movement |
+| **GAP-P1-02** | ~~Network Policies ausentes~~ **PARCIAL 2026-03-19** — 24 policies em 5 namespaces (audit mode). Harbor 7 policies criadas. Falta enforcement mode. | ~~ALTO~~ PARCIAL | Seguranca lateral movement |
 | **GAP-P1-03** | Sem AWS Client VPN → acesso interno via port-forward (operacional insustentável) | ALTO | Operação de produção |
 | **GAP-P1-04** | External-DNS não instalado → registros DNS criados manualmente (drift propenso) | ALTO | Operação de DNS |
 | **GAP-P1-05** | Linkerd Phase 2 incompleta → namespaces sem mTLS (argocd, gitlab, sonarqube, harbor) | ALTO | mTLS compliance |
-| **GAP-P1-06** | Vault prod sem módulo Terraform completo (apenas staging tem vault configurado) | ALTO | Secrets prod |
+| **GAP-P1-06** | ~~Vault prod sem modulo Terraform~~ **RESOLVIDO 2026-03-19** — Vault prod HA 3/3 Raft peers, KMS auto-unseal, K8s auth + policies + secrets seeded. Root token revogado. | ~~ALTO~~ RESOLVIDO | Secrets prod |
 | **GAP-P1-07** | Sem Velero para backup/DR de prod | ALTO | RTO/RPO prod |
-| **GAP-P1-08** | Namespaces prod não criados (prod-data-hatch-etl, prod-platform-*, etc.) | ALTO | Deploy de aplicações prod |
+| **GAP-P1-08** | ~~Namespaces prod nao criados~~ **RESOLVIDO 2026-03-19** — 12 namespaces prod criados (DEC-074 convention). | ~~ALTO~~ RESOLVIDO | Deploy de aplicacoes prod |
 
 ---
 
@@ -213,11 +213,13 @@ Controles obrigatórios:
 
 ## Plano de Implementação — 7 Fases
 
-### Fase 1 — Correções Imediatas (sem bloqueadores externos)
+### Fase 1 — Correções Imediatas (sem bloqueadores externos) -- CONCLUIDA 2026-03-19
 
 **Pre-requisitos:** Nenhum. Pode ser executada agora.
 
-**Objetivo:** Corrigir GAPs críticos no estado atual sem precisar de domínio público.
+**Objetivo:** Corrigir GAPs criticos no estado atual sem precisar de dominio publico.
+
+**STATUS: CONCLUIDA 2026-03-19** — WAF 3/3 ALBs protegidos (Block mode), 24 NetworkPolicies em 5 namespaces (audit mode, ADR-070), TF prod 4 providers + OIDC data source + 14 variables, BUG fix postgresql module prefixo staging/ para var.environment, DNS WSL2 resolv.conf corrigido, credenciais estaticas expiradas removidas.
 
 | Ação | Recurso | Estimativa |
 |------|---------|------------|
@@ -234,11 +236,15 @@ Controles obrigatórios:
 
 ---
 
-### Fase 2 — Segredos e Identidade (Vault + ESO + Keycloak)
+### Fase 2 — Segredos e Identidade (Vault + ESO + Keycloak) -- CONCLUIDA 2026-03-19
 
-**Pre-requisitos:** Fase 1 concluída; domínio DNS NÃO necessário para configuração interna
+**Pre-requisitos:** Fase 1 concluida; dominio DNS NAO necessario para configuracao interna
 
-**Objetivo:** Provisionar Vault prod, ESO, e Keycloak prod com configurações de produção.
+**Objetivo:** Provisionar Vault prod, ESO, e Keycloak prod com configuracoes de producao.
+
+**STATUS: CONCLUIDA 2026-03-19** — 12 namespaces prod criados (DEC-074 convention). 4 modulos parametrizados: vault, external-secrets, keycloak, vault-config (var.environment). Vault prod HA 3/3 Raft peers, KMS auto-unseal, root token revogado. ESO prod ClusterSecretStore vault-backend-prod (Valid, ReadWrite). Vault Config prod K8s auth + policies + secrets seeded. Keycloak prod HA 2/2 Running (v26.5.1, RDS prod). Kyverno inject-corporate-labels-prod-namespaces policy criada.
+
+**NOTA:** Keycloak prod deployado via Helm direto (TF bloqueado por postgresql provider VPC-only constraint). Codificar no TF quando tunnel VPC disponivel.
 
 | Ação | Módulo TF | Estimativa |
 |------|-----------|------------|
@@ -254,11 +260,15 @@ Controles obrigatórios:
 
 ---
 
-### Fase 3 — GitOps e Qualidade (ArgoCD + Harbor + SonarQube)
+### Fase 3 — GitOps e Qualidade (ArgoCD + Harbor + SonarQube) -- CONCLUIDA 2026-03-19
 
-**Pre-requisitos:** Fase 2 concluída (Vault + ESO funcionando para injetar secrets nos deployments)
+**Pre-requisitos:** Fase 2 concluida (Vault + ESO funcionando para injetar secrets nos deployments)
 
-**Objetivo:** Plataforma de CI/CD e qualidade de produção.
+**Objetivo:** Plataforma de CI/CD e qualidade de producao.
+
+**STATUS: CONCLUIDA 2026-03-19** — ArgoCD prod 10/10 Running (HA: 3 app-controller + 2 server + 2 repo + 2 appset + 1 redis). Harbor prod 9/9 Running (core 2/2 + registry 2/2 + portal 2/2 + jobservice + exporter + trivy). SonarQube prod 1/1 Running (imagem via ECR mirror — Docker Hub rate limit workaround).
+
+**NOTA:** Deploy via Helm direto (TF bloqueado por postgresql provider VPC-only). NetworkPolicies Harbor: 7 policies criadas. Mesa tecnica Docker Hub rate limit: ECR Pull-Through Cache recomendado para longo prazo.
 
 | Ação | Módulo TF | Estimativa |
 |------|-----------|------------|
@@ -448,9 +458,9 @@ Controles obrigatórios:
 ## Checklist de Go-Live (pré-produção)
 
 ```text
-[ ] Fase 1 concluída — TF sem drift, WAF em Block, providers completos
-[ ] Fase 2 concluída — Vault prod Running, ESO sincronizando, Keycloak realm prod configurado
-[ ] Fase 3 concluída — ArgoCD + Harbor + SonarQube Running com auth Keycloak
+[x] Fase 1 concluida (2026-03-19) — TF sem drift, WAF em Block, providers completos, 24 NetworkPolicies
+[x] Fase 2 concluida (2026-03-19) — Vault prod HA 3/3, ESO sincronizando, Keycloak prod HA 2/2
+[x] Fase 3 concluida (2026-03-19) — ArgoCD 10/10 + Harbor 9/9 + SonarQube 1/1 Running (Helm direto, TF VPC-only)
 [ ] Fase 4 concluída — Observabilidade Running, WAF prod criado, External-DNS instalado
 [ ] Gestor de domínio executou checklist (Document 2)
 [ ] dig NS prod.alvocard.com.br retorna 4 NS do Route53

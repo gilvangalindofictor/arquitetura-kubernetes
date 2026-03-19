@@ -1,0 +1,215 @@
+# =============================================================================
+# Image Pull Failure Alerts (Docker Hub Rate Limit Detection)
+# PrometheusRule CRD for kube-prometheus-stack
+# Cluster: k8s-platform-prod (EKS)
+#
+# Context: Docker Hub enforces rate limits (100 pulls/6h anonymous,
+#          200 pulls/6h authenticated). When exceeded, pods enter
+#          ImagePullBackOff and cannot start.
+#
+# Alerts:
+#   - ImagePullBackOff (critical @ 5m)
+#   - ImagePullBackOffByNamespace (warning @ 3+ pods)
+#   - ImagePullFailureRateHigh (warning @ sustained failures)
+#   - ContainerImagePullHighLatency (warning @ >60s)
+# =============================================================================
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: image-pull-alerts
+  namespace: staging-observability-monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+    prometheus: kube-prometheus-stack-prometheus
+    role: alert-rules
+    app.kubernetes.io/name: image-pull-alerts
+    app.kubernetes.io/component: alerting-rules
+    app.kubernetes.io/managed-by: kubectl
+    demand: DT-005
+    team: platform-sre
+spec:
+  groups:
+    # =========================================================================
+    # Image Pull Failure Detection
+    # Metrics source: kube-state-metrics (kube_pod_container_status_waiting_reason)
+    # =========================================================================
+    - name: image-pull.failures
+      interval: 30s
+      rules:
+        # -----------------------------------------------------------------
+        # ImagePullBackOff — Any pod stuck in ImagePullBackOff for 5+ min
+        # This is the primary signal for Docker Hub rate limiting (429).
+        # Severity: critical — pods cannot start, workloads degraded.
+        # -----------------------------------------------------------------
+        - alert: ImagePullBackOff
+          expr: |
+            kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: image-pull
+            demand: DT-005
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in ImagePullBackOff"
+            description: |
+              Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }})
+              has been in ImagePullBackOff state for more than 5 minutes.
+
+              This is commonly caused by:
+              1. Docker Hub rate limit (429 Too Many Requests) — most likely if multiple pods affected
+              2. Invalid image tag or repository
+              3. Missing imagePullSecrets for private registry
+              4. Network connectivity to registry
+
+              Impact: Pod cannot start. If part of a Deployment/StatefulSet, the workload is degraded.
+
+              Immediate Actions:
+              1. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. Look for "429 Too Many Requests" in events — confirms Docker Hub rate limit
+              3. If rate limit: check inventory of docker.io images and mirror to Harbor/ECR
+              4. Workaround: patch to use cached node — kubectl get pods -A -o wide | grep ImagePullBackOff
+
+              Runbook: domains/observability/docs/runbooks/dt005-image-pull-backoff.md
+            dashboard_url: "https://grafana.internal/d/image-pull-health"
+
+        # -----------------------------------------------------------------
+        # ErrImagePull — Transient pull error (precedes ImagePullBackOff)
+        # Severity: warning — catches the issue before it becomes critical.
+        # -----------------------------------------------------------------
+        - alert: ErrImagePull
+          expr: |
+            kube_pod_container_status_waiting_reason{reason="ErrImagePull"} == 1
+          for: 3m
+          labels:
+            severity: warning
+            team: platform-sre
+            service: kubernetes
+            component: image-pull
+            demand: DT-005
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} failing to pull image"
+            description: |
+              Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }})
+              has been failing to pull its image for more than 3 minutes.
+
+              This is an early warning — if not resolved, the pod will enter ImagePullBackOff.
+
+              Actions:
+              1. Check events: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. Verify image exists: crictl pull <image> (from node)
+              3. Check imagePullSecrets and registry auth
+
+              Runbook: domains/observability/docs/runbooks/dt005-image-pull-backoff.md
+
+    # =========================================================================
+    # Namespace-level Aggregation
+    # Detects widespread pull failures (rate limit blast radius).
+    # =========================================================================
+    - name: image-pull.namespace-aggregation
+      interval: 60s
+      rules:
+        # -----------------------------------------------------------------
+        # ImagePullBackOffByNamespace — 3+ pods in same namespace
+        # Severity: critical — indicates systemic issue, not isolated pod.
+        # -----------------------------------------------------------------
+        - alert: ImagePullBackOffNamespaceWide
+          expr: |
+            count by (namespace) (
+              kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            ) >= 3
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: image-pull
+            demand: DT-005
+          annotations:
+            summary: "{{ $value }} pods in namespace {{ $labels.namespace }} have image pull failures"
+            description: |
+              {{ $value }} pods in namespace {{ $labels.namespace }} are failing to pull images.
+
+              This strongly suggests Docker Hub rate limiting or a registry outage affecting
+              multiple workloads simultaneously.
+
+              Impact: SEVERE — Multiple workloads in the namespace are degraded or down.
+
+              Immediate Actions:
+              1. List affected pods: kubectl get pods -n {{ $labels.namespace }} | grep -E "ImagePullBackOff|ErrImagePull"
+              2. Check if all affected images come from docker.io (Docker Hub)
+              3. If rate limit confirmed: prioritize critical workloads for manual pull/cache
+              4. Consider scaling down non-essential deployments to reduce pull pressure
+
+              Runbook: domains/observability/docs/runbooks/dt005-image-pull-backoff.md
+            dashboard_url: "https://grafana.internal/d/image-pull-health"
+
+        # -----------------------------------------------------------------
+        # ImagePullBackOffClusterWide — 10+ pods across entire cluster
+        # Severity: critical — cluster-wide rate limit incident.
+        # -----------------------------------------------------------------
+        - alert: ImagePullBackOffClusterWide
+          expr: |
+            count(
+              kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            ) >= 10
+          for: 5m
+          labels:
+            severity: critical
+            team: platform-sre
+            service: kubernetes
+            component: image-pull
+            demand: DT-005
+          annotations:
+            summary: "CLUSTER-WIDE: {{ $value }} pods failing image pulls across all namespaces"
+            description: |
+              {{ $value }} pods across the entire cluster are failing to pull container images.
+
+              This is a CLUSTER-WIDE incident, most likely caused by Docker Hub rate limiting (429).
+
+              Impact: CRITICAL — Multiple services down. Platform stability at risk.
+
+              Immediate Actions:
+              1. STOP all non-essential deployments/rollouts to reduce pull pressure
+              2. Inventory: kubectl get pods -A | grep -c ImagePullBackOff
+              3. Confirm rate limit: kubectl get events -A | grep "429 Too Many Requests"
+              4. Execute mirror strategy: mirror critical images to Harbor/ECR
+              5. For cached images: restart pods on nodes where image is already cached
+              6. Consider Docker Hub Pro subscription for higher limits
+
+              Escalation: Page SRE on-call + notify engineering leads.
+
+              Runbook: domains/observability/docs/runbooks/dt005-image-pull-backoff.md
+            dashboard_url: "https://grafana.internal/d/image-pull-health"
+
+    # =========================================================================
+    # Recording Rules for Dashboard Panels
+    # Pre-computed metrics for efficient dashboard queries.
+    # =========================================================================
+    - name: image-pull.recording-rules
+      interval: 60s
+      rules:
+        # Total pods in ImagePullBackOff per namespace (for dashboard)
+        - record: image_pull:pods_backoff:count_by_namespace
+          expr: |
+            count by (namespace) (
+              kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} == 1
+            ) or vector(0)
+
+        # Total pods in any image pull failure state (cluster-wide)
+        - record: image_pull:pods_failing:total
+          expr: |
+            count(
+              kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            ) or vector(0)
+
+        # Rate of container restarts that could indicate pull issues
+        # (pods that restart due to failed init containers pulling images)
+        - record: image_pull:container_restarts_rate:5m
+          expr: |
+            sum by (namespace) (
+              rate(kube_pod_container_status_restarts_total[5m])
+            )

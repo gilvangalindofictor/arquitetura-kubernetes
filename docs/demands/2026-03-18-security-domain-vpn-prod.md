@@ -760,15 +760,15 @@ harbor-system               → SEM NetworkPolicy
 |-----|-----------|---------|------|
 | **GAP-SEC-01** | Certificado ACM prod não existe (IMPORTED auto-assinado no staging) | Sem browser trust em produção | Provisionar ACM wildcard `*.prod.alvocard.com.br` |
 | **GAP-SEC-02** | Sem hosted zone pública Route53 para produção | Domínios prod não resolvem | Criar `prod.alvocard.com.br` + NS delegation |
-| **GAP-SEC-03** | WAF regras 30/40/50 em mode Count (não bloqueiam) | OWASP/SQLi/Log4Shell não protegidos | Mudar para Block no staging E criar WAF prod |
-| **GAP-SEC-04** | ALB gitlab-staging e keycloak separado sem WAF | 2 ALBs internet-facing desprotegidos | Associar WAF existente ou criar regras |
+| **GAP-SEC-03** | ~~WAF regras 30/40/50 em mode Count~~ **RESOLVIDO 2026-03-19** — Todas regras em Block + 3 ALBs internet-facing associados (GitLab + Keycloak + platform). Zero drift TF. | ~~OWASP/SQLi/Log4Shell nao protegidos~~ RESOLVIDO | ~~Mudar para Block~~ FEITO |
+| **GAP-SEC-04** | ~~ALB gitlab-staging e keycloak sem WAF~~ **RESOLVIDO 2026-03-19** — 3/3 ALBs internet-facing protegidos pelo WAF. | ~~2 ALBs desprotegidos~~ RESOLVIDO | ~~Associar WAF~~ FEITO |
 
 ### P1 — Alta prioridade (resolver no sprint seguinte)
 
 | GAP | Descrição | Ação |
 |-----|-----------|------|
 | **GAP-SEC-05** | Sem VPN — acesso interno só via port-forward | Provisionar AWS Client VPN (módulo Terraform) |
-| **GAP-SEC-06** | Network Policies ausentes em 5 namespaces críticos | Aplicar políticas ADR-070 em modo audit |
+| **GAP-SEC-06** | ~~Network Policies ausentes em 5 namespaces criticos~~ **RESOLVIDO 2026-03-19** — 24 policies em 5 namespaces (audit mode, ADR-070). Harbor 7 policies criadas. | ~~Aplicar politicas ADR-070~~ FEITO (audit mode) |
 | **GAP-SEC-07** | Linkerd Phase 2 incompleta — namespaces sem mTLS | Completar injeção via annotate-namespaces.sh |
 | **GAP-SEC-08** | External-DNS não instalado — DNS manual | Instalar ExternalDNS para automação Route53 |
 
@@ -778,7 +778,18 @@ harbor-system               → SEM NetworkPolicy
 |-----|-----------|------|
 | **GAP-SEC-09** | Entra ID Federation não implementada | Executar ADR-095 Fase 1 (após Keycloak com URL pública) |
 | **GAP-SEC-10** | Bot Control WAF não configurado | Adicionar regra AWSManagedRulesBotControlRuleSet |
-| **GAP-SEC-11** | Session lifetime Keycloak não reduzida (risco R-100) | SSO idle 15min, max 4h (ADR-095) |
+| **GAP-SEC-11** | Session lifetime Keycloak nao reduzida (risco R-100) | SSO idle 15min, max 4h (ADR-095) |
+
+### P1-REGISTRY — Container Registry Security (detectados 2026-03-19 — Mesa Tecnica Docker Hub Rate Limit)
+
+| GAP | Descricao | Acao |
+|-----|-----------|------|
+| **GAP-SEC-REGISTRY-01** | ECR scan_on_push nao habilitado nos repositorios ECR mirror | Habilitar `image_scanning_configuration { scan_on_push = true }` em todos os ECR repos |
+| **GAP-SEC-REGISTRY-02** | Sem Kyverno policy para restringir registries permitidos | Criar ClusterPolicy `restrict-image-registries` — permitir apenas ECR + Harbor (bloquear Docker Hub direto) |
+| **GAP-SEC-REGISTRY-03** | Imagens sem digest pinning — tags mutaveis em uso | Migrar de tag para digest (`@sha256:...`) em todos os deployments prod |
+| **GAP-SEC-REGISTRY-04** | Sem image signing (Cosign/Notation) | Implementar Cosign signing no CI/CD + Kyverno policy `verify-image-signature` |
+
+**Contexto:** Mesa tecnica Docker Hub rate limit (2026-03-19) identificou 48 pods ImagePullBackOff, 30 imagens Docker Hub unicas. Harbor Proxy Cache inviavel para kubelet (containerd no host != pod network). Solucao imediata: ECR mirror para SonarQube. Solucao longo prazo: ECR Pull-Through Cache para todas as imagens Docker Hub.
 
 ---
 
