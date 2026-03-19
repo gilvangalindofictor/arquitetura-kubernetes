@@ -6,7 +6,7 @@ global:
   tlsDisable: true # Staging: HTTP internal (Linkerd mTLS)
 
 injector:
-  enabled: true
+  enabled: ${injector_enabled}
   replicas: 1
 
   # ADR-048: Corporate labels obrigatórias — compliance Kyverno ENFORCE mode

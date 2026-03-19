@@ -86,6 +86,18 @@ variable "tolerations" {
 # Ingress
 # -----------------------------------------------------------------------------
 
+variable "helm_release_name" {
+  description = "Name for the Helm release (use unique name per env to avoid cluster-scoped resource conflicts)"
+  type        = string
+  default     = "vault"
+}
+
+variable "injector_enabled" {
+  description = "Enable Vault Agent Injector (disable for prod if staging already has it — cluster-scoped resources conflict)"
+  type        = bool
+  default     = true
+}
+
 variable "ingress_enabled" {
   description = "Habilitar ALB Ingress para o Vault UI"
   type        = bool

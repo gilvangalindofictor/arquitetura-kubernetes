@@ -432,6 +432,8 @@ module "vault_prod" {
   storage_class = "gp3"
   pvc_size      = "20Gi"
 
+  helm_release_name = "vault-prod" # Unique name to avoid cluster-scoped resource conflicts with staging
+  injector_enabled  = false        # Staging already has injector (cluster-scoped resources conflict)
   enable_monitoring = true
 
   common_tags = local.common_tags
@@ -449,7 +451,7 @@ module "external_secrets_prod" {
   environment          = "prod"
   namespace            = "prod-security-externalsecrets"
   replicas             = 2
-  vault_addr           = "http://vault.prod-security-vault.svc.cluster.local:8200"
+  vault_addr           = "http://vault-prod.prod-security-vault.svc.cluster.local:8200"
   monitoring_namespace = "prod-observability-monitoring"
   enable_monitoring    = true
 
@@ -462,7 +464,8 @@ module "external_secrets_prod" {
 module "vault_config_prod" {
   source = "../../modules/vault-config"
 
-  depends_on = [module.vault_prod, module.external_secrets_prod]
+  # NOTE: depends_on incompatible — vault-config defines internal provider
+  # Apply sequentially AFTER vault_prod and external_secrets_prod
 
   vault_addr  = "http://localhost:8200" # Requires: kubectl port-forward -n prod-security-vault svc/vault 8200:8200
   vault_token = var.vault_root_token

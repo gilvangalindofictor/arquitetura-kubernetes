@@ -228,7 +228,7 @@ resource "kubernetes_service_account" "vault" {
 # -----------------------------------------------------------------------------
 
 resource "helm_release" "vault" {
-  name       = "vault"
+  name       = var.helm_release_name
   repository = "https://helm.releases.hashicorp.com"
   chart      = "vault"
   version    = var.vault_chart_version
@@ -246,6 +246,7 @@ resource "helm_release" "vault" {
     pvc_size           = var.pvc_size
     enable_monitoring  = var.enable_monitoring
     tolerations        = var.tolerations
+    injector_enabled   = var.injector_enabled
     ingress_enabled    = var.ingress_enabled
     ingress_host       = var.ingress_host
     ingress_group_name = var.ingress_group_name
