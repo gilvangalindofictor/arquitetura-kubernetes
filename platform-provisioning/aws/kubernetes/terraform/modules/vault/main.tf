@@ -235,6 +235,7 @@ resource "helm_release" "vault" {
   namespace  = kubernetes_namespace.vault.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
+    environment        = var.environment
     cluster_name       = var.cluster_name
     namespace          = var.namespace
     replicas           = var.replicas

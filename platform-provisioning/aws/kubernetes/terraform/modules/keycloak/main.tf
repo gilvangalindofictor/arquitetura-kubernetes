@@ -179,10 +179,13 @@ resource "helm_release" "keycloak" {
     namespace    = var.namespace
     replicas     = var.replicas
     # V-006: admin_password removido - agora via ExternalSecret (2026-02-24)
-    enable_monitoring   = var.enable_monitoring
-    postgresql_host     = var.postgresql_host
-    postgresql_port     = var.postgresql_port
-    acm_certificate_arn = var.acm_certificate_arn
+    enable_monitoring    = var.enable_monitoring
+    postgresql_host      = var.postgresql_host
+    postgresql_port      = var.postgresql_port
+    acm_certificate_arn  = var.acm_certificate_arn
+    environment          = var.environment
+    keycloak_hostname    = var.keycloak_hostname
+    monitoring_namespace = var.monitoring_namespace
   })]
 
   depends_on = [

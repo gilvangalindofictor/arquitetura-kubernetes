@@ -72,6 +72,18 @@ variable "keycloak_postgresql_database" {
   default     = "keycloak"
 }
 
+variable "environment" {
+  description = "Environment name (staging, prod)"
+  type        = string
+  default     = "staging"
+}
+
+variable "vault_external_url" {
+  description = "External URL for Vault (used in OIDC redirect URIs)"
+  type        = string
+  default     = "http://vault.staging.internal"
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

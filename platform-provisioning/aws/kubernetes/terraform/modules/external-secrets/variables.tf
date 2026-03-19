@@ -36,6 +36,18 @@ variable "enable_monitoring" {
   default     = true
 }
 
+variable "environment" {
+  description = "Environment name (staging, prod)"
+  type        = string
+  default     = "staging"
+}
+
+variable "monitoring_namespace" {
+  description = "Namespace for monitoring/ServiceMonitor"
+  type        = string
+  default     = "staging-observability-monitoring"
+}
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

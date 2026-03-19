@@ -414,3 +414,129 @@ resource "kubectl_manifest" "servicemonitor_gitlab" {
 
   depends_on = [module.gitlab]
 }
+
+#------------------------------------------------------------------------------
+# VAULT — PROD (HA 3 replicas, KMS auto-unseal, Raft storage)
+#------------------------------------------------------------------------------
+module "vault_prod" {
+  source = "../../modules/vault"
+
+  cluster_name      = local.cluster_name
+  aws_account_id    = var.aws_account_id
+  aws_region        = var.aws_region
+  environment       = "prod"
+  namespace         = "prod-security-vault"
+  oidc_provider_arn = data.aws_iam_openid_connect_provider.eks.arn
+
+  replicas      = 3
+  storage_class = "gp3"
+  pvc_size      = "20Gi"
+
+  enable_monitoring = true
+
+  common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# EXTERNAL SECRETS OPERATOR — PROD (Vault backend)
+#------------------------------------------------------------------------------
+module "external_secrets_prod" {
+  source = "../../modules/external-secrets"
+
+  depends_on = [module.vault_prod]
+
+  cluster_name         = local.cluster_name
+  environment          = "prod"
+  namespace            = "prod-security-externalsecrets"
+  replicas             = 2
+  vault_addr           = "http://vault.prod-security-vault.svc.cluster.local:8200"
+  monitoring_namespace = "prod-observability-monitoring"
+  enable_monitoring    = true
+
+  common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# VAULT CONFIG — PROD (K8s auth, policies, secrets seeding)
+#------------------------------------------------------------------------------
+module "vault_config_prod" {
+  source = "../../modules/vault-config"
+
+  depends_on = [module.vault_prod, module.external_secrets_prod]
+
+  vault_addr  = "http://localhost:8200" # Requires: kubectl port-forward -n prod-security-vault svc/vault 8200:8200
+  vault_token = var.vault_root_token
+
+  environment        = "prod"
+  vault_external_url = "http://vault.prod.internal"
+
+  cluster_name       = local.cluster_name
+  kubernetes_host    = data.aws_eks_cluster.cluster.endpoint
+  kubernetes_ca_cert = data.aws_eks_cluster.cluster.certificate_authority[0].data
+  eso_namespace      = "prod-security-externalsecrets"
+  eso_service_account = "external-secrets"
+
+  keycloak_postgresql_password = var.keycloak_postgresql_password
+  keycloak_postgresql_username = "keycloak_user"
+  keycloak_postgresql_host     = module.postgresql_prod.rds_address
+  keycloak_postgresql_port     = "5432"
+  keycloak_postgresql_database = "keycloak"
+
+  oidc_enabled             = false # Enable after Keycloak prod is running
+  keycloak_oidc_url        = ""
+  vault_oidc_client_id     = "vault"
+  vault_oidc_client_secret = var.vault_oidc_client_secret
+
+  grafana_oidc_client_id     = "grafana"
+  grafana_oidc_client_secret = var.grafana_oidc_client_secret
+  grafana_admin_password     = var.grafana_admin_password
+
+  sonarqube_postgresql_password = var.sonarqube_postgresql_password
+
+  harbor_postgresql_password = var.harbor_postgresql_password
+  harbor_admin_password      = var.harbor_admin_password
+  harbor_redis_password      = var.harbor_redis_password
+
+  argocd_postgresql_password = var.argocd_postgresql_password
+  argocd_oidc_client_secret  = var.argocd_oidc_client_secret
+
+  keycloak_admin_password = var.keycloak_admin_password
+
+  hatch_etl_enabled = false
+
+  common_tags = local.common_tags
+}
+
+#------------------------------------------------------------------------------
+# KEYCLOAK — PROD (HA 2 replicas, RDS prod)
+#------------------------------------------------------------------------------
+module "keycloak_prod" {
+  source = "../../modules/keycloak"
+
+  depends_on = [
+    module.postgresql_prod,
+    module.external_secrets_prod,
+    module.vault_config_prod,
+  ]
+
+  cluster_name   = local.cluster_name
+  aws_region     = var.aws_region
+  environment    = "prod"
+  namespace      = "prod-platform-keycloak"
+
+  keycloak_chart_version = "7.1.7"
+  replicas               = 2
+
+  postgresql_host     = module.postgresql_prod.rds_address
+  postgresql_port     = 5432
+  postgresql_database = "keycloak"
+  postgresql_username = "keycloak_user"
+
+  keycloak_hostname    = "keycloak.prod.internal"
+  monitoring_namespace = "prod-observability-monitoring"
+
+  enable_monitoring   = true
+  acm_certificate_arn = "" # TODO: Add prod ACM cert ARN in Fase 5
+
+  common_tags = local.common_tags
+}

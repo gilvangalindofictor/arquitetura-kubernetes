@@ -67,6 +67,24 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "environment" {
+  description = "Environment name (staging, prod)"
+  type        = string
+  default     = "staging"
+}
+
+variable "keycloak_hostname" {
+  description = "Public hostname for Keycloak (e.g., keycloak.staging.internal)"
+  type        = string
+  default     = "keycloak.staging.internal"
+}
+
+variable "monitoring_namespace" {
+  description = "Namespace for monitoring/ServiceMonitor"
+  type        = string
+  default     = "staging-observability-monitoring"
+}
+
 variable "acm_certificate_arn" {
   description = "ACM certificate ARN for ALB HTTPS ingress (AWS Certificate Manager)"
   type        = string

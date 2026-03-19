@@ -13,7 +13,7 @@ injector:
   podLabels:
     app.kubernetes.io/part-of: k8s-platform
     domain: platform
-    environment: staging
+    environment: ${environment}
     owner: platform-team
 
   resources:
@@ -37,7 +37,7 @@ server:
   podLabels:
     app.kubernetes.io/part-of: k8s-platform
     domain: platform
-    environment: staging
+    environment: ${environment}
     owner: platform-team
 
   resources:

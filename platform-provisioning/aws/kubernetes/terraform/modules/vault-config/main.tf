@@ -60,7 +60,9 @@ resource "vault_kubernetes_auth_backend_config" "kubernetes" {
 
 resource "vault_policy" "eso_reader" {
   name   = "eso-reader"
-  policy = file("${path.module}/vault_policies/eso-reader.hcl")
+  policy = templatefile("${path.module}/vault_policies/eso-reader.hcl", {
+    environment = var.environment
+  })
 }
 
 # -----------------------------------------------------------------------------
@@ -172,7 +174,7 @@ resource "vault_jwt_auth_backend_role" "admin" {
   }
 
   allowed_redirect_uris = [
-    "http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback",
+    "${var.vault_external_url}/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback"
   ]
 }
@@ -193,7 +195,7 @@ resource "vault_jwt_auth_backend_role" "reader" {
   user_claim  = "email"
 
   allowed_redirect_uris = [
-    "http://vault.staging.internal/ui/vault/auth/oidc/oidc/callback",
+    "${var.vault_external_url}/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback"
   ]
 }
@@ -547,7 +549,7 @@ locals {
 resource "vault_kv_secret_v2" "hatch_etl_database" {
   count      = var.hatch_etl_enabled ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch-etl/database"
+  name       = "${var.environment}/hatch-etl/database"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
@@ -565,7 +567,7 @@ resource "vault_kv_secret_v2" "hatch_etl_database" {
       managed_by = "terraform"
       service    = "hatch-etl"
       cluster    = var.cluster_name
-      namespace  = "staging-data-hatch"
+      namespace  = "${var.environment}-data-hatch"
     }
   }
 }
@@ -579,7 +581,7 @@ resource "vault_kv_secret_v2" "hatch_etl_database" {
 resource "vault_kv_secret_v2" "hatch_etl_redis" {
   count      = var.hatch_etl_enabled ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch-etl/redis"
+  name       = "${var.environment}/hatch-etl/redis"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
@@ -596,7 +598,7 @@ resource "vault_kv_secret_v2" "hatch_etl_redis" {
       managed_by = "terraform"
       service    = "hatch-etl"
       cluster    = var.cluster_name
-      namespace  = "staging-data-hatch"
+      namespace  = "${var.environment}-data-hatch"
     }
   }
 }
@@ -611,7 +613,7 @@ resource "vault_kv_secret_v2" "hatch_etl_redis" {
 resource "vault_kv_secret_v2" "hatch_etl_api" {
   count      = var.hatch_etl_enabled && var.hatch_etl_api_username != "" ? 1 : 0
   mount      = vault_mount.kv.path
-  name       = "staging/hatch-etl/api"
+  name       = "${var.environment}/hatch-etl/api"
   depends_on = [vault_mount.kv]
 
   data_json = jsonencode({
@@ -626,7 +628,7 @@ resource "vault_kv_secret_v2" "hatch_etl_api" {
       managed_by = "terraform"
       service    = "hatch-etl"
       cluster    = var.cluster_name
-      namespace  = "staging-data-hatch"
+      namespace  = "${var.environment}-data-hatch"
     }
   }
 }
@@ -667,7 +669,7 @@ resource "vault_kv_secret_v2" "alertmanager_teams_webhook" {
       managed_by   = "terraform"
       service      = "alertmanager"
       cluster      = var.cluster_name
-      namespace    = "staging-observability-monitoring"
+      namespace    = "${var.environment}-observability-monitoring"
       webhook_type = "microsoft-teams"
       migrated_at  = "2026-03-09"
     }

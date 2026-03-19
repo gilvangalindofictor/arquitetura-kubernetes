@@ -195,7 +195,7 @@ module "postgresql_staging" {
   allocated_storage     = var.postgresql_allocated_storage     # 20 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 50 GB
   multi_az              = false                                # DT-004: Single-AZ accepted for staging (FinOps)
-  environment           = "staging"                             # Secrets Manager prefix: staging/postgresql/...
+  environment           = "staging"                            # Secrets Manager prefix: staging/postgresql/...
   common_tags           = local.common_tags
 
   # INFRA-002: PostgreSQL 14→16 major version upgrade (pre-req GitLab 18.x)
@@ -614,6 +614,7 @@ resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
 module "vault_staging" {
   source = "../../modules/vault"
 
+  environment         = "staging"
   cluster_name        = local.cluster_name
   aws_account_id      = var.aws_account_id
   aws_region          = var.aws_region

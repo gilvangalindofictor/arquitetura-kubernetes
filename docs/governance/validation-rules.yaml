@@ -87,14 +87,81 @@ spec:
           - linkerd-jaeger
           - linkerd-cni
     validate:
+      allowExistingViolations: true
       message: |
-        ❌ Namespace naming violado (ADR-048).
+        Namespace naming violado (ADR-048).
         Esperado: {env}-{domain}-{product}
-        Formato: ^(dev|staging|prod|shared)-(platform|integration|data|operations|shared|security|governance)(-[a-z0-9-]+)?$
-        Exemplos: staging-integration-ipaas, prod-data-hatch
-      pattern:
-        metadata:
-          name: "(dev|staging|prod|shared)-(platform|integration|data|operations|shared|security|governance)-?*"
+        Dominios: platform, integration, data, operations, shared, security, governance, observability
+        Exemplos: staging-integration-ipaas, prod-data-hatch, prod-observability-monitoring
+      anyPattern:
+      # prod-{domain}-{product}
+      - metadata:
+          name: "prod-platform-?*"
+      - metadata:
+          name: "prod-integration-?*"
+      - metadata:
+          name: "prod-data-?*"
+      - metadata:
+          name: "prod-operations-?*"
+      - metadata:
+          name: "prod-shared-?*"
+      - metadata:
+          name: "prod-security-?*"
+      - metadata:
+          name: "prod-governance-?*"
+      - metadata:
+          name: "prod-observability-?*"
+      # staging-{domain}-{product}
+      - metadata:
+          name: "staging-platform-?*"
+      - metadata:
+          name: "staging-integration-?*"
+      - metadata:
+          name: "staging-data-?*"
+      - metadata:
+          name: "staging-operations-?*"
+      - metadata:
+          name: "staging-shared-?*"
+      - metadata:
+          name: "staging-security-?*"
+      - metadata:
+          name: "staging-governance-?*"
+      - metadata:
+          name: "staging-observability-?*"
+      # dev-{domain}-{product}
+      - metadata:
+          name: "dev-platform-?*"
+      - metadata:
+          name: "dev-integration-?*"
+      - metadata:
+          name: "dev-data-?*"
+      - metadata:
+          name: "dev-operations-?*"
+      - metadata:
+          name: "dev-shared-?*"
+      - metadata:
+          name: "dev-security-?*"
+      - metadata:
+          name: "dev-governance-?*"
+      - metadata:
+          name: "dev-observability-?*"
+      # shared-{domain}-{product}
+      - metadata:
+          name: "shared-platform-?*"
+      - metadata:
+          name: "shared-integration-?*"
+      - metadata:
+          name: "shared-data-?*"
+      - metadata:
+          name: "shared-operations-?*"
+      - metadata:
+          name: "shared-shared-?*"
+      - metadata:
+          name: "shared-security-?*"
+      - metadata:
+          name: "shared-governance-?*"
+      - metadata:
+          name: "shared-observability-?*"
 
 ---
 apiVersion: kyverno.io/v1

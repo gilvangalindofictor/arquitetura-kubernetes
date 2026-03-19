@@ -12,7 +12,7 @@ replicas: ${replicas}
 podLabels:
   app.kubernetes.io/part-of: k8s-platform
   domain: platform
-  environment: staging
+  environment: ${environment}
   owner: platform-team
 
 # FIX (2026-03-09): skip-outbound-ports=5432 para que wait-for-db (init container) possa
@@ -112,7 +112,7 @@ extraEnv: |
   # KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true: backend usa URL interna svc.cluster.local;
   # browser recebe issuer https://keycloak.staging.internal (ALB internet-facing porta 80 → HTTPS).
   - name: KC_HOSTNAME
-    value: "https://keycloak.staging.internal"
+    value: "https://${keycloak_hostname}"
   - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
     value: "true"
 
@@ -182,7 +182,7 @@ service:
   labels:
     domain: platform
     owner: platform-team
-    environment: staging
+    environment: ${environment}
     app.kubernetes.io/part-of: k8s-platform
 
 # Tolerations (ADR-042 pattern: prefer system, fallback to critical)
@@ -203,7 +203,7 @@ metrics:
   enabled: true
 serviceMonitor:
   enabled: true
-  namespace: staging-observability-monitoring
+  namespace: ${monitoring_namespace}
   labels:
     release: prometheus
 %{ endif ~}

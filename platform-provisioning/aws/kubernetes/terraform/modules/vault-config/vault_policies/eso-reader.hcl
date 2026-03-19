@@ -56,21 +56,32 @@ path "secret/metadata/argocd/*" {
   capabilities = ["read", "list"]
 }
 
-# Updated: 2026-03-05 — add staging/hatch/* (hatch-etl app secrets)
-path "secret/data/staging/hatch/*" {
+# Updated: 2026-03-05 — add <env>/hatch/* (hatch-etl app secrets)
+# Updated: 2026-03-19 — parametrized with environment variable
+path "secret/data/${environment}/hatch/*" {
   capabilities = ["read", "list"]
 }
 
-path "secret/metadata/staging/hatch/*" {
+path "secret/metadata/${environment}/hatch/*" {
   capabilities = ["read", "list"]
 }
 
-# Updated: 2026-03-06 — add staging/backstage/* (ADR-055 Backstage IDP)
-path "secret/data/staging/backstage/*" {
+# Updated: 2026-03-06 — add <env>/backstage/* (ADR-055 Backstage IDP)
+# Updated: 2026-03-19 — parametrized with environment variable
+path "secret/data/${environment}/backstage/*" {
   capabilities = ["read", "list"]
 }
 
-path "secret/metadata/staging/backstage/*" {
+path "secret/metadata/${environment}/backstage/*" {
+  capabilities = ["read", "list"]
+}
+
+# Updated: 2026-03-19 — generic <env>/* catch-all for environment-scoped secrets
+path "secret/data/${environment}/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/${environment}/*" {
   capabilities = ["read", "list"]
 }
 

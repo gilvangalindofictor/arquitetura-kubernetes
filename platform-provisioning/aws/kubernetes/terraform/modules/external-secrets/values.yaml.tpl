@@ -10,7 +10,7 @@ commonLabels:
   app.kubernetes.io/part-of: external-secrets
   domain: platform
   owner: platform-team
-  environment: staging
+  environment: ${environment}
 
 image:
   repository: ghcr.io/external-secrets/external-secrets
@@ -44,7 +44,7 @@ podSecurityContext:
 %{ if enable_monitoring }
 serviceMonitor:
   enabled: true
-  namespace: staging-observability-monitoring
+  namespace: ${monitoring_namespace}
   interval: 30s
   scrapeTimeout: 10s
   labels:

@@ -48,12 +48,14 @@ resource "helm_release" "external_secrets" {
   namespace  = kubernetes_namespace.external_secrets.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    cluster_name      = var.cluster_name
-    replicas          = var.replicas
-    enable_monitoring = var.enable_monitoring
+    cluster_name         = var.cluster_name
+    replicas             = var.replicas
+    enable_monitoring    = var.enable_monitoring
+    environment          = var.environment
+    monitoring_namespace = var.monitoring_namespace
   })]
 
-  timeout = 300 # 5 minutes
+  timeout = 300   # 5 minutes
   wait    = false # Kyverno label policies may block Service creation during upgrade
 }
 
