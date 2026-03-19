@@ -173,30 +173,25 @@ A equipe técnica precisa que 2 subdomínios (`prod` e `hml`) sejam direcionados
 A equipe técnica enviará **8 registros** (4 para prod + 4 para hml). Adicione-os no painel de DNS do registrar:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  REGISTROS A ADICIONAR (prod)                               │
-├──────┬───────────────────────┬──────────────────────────────┤
-│ Tipo │ Nome                  │ Valor                        │
-├──────┼───────────────────────┼──────────────────────────────┤
-│ NS   │ prod.alvocard.com.br  │ ns-XXXX.awsdns-XX.org        │
-│ NS   │ prod.alvocard.com.br  │ ns-XXXX.awsdns-XX.co.uk      │
-│ NS   │ prod.alvocard.com.br  │ ns-XXX.awsdns-XX.com         │
-│ NS   │ prod.alvocard.com.br  │ ns-XXX.awsdns-XX.net         │
-├──────┴───────────────────────┴──────────────────────────────┤
-│  REGISTROS A ADICIONAR (hml)                                │
-├──────┬───────────────────────┬──────────────────────────────┤
-│ Tipo │ Nome                  │ Valor                        │
-├──────┼───────────────────────┼──────────────────────────────┤
-│ NS   │ hml.alvocard.com.br   │ ns-XXXX.awsdns-XX.org        │
-│ NS   │ hml.alvocard.com.br   │ ns-XXXX.awsdns-XX.co.uk      │
-│ NS   │ hml.alvocard.com.br   │ ns-XXX.awsdns-XX.com         │
-│ NS   │ hml.alvocard.com.br   │ ns-XXX.awsdns-XX.net         │
-└──────┴───────────────────────┴──────────────────────────────┘
+REGISTROS PARA PRODUÇÃO (prod.alvocard.com.br):
 
-TTL: 3600 (ou o padrão do registrar)
+Tipo    Nome                     Valor                              TTL
+NS      prod.alvocard.com.br     ns-1292.awsdns-33.org              3600
+NS      prod.alvocard.com.br     ns-1698.awsdns-20.co.uk            3600
+NS      prod.alvocard.com.br     ns-684.awsdns-21.net               3600
+NS      prod.alvocard.com.br     ns-277.awsdns-34.com               3600
+
+
+REGISTROS PARA HOMOLOGAÇÃO (hml.alvocard.com.br):
+
+Tipo    Nome                     Valor                              TTL
+NS      hml.alvocard.com.br      ns-1415.awsdns-48.org              3600
+NS      hml.alvocard.com.br      ns-1958.awsdns-52.co.uk            3600
+NS      hml.alvocard.com.br      ns-719.awsdns-25.net               3600
+NS      hml.alvocard.com.br      ns-377.awsdns-47.com               3600
 ```
 
-> **NOTA:** Os valores exatos dos NS (`ns-XXXX.awsdns-XX...`) serão fornecidos pela equipe técnica após criar as zonas na AWS. **Não executar até receber os valores reais.**
+> **Zonas criadas em 2026-03-19.** Valores acima são definitivos — prontos para cadastro no registrar.
 
 ---
 
@@ -481,16 +476,22 @@ O QUE NÃO MUDA:
   O domínio alvocard.com.br, email, site, MX, SPF — TUDO como está.
   Esta operação é ADITIVA — apenas adiciona registros novos.
 
-REGISTROS (os valores NS serão enviados em seguida):
+REGISTROS PARA PRODUÇÃO (prod.alvocard.com.br):
 
-  Nome: prod.alvocard.com.br    Tipo: NS    Valor: (4 nameservers AWS)
-  Nome: hml.alvocard.com.br     Tipo: NS    Valor: (4 nameservers AWS)
+  Tipo: NS    Nome: prod.alvocard.com.br    Valor: ns-1292.awsdns-33.org      TTL: 3600
+  Tipo: NS    Nome: prod.alvocard.com.br    Valor: ns-1698.awsdns-20.co.uk    TTL: 3600
+  Tipo: NS    Nome: prod.alvocard.com.br    Valor: ns-684.awsdns-21.net       TTL: 3600
+  Tipo: NS    Nome: prod.alvocard.com.br    Valor: ns-277.awsdns-34.com       TTL: 3600
+
+REGISTROS PARA HOMOLOGAÇÃO (hml.alvocard.com.br):
+
+  Tipo: NS    Nome: hml.alvocard.com.br     Valor: ns-1415.awsdns-48.org      TTL: 3600
+  Tipo: NS    Nome: hml.alvocard.com.br     Valor: ns-1958.awsdns-52.co.uk    TTL: 3600
+  Tipo: NS    Nome: hml.alvocard.com.br     Valor: ns-719.awsdns-25.net       TTL: 3600
+  Tipo: NS    Nome: hml.alvocard.com.br     Valor: ns-377.awsdns-47.com       TTL: 3600
 
 ROLLBACK:
   Se necessário, basta remover os registros — volta ao estado original.
-
-Enviaremos os valores exatos dos nameservers assim que criarmos as zonas
-na AWS. Aguardamos confirmação para prosseguir.
 
 Atenciosamente,
 [Equipe de Infraestrutura]
