@@ -68,7 +68,7 @@ locals {
 
 provider "aws" {
   region  = var.aws_region
-  profile = "k8s-platform-prod" # TEMP: Same account 891377105802, staging profile não configurado
+  # profile = "k8s-platform-prod" # TEMP: Same account 891377105802, staging profile não configurado # COMMENTED-SSO-WORKAROUND
 
   default_tags {
     tags = local.common_tags
@@ -79,7 +79,7 @@ provider "aws" {
 provider "aws" {
   alias   = "sa_east_1"
   region  = "sa-east-1"
-  profile = "k8s-platform-staging"
+  # profile = "k8s-platform-staging" # COMMENTED-SSO-WORKAROUND
 
   default_tags {
     tags = local.common_tags
@@ -93,7 +93,7 @@ provider "aws" {
 provider "aws" {
   alias   = "us-west-2"
   region  = "us-west-2"
-  profile = "k8s-platform-prod" # TEMP: k8s-platform-staging SSO expirado (mesma conta 891377105802)
+  # profile = "k8s-platform-prod" # TEMP: k8s-platform-staging SSO expirado (mesma conta 891377105802) # COMMENTED-SSO-WORKAROUND
 
   default_tags {
     tags = local.common_tags
@@ -174,7 +174,7 @@ data "terraform_remote_state" "marco1" {
     bucket  = var.state_bucket
     key     = "marco1/terraform.tfstate"
     region  = var.aws_region
-    profile = "k8s-platform-staging"
+    # profile = "k8s-platform-staging" # COMMENTED-SSO-WORKAROUND
   }
 }
 
@@ -263,6 +263,13 @@ module "rabbitmq_staging" {
   ingress_enabled    = true
   ingress_host       = "rabbitmq.staging.internal"
   ingress_group_name = "platform-staging" # FinOps ALB 4→2: merged from data-staging (2026-03-11)
+
+  # DNS Fase 7 Wave 1: dual-host migration (2026-03-20)
+  ingress_extra_hosts = ["rabbitmq.hml.alvocard.com.br"]
+  ingress_certificate_arns = [
+    "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a", # *.staging.internal
+    "arn:aws:acm:us-east-1:891377105802:certificate/3bfc603d-3a90-4663-b363-28f5122b7dbb", # *.hml.alvocard.com.br
+  ]
 }
 
 # S3 Buckets - STAGING (7d lifecycle)
@@ -392,6 +399,9 @@ module "gitlab_staging" {
   workload_node_selector = {
     "node-type" = "workloads"
   }
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 
   # Tags
   common_tags = local.common_tags
@@ -639,6 +649,22 @@ module "vault_staging" {
   ingress_enabled    = true
   ingress_host       = "vault.staging.internal"
   ingress_group_name = "platform-staging"
+
+  # DNS Fase 7 Wave 1: dual-host migration (2026-03-20)
+  ingress_extra_hosts = ["vault.hml.alvocard.com.br"]
+  ingress_certificate_arns = [
+    "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a", # *.staging.internal
+    "arn:aws:acm:us-east-1:891377105802:certificate/3bfc603d-3a90-4663-b363-28f5122b7dbb", # *.hml.alvocard.com.br
+  ]
+
+  # IAM name override: role was created manually on 2026-02-04 without the env prefix.
+  # Override prevents destroy+recreate (which would break auto-unseal during replace window).
+  # The trust policy OIDC sub condition will be corrected in-place to staging-security-vault.
+  # If a prod module is added later, omit this override to get the standard ADR-050 naming.
+  iam_name_override = "VaultIRSA-${local.cluster_name}"
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 }
 
 # External Secrets Operator - Vault Backend
@@ -654,6 +680,9 @@ module "external_secrets_staging" {
   vault_addr        = "http://vault.staging-security-vault.svc.cluster.local:8200" # Updated to canonical vault addr
   enable_monitoring = true
   common_tags       = local.common_tags
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 }
 
 # Vault Post-Deployment Configuration
@@ -805,6 +834,9 @@ module "harbor_staging" {
   # OIDC / SSO via Keycloak
   enable_oidc   = true
   oidc_endpoint = "http://keycloak.staging.internal/auth/realms/platform"
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 }
 
 #------------------------------------------------------------------------------
@@ -904,6 +936,9 @@ module "keycloak_staging" {
 
   # ACM certificate for ALB HTTPS ingress (CLEANUP-S6A 2026-03-12)
   acm_certificate_arn = "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a"
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 
   # Tags
   common_tags = local.common_tags
@@ -1046,6 +1081,9 @@ module "sonarqube_staging" {
   # Monitoring
   enable_monitoring = true
 
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
+
   # Tags
   common_tags = local.common_tags
 }
@@ -1157,6 +1195,9 @@ module "kube_prometheus_stack_staging" {
   domain      = "operations"
   owner       = "platform-team"
   environment = "staging"
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 }
 
 #------------------------------------------------------------------------------
@@ -1508,6 +1549,14 @@ module "opentelemetry_collector_staging" {
   # ServiceMonitor (Observability integration)
   enable_servicemonitor   = true
   servicemonitor_interval = "30s"
+
+  # Corporate labels (ADR-048 / Kyverno require-corporate-labels — GAP-OBS-003 fix)
+  domain      = "operations"
+  owner       = "platform-team"
+  environment = "staging"
+
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
 }
 
 #------------------------------------------------------------------------------
@@ -1720,6 +1769,30 @@ module "ecr" {
     Purpose     = "Container image storage"
     Criticality = "Medium"
   })
+}
+
+#------------------------------------------------------------------------------
+# ECR Pull-Through Cache — Resolve Docker Hub rate limit (429)
+# Caches images from Docker Hub, Quay, GHCR, K8s Registry, ECR Public
+# GAP-SEC-REGISTRY-03: ECR Pull-Through Cache (permanent solution)
+#------------------------------------------------------------------------------
+
+module "ecr_pull_through_cache" {
+  source             = "../../modules/ecr-pull-through-cache"
+  aws_account_id     = var.aws_account_id
+  aws_region         = var.aws_region
+  cluster_name       = local.cluster_name
+  node_role_name     = "k8s-platform-eks-node-role"
+  vpc_id             = data.aws_vpc.existing.id
+  private_subnet_ids = data.aws_subnets.private.ids
+  security_group_ids = [data.aws_security_group.cluster.id]
+  common_tags        = local.common_tags
+  enable_ghcr        = false # GHCR requires GitHub PAT — images pulled directly from ghcr.io (no rate-limit)
+
+  # Docker Hub — autenticado (resolve 429 rate limit definitivamente)
+  enable_docker_hub        = true
+  docker_hub_username      = var.docker_hub_username
+  docker_hub_access_token  = var.docker_hub_access_token
 }
 
 #------------------------------------------------------------------------------

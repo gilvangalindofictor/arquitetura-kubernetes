@@ -64,3 +64,15 @@ variable "ingress_group_name" {
   type        = string
   default     = ""
 }
+
+variable "ingress_extra_hosts" {
+  description = "Lista de hostnames adicionais para dual-host Ingress (DNS Fase 7 migration)"
+  type        = list(string)
+  default     = []
+}
+
+variable "ingress_certificate_arns" {
+  description = "Lista de ARNs de certificados ACM para o Ingress (comma-separated no annotation). Se vazio, usa certificate-arn padrão do ALB."
+  type        = list(string)
+  default     = []
+}

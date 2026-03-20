@@ -194,25 +194,26 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.prometheus_retention
   }
 
-  # Resources
+  # Resources — increased 2026-03-20: OOMKilled (18 restarts) with 63 ServiceMonitors + 14 nodes + 5.3G WAL
+  # Previous: requests 100m/512Mi, limits 500m/2Gi → OOM at ~1.3Gi usage, CPU throttled at 500m
   set {
     name  = "prometheus.prometheusSpec.resources.requests.cpu"
-    value = "100m"
-  }
-
-  set {
-    name  = "prometheus.prometheusSpec.resources.requests.memory"
-    value = "512Mi"
-  }
-
-  set {
-    name  = "prometheus.prometheusSpec.resources.limits.cpu"
     value = "500m"
   }
 
   set {
+    name  = "prometheus.prometheusSpec.resources.requests.memory"
+    value = "3Gi"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.resources.limits.cpu"
+    value = "1000m"
+  }
+
+  set {
     name  = "prometheus.prometheusSpec.resources.limits.memory"
-    value = "2Gi"
+    value = "6Gi"
   }
 
   # nodeSelector removido: pods podem escalar em qualquer node disponível
@@ -773,6 +774,77 @@ resource "helm_release" "kube_prometheus_stack" {
   # NOTE: prometheus-pushgateway subchart was removed in kube-prometheus-stack v82+.
   # Pushgateway is now deployed as a standalone helm_release below.
   # Ref: resource helm_release "prometheus_pushgateway" (2026-03-10 RCA KubeJobFailed)
+
+  # -----------------------------------------------------------------------------
+  # ECR Pull-Through Cache — Override image registries (GAP-SEC-REGISTRY-03)
+  # Grafana: docker.io/grafana/grafana
+  # Prometheus: quay.io/prometheus/prometheus
+  # Alertmanager: quay.io/prometheus/alertmanager
+  # Prometheus Operator: quay.io/prometheus-operator/prometheus-operator
+  # -----------------------------------------------------------------------------
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "grafana.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "grafana.image.repository"
+      value = "docker-hub/grafana/grafana"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheus.prometheusSpec.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheus.prometheusSpec.image.repository"
+      value = "quay/prometheus/prometheus"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "alertmanager.alertmanagerSpec.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "alertmanager.alertmanagerSpec.image.repository"
+      value = "quay/prometheus/alertmanager"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.image.repository"
+      value = "quay/prometheus-operator/prometheus-operator"
+    }
+  }
 
   depends_on = [kubernetes_namespace.monitoring]
 

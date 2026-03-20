@@ -385,3 +385,22 @@ variable "postgresql_host_override" {
   type        = string
   default     = null
 }
+
+#------------------------------------------------------------------------------
+# Docker Hub — ECR Pull-Through Cache credentials
+# Stored in AWS Secrets Manager (required by ECR API, not Vault)
+#------------------------------------------------------------------------------
+
+variable "docker_hub_username" {
+  description = "Docker Hub username for ECR pull-through cache authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "docker_hub_access_token" {
+  description = "Docker Hub access token (PAT) for ECR pull-through cache authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

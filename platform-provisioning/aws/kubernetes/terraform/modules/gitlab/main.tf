@@ -245,6 +245,9 @@ resource "helm_release" "gitlab" {
       # Node scheduling (AGENTE-TF-EQUALIZATION 2026-03-06)
       # Routes app components to workload nodes, freeing system nodes (t3.medium)
       workload_node_selector = var.workload_node_selector
+
+      # ECR Pull-Through Cache
+      ecr_registry = var.ecr_registry
     })
   ]
 

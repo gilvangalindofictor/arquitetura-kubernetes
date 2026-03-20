@@ -67,7 +67,7 @@ locals {
 
 provider "aws" {
   region  = var.aws_region
-  profile = "k8s-platform-prod"
+  # profile = "k8s-platform-prod" # COMMENTED-SSO-WORKAROUND
 
   default_tags {
     tags = local.common_tags
@@ -78,7 +78,7 @@ provider "aws" {
 provider "aws" {
   alias   = "sa_east_1"
   region  = "sa-east-1"
-  profile = "k8s-platform-prod"
+  # profile = "k8s-platform-prod" # COMMENTED-SSO-WORKAROUND
 
   default_tags {
     tags = local.common_tags
@@ -144,7 +144,7 @@ data "terraform_remote_state" "marco1" {
     bucket  = var.state_bucket
     key     = "marco1/terraform.tfstate"
     region  = var.aws_region
-    profile = "k8s-platform-prod"
+    # profile = "k8s-platform-prod" # COMMENTED-SSO-WORKAROUND
   }
 }
 
@@ -432,9 +432,10 @@ module "vault_prod" {
   storage_class = "gp3"
   pvc_size      = "20Gi"
 
-  helm_release_name = "vault-prod" # Unique name to avoid cluster-scoped resource conflicts with staging
-  injector_enabled  = false        # Staging already has injector (cluster-scoped resources conflict)
+  helm_release_name = "vault-prod"                    # Unique name to avoid cluster-scoped resource conflicts with staging
+  injector_enabled  = false                            # Staging already has injector (cluster-scoped resources conflict)
   enable_monitoring = true
+  iam_name_override = "VaultIRSA-k8s-platform-prod"   # Brownfield: role pre-exists without env prefix (avoid destroy+recreate)
 
   common_tags = local.common_tags
 }

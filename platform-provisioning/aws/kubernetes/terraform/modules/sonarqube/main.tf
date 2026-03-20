@@ -140,6 +140,8 @@ resource "helm_release" "sonarqube" {
     gitlab_url           = var.gitlab_url
     gitlab_allow_signup  = var.gitlab_allow_signup
     gitlab_groups_sync   = var.gitlab_groups_sync
+    # ECR Pull-Through Cache
+    ecr_registry = var.ecr_registry
   })]
 
   depends_on = [

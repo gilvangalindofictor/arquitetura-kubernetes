@@ -53,5 +53,8 @@ module "velero_helm_staging" {
   # Retain backups 30 days (720h) by default
   backup_retention_period = "720h"
 
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
+
   depends_on = [module.velero_dr_staging]
 }

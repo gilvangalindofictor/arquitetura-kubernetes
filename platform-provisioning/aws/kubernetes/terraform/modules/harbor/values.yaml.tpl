@@ -1,6 +1,12 @@
 # Harbor Helm Chart Values
 # https://github.com/goharbor/harbor-helm
 
+# ECR Pull-Through Cache: override image registry for all Harbor components
+%{ if ecr_registry != "" }
+global:
+  imageRegistry: ${ecr_registry}/ecr-public
+%{ endif }
+
 %{ if ingress_enabled }
 expose:
   type: ingress

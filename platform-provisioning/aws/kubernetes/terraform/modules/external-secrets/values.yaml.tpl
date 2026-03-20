@@ -13,7 +13,9 @@ commonLabels:
   environment: ${environment}
 
 image:
-  repository: ghcr.io/external-secrets/external-secrets
+  # Uses ghcr.io directly — ECR pull-through cache for GHCR requires GitHub PAT
+  # which is not configured. GHCR is public and has no rate-limit issues.
+  repository: "ghcr.io/external-secrets/external-secrets"
   pullPolicy: IfNotPresent
   tag: v0.9.11
 

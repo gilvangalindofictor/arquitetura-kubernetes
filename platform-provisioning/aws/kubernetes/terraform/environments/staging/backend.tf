@@ -11,6 +11,6 @@ terraform {
 
     # Profile for AWS SSO authentication
     # TEMP: Using k8s-platform-prod (same AWS account 891377105802)
-    profile = "k8s-platform-prod"
+    # profile = "k8s-platform-prod" # COMMENTED-SSO-WORKAROUND
   }
 }

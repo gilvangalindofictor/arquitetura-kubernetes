@@ -20,7 +20,7 @@
 .velero_drift_check:
   stage: validate
   image:
-    name: bitnami/kubectl:latest
+    name: bitnami/kubectl:1.29
     entrypoint: [""]
   variables:
     VELERO_NAMESPACE: "velero"
@@ -140,7 +140,7 @@ velero:drift:scheduled:
 velero:drift:auto-fix:
   stage: remediate
   image:
-    name: bitnami/kubectl:latest
+    name: bitnami/kubectl:1.29
     entrypoint: [""]
   variables:
     VELERO_NAMESPACE: "velero"

@@ -3,7 +3,7 @@
 
 .deploy-staging:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: bitnami/kubectl:1.29
   environment:
     name: staging
   script:

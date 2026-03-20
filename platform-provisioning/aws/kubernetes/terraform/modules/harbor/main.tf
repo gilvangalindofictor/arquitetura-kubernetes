@@ -192,6 +192,7 @@ resource "helm_release" "harbor" {
     ingress_enabled     = var.ingress_enabled
     ingress_host        = var.ingress_host
     ingress_group_name  = var.ingress_group_name
+    ecr_registry        = var.ecr_registry
   })]
 
   depends_on = [

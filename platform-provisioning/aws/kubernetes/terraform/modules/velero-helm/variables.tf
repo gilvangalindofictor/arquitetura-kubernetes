@@ -110,3 +110,10 @@ variable "service_monitor_labels" {
     release = "kube-prometheus-stack"
   }
 }
+
+# ECR Pull-Through Cache
+variable "ecr_registry" {
+  description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."
+  type        = string
+  default     = ""
+}

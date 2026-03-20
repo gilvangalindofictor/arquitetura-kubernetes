@@ -55,6 +55,9 @@ module "loki_staging" {
   # Tags AWS (padrao do ambiente)
   tags = local.common_tags
 
+  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
+  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
+
   # chunksCache.allocatedMemory: usa default do modulo (1024 MB)
   # Drift reconciliado 2026-03-06: valor ja estava ativo no cluster desde
   # importacao em 2026-03-05. terraform plan confirma "No changes".

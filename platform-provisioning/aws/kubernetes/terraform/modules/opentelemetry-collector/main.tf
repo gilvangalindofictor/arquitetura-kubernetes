@@ -51,6 +51,7 @@ resource "helm_release" "otel_collector" {
     environment             = var.environment
     domain                  = var.domain
     owner                   = var.owner
+    ecr_registry            = var.ecr_registry
   })]
 }
 

@@ -115,11 +115,23 @@ variable "environment" {
 variable "domain" {
   description = "Domain label for corporate labeling (ADR-048)"
   type        = string
-  default     = "observability"
+  default     = "operations"
+
+  validation {
+    condition     = contains(["platform", "integration", "data", "operations", "shared-services", "security", "governance"], var.domain)
+    error_message = "domain must be one of: platform, integration, data, operations, shared-services, security, governance (ADR-048 / Kyverno require-corporate-labels)"
+  }
 }
 
 variable "owner" {
   description = "Owner label for corporate labeling (ADR-048)"
   type        = string
   default     = "platform-team"
+}
+
+# ECR Pull-Through Cache
+variable "ecr_registry" {
+  description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."
+  type        = string
+  default     = ""
 }

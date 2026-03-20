@@ -41,7 +41,7 @@ test:
 
 sonarqube:
   stage: scan
-  image: sonarsource/sonar-scanner-cli:latest
+  image: sonarsource/sonar-scanner-cli:5.0
   variables:
     GIT_DEPTH: "0"
   script:
@@ -73,7 +73,7 @@ docker-build:
 
 deploy-staging:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: bitnami/kubectl:1.29
   environment:
     name: staging
     url: http://${APP_NAME}.staging.internal

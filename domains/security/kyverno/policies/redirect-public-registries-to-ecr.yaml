@@ -1,0 +1,565 @@
+# =============================================================================
+# Kyverno ClusterPolicy — redirect-public-registries-to-ecr
+# =============================================================================
+# Descricao: Reescreve imagens de registries publicos para ECR Pull-Through
+#            Cache, eliminando dependencia de rate limits (Docker Hub 429) e
+#            garantindo pulls via rede intra-regiao (sem custo de data transfer).
+#
+# Registries reescritos:
+#   - docker.io/*         -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/*
+#   - (sem prefixo)       -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/*
+#   - quay.io/*           -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/quay/*
+#   - ghcr.io/*           -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/ghcr/*
+#   - registry.k8s.io/*   -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/k8s/*
+#
+# NAO reescreve:
+#   - Imagens ja ECR (*.dkr.ecr.*.amazonaws.com/*)
+#   - Imagens Harbor internas (harbor-core.harbor-system.svc.cluster.local)
+#
+# Namespaces excluidos: kube-system, kube-public, kube-node-lease
+#
+# Modo: Mutate (transparente — pod e aceito com imagem reescrita)
+#
+# Pre-requisitos:
+#   1. ECR Pull-Through Cache rules configuradas (modulo ecr-pull-through-cache)
+#   2. IAM node role com ecr:BatchImportUpstreamImage + ecr:CreateRepository
+#   3. Secrets Manager com PATs para registries autenticados
+#
+# Ref: GAP-SEC-REGISTRY-01/02/03, Licao 9, Licao 10, ecr-pull-through-cache-architecture.md
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: redirect-public-registries-to-ecr
+  labels:
+    app.kubernetes.io/managed-by: platform-provisioner
+    governance.platform/policy: ecr-registry-redirect
+    governance.platform/gap: GAP-SEC-REGISTRY-03
+  annotations:
+    policies.kyverno.io/title: Redirect Public Registries to ECR Pull-Through Cache
+    policies.kyverno.io/category: Security & Compliance
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Reescreve referencias de imagens de registries publicos (docker.io, quay.io,
+      ghcr.io, registry.k8s.io) para ECR Pull-Through Cache. Resolve Docker Hub
+      rate limit (429 Too Many Requests) e garante pulls intra-regiao sem custo
+      de data transfer. Imagens ja apontando para ECR ou Harbor interno nao sao
+      alteradas. Ref: GAP-SEC-REGISTRY-01/02/03.
+spec:
+  background: false
+  rules:
+    # =========================================================================
+    # REGRA 1: docker.io/* -> ECR (containers)
+    # =========================================================================
+    # Captura imagens com prefixo explicito docker.io/ ou docker.io/library/
+    # Exemplos:
+    #   docker.io/hashicorp/vault:1.15.4 -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/hashicorp/vault:1.15.4
+    #   docker.io/library/nginx:1.25     -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/nginx:1.25
+    # =========================================================================
+    - name: redirect-docker-io-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "docker.io/*"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^docker\\.io/library/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/$1') | regex_replace_all('^docker\\.io/(.+)$', @, '891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/$1') }}"
+
+    # =========================================================================
+    # REGRA 2: docker.io/* -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-docker-io-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "docker.io/*"
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^docker\\.io/library/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/$1') | regex_replace_all('^docker\\.io/(.+)$', @, '891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/$1') }}"
+
+    # =========================================================================
+    # REGRA 3: Imagens sem prefixo de registry -> ECR (containers)
+    # =========================================================================
+    # Captura imagens sem prefixo de registry (ex: nginx:latest, busybox:1.36)
+    # Kubernetes normaliza para docker.io/library/<image>:<tag>
+    # CUIDADO: preconditions excluem imagens que ja tem prefixo de registry
+    #          (contem "/" antes do ":" ou contem "." no primeiro segmento)
+    #
+    # Exemplos:
+    #   nginx:latest  -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/nginx:latest
+    #   busybox:1.36  -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/busybox:1.36
+    # =========================================================================
+    - name: redirect-bare-images-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                # Imagem NAO contem "." no primeiro segmento (nao e FQDN de registry)
+                # E NAO contem "/" (imagem bare como "nginx:latest")
+                # Regex: imagem que e apenas nome[:tag] sem nenhum "/"
+                - key: "{{ regex_match('^[a-zA-Z0-9][a-zA-Z0-9_.-]*(:[a-zA-Z0-9._-]+)?$', element.image) }}"
+                  operator: Equals
+                  value: true
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/{{ element.image }}"
+
+    # =========================================================================
+    # REGRA 4: Imagens sem prefixo de registry -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-bare-images-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ regex_match('^[a-zA-Z0-9][a-zA-Z0-9_.-]*(:[a-zA-Z0-9._-]+)?$', element.image) }}"
+                  operator: Equals
+                  value: true
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/{{ element.image }}"
+
+    # =========================================================================
+    # REGRA 5: quay.io/* -> ECR (containers)
+    # =========================================================================
+    # Exemplos:
+    #   quay.io/keycloak/keycloak:26.5.1 -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/quay/keycloak/keycloak:26.5.1
+    # =========================================================================
+    - name: redirect-quay-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "quay.io/*"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^quay\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/quay/$1') }}"
+
+    # =========================================================================
+    # REGRA 6: quay.io/* -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-quay-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "quay.io/*"
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^quay\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/quay/$1') }}"
+
+    # =========================================================================
+    # REGRA 7: ghcr.io/* -> ECR (containers)
+    # =========================================================================
+    # Exemplos:
+    #   ghcr.io/external-secrets/external-secrets:v0.9.11
+    #     -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/ghcr/external-secrets/external-secrets:v0.9.11
+    # =========================================================================
+    - name: redirect-ghcr-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "ghcr.io/*"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^ghcr\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/ghcr/$1') }}"
+
+    # =========================================================================
+    # REGRA 8: ghcr.io/* -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-ghcr-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "ghcr.io/*"
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^ghcr\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/ghcr/$1') }}"
+
+    # =========================================================================
+    # REGRA 9: registry.k8s.io/* -> ECR (containers)
+    # =========================================================================
+    # Exemplos:
+    #   registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
+    #     -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/k8s/kube-state-metrics/kube-state-metrics:v2.10.1
+    # =========================================================================
+    - name: redirect-k8s-registry-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "registry.k8s.io/*"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^registry\\.k8s\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/k8s/$1') }}"
+
+    # =========================================================================
+    # REGRA 10: registry.k8s.io/* -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-k8s-registry-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ element.image }}"
+                  operator: Equals
+                  value: "registry.k8s.io/*"
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "{{ regex_replace_all('^registry\\.k8s\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/k8s/$1') }}"
+
+    # =========================================================================
+    # REGRA 11: Imagens Docker Hub com org/ prefix (sem docker.io) -> ECR (containers)
+    # =========================================================================
+    # Captura imagens com formato org/image:tag (ex: hashicorp/vault:1.15.4)
+    # que Kubernetes normaliza para docker.io/org/image:tag
+    # Exclui imagens que ja tem FQDN (contem "." no primeiro segmento)
+    #
+    # Exemplos:
+    #   hashicorp/vault:1.15.4     -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/hashicorp/vault:1.15.4
+    #   grafana/grafana:11.x       -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/grafana/grafana:11.x
+    #   goharbor/harbor-core:v2.x  -> 891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/goharbor/harbor-core:v2.x
+    # =========================================================================
+    - name: redirect-docker-hub-org-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            preconditions:
+              all:
+                # Formato: org/image[:tag] — primeiro segmento NAO contem "."
+                # Isso exclui FQDNs (quay.io/*, ghcr.io/*, registry.k8s.io/*, *.dkr.ecr.*)
+                - key: "{{ regex_match('^[a-zA-Z0-9][a-zA-Z0-9_-]*/[a-zA-Z0-9][a-zA-Z0-9_./-]*(:[a-zA-Z0-9._-]+)?$', element.image) }}"
+                  operator: Equals
+                  value: true
+                # Garantir que NAO ja foi reescrito para ECR
+                - key: "{{ regex_match('.*\\.dkr\\.ecr\\..*\\.amazonaws\\.com/.*', element.image) }}"
+                  operator: Equals
+                  value: false
+                # Garantir que NAO e imagem Harbor interna
+                - key: "{{ regex_match('^harbor-core\\.harbor-system\\.svc\\.cluster\\.local.*', element.image) }}"
+                  operator: Equals
+                  value: false
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - name: "{{ element.name }}"
+                    image: "891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/{{ element.image }}"
+
+    # =========================================================================
+    # REGRA 12: Imagens Docker Hub com org/ prefix (sem docker.io) -> ECR (initContainers)
+    # =========================================================================
+    - name: redirect-docker-hub-org-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      preconditions:
+        all:
+          - key: "{{ request.operation || 'BACKGROUND' }}"
+            operator: AnyIn
+            value:
+              - CREATE
+              - UPDATE
+          - key: "{{ request.object.spec.initContainers[] || `[]` | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      mutate:
+        foreach:
+          - list: "request.object.spec.initContainers"
+            preconditions:
+              all:
+                - key: "{{ regex_match('^[a-zA-Z0-9][a-zA-Z0-9_-]*/[a-zA-Z0-9][a-zA-Z0-9_./-]*(:[a-zA-Z0-9._-]+)?$', element.image) }}"
+                  operator: Equals
+                  value: true
+                - key: "{{ regex_match('.*\\.dkr\\.ecr\\..*\\.amazonaws\\.com/.*', element.image) }}"
+                  operator: Equals
+                  value: false
+                - key: "{{ regex_match('^harbor-core\\.harbor-system\\.svc\\.cluster\\.local.*', element.image) }}"
+                  operator: Equals
+                  value: false
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - name: "{{ element.name }}"
+                    image: "891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/{{ element.image }}"

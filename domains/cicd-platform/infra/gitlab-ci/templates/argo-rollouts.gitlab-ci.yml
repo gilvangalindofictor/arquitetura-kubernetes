@@ -37,7 +37,7 @@
 # ============================================================================
 .deploy-analysis-templates:
   stage: deploy
-  image: bitnami/kubectl:latest
+  image: bitnami/kubectl:1.29
   variables:
     ANALYSIS_TEMPLATES_PATH: domains/apps/manifests/analysis-templates
   script:
@@ -58,7 +58,7 @@
 rollout-deploy:
   stage: deploy
   # Official Argo Rollouts kubectl plugin image
-  image: argoproj/kubectl-argo-rollouts:latest
+  image: argoproj/kubectl-argo-rollouts:v1.7.2
   variables:
     # Default timeout: 5 minutes
     ROLLOUT_TIMEOUT: "300"
@@ -120,7 +120,7 @@ rollout-deploy:
 # ============================================================================
 rollout-verify:
   stage: verify
-  image: argoproj/kubectl-argo-rollouts:latest
+  image: argoproj/kubectl-argo-rollouts:v1.7.2
   needs:
     - rollout-deploy
   variables:
@@ -172,7 +172,7 @@ rollout-verify:
 # ============================================================================
 rollout-promote:
   stage: promote
-  image: argoproj/kubectl-argo-rollouts:latest
+  image: argoproj/kubectl-argo-rollouts:v1.7.2
   needs:
     - rollout-verify
   when: manual  # Requires human approval in GitLab UI
@@ -210,7 +210,7 @@ rollout-promote:
 # ============================================================================
 rollout-abort:
   stage: promote
-  image: argoproj/kubectl-argo-rollouts:latest
+  image: argoproj/kubectl-argo-rollouts:v1.7.2
   when: manual
   allow_failure: true  # Abort may fail if no rollout is in progress
   before_script:

@@ -133,12 +133,19 @@ data "aws_iam_policy_document" "vault_assume_role" {
   }
 }
 
+locals {
+  # iam_name: if iam_name_override is set, use it (brownfield — role pre-exists without env prefix).
+  # Otherwise use the standard formula with environment prefix (ADR-050: avoid name collision when
+  # staging and prod share the same EKS cluster). See variables.tf for details.
+  iam_name = var.iam_name_override != "" ? var.iam_name_override : "VaultIRSA-${var.environment}-${var.cluster_name}"
+}
+
 resource "aws_iam_role" "vault" {
-  name               = "VaultIRSA-${var.cluster_name}"
+  name               = local.iam_name
   assume_role_policy = data.aws_iam_policy_document.vault_assume_role.json
 
   tags = merge(var.common_tags, {
-    Name                     = "VaultIRSA-${var.cluster_name}"
+    Name                     = local.iam_name
     "app.kubernetes.io/name" = "vault"
   })
 }
@@ -172,12 +179,12 @@ data "aws_iam_policy_document" "vault_permissions" {
 }
 
 resource "aws_iam_policy" "vault" {
-  name        = "VaultIRSA-${var.cluster_name}"
+  name        = local.iam_name
   description = "IAM policy for Vault IRSA (KMS auto-unseal + S3 snapshots)"
   policy      = data.aws_iam_policy_document.vault_permissions.json
 
   tags = merge(var.common_tags, {
-    Name                     = "VaultIRSA-${var.cluster_name}"
+    Name                     = local.iam_name
     "app.kubernetes.io/name" = "vault"
   })
 }
@@ -235,21 +242,25 @@ resource "helm_release" "vault" {
   namespace  = kubernetes_namespace.vault.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {
-    environment        = var.environment
-    cluster_name       = var.cluster_name
-    namespace          = var.namespace
-    replicas           = var.replicas
-    kms_key_id         = aws_kms_key.vault_unseal.id
-    aws_region         = var.aws_region
-    service_account    = kubernetes_service_account.vault.metadata[0].name
-    storage_class      = var.storage_class
-    pvc_size           = var.pvc_size
-    enable_monitoring  = var.enable_monitoring
-    tolerations        = var.tolerations
-    injector_enabled   = var.injector_enabled
-    ingress_enabled    = var.ingress_enabled
-    ingress_host       = var.ingress_host
-    ingress_group_name = var.ingress_group_name
+    environment            = var.environment
+    cluster_name           = var.cluster_name
+    namespace              = var.namespace
+    replicas               = var.replicas
+    kms_key_id             = aws_kms_key.vault_unseal.id
+    aws_region             = var.aws_region
+    service_account        = kubernetes_service_account.vault.metadata[0].name
+    storage_class          = var.storage_class
+    pvc_size               = var.pvc_size
+    enable_monitoring      = var.enable_monitoring
+    tolerations            = var.tolerations
+    injector_enabled       = var.injector_enabled
+    ingress_enabled        = var.ingress_enabled
+    ingress_host           = var.ingress_host
+    ingress_extra_hosts    = var.ingress_extra_hosts
+    ingress_group_name     = var.ingress_group_name
+    ingress_certificate_arns = var.ingress_certificate_arns
+    ecr_registry           = var.ecr_registry
+    helm_release_name      = var.helm_release_name
   })]
 
   depends_on = [

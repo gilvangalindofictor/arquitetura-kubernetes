@@ -29,9 +29,10 @@ resource "helm_release" "promtail" {
     enable_service_monitor    = var.enable_service_monitor
     service_monitor_namespace = var.namespace
     service_monitor_labels    = var.service_monitor_labels
-    domain      = var.domain
-    owner       = var.owner
-    environment = var.environment
+    domain       = var.domain
+    owner        = var.owner
+    environment  = var.environment
+    ecr_registry = var.ecr_registry
   })]
 
   # ---------------------------------------------------------------------------

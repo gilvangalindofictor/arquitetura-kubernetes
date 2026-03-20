@@ -4,7 +4,7 @@
 replicaCount: ${replicas}  # Community Edition: 1 only
 
 image:
-  repository: sonarqube
+  repository: "${ecr_registry != "" ? "${ecr_registry}/docker-hub/library/sonarqube" : "sonarqube"}"
   tag: 10.3.0-community
   pullPolicy: IfNotPresent
 

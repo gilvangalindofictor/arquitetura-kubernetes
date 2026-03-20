@@ -224,6 +224,7 @@ resource "helm_release" "loki" {
   chart      = "loki"
   version    = var.chart_version
   namespace  = var.namespace
+  timeout    = 900 # 15min — prevent context deadline exceeded on large WAL flushes
 
   # -----------------------------------------------------------------------------
   # Deployment Mode: SimpleScalable
@@ -494,9 +495,11 @@ resource "helm_release" "loki" {
     value = "100m"
   }
 
+  # Memory increased 2026-03-20: OOMKilled during WAL recovery after 11h IRSA outage.
+  # WAL accumulated 5.3G; flush to S3 required more memory than original 512Mi limit.
   set {
     name  = "write.resources.requests.memory"
-    value = "256Mi"
+    value = "2Gi"
   }
 
   set {
@@ -506,7 +509,7 @@ resource "helm_release" "loki" {
 
   set {
     name  = "write.resources.limits.memory"
-    value = "512Mi"
+    value = "2Gi"
   }
 
   set {
@@ -914,6 +917,44 @@ resource "helm_release" "loki" {
   set {
     name  = "commonLabels.managed-by"
     value = "helm"
+  }
+
+  # -----------------------------------------------------------------------------
+  # ECR Pull-Through Cache — Override image registries (GAP-SEC-REGISTRY-03)
+  # Loki chart uses docker.io/grafana/loki by default
+  # Gateway uses docker.io/nginxinc/nginx-unprivileged
+  # Memcached uses docker.io/memcached
+  # -----------------------------------------------------------------------------
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "loki.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "loki.image.repository"
+      value = "docker-hub/grafana/loki"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "gateway.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "gateway.image.repository"
+      value = "docker-hub/nginxinc/nginx-unprivileged"
+    }
   }
 
   # -----------------------------------------------------------------------------

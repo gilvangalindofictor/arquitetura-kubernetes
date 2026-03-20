@@ -4,6 +4,12 @@
 # Chart: codecentric/keycloakx (avoid Bitnami $72k/yr Tanzu license)
 # -----------------------------------------------------------------------------
 
+# ECR Pull-Through Cache: override default image from quay.io/keycloak/keycloak
+%{ if ecr_registry != "" }
+image:
+  repository: ${ecr_registry}/quay/keycloak/keycloak
+%{ endif }
+
 # Replica count (HA enabled)
 replicas: ${replicas}
 
@@ -35,7 +41,7 @@ command:
 # Wait for PostgreSQL before starting Keycloak (FinOps startup race condition)
 extraInitContainers: |
   - name: wait-for-db
-    image: busybox:1.36
+    image: ${ecr_registry != "" ? "${ecr_registry}/docker-hub/library/busybox:1.36" : "busybox:1.36"}
     command:
       - sh
       - -c

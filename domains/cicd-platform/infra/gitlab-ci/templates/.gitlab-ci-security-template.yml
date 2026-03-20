@@ -19,8 +19,8 @@ variables:
   # Scanner versions
   SONARQUBE_SCANNER_VERSION: "5.0"
   TRIVY_VERSION: "0.50.0"
-  OWASP_DC_VERSION: "latest"
-  TRUFFLEHOG_VERSION: "latest"
+  OWASP_DC_VERSION: "11.1.0"
+  TRUFFLEHOG_VERSION: "3.82.6"
 
   # SonarQube configuration
   SONAR_HOST_URL: "http://sonarqube.sonarqube.svc.cluster.local:9000"

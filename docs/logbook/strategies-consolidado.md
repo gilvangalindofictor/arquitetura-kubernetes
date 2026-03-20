@@ -10,6 +10,63 @@ Formato de cada entrada:
 
 ---
 
+## 2026-03-19 — ECR Pull-Through Cache: Registry Hibrido
+
+**Tipo:** Registry Cache Architecture
+
+**Contexto:** Docker Hub rate limit (429) afetando 30 imagens / 48 pods em ImagePullBackOff. Mesa tecnica com 3 agentes (AWS, Security, SRE) convocada para avaliar arquitetura de registry. Harbor-only rejeitado por 3 bloqueadores arquiteturais. Modelo hibrido aceito com ECR Public Gallery como upstream (sem Docker Hub).
+
+**Padrao que funcionou:**
+
+```text
+Mesa Tecnica (3 agentes) → Harbor-only REJEITADO → Modelo Hibrido → ECR Public (sem Docker Hub) → Modulo TF → Kyverno safety net
+```
+
+1. Avaliar Harbor-only com 3 agentes especialistas (AWS, Security, SRE)
+2. Identificar bloqueadores arquiteturais (DNS, bootstrap, SPOF)
+3. Decidir modelo hibrido com ECR Public (sem Docker Hub)
+4. Criar modulo TF parametrizado com 4 upstreams sem credenciais
+5. Rewrite gradual de imagens (menor risco primeiro)
+6. Kyverno MutatingPolicy como safety net
+
+**Artefatos:** modulo `modules/ecr-pull-through-cache/`, ADR-0XX, ADR-0YY
+
+**Referencias:**
+
+- logbook: `2026-03-19-ecr-pull-through-cache.md`
+
+---
+
+### Licao 18 — ECR Public Gallery elimina dependencia de Docker Hub
+
+**Problema:** ECR Pull-Through Cache para Docker Hub requer PAT (Personal Access Token) — bloqueador operacional.
+
+**Causa raiz:** Docker Hub exige autenticacao para pull-through cache rules. Gerar e manter PAT valido e overhead operacional (expiracao, rotacao, Secrets Manager).
+
+**Solucao:** Usar `public.ecr.aws` como upstream. AWS mantem mirror de todas Docker Official Library images. Vendors (HashiCorp, Grafana, Bitnami, etc) publicam diretamente no ECR Public. Zero credenciais, zero rate limit.
+
+**Regra geral:** Sempre preferir ECR Public Gallery sobre Docker Hub para pull-through cache. Zero credenciais, zero rate limit. Criar 4 rules sem credenciais: ecr-public, k8s (registry.k8s.io), quay, ghcr.
+
+---
+
+### Licao 19 — Harbor Proxy Cache: 3 bloqueadores arquiteturais para node-level mirror
+
+**Problema:** Tentativa de usar Harbor como unico registry (substituir ECR) para resolver Docker Hub rate limit.
+
+**Causa raiz:** 3 bloqueadores intransponiveis:
+
+1. containerd nao resolve DNS do cluster (`svc.cluster.local`) — roda no host, usa DNS do VPC
+2. Deadlock circular no bootstrap: Harbor precisa de imagens para subir, mas E a fonte de imagens
+3. SPOF: registry/jobservice single-replica sem PDB — outage do Harbor = outage de todos os pulls
+
+**Solucao:** Modelo hibrido — Harbor para custom images (builds internos, CI/CD artifacts), ECR Pull-Through Cache para imagens publicas (Docker Official Library, vendors).
+
+**Regra geral:** Harbor serve pods (via CoreDNS). ECR serve nodes (via DNS AWS). Nunca misturar papeis. Para node-level registry mirror, usar APENAS registries acessiveis via DNS do host: ECR, registries publicos, ou registries com IP fixo.
+
+**Anti-pattern:** Configurar Harbor Proxy Cache como `mirror` no containerd config do node. O node nao resolve DNS do CoreDNS do cluster.
+
+---
+
 ## 2026-03-05 — K8s Workload Deploy: Backstage IDP
 
 **Tipo:** K8s Workload Deploy (Backstage IDP)

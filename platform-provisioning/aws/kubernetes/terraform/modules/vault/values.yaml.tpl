@@ -27,7 +27,7 @@ injector:
 server:
   enabled: true
   image:
-    repository: "hashicorp/vault"
+    repository: "${ecr_registry != "" ? "${ecr_registry}/docker-hub/hashicorp/vault" : "hashicorp/vault"}"
     tag: "1.15.4"
     pullPolicy: IfNotPresent
 
@@ -78,11 +78,11 @@ server:
 %{ if replicas > 1 }
 %{ for i in range(replicas) ~}
           retry_join {
-            leader_api_addr = "http://vault-${i}.vault-internal:8200"
+            leader_api_addr = "http://${helm_release_name}-${i}.${helm_release_name}-internal:8200"
           }
 %{ endfor ~}
 %{ else }
-          # Single-node staging: no retry_join to avoid invalid cluster addresses
+          # Single-node: no retry_join to avoid invalid cluster addresses
 %{ endif }
         }
 
@@ -130,14 +130,21 @@ server:
       alb.ingress.kubernetes.io/scheme: internet-facing
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/backend-protocol: HTTP
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
       alb.ingress.kubernetes.io/healthcheck-path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
       alb.ingress.kubernetes.io/success-codes: "200,204"
       %{ if ingress_group_name != "" }alb.ingress.kubernetes.io/group.name: ${ingress_group_name}%{ endif }
+      %{ if length(ingress_certificate_arns) > 0 }alb.ingress.kubernetes.io/certificate-arn: ${join(",", ingress_certificate_arns)}%{ endif }
     hosts:
       - host: ${ingress_host}
         paths:
           - /
+%{ for extra_host in ingress_extra_hosts ~}
+      - host: ${extra_host}
+        paths:
+          - /
+%{ endfor ~}
   %{ endif }
 
   # Readiness/Liveness probes

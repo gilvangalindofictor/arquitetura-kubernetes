@@ -324,7 +324,7 @@ gitlab-runner:
       [[runners]]
         [runners.kubernetes]
           namespace = "staging-platform-gitlab"
-          image = "ubuntu:22.04"
+          image = "${ecr_registry != "" ? "${ecr_registry}/docker-hub/library/ubuntu:22.04" : "ubuntu:22.04"}"
           privileged = false
           cpu_request = "100m"
           memory_request = "256Mi"

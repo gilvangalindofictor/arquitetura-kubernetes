@@ -302,13 +302,17 @@ resource "kubernetes_ingress_v1" "rabbitmq_management" {
         "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
         "alb.ingress.kubernetes.io/target-type"      = "ip"
         "alb.ingress.kubernetes.io/backend-protocol" = "HTTP"
-        "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTP\":80}]"
+        "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTP\":80},{\"HTTPS\":443}]"
+        "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
         "alb.ingress.kubernetes.io/healthcheck-path" = "/"
         "alb.ingress.kubernetes.io/healthcheck-port" = "15672"
         "alb.ingress.kubernetes.io/success-codes"    = "200"
       },
       var.ingress_group_name != "" ? {
         "alb.ingress.kubernetes.io/group.name" = var.ingress_group_name
+      } : {},
+      length(var.ingress_certificate_arns) > 0 ? {
+        "alb.ingress.kubernetes.io/certificate-arn" = join(",", var.ingress_certificate_arns)
       } : {}
     )
   }
@@ -316,6 +320,7 @@ resource "kubernetes_ingress_v1" "rabbitmq_management" {
   spec {
     ingress_class_name = "alb"
 
+    # Primary host
     rule {
       host = var.ingress_host
 
@@ -329,6 +334,30 @@ resource "kubernetes_ingress_v1" "rabbitmq_management" {
               name = "${var.cluster_name}-rabbitmq"
               port {
                 number = 15672
+              }
+            }
+          }
+        }
+      }
+    }
+
+    # Extra hosts for dual-host DNS migration (Fase 7)
+    dynamic "rule" {
+      for_each = var.ingress_extra_hosts
+      content {
+        host = rule.value
+
+        http {
+          path {
+            path      = "/"
+            path_type = "Prefix"
+
+            backend {
+              service {
+                name = "${var.cluster_name}-rabbitmq"
+                port {
+                  number = 15672
+                }
               }
             }
           }

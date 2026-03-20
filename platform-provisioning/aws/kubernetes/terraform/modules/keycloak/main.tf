@@ -186,6 +186,7 @@ resource "helm_release" "keycloak" {
     environment          = var.environment
     keycloak_hostname    = var.keycloak_hostname
     monitoring_namespace = var.monitoring_namespace
+    ecr_registry         = var.ecr_registry
   })]
 
   depends_on = [

@@ -7,7 +7,7 @@ mode: deployment
 replicaCount: ${replicas}
 
 image:
-  repository: otel/opentelemetry-collector-contrib
+  repository: "${ecr_registry != "" ? "${ecr_registry}/docker-hub/otel/opentelemetry-collector-contrib" : "otel/opentelemetry-collector-contrib"}"
   tag: "0.108.0"
   pullPolicy: IfNotPresent
 

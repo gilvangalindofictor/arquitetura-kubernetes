@@ -1,3 +1,9 @@
+%{ if ecr_registry != "" }
+image:
+  registry: ${ecr_registry}
+  repository: docker-hub/grafana/promtail
+%{ endif }
+
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:

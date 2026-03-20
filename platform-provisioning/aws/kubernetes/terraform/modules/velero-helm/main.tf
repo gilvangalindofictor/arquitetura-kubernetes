@@ -14,8 +14,9 @@ resource "helm_release" "velero" {
   version    = var.chart_version
   namespace  = var.namespace
 
-  # Timeout: 300s matches deployed rev 11 (import baseline)
-  timeout          = 300
+  # Timeout: 600s — DaemonSet may have Pending pods on nodes with insufficient cpu
+  timeout          = 600
+  wait             = false
   create_namespace = false
 
   # -------------------------------------------------------------------------
@@ -32,7 +33,7 @@ resource "helm_release" "velero" {
       initContainers = [
         {
           name            = "velero-plugin-for-aws"
-          image           = "velero/velero-plugin-for-aws:${var.velero_plugin_aws_version}"
+          image           = var.ecr_registry != "" ? "${var.ecr_registry}/docker-hub/velero/velero-plugin-for-aws:${var.velero_plugin_aws_version}" : "velero/velero-plugin-for-aws:${var.velero_plugin_aws_version}"
           imagePullPolicy = "IfNotPresent"
           volumeMounts = [
             {
@@ -158,5 +159,14 @@ resource "helm_release" "velero" {
       schedules = {}
     })
   ]
+
+  # ECR Pull-Through Cache: override Velero server image repository
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "image.repository"
+      value = "${var.ecr_registry}/docker-hub/velero/velero"
+    }
+  }
 
 }
