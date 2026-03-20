@@ -2612,6 +2612,10 @@ module "waf_staging" {
   enable_geo_blocking = var.waf_enable_geo_blocking
   blocked_countries   = var.waf_blocked_countries
 
+  # IP allowlist — only office IPs can reach staging ALBs (default_action becomes BLOCK)
+  enable_ip_allowlist = true
+  office_ip_cidrs     = ["201.28.188.130/32"]
+
   # Managed rule groups (all enabled in staging to validate before production)
   enable_owasp_common_ruleset     = true
   enable_sqli_ruleset             = true

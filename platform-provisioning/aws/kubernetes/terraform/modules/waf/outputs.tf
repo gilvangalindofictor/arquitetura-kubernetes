@@ -80,6 +80,12 @@ output "waf_cloudwatch_metric_name" {
 output "waf_rules_summary" {
   description = "Summary map of active WAF rules and their configuration. Useful for auditing and documentation generation."
   value = {
+    ip_allowlist = {
+      enabled        = var.enable_ip_allowlist
+      priority       = 0
+      default_action = var.enable_ip_allowlist ? "BLOCK" : "ALLOW"
+      office_cidrs   = var.enable_ip_allowlist ? var.office_ip_cidrs : []
+    }
     rate_limit = {
       enabled  = true
       priority = 10
@@ -109,4 +115,18 @@ output "waf_rules_summary" {
       rule_set = "AWSManagedRulesKnownBadInputsRuleSet"
     }
   }
+}
+
+#------------------------------------------------------------------------------
+# IP Allowlist
+#------------------------------------------------------------------------------
+
+output "waf_ip_set_arn" {
+  description = "ARN of the office IP allowlist IP Set. Empty string when enable_ip_allowlist = false."
+  value       = var.enable_ip_allowlist ? aws_wafv2_ip_set.office_allowlist[0].arn : ""
+}
+
+output "waf_ip_set_id" {
+  description = "ID of the office IP allowlist IP Set. Empty string when enable_ip_allowlist = false."
+  value       = var.enable_ip_allowlist ? aws_wafv2_ip_set.office_allowlist[0].id : ""
 }

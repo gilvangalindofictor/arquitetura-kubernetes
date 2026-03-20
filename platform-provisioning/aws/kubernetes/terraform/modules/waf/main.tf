@@ -126,6 +126,27 @@ resource "aws_s3_bucket_policy" "waf_logs" {
 }
 
 # -----------------------------------------------------------------------------
+# IP Set — Office Allowlist (created when enable_ip_allowlist = true)
+# Contains static office IP CIDRs that are allowed to bypass the default BLOCK.
+# Used in conjunction with the AllowOfficeIP rule (priority 0).
+# -----------------------------------------------------------------------------
+
+resource "aws_wafv2_ip_set" "office_allowlist" {
+  count              = var.enable_ip_allowlist ? 1 : 0
+  name               = "${local.name_prefix}-office-allowlist"
+  description        = "Office IP addresses allowed to access platform services"
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = var.office_ip_cidrs
+
+  tags = merge(var.common_tags, {
+    Name    = "${local.name_prefix}-office-allowlist"
+    Purpose = "IP allowlist for office access"
+    Module  = "waf"
+  })
+}
+
+# -----------------------------------------------------------------------------
 # WAF v2 WebACL
 # Scope REGIONAL is required for ALB associations.
 # All rules use "override_action" when referencing ManagedRuleGroups so that
@@ -137,10 +158,47 @@ resource "aws_wafv2_web_acl" "main" {
   description = "GAP-010: WAF protection for iPaaS public ALB - ${var.environment}"
   scope       = "REGIONAL"
 
-  # Default action for requests that do NOT match any rule: ALLOW
-  # Rules below explicitly BLOCK matched traffic.
+  # Default action: BLOCK when IP allowlist is enabled (only office IPs pass),
+  # ALLOW when disabled (current behavior — all traffic passes unless matched by a rule).
   default_action {
-    allow {}
+    dynamic "allow" {
+      for_each = var.enable_ip_allowlist ? [] : [1]
+      content {}
+    }
+    dynamic "block" {
+      for_each = var.enable_ip_allowlist ? [1] : []
+      content {}
+    }
+  }
+
+  # ---------------------------------------------------------------------------
+  # Rule 0 — Office IP Allowlist (Priority 0 — evaluated FIRST)
+  # When enable_ip_allowlist = true, this rule ALLOWs traffic from office IPs
+  # before any other rule evaluates. All non-matching traffic falls through to
+  # managed rules and ultimately hits the default BLOCK action.
+  # ---------------------------------------------------------------------------
+  dynamic "rule" {
+    for_each = var.enable_ip_allowlist ? [1] : []
+    content {
+      name     = "AllowOfficeIP"
+      priority = 0
+
+      action {
+        allow {}
+      }
+
+      statement {
+        ip_set_reference_statement {
+          arn = aws_wafv2_ip_set.office_allowlist[0].arn
+        }
+      }
+
+      visibility_config {
+        cloudwatch_metrics_enabled = var.cloudwatch_metrics_enabled
+        metric_name                = "waf-office-allow-${var.environment}"
+        sampled_requests_enabled   = var.enable_sampled_requests
+      }
+    }
   }
 
   # ---------------------------------------------------------------------------

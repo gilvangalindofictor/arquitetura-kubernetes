@@ -163,3 +163,24 @@ variable "cloudwatch_metrics_enabled" {
   type        = bool
   default     = true
 }
+
+#------------------------------------------------------------------------------
+# IP Allowlist (Priority 0 — evaluated before all other rules)
+#------------------------------------------------------------------------------
+
+variable "enable_ip_allowlist" {
+  description = "Enable IP-based access restriction. When true, default_action becomes BLOCK and only office_ip_cidrs are ALLOWed (before managed rules). When false, default_action remains ALLOW (current behavior)."
+  type        = bool
+  default     = false
+}
+
+variable "office_ip_cidrs" {
+  description = "List of office IP CIDRs allowed access when enable_ip_allowlist is true. Example: [\"201.28.188.130/32\"]"
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.office_ip_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "All entries in office_ip_cidrs must be valid CIDR blocks (e.g., 201.28.188.130/32)."
+  }
+}
