@@ -447,5 +447,29 @@ A próxima evolução do Keycloak SSO é a federação com Microsoft Entra ID e 
 
 **Revision History**:
 
+- 2026-03-24: GitLab CE shared instance decision consolidated (see Complemento 2026-03-24)
 - 2026-02-11: Keycloak upgraded to 26.5.1 (WildFly → Quarkus), HA enabled, CVEs patched
 - 2026-02-06: Initial version (implementation complete)
+
+---
+
+## Complemento 2026-03-24 — GitLab CE Shared Instance
+
+**Referência**: DEC-2026-03-24-GITLAB
+
+**Decisão consolidada**: GitLab CE opera como instância compartilhada (1 única instância), managed no state staging.
+
+**Estrutura de grupos Keycloak:**
+
+- `alvocard-staging/` → usuários e permissões do ambiente staging
+- `alvocard-prod/` → usuários e permissões do ambiente produção
+
+**Runners GitLab**: dedicados por ambiente (não compartilhados entre staging e prod).
+
+**RBAC via Keycloak (roles mínimas)**:
+
+- `dev-staging`: acesso a projetos e pipelines staging
+- `dev-prod`: acesso read-only a projetos prod (deploy via ArgoCD)
+- `ops-lead`: acesso administrativo completo (ambos ambientes)
+
+**Nota**: A referência "ADR-046: GitLab CE único" no documento plano-ambiente-producao linha 129 estava associada incorretamente a este ADR (que trata de SSO/Keycloak). Esta seção consolida a decisão GitLab aqui por afinidade com a gestão de identidade.

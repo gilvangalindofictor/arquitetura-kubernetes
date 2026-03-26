@@ -23,6 +23,64 @@
 #     --query 'DBInstances[0].{SubnetGroup:DBSubnetGroup.DBSubnetGroupName,PubliclyAccessible:PubliclyAccessible,Subnets:DBSubnetGroup.Subnets[*].SubnetIdentifier}'
 # -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# BACEN BCB 85/2021 Art.6º §1º + LGPD Art.46 — Auditoria e Rastreabilidade
+# Parameter group com pgaudit habilitado para registro de DDL, roles e conexões.
+# IMPORTANTE: shared_preload_libraries usa apply_method="pending-reboot" — a
+# extensão só é carregada após reinicialização planejada na janela de manutenção.
+# Os demais parâmetros (log_connections, log_disconnections, pgaudit.log) são
+# apply_method="immediate" e entram em vigor assim que o parameter group é aplicado.
+# -----------------------------------------------------------------------------
+resource "aws_db_parameter_group" "pgaudit" {
+  name        = "${var.cluster_name}-postgresql-pgaudit"
+  family      = "postgres16"
+  description = "PostgreSQL 16 parameter group with pgaudit - BACEN BCB 85/2021 Art.6 Par.1 + LGPD Art.46"
+
+  # shared_preload_libraries: REQUER REBOOT para ativar pgaudit.
+  # apply_method="pending-reboot" garante que NÃO haverá reboot imediato durante apply.
+  # O reboot ocorrerá apenas na próxima janela de manutenção (sun:04:00-sun:05:00 UTC)
+  # ou manualmente via "aws rds reboot-db-instance".
+  parameter {
+    name         = "shared_preload_libraries"
+    value        = "pgaudit"
+    apply_method = "pending-reboot"
+  }
+
+  # Registra todas as conexões estabelecidas — rastreabilidade BACEN/LGPD
+  parameter {
+    name         = "log_connections"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  # Registra todas as desconexões — rastreabilidade BACEN/LGPD
+  parameter {
+    name         = "log_disconnections"
+    value        = "1"
+    apply_method = "immediate"
+  }
+
+  # Audita DDL (CREATE/DROP/ALTER) e alterações de roles — BACEN BCB 85/2021 rastreabilidade.
+  # Conexões são auditadas via log_connections/log_disconnections (parametros acima).
+  # "connection" nao e valor valido para pgaudit.log (use log_connections para isso).
+  # Ampliar para "ddl,role,read,write" apenas se exigido por auditoria BACEN.
+  parameter {
+    name         = "pgaudit.log"
+    value        = "ddl,role"
+    apply_method = "immediate"
+  }
+
+  tags = merge(var.common_tags, {
+    Name       = "${var.cluster_name}-postgresql-pgaudit"
+    Compliance = "BACEN-BCB85-2021 LGPD-Art46"
+    ManagedBy  = "terraform"
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Subnet Group for RDS (DT-001: Must use private subnets only)
 resource "aws_db_subnet_group" "postgresql" {
   name       = "${var.cluster_name}-postgresql"
@@ -122,6 +180,10 @@ resource "aws_db_instance" "postgresql" {
   vpc_security_group_ids = [aws_security_group.postgresql.id]
   publicly_accessible    = false # DT-001: Explicit deny public access (defense in depth)
 
+  # BACEN BCB 85/2021 Art.6º §1º: pgaudit parameter group — in-place update, sem replacement.
+  # shared_preload_libraries=pending-reboot: NÃO causa reboot imediato durante apply.
+  parameter_group_name = aws_db_parameter_group.pgaudit.name
+
   # Backups
   backup_retention_period = 7
   backup_window           = "03:00-04:00"
@@ -213,6 +275,35 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 #
 #   depends_on = [aws_db_instance.postgresql]
 # }
+
+# -----------------------------------------------------------------------------
+# CloudWatch Log Groups — RDS (Mesa Técnica CloudWatch 2026-03-24)
+# Gerencia retenção dos log groups RDS criados automaticamente pelo AWS.
+# Sem este resource, AWS cria com Never Expire → drift de custo crescente.
+# Import staging: terraform import 'module.postgresql_staging.aws_cloudwatch_log_group.rds_postgresql' '/aws/rds/instance/k8s-platform-prod-postgresql/postgresql'
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_log_group" "rds_postgresql" {
+  name              = "/aws/rds/instance/${aws_db_instance.postgresql.identifier}/postgresql"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(var.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.postgresql.identifier}/postgresql"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "rds_upgrade" {
+  name              = "/aws/rds/instance/${aws_db_instance.postgresql.identifier}/upgrade"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(var.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.postgresql.identifier}/upgrade"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
 
 # -----------------------------------------------------------------------------
 # Bootstrap Additional Databases (DISABLED - network connectivity issue)

@@ -24,20 +24,23 @@ terraform {
 # KMS Key for Vault Auto-Unseal
 # -----------------------------------------------------------------------------
 
+# GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
 resource "aws_kms_key" "vault_unseal" {
-  description             = "KMS key for Vault auto-unseal - ${var.cluster_name}"
+  description             = "KMS key for Vault auto-unseal - ${var.environment}-${var.cluster_name}"
   deletion_window_in_days = 10
   enable_key_rotation     = true
 
   tags = merge(var.common_tags, {
-    Name                     = "${var.cluster_name}-vault-unseal"
+    # GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
+    Name                     = "${var.environment}-${var.cluster_name}-vault-unseal"
     "app.kubernetes.io/name" = "vault"
     Purpose                  = "vault-auto-unseal"
   })
 }
 
+# GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
 resource "aws_kms_alias" "vault_unseal" {
-  name          = "alias/vault-unseal-${var.cluster_name}"
+  name          = "alias/vault-unseal-${var.environment}-${var.cluster_name}"
   target_key_id = aws_kms_key.vault_unseal.key_id
 }
 
@@ -45,8 +48,9 @@ resource "aws_kms_alias" "vault_unseal" {
 # S3 Bucket for Vault Snapshots
 # -----------------------------------------------------------------------------
 
+# GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
 resource "aws_s3_bucket" "vault_snapshots" {
-  bucket = "${var.cluster_name}-vault-snapshots-${var.aws_account_id}"
+  bucket = "${var.environment}-${var.cluster_name}-vault-snapshots-${var.aws_account_id}"
 
   tags = merge(var.common_tags, {
     Name                     = "${var.cluster_name}-vault-snapshots"
@@ -226,6 +230,10 @@ resource "kubernetes_service_account" "vault" {
     labels = merge(var.common_tags, {
       "app.kubernetes.io/name"     = "vault"
       "app.kubernetes.io/instance" = "${var.cluster_name}-vault"
+      "app.kubernetes.io/part-of"  = "k8s-platform"
+      "domain"                     = "platform"
+      "environment"                = var.environment
+      "owner"                      = "platform-team"
     })
   }
 }
@@ -253,6 +261,7 @@ resource "helm_release" "vault" {
     pvc_size               = var.pvc_size
     enable_monitoring      = var.enable_monitoring
     tolerations            = var.tolerations
+    node_selector          = var.node_selector
     injector_enabled       = var.injector_enabled
     ingress_enabled        = var.ingress_enabled
     ingress_host           = var.ingress_host
@@ -283,6 +292,10 @@ resource "kubernetes_config_map" "vault_init" {
     labels = merge(var.common_tags, {
       "app.kubernetes.io/name"     = "vault"
       "app.kubernetes.io/instance" = "${var.cluster_name}-vault"
+      "app.kubernetes.io/part-of"  = "k8s-platform"
+      "domain"                     = "platform"
+      "environment"                = var.environment
+      "owner"                      = "platform-team"
     })
   }
 

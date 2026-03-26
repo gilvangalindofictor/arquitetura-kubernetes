@@ -48,7 +48,8 @@ resource "aws_s3_bucket" "loki" {
       Name        = local.s3_bucket_name
       Component   = "loki"
       Marco       = "marco2"
-      Environment = "production"
+      # GAP-ARCH-014 (2026-03-23): substituido hardcoded "production" por var.environment
+      Environment = var.environment
       Service     = "logging"
       ManagedBy   = "terraform"
     }
@@ -121,10 +122,18 @@ data "aws_iam_policy_document" "loki_s3_policy" {
       "s3:DeleteObject"
     ]
 
-    resources = [
-      aws_s3_bucket.loki.arn,
-      "${aws_s3_bucket.loki.arn}/*"
-    ]
+    resources = concat(
+      [
+        aws_s3_bucket.loki.arn,
+        "${aws_s3_bucket.loki.arn}/*"
+      ],
+      flatten([
+        for arn in var.additional_s3_bucket_arns : [
+          arn,
+          "${arn}/*"
+        ]
+      ])
+    )
   }
 }
 
@@ -162,7 +171,10 @@ data "aws_iam_policy_document" "loki_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_provider_url}:sub"
-      values   = ["system:serviceaccount:${var.namespace}:${var.service_account_name}"]
+      values = concat(
+        ["system:serviceaccount:${var.namespace}:${var.service_account_name}"],
+        [for sa in var.additional_irsa_service_accounts : "system:serviceaccount:${sa}"]
+      )
     }
 
     condition {
@@ -490,6 +502,15 @@ resource "helm_release" "loki" {
     value = "observability"
   }
 
+  # GAP-SCHED-002 Phase 2: loki-write URGENTE — estava em critical nodes (t3.xlarge).
+  # Custo desnecessário; workload nodes (t3.large) têm capacidade suficiente.
+  # Rolling update ~2-3min, WAL salvo em PVC gp3 (WaitForFirstConsumer — ZERO data loss).
+  # Fix aplicado 2026-03-23. (ADR-042 pattern)
+  set {
+    name  = "write.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "workloads"
+  }
+
   set {
     name  = "write.resources.requests.cpu"
     value = "100m"
@@ -595,6 +616,15 @@ resource "helm_release" "loki" {
   set {
     name  = "backend.podLabels.app\\.kubernetes\\.io/part-of"
     value = "observability"
+  }
+
+  # GAP-SCHED-002 Phase 2: loki-backend pinned to workloads nodegroup.
+  # backend-0/1 em us-east-1b — 4 workload nodes disponíveis nessa AZ.
+  # Rolling update ~3-4min, PVC gp3 zone-pinned (NÃO node-pinned — ZERO data loss).
+  # Fix aplicado 2026-03-23. (ADR-042 pattern)
+  set {
+    name  = "backend.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "workloads"
   }
 
   set {
@@ -768,6 +798,18 @@ resource "helm_release" "loki" {
     value = "NoSchedule"
   }
 
+  # GAP-LOKI-GATEWAY-LOOP (2026-03-26): nginx resolver usava hostname em vez de IP.
+  # "host not found: kube-dns.kube-system.svc.cluster.local" causava 134+ CrashLoopBackOff.
+  # Fix: resolver deve apontar para o IP estático do kube-dns (172.20.0.10).
+  # valid=30s: nginx re-resolve DNS a cada 30s (previne cache stale após falhas DNS).
+  # NOTA: 172.20.0.10 é o IP padrão do kube-dns em clusters EKS (service CIDR 172.20.0.0/16).
+  # Se o cluster CIDR mudar, atualizar este valor. Verificar com:
+  # kubectl get svc kube-dns -n kube-system -o jsonpath='{.spec.clusterIP}'
+  set {
+    name  = "gateway.nginxConfig.resolver"
+    value = "172.20.0.10 valid=30s"
+  }
+
   # -----------------------------------------------------------------------------
   # Minio (Disable - using AWS S3)
   # -----------------------------------------------------------------------------
@@ -837,6 +879,15 @@ resource "helm_release" "loki" {
     value = "observability"
   }
 
+  # GAP-SCHED-001: loki-canary é canary test — NÃO deve rodar em system nodes.
+  # nodeSelector restringe o DaemonSet apenas ao nodegroup workloads,
+  # liberando os 6 slots de system nodes (t3.medium) para workloads críticos.
+  # Fix aplicado 2026-03-23. (ADR-042 pattern)
+  set {
+    name  = "lokiCanary.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "workloads"
+  }
+
   # -----------------------------------------------------------------------------
   # Chunks Cache (Memcached) - Corporate Labels (ADR-048)
   # Required by Kyverno: require-corporate-labels + validate-label-values
@@ -861,6 +912,24 @@ resource "helm_release" "loki" {
   set {
     name  = "chunksCache.podLabels.app\\.kubernetes\\.io/part-of"
     value = "observability"
+  }
+
+  # GAP-SCHED-002 Phase 2: chunksCache (Memcached) pinned to workloads nodegroup.
+  # loki-chunks-cache estava em AZ us-east-1b — workload nodes disponíveis (4x).
+  # Fix aplicado 2026-03-23. (ADR-042 pattern)
+  set {
+    name  = "chunksCache.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "workloads"
+  }
+
+  # GAP-FINOPS: right-size — default 500m, uso real ~4m (2026-03-23)
+  set {
+    name  = "chunksCache.resources.requests.cpu"
+    value = "50m"
+  }
+  set {
+    name  = "chunksCache.resources.limits.cpu"
+    value = "200m"
   }
 
   # chunksCache memory (IaC debt reconciliado 2026-03-06: drift corrigido)
@@ -893,6 +962,16 @@ resource "helm_release" "loki" {
   set {
     name  = "resultsCache.podLabels.app\\.kubernetes\\.io/part-of"
     value = "observability"
+  }
+
+  # GAP-FINOPS: right-size — default 500m, uso real ~5m (2026-03-23)
+  set {
+    name  = "resultsCache.resources.requests.cpu"
+    value = "50m"
+  }
+  set {
+    name  = "resultsCache.resources.limits.cpu"
+    value = "200m"
   }
 
   # -----------------------------------------------------------------------------
@@ -954,6 +1033,40 @@ resource "helm_release" "loki" {
     content {
       name  = "gateway.image.repository"
       value = "docker-hub/nginxinc/nginx-unprivileged"
+    }
+  }
+
+  # Memcached (chunksCache + resultsCache sub-charts) — ECR Pull-Through Cache
+  # docker.io/library/memcached → ECR docker-hub/library/memcached
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "chunksCache.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "chunksCache.image.repository"
+      value = "docker-hub/library/memcached"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "resultsCache.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "resultsCache.image.repository"
+      value = "docker-hub/library/memcached"
     }
   }
 

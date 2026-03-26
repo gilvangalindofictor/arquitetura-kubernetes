@@ -250,3 +250,27 @@ variable "waf_log_retention_days" {
   type        = number
   default     = 90
 }
+
+# ---------------------------------------------------------------------------
+# LOCAL PORT-FORWARD OVERRIDES — usadas apenas em TF runs locais via pg-tunnel
+# Remover após imports postgresql concluídos (2026-03-24)
+# ---------------------------------------------------------------------------
+
+variable "postgresql_host_override" {
+  description = "Override host do provider postgresql para runs locais via port-forward. Default null = usa RDS address (VPC-only)."
+  type        = string
+  default     = null
+}
+
+variable "postgresql_port_override" {
+  description = "Override porta do provider postgresql para runs locais via port-forward (ex: 5433). Default null = usa RDS port (5432)."
+  type        = number
+  default     = null
+}
+
+variable "master_password_override" {
+  description = "Override senha master do PostgreSQL para runs locais via port-forward. Default null = usa random_password gerado pelo TF."
+  type        = string
+  default     = null
+  sensitive   = true
+}

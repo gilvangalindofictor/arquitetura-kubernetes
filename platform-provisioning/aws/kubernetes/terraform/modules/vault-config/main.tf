@@ -139,6 +139,10 @@ resource "vault_jwt_auth_backend" "oidc" {
 }
 
 # Policy: vault-admin (platform admins — Keycloak group: vault-admins)
+# FIX-009 TODO: When implementing env isolation, change to:
+#   name   = "vault-admin-${var.environment}"
+#   policy = templatefile("${path.module}/vault_policies/vault-admin.hcl", { environment = var.environment })
+#   See vault-admin.hcl for full migration plan.
 resource "vault_policy" "vault_admin" {
   count  = var.oidc_enabled ? 1 : 0
   name   = "vault-admin"
@@ -146,6 +150,10 @@ resource "vault_policy" "vault_admin" {
 }
 
 # Policy: vault-reader (any authenticated Keycloak user)
+# FIX-009 TODO: When implementing env isolation, change to:
+#   name   = "vault-reader-${var.environment}"
+#   policy = templatefile("${path.module}/vault_policies/vault-reader.hcl", { environment = var.environment })
+#   See vault-reader.hcl for full migration plan.
 resource "vault_policy" "vault_reader" {
   count  = var.oidc_enabled ? 1 : 0
   name   = "vault-reader"
@@ -244,6 +252,13 @@ resource "vault_kv_secret_v2" "grafana_admin" {
     password = var.grafana_admin_password != "" ? var.grafana_admin_password : random_password.grafana_admin[0].result
   })
 
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents TF from overwriting
+  # Vault data on every plan when password was set via random_password or updated in Vault
+  # directly. Initial seed is handled by first apply; subsequent updates via Vault CLI.
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+
   custom_metadata {
     max_versions = 5
     data = {
@@ -313,6 +328,36 @@ resource "vault_kv_secret_v2" "sonarqube_postgresql" {
 }
 
 # -----------------------------------------------------------------------------
+# Vault KV v2 — GitLab PostgreSQL password
+# Vault path: secret/gitlab/postgresql-password
+# ESO ExternalSecret: gitlab-postgresql-password (modules/gitlab/main.tf)
+# FIX-GAP-GITLAB-WEBSERVICE-2026-03-24: This secret was previously only set
+# manually in Vault, causing drift between Vault and actual RDS credentials.
+# Password rotated outside TF (RDS recreated 2026-02-09); now codified as IaC.
+# Source of truth: var.gitlab_postgresql_password (injected from environments/staging)
+# Corresponding AWS SM: staging/postgresql/gitlab-password
+# -----------------------------------------------------------------------------
+resource "vault_kv_secret_v2" "gitlab_postgresql" {
+  count      = var.gitlab_postgresql_password != "" ? 1 : 0
+  mount      = vault_mount.kv.path
+  name       = "gitlab/postgresql-password"
+  depends_on = [vault_mount.kv]
+
+  data_json = jsonencode({
+    password = var.gitlab_postgresql_password
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "gitlab"
+      cluster    = var.cluster_name
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Vault KV v2 — Harbor PostgreSQL credentials
 # Vault path: secret/harbor/postgresql
 # ESO ExternalSecret: harbor-postgresql-credentials (modules/harbor/main.tf)
@@ -343,6 +388,13 @@ resource "vault_kv_secret_v2" "harbor_postgresql" {
 }
 
 # -----------------------------------------------------------------------------
+# GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes [data_json] prevents
+# drift when keycloak_postgresql_password is already set in secrets.auto.tfvars
+# and the Vault secret was already seeded. Without this, every terraform plan
+# triggers a "~ update in-place" because Vault provider re-reads the secret
+# and compares against the rendered jsonencode (even if the values are identical).
+# The orphaned random_password.keycloak_postgresql[0] state entry is removed via
+# terraform state rm (see GAP-TF-PASSWORD-DRIFT remediation notes).
 resource "vault_kv_secret_v2" "keycloak_postgresql" {
   mount      = vault_mount.kv.path
   name       = "keycloak/postgresql"
@@ -355,6 +407,10 @@ resource "vault_kv_secret_v2" "keycloak_postgresql" {
     port     = var.keycloak_postgresql_port
     database = var.keycloak_postgresql_database
   })
+
+  lifecycle {
+    ignore_changes = [data_json]
+  }
 
   custom_metadata {
     max_versions = 5
@@ -386,6 +442,12 @@ resource "vault_kv_secret_v2" "argocd_postgresql" {
     database = var.argocd_postgresql_database
   })
 
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents drift when password
+  # is already set in Vault (seeded on first apply, then managed via Vault CLI).
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+
   custom_metadata {
     max_versions = 5
     data = {
@@ -413,6 +475,12 @@ resource "vault_kv_secret_v2" "argocd_oidc" {
     client_id     = var.argocd_oidc_client_id
     client_secret = var.argocd_oidc_client_secret != "" ? var.argocd_oidc_client_secret : random_password.argocd_oidc[0].result
   })
+
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents drift when OIDC secret
+  # is already set in Vault (seeded on first apply, then managed via Vault CLI).
+  lifecycle {
+    ignore_changes = [data_json]
+  }
 
   custom_metadata {
     max_versions = 5
@@ -448,6 +516,12 @@ resource "vault_kv_secret_v2" "harbor_admin" {
     password = var.harbor_admin_password != "" ? var.harbor_admin_password : random_password.harbor_admin[0].result
   })
 
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents drift when Harbor admin
+  # password is already set in Vault (seeded on first apply, then managed via Vault CLI).
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+
   custom_metadata {
     max_versions = 5
     data = {
@@ -466,10 +540,12 @@ resource "vault_kv_secret_v2" "harbor_admin" {
 # Migration: data.kubernetes_secret.redis_password → Vault KV + ESO (2026-02-24)
 # -----------------------------------------------------------------------------
 resource "random_password" "harbor_redis" {
-  count            = var.harbor_redis_password == "" ? 1 : 0
-  length           = 32
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  count  = var.harbor_redis_password == "" ? 1 : 0
+  length = 32
+  # GAP-TRIVY-DNS (2026-03-24): special=false — Redis password is embedded in URL.
+  # Characters like <, >, %, +, * break URL parsing (net/url: invalid userinfo).
+  # Alphanumeric-only ensures the password is always URL-safe without manual encoding.
+  special = false
 }
 
 resource "vault_kv_secret_v2" "harbor_redis" {
@@ -481,6 +557,14 @@ resource "vault_kv_secret_v2" "harbor_redis" {
   data_json = jsonencode({
     password = var.harbor_redis_password != "" ? var.harbor_redis_password : random_password.harbor_redis[0].result
   })
+
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents drift when Harbor Redis
+  # password is already set in Vault (seeded on first apply, then managed via Vault CLI).
+  # harbor_redis_password is set in secrets.auto.tfvars; random_password.harbor_redis is
+  # orphaned in state and will be removed via terraform state rm.
+  lifecycle {
+    ignore_changes = [data_json]
+  }
 
   custom_metadata {
     max_versions = 5
@@ -516,6 +600,12 @@ resource "vault_kv_secret_v2" "keycloak_admin" {
     username = "admin"
     password = var.keycloak_admin_password != "" ? var.keycloak_admin_password : random_password.keycloak_admin[0].result
   })
+
+  # GAP-TF-PASSWORD-DRIFT (2026-03-26): ignore_changes prevents drift when Keycloak admin
+  # password is already set in Vault (seeded on first apply, then managed via Vault CLI).
+  lifecycle {
+    ignore_changes = [data_json]
+  }
 
   custom_metadata {
     max_versions = 5

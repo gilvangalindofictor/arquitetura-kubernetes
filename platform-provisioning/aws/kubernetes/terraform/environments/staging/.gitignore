@@ -1,0 +1,28 @@
+# =============================================================================
+# .gitignore — terraform/environments/staging
+# GAP-TF-006: Prevenção de credenciais em texto plano no repositório
+# =============================================================================
+#
+# PROBLEMA (GAP-TF-006): secrets.auto.tfvars continha vault_root_token e
+# docker_hub_access_token em texto plano. Estes valores devem ser injetados
+# via TF_VAR_* usando o script: scripts/export-tf-vars.sh
+#
+# Ver: platform-provisioning/aws/kubernetes/terraform/scripts/export-tf-vars.sh
+
+# Arquivos de secrets Terraform (NUNCA commitar)
+secrets.auto.tfvars
+*.auto.tfvars
+
+# Planos e states locais
+*.tfplan
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan-*
+
+# Diretório de providers (grande demais para o repo)
+.terraform/
+.terraform.lock.hcl
+
+# terraform.tfvars: PERMITIDO apenas se não contiver secrets
+# (usar somente para defaults não-sensíveis de ambiente)

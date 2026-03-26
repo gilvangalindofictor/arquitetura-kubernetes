@@ -113,6 +113,20 @@ variable "alertmanager_storage_size" {
   default     = "2Gi"
 }
 
+# GAP-OBS-ALERTING-001: Webhook URL para receiver genérico do Alertmanager.
+# Aceita qualquer HTTP endpoint (Slack incoming webhook, Teams, PagerDuty, custom).
+# Default vazio = AlertmanagerConfig NÃO é criado (safe default — sem spam em ambientes sem canal configurado).
+# Ativar: passar a URL na chamada do módulo:
+#   alertmanager_webhook_url = "https://hooks.slack.com/services/..."  # Slack
+#   alertmanager_webhook_url = "https://...webhook.office.com/..."     # Teams
+#   alertmanager_webhook_url = var.alertmanager_webhook_url            # via TF_VAR_alertmanager_webhook_url
+variable "alertmanager_webhook_url" {
+  description = "URL do webhook para receiver do Alertmanager (Slack, Teams, PagerDuty ou qualquer HTTP endpoint). Vazio = AlertmanagerConfig não criado."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # -----------------------------------------------------------------------------
 # Corporate Labels (ADR-048)
 # -----------------------------------------------------------------------------
@@ -133,6 +147,14 @@ variable "environment" {
   description = "Environment label para identificar ambiente (staging/production)"
   type        = string
   default     = "staging"
+}
+
+# GAP-SEC-ESO-001 (FIX-006): CSS name parametrizado para isolar staging/prod.
+# Default "vault-backend" mantém backward compatibility. Para prod: "vault-backend-prod".
+variable "secret_store_name" {
+  description = "ClusterSecretStore name for ExternalSecret references. Use module.external_secrets.cluster_secret_store_name output."
+  type        = string
+  default     = "vault-backend"
 }
 
 # ECR Pull-Through Cache

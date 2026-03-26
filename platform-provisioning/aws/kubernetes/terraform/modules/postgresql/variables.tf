@@ -66,6 +66,12 @@ variable "postgresql_host_override" {
   default     = null
 }
 
+variable "postgresql_port_override" {
+  description = "Override for the PostgreSQL provider port (used for local TF runs via port-forward on non-default port). Default null = use aws_db_instance.postgresql.port (5432)."
+  type        = number
+  default     = null
+}
+
 variable "additional_databases" {
   description = "List of additional databases to create (with user/password)"
   type = list(object({
@@ -98,4 +104,10 @@ variable "environment" {
   description = "Environment name used as prefix for Secrets Manager secret names (e.g. staging, prod)"
   type        = string
   default     = "staging" # Backward compatible: existing staging deployments work without changes
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log group retention in days for RDS logs (postgresql, upgrade). Default 14d — Mesa Técnica CloudWatch 2026-03-24."
+  type        = number
+  default     = 14
 }

@@ -1,0 +1,23 @@
+# -----------------------------------------------------------------------------
+# External DNS Module - Provider Version Constraints
+# Fase 5: DNS automation for EKS services via Route53
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.5"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.20"
+    }
+  }
+}

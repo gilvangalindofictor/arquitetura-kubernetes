@@ -3,6 +3,11 @@
 
 replicaCount: ${replicas}  # Community Edition: 1 only
 
+# Node scheduling: workloads nodegroup (t3.large) — evita system nodegroup (t3.medium)
+# GAP-SCHED-002 2026-03-23: migrado de system→workloads via kubectl patch + codificado aqui
+nodeSelector:
+  eks.amazonaws.com/nodegroup: workloads
+
 image:
   repository: "${ecr_registry != "" ? "${ecr_registry}/docker-hub/library/sonarqube" : "sonarqube"}"
   tag: 10.3.0-community

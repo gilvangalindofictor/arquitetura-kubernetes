@@ -176,6 +176,14 @@ server:
   %{ endfor }
   %{ endif }
 
+  # Node Selector — GAP-SCHED-002: pin vault-prod pods to workload nodes
+  %{ if length(node_selector) > 0 }
+  nodeSelector:
+  %{ for k, v in node_selector }
+    ${k}: ${v}
+  %{ endfor }
+  %{ endif }
+
   # Annotations for monitoring
   %{ if enable_monitoring }
   annotations:

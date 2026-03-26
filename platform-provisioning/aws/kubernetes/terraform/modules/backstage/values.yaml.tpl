@@ -23,6 +23,11 @@ backstage:
   # NOTA: chart 2.6.3+ renomeou replicaCount → replicas
   replicas: 2
 
+  # GAP-SCHED-001: route to workload nodes (t3.large) — free system nodes (t3.medium)
+  # Label eks.amazonaws.com/nodegroup=workloads confirmed on workloads node group (2026-03-23)
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: workloads
+
   image:
     registry: ${image_registry}
     repository: platform/backstage

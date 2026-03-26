@@ -107,6 +107,15 @@ logs/
 # ------------------------------------------------------------------------------
 # Credentials e Secrets (NUNCA commitar!)
 # ------------------------------------------------------------------------------
+# GAP-TF-006: secrets.auto.tfvars contém tokens Vault e PATs Docker Hub em texto plano.
+# Substituir por TF_VAR_* via script export-tf-vars.sh (ver scripts/export-tf-vars.sh)
+# Regra geral *.tfvars (linha 12) já cobre estes arquivos; entradas abaixo são explícitas
+# como defesa em profundidade.
+secrets.auto.tfvars
+**/secrets.auto.tfvars
+*.auto.tfvars
+# terraform.tfvars é permitido (não deve conter secrets — apenas defaults não-sensíveis)
+!terraform.tfvars.example
 credentials.json
 credentials.yaml
 **/credentials/

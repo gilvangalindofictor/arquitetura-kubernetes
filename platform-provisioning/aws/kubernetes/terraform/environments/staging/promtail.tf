@@ -17,8 +17,9 @@ module "promtail_staging" {
   loki_url      = "http://loki-gateway.staging-observability-monitoring.svc.cluster.local"
   loki_tenant_id = ""
 
-  # Resources capturados do helm release atual (rev 8)
-  resources_requests_cpu    = "50m"
+  # Resources — CPU request reduzido 50m->10m (INC-2026-03-25 promtail Pending
+  # em 3 workload nodes t3.large saturados 97-99% CPU requests)
+  resources_requests_cpu    = "10m"
   resources_requests_memory = "64Mi"
   resources_limits_cpu      = "200m"
   resources_limits_memory   = "128Mi"

@@ -149,6 +149,12 @@ variable "workload_timeout_sec" {
   default     = 480
 }
 
+variable "linkerd_timeout_sec" {
+  description = "Seconds to wait for Linkerd control plane (destination, identity, proxy-injector) to become Ready in Step 5 health check"
+  type        = number
+  default     = 480
+}
+
 variable "lambda_runtime" {
   description = "Lambda Python runtime version"
   type        = string
@@ -169,8 +175,8 @@ variable "node_groups_config" {
   default = {
     system = {
       min_size     = 2
-      desired_size = 3  # startup target (autoscaler manages live desired; node-groups.tf max=6)
-      max_size     = 6  # aligned with node-groups.tf (was 4, increased 2026-03-05)
+      desired_size = 3  # startup target (autoscaler manages live desired; node-groups.tf max=4)
+      max_size     = 4  # aligned with node-groups.tf (reduced 6→4 on 2026-03-23, GAP-FINOPS-002)
     }
     workloads = {
       min_size     = 0  # allows scale-to-zero on shutdown (was 2)
@@ -248,6 +254,22 @@ variable "startup_duration_threshold" {
 }
 
 # -----------------------------------------------------------------------------
+# CNI Token Renewal CronJob
+# -----------------------------------------------------------------------------
+
+variable "cni_renewer_image" {
+  description = <<-EOT
+    Imagem do container para o CronJob linkerd-cni-token-renewal.
+    GAP-IMAGE-001 (2026-03-25): imagem original 'bitnami/kubectl:1.28' (DockerHub)
+    causa pull failure em clusters sem acesso direto ao DockerHub.
+    Usar mirror ECR publico: 'public.ecr.aws/bitnami/kubectl:1.28'.
+    Codificado como variavel para permitir override sem alterar o modulo.
+  EOT
+  type        = string
+  default     = "public.ecr.aws/bitnami/kubectl:1.28"
+}
+
+# -----------------------------------------------------------------------------
 # Tags (Base + Security)
 # -----------------------------------------------------------------------------
 
@@ -318,6 +340,8 @@ locals {
     NODE_GROUP_NAMES          = join(",", keys(var.node_groups_config))
     # Health check timeouts — gitlab-webservice needs >300s to become Ready from cold start
     WORKLOAD_TIMEOUT_SEC      = tostring(var.workload_timeout_sec)
+    # Linkerd control plane timeout — destination can take >300s on cold cluster start (GAP-LINKERD-01, 2026-03-20)
+    LINKERD_TIMEOUT_SEC       = tostring(var.linkerd_timeout_sec)
   }
 }
 

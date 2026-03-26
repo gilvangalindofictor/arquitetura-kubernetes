@@ -124,7 +124,7 @@ resource "aws_cloudwatch_log_group" "lambda_start" {
 
 resource "aws_cloudwatch_log_group" "lambda_stop" {
   name              = "/aws/lambda/finops-scheduler-stop-${var.environment}"
-  retention_in_days = 14
+  retention_in_days = 7 # Mesa Técnica CloudWatch 2026-03-24: reduzido 14→7d (stop logs têm baixo valor histórico)
   # KMS encryption removed - operational logs don't require KMS
 
   tags = local.security_tags

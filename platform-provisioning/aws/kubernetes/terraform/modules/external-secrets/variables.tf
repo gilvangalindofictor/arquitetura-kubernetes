@@ -54,6 +54,15 @@ variable "common_tags" {
   default     = {}
 }
 
+# GAP-SEC-ESO-001 (2026-03-23): CSS name parametrizado para isolar staging/prod.
+# Default "vault-backend" mantém backward compatibility com staging existente.
+# Para prod: passar cluster_secret_store_name = "vault-backend-prod"
+variable "cluster_secret_store_name" {
+  description = "Name for the ClusterSecretStore resource (Vault backend). Use 'vault-backend-{env}' per environment."
+  type        = string
+  default     = "vault-backend"
+}
+
 # ECR Pull-Through Cache
 variable "ecr_registry" {
   description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."

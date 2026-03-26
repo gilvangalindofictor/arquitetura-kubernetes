@@ -239,6 +239,22 @@ resource "helm_release" "linkerd_control_plane" {
       ${k}: "${v}"
       %{~endfor~}
 
+    # GAP-TOLERATION-001 (2026-03-25): Tolerations para system nodes com taint.
+    # Patch manual aplicado em 2026-03-25 reverteria no proximo helm upgrade.
+    # Codificado aqui para zero drift (executor-terraform.md: modificacao direta → IaC).
+    # Sem tolerations: control plane nao agenda em nodes com taints nao tolerados.
+    %{~if length(var.control_plane_tolerations) > 0~}
+    tolerations:
+      %{~for t in var.control_plane_tolerations~}
+      - key: "${t.key}"
+        operator: "${t.operator}"
+        %{~if t.value != ""~}
+        value: "${t.value}"
+        %{~endif~}
+        effect: "${t.effect}"
+      %{~endfor~}
+    %{~endif~}
+
     # MITIGACAO 2 — PodDisruptionBudget via flag nativa do chart
     # Garante minAvailable=1 para identity, destination e proxy-injector.
     # Previne que operacoes de manutencao (drain/upgrade de no) derrubem o CP inteiro.

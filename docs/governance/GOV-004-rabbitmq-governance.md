@@ -10,7 +10,13 @@
 
 ## Visão Geral
 
-RabbitMQ é provisionado via **RabbitMQ Cluster Operator** no namespace `data-services`.
+> **Nota 2026-03-24 — Topologia 2 Clusters**: Adotada arquitetura de 2 clusters RabbitMQ independentes (DEC-2026-03-24-RABBITMQ). Esta decisão supera qualquer menção a VHosts compartilhados neste documento. Ver ADR-062 Revisão 2026-03-24 para detalhes completos da decisão.
+
+RabbitMQ é provisionado via **RabbitMQ Cluster Operator** com 2 clusters independentes:
+
+- `staging-data-infrastructure` (namespace: `staging-data-infrastructure`)
+- `prod-data-rabbitmq` (namespace: `prod-data-infrastructure`)
+
 Utilizado para messaging assíncrono: pub/sub, work queues, event-driven architecture.
 
 ---

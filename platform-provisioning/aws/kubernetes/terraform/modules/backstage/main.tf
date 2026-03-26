@@ -538,7 +538,7 @@ resource "kubectl_manifest" "backstage_externalsecret" {
     spec:
       refreshInterval: 1h
       secretStoreRef:
-        name: vault-backend
+        name: ${var.secret_store_name}
         kind: ClusterSecretStore
       target:
         name: backstage-secrets

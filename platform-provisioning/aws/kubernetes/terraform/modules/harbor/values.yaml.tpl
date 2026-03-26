@@ -120,9 +120,18 @@ jobservice:
   replicas: 1  # FIXED: RWO PVC doesn't support multiple replicas (ADR-039)
   strategy:
     type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
+  # GAP-HARBOR-JOBSERVICE-LOOP (2026-03-26): jobservice crashava (138x, exit code 2) com
+  # "connect: connection refused" para harbor-core durante startup. Causa raiz: harbor-core
+  # em rolling update — janela onde 0 pods estavam ready. O jobservice tenta GET em
+  # http://harbor-core:80/api/v2.0/internalconfig ANTES de subir o servidor HTTP,
+  # portanto startupProbe/livenessProbe (delay=300s) NÃO protege este crash.
+  # Harbor chart v1.18.x nao expoe initContainer configuravel para aguardar harbor-core.
+  # MITIGACAO: harbor-core mantido em replicas=2 + RollingUpdate para manter >=1 pod ready.
+  # ESTABILIZACAO: 2026-03-26 07:45 UTC-3 — harbor-core stable 2/2 → jobservice estavel 167min.
   podAnnotations:
-    # Linkerd: jobservice connects to harbor-core:80 (HTTP) — skip to avoid 504 via sidecar (incident 2026-03-17)
-    config.linkerd.io/skip-outbound-ports: "80"
+    # Linkerd: jobservice connects to harbor-core:80 (HTTP) and Redis:6379 (job queue)
+    # Redis (prod-data-infrastructure) is outside the mesh — skip both ports to avoid mTLS interception
+    config.linkerd.io/skip-outbound-ports: "80,6379"
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)
@@ -147,6 +156,9 @@ registry:
   serviceAccountName: ${service_account}
   strategy:
     type: Recreate  # ADR-044: RWO PVC requires Recreate to avoid attach conflict
+  podAnnotations:
+    # Linkerd: registry connects to Redis:6379 for layer cache (prod-data-infrastructure — outside mesh)
+    config.linkerd.io/skip-outbound-ports: "6379"
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)
@@ -178,6 +190,8 @@ registry:
 
 portal:
   replicas: 2
+  # Linkerd: portal is a static Nginx server (serves /index.html only) — no outbound connections
+  # to external services. No skip-outbound-ports required. mTLS covers inbound traffic after injection.
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)
@@ -204,6 +218,10 @@ trivy:
     enabled: true
     storageClass: ${storage_class}
     size: 5Gi
+  podAnnotations:
+    # Linkerd: trivy connects to Redis:6379 for scan cache, store, and job queue
+    # Redis (prod-data-infrastructure) is outside the mesh — skip to avoid mTLS interception
+    config.linkerd.io/skip-outbound-ports: "6379"
   podLabels:
     domain: platform
     # ADR-048: Kyverno label enforcement (2026-03-04)
@@ -223,6 +241,12 @@ trivy:
       operator: Equal
       value: critical
       effect: NoSchedule
+
+exporter:
+  podAnnotations:
+    # Linkerd: exporter connects to PostgreSQL:5432 (RDS external) and Redis:6379 (prod-data-infrastructure — outside mesh)
+    # harbor-core:80 is intra-cluster HTTP — will be covered by mTLS after injection (no skip needed)
+    config.linkerd.io/skip-outbound-ports: "5432,6379"
 
 metrics:
   enabled: ${enable_monitoring}

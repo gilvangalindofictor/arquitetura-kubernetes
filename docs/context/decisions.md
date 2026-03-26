@@ -7599,7 +7599,33 @@ resource "helm_release" "rabbitmq" {
 
 ---
 
+---
+
+## DEC-2026-03-24-RABBITMQ
+
+**Data**: 2026-03-24
+**Decisão**: RabbitMQ = 2 clusters independentes (staging + prod)
+**Contexto**: Estratégia VHosts compartilhados descartada por blast radius e requisitos BACEN BCB 85/2021 de isolamento de ambientes.
+**Clusters**: `staging-data-infrastructure` (staging) + `prod-data-rabbitmq` (prod)
+**Referência**: ADR-062 Revisão 2026-03-24
+
+## DEC-2026-03-24-GITLAB
+
+**Data**: 2026-03-24
+**Decisão**: GitLab CE = 1 instância shared, managed no state staging; remover module.gitlab_staging
+**Contexto**: Simplificação operacional. GitLab serve ambos os ambientes com grupos Keycloak separados (alvocard-staging/, alvocard-prod/) e runners dedicados por ambiente.
+**Referência**: ADR-046 Complemento 2026-03-24
+
+## DEC-2026-03-24-RDS
+
+**Data**: 2026-03-24
+**Decisão**: RDS Multi-AZ = false agora; habilitar no go-live de produção
+**Contexto**: Defer de custo (FinOps). MultiAZ aumenta custo ~2x. Aceitar risco de downtime em staging. Habilitar Multi-AZ como gate do go-live de produção.
+**Impacto**: Drift TF corrigido em environments/prod/main.tf (multi_az=false).
+
+---
+
 **Total ADRs:** 71 (DEC-001 a DEC-071)
-**Última Atualização:** 2026-02-20 20:15
+**Última Atualização:** 2026-03-24 (Mesa Técnica — D1 RDS, D2 RabbitMQ, D3 GitLab homologadas)
 **Próximo ADR:** DEC-072 (TBD)
 

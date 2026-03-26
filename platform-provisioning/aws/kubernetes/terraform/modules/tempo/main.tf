@@ -128,10 +128,18 @@ data "aws_iam_policy_document" "tempo_s3_policy" {
       "s3:DeleteObject"
     ]
 
-    resources = [
-      aws_s3_bucket.tempo.arn,
-      "${aws_s3_bucket.tempo.arn}/*"
-    ]
+    resources = concat(
+      [
+        aws_s3_bucket.tempo.arn,
+        "${aws_s3_bucket.tempo.arn}/*"
+      ],
+      flatten([
+        for arn in var.additional_s3_bucket_arns : [
+          arn,
+          "${arn}/*"
+        ]
+      ])
+    )
   }
 }
 
@@ -170,7 +178,10 @@ data "aws_iam_policy_document" "tempo_assume_role_policy" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_provider_url}:sub"
-      values   = ["system:serviceaccount:${var.namespace}:${var.service_account_name}"]
+      values = concat(
+        ["system:serviceaccount:${var.namespace}:${var.service_account_name}"],
+        [for sa in var.additional_irsa_service_accounts : "system:serviceaccount:${sa}"]
+      )
     }
 
     condition {
@@ -319,11 +330,55 @@ resource "helm_release" "tempo" {
     value = var.distributor_replicas
   }
 
-  # Corporate Labels - Distributor Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "distributor.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
-  }
+  # Corporate Labels — ALL components (ADR-048 — Kyverno Compliance)
+  # PADRÃO DO PROJETO: values YAML (NÃO set blocks) para labels com dots
+  # Causa raiz GAP-OBS-003: set blocks com dots escapados não são armazenados
+  # corretamente no Helm secret — desaparecem em rollbacks (2026-03-21).
+  values = [<<-YAML
+    distributor:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    ingester:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    querier:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    queryFrontend:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    compactor:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    memcached:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+    gateway:
+      podLabels:
+        app.kubernetes.io/part-of: observability
+        domain: ${var.corporate_label_domain}
+        environment: ${var.corporate_label_environment}
+        owner: ${var.corporate_label_owner}
+  YAML
+  ]
 
   set {
     name  = "distributor.resources.requests.cpu"
@@ -410,12 +465,6 @@ resource "helm_release" "tempo" {
   set {
     name  = "ingester.replicas"
     value = var.ingester_replicas
-  }
-
-  # Corporate Labels - Ingester Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "ingester.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
   }
 
   # Replication factor MUST match number of replicas (FinOps: 2 vs 3 default)
@@ -572,12 +621,6 @@ resource "helm_release" "tempo" {
     value = var.querier_replicas
   }
 
-  # Corporate Labels - Querier Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "querier.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
-  }
-
   set {
     name  = "querier.resources.requests.cpu"
     value = "100m"
@@ -690,12 +733,6 @@ resource "helm_release" "tempo" {
     value = "2"
   }
 
-  # Corporate Labels - Query Frontend Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "queryFrontend.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
-  }
-
   set {
     name  = "queryFrontend.resources.requests.cpu"
     value = "50m"
@@ -765,12 +802,6 @@ resource "helm_release" "tempo" {
   set {
     name  = "compactor.replicas"
     value = var.compactor_replicas
-  }
-
-  # Corporate Labels - Compactor Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "compactor.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
   }
 
   set {
@@ -893,18 +924,6 @@ resource "helm_release" "tempo" {
   }
 
   # -----------------------------------------------------------------------------
-  # Memcached (embedded cache — tempo-distributed chart sub-chart)
-  # Corporate Labels - Memcached Component (ADR-048 - Kyverno Compliance)
-  # Note: tempo-distributed chart hardcodes part-of=observability for memcached;
-  # explicit set block added here as IaC source-of-truth in case chart defaults change.
-  # -----------------------------------------------------------------------------
-
-  set {
-    name  = "memcached.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
-  }
-
-  # -----------------------------------------------------------------------------
   # Monitoring - ServiceMonitor para Prometheus
   # -----------------------------------------------------------------------------
 
@@ -941,12 +960,6 @@ resource "helm_release" "tempo" {
   set {
     name  = "gateway.replicas"
     value = "2"
-  }
-
-  # Corporate Labels - Gateway Component (ADR-048 - Kyverno Compliance)
-  set {
-    name  = "gateway.podLabels.app\\.kubernetes\\.io/part-of"
-    value = "observability"
   }
 
   # Toleration for system nodes (ADR-042 pattern)
@@ -989,6 +1002,61 @@ resource "helm_release" "tempo" {
   set {
     name  = "gateway.tolerations[1].effect"
     value = "NoSchedule"
+  }
+
+  # -----------------------------------------------------------------------------
+  # ECR Pull-Through Cache — Override image registries (GAP-SEC-REGISTRY-03)
+  # Tempo chart uses docker.io/grafana/tempo by default
+  # Memcached sub-chart uses docker.io/library/memcached
+  # -----------------------------------------------------------------------------
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "tempo.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "tempo.image.repository"
+      value = "docker-hub/grafana/tempo"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "gateway.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "gateway.image.repository"
+      value = "docker-hub/nginxinc/nginx-unprivileged"
+    }
+  }
+
+  # Memcached — docker.io/library/memcached → ECR docker-hub/library/memcached
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "memcached.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "memcached.image.repository"
+      value = "docker-hub/library/memcached"
+    }
   }
 
   # -----------------------------------------------------------------------------

@@ -58,6 +58,8 @@
 
 **GAP P0 — Drift RDS Multi-AZ:** O TF declara `multi_az = true` mas o recurso real pode estar Single-AZ (apply 2026-02-09 com erros). Verificar com `aws rds describe-db-instances --profile k8s-platform-prod` antes de qualquer apply.
 
+> **Resolução 2026-03-24**: multi_az=false aplicado via DEC-2026-03-24-RDS (defer para go-live). Drift TF corrigido em environments/prod/main.tf.
+
 ### Serviços Compartilhados (GitLab, Harbor)
 
 | Serviço | Namespace | Status | Versão | Observação |
@@ -125,7 +127,7 @@
 | ------- | ---------- | ------------------ | --------------------- | ---------- |
 | **PostgreSQL RDS** | **Shared — databases isolados por env** | db.t3.medium Multi-AZ, databases `staging_db` e `prod_db` separados, usuários com NOSUPERUSER/NOCREATEDB | **$12.81/mês** ($153.72/ano) vs 2 instâncias separadas | Databases isolados fornecem blast radius suficiente; custo de 2x instâncias não justificado neste porte |
 | **Redis** | **Dedicado por env — OBRIGATÓRIO** | Staging: 1 replica, 512Mi, Redis Operator CRD independente. Prod: 3 replicas Sentinel, 2Gi, volatile-lru | **~$0 adicional** (in-cluster, nodes existentes) | **BACEN BCB 85/2021** Art. 4º §2º + **LGPD Art. 46** exigem segregação de dados de sessão/cache entre ambientes regulados |
-| **RabbitMQ** | **Shared — VHosts isolados** | 1 cluster, VHosts `/prod` + `/staging`, usuários isolados por VHost | Sem custo adicional vs VHosts | VHosts garantem isolamento de filas e credenciais; sem roteamento cross-VHost possível |
+| **RabbitMQ** | **2 clusters independentes (prod-data-rabbitmq + staging-data-infrastructure)** | Cluster staging: namespace `staging-data-infrastructure`; Cluster prod: namespace `prod-data-infrastructure` | Custo adicional mínimo (in-cluster) | BACEN BCB 85/2021 exige isolamento de ambientes; VHosts descartados (DEC-2026-03-24-RABBITMQ) |
 | **GitLab** | **Shared — exceção documentada** | 1 instância compartilhada, namespace `staging-platform-gitlab` | — | ADR-046: GitLab CE único para staging + prod; acesso por grupos/projetos RBAC Keycloak |
 
 ### Detalhamento por Serviço
@@ -172,18 +174,18 @@ Prod Redis:
 Custo adicional: ~$0 (in-cluster, nodes já provisionados pelo Karpenter)
 ```
 
-#### RabbitMQ — Shared com VHosts Isolados
+#### RabbitMQ — 2 Clusters Independentes
+
+> **Atualização 2026-03-24**: Estratégia VHosts descartada. Adotados 2 clusters independentes (DEC-2026-03-24-RABBITMQ). Ver ADR-062 Revisão 2026-03-24.
 
 ```text
-Cluster:        1 instância, 3 replicas quorum
-VHosts:         /prod    → prod_user     (tags: management)
-                /staging → staging_user  (tags: management — NUNCA administrator)
+Cluster staging: staging-data-infrastructure  → namespace: staging-data-infrastructure
+Cluster prod:    prod-data-rabbitmq            → namespace: prod-data-infrastructure
 
-Controles obrigatórios:
-  - Plugin rabbitmq_shovel:      DESABILITADO (previne mensagens cross-vhost)
-  - Plugin rabbitmq_federation:  DESABILITADO (previne federated exchanges cross-env)
-  - Alerting:                    Regra Prometheus em qualquer acesso cross-vhost
-  - staging_user:                tag=management APENAS (nunca administrator)
+Rationale:
+  - Blast radius isolado: falha em staging não afeta prod
+  - BACEN BCB 85/2021: isolamento de ambientes regulatório obrigatório
+  - Ciclo de vida independente: upgrades sem janela de manutenção cruzada
 ```
 
 ### Impacto FinOps da Decisão

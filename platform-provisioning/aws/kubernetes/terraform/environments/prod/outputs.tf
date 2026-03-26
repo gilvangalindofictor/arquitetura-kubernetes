@@ -48,6 +48,7 @@ output "redis_namespace" {
 output "redis_password_secret_name" {
   description = "Redis password Kubernetes secret name"
   value       = module.redis_prod.redis_password_secret_name
+  sensitive   = true # GAP-TF-010: evita exposição de secret names em CI/CD logs
 }
 
 #------------------------------------------------------------------------------
@@ -117,6 +118,7 @@ output "gitlab_postgresql_database" {
 output "gitlab_redis_service" {
   description = "GitLab Redis service (PROD)"
   value       = "${module.redis_prod.redis_master_service}.${module.redis_prod.namespace}.svc.cluster.local"
+  sensitive   = true # GAP-TF-010: endpoint interno não deve aparecer em CI/CD logs
 }
 
 #------------------------------------------------------------------------------
@@ -136,4 +138,5 @@ output "cluster_name" {
 output "tags" {
   description = "Common tags applied to resources"
   value       = local.common_tags
+  sensitive   = true # GAP-TF-010: common_tags pode conter Owner/account metadata sensível
 }

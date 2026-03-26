@@ -435,6 +435,40 @@ resource "aws_db_instance" "dr_replica" {
 }
 
 # =============================================================================
+# CloudWatch Log Groups — DR Replica (Mesa Técnica CloudWatch 2026-03-24)
+# Gerencia retenção dos log groups criados automaticamente pelo AWS para a réplica DR.
+# count condicionado ao mesmo flag enable_rds_replica do aws_db_instance.dr_replica.
+# =============================================================================
+
+resource "aws_cloudwatch_log_group" "rds_postgresql" {
+  provider = aws.dr
+  count    = var.enable_rds_replica ? 1 : 0
+
+  name              = "/aws/rds/instance/${aws_db_instance.dr_replica[0].identifier}/postgresql"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.dr_replica[0].identifier}/postgresql"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "rds_upgrade" {
+  provider = aws.dr
+  count    = var.enable_rds_replica ? 1 : 0
+
+  name              = "/aws/rds/instance/${aws_db_instance.dr_replica[0].identifier}/upgrade"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.dr_replica[0].identifier}/upgrade"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
+
+# =============================================================================
 # CLOUDWATCH MONITORING — replication lag + storage + availability
 # =============================================================================
 

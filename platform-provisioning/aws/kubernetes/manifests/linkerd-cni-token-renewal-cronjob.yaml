@@ -1,0 +1,155 @@
+################################################################################
+# linkerd-cni Token Renewal CronJob
+# GAP-FINOPS-CNI-01 (2026-03-23)
+#
+# Problema: O token ServiceAccount do linkerd-cni no host kubeconfig expira
+# após 24h. O repair-controller (v1.3.0) tem bug e não renova automaticamente.
+# Após paradas >24h (fins de semana, feriados), o CNI retorna Unauthorized e
+# causa cascata total: Linkerd offline → CA offline → 57+ pods Pending.
+#
+# Solução: CronJob que executa rollout restart do DaemonSet às 19h30 BRT
+# (22h30 UTC, seg-sex) — 30min antes do DOWN FinOps (20h00 BRT).
+# Garante que os tokens sejam frescos (TTL 24h) quando o ambiente subir
+# no dia seguinte, mesmo após fins de semana de 59h+ de parada.
+#
+# Para aplicar:
+#   kubectl apply -f manifests/linkerd-cni-token-renewal-cronjob.yaml
+#
+# Para codificar no TF (adicionar ao kubectl-manifests.tf):
+#   resource "kubectl_manifest" "linkerd_cni_token_renewal" {
+#     yaml_body = file("${path.root}/../../manifests/linkerd-cni-token-renewal-cronjob.yaml")
+#   }
+################################################################################
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: linkerd-cni-renewer
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/managed-by: terraform
+    app.kubernetes.io/component: cni-token-renewal
+    app.kubernetes.io/part-of: finops-resilience
+  annotations:
+    description: "ServiceAccount para CronJob de renovação preventiva do token CNI"
+    finops/gap: "GAP-FINOPS-CNI-01"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: linkerd-cni-renewer
+  labels:
+    app.kubernetes.io/managed-by: terraform
+    app.kubernetes.io/part-of: finops-resilience
+  annotations:
+    description: "Permissão mínima para rollout restart do DaemonSet linkerd-cni"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets/status"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: linkerd-cni-renewer
+  labels:
+    app.kubernetes.io/managed-by: terraform
+    app.kubernetes.io/part-of: finops-resilience
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: linkerd-cni-renewer
+subjects:
+  - kind: ServiceAccount
+    name: linkerd-cni-renewer
+    namespace: linkerd-cni
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: linkerd-cni-token-renewal
+  namespace: linkerd-cni
+  labels:
+    app.kubernetes.io/managed-by: terraform
+    app.kubernetes.io/component: cni-token-renewal
+    app.kubernetes.io/part-of: finops-resilience
+  annotations:
+    description: "Renova tokens do linkerd-cni DaemonSet antes do DOWN FinOps"
+    finops/purpose: "Previne CNI Unauthorized após paradas de 24h+ (GAP-FINOPS-CNI-01)"
+    finops/schedule: "19h30 BRT seg-sex (30min antes do DOWN 20h00 BRT)"
+    adr: "ADR-026"
+spec:
+  # 19h30 BRT = 22h30 UTC (seg-sex) — 30min antes do DOWN FinOps (20h00 BRT)
+  # Garante tokens frescos (TTL 24h) para o UP do dia seguinte às 07h30 BRT
+  schedule: "30 22 * * 1-5"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 360
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: cni-token-renewal
+          annotations:
+            linkerd.io/inject: disabled
+        spec:
+          serviceAccountName: linkerd-cni-renewer
+          restartPolicy: OnFailure
+          nodeSelector:
+            eks.amazonaws.com/nodegroup: system
+          tolerations:
+            - key: "node.kubernetes.io/not-ready"
+              operator: "Exists"
+              effect: "NoSchedule"
+            - key: "node.kubernetes.io/unreachable"
+              operator: "Exists"
+              effect: "NoSchedule"
+          containers:
+            - name: cni-token-renewer
+              image: bitnami/kubectl:1.28
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] linkerd-cni token renewal iniciado (GAP-FINOPS-CNI-01)"
+
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Estado atual do DaemonSet:"
+                  kubectl get pods -n linkerd-cni -o wide
+
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Executando rollout restart..."
+                  kubectl rollout restart daemonset/linkerd-cni -n linkerd-cni
+
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Aguardando rollout (300s)..."
+                  kubectl rollout status daemonset/linkerd-cni -n linkerd-cni --timeout=300s
+
+                  RUNNING=$(kubectl get pods -n linkerd-cni --field-selector=status.phase=Running \
+                    --no-headers 2>/dev/null | wc -l || echo "0")
+                  TOTAL=$(kubectl get pods -n linkerd-cni --no-headers 2>/dev/null | wc -l || echo "0")
+
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Resultado: ${RUNNING}/${TOTAL} pods Running"
+
+                  if [ "${RUNNING}" -lt "${TOTAL}" ]; then
+                    echo "[FAIL] ${TOTAL_MINUS_RUNNING} pods não Running após rollout"
+                    exit 1
+                  fi
+
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Renovação concluída — tokens válidos por 24h"
+                  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Próxima expiração: ~$(date -u -d '24 hours' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo '24h a partir de agora')"
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"

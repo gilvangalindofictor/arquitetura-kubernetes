@@ -126,3 +126,9 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "log_retention_days" {
+  description = "CloudWatch log group retention in days for RDS replica logs (postgresql, upgrade). Default 14d — Mesa Técnica CloudWatch 2026-03-24."
+  type        = number
+  default     = 14
+}

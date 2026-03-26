@@ -55,9 +55,10 @@ variable "keycloak_postgresql_username" {
 }
 
 variable "keycloak_postgresql_host" {
-  description = "Keycloak PostgreSQL host"
+  description = "Keycloak PostgreSQL host (RDS endpoint address — FIX-008: no longer uses ExternalName)"
   type        = string
-  default     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Removed default postgresql-external.default.svc.cluster.local
+  # Callers must pass module.postgresql_*.rds_address explicitly
 }
 
 variable "keycloak_postgresql_port" {
@@ -136,9 +137,9 @@ variable "sonarqube_postgresql_username" {
 }
 
 variable "sonarqube_postgresql_host" {
-  description = "SonarQube PostgreSQL host (RDS endpoint via ExternalName)"
+  description = "SonarQube PostgreSQL host (RDS endpoint address — FIX-008: no longer uses ExternalName)"
   type        = string
-  default     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Removed default postgresql-external.default.svc.cluster.local
 }
 
 variable "sonarqube_postgresql_port" {
@@ -151,6 +152,18 @@ variable "sonarqube_postgresql_database" {
   description = "SonarQube PostgreSQL database name"
   type        = string
   default     = "sonarqube"
+}
+
+# -----------------------------------------------------------------------------
+# GitLab PostgreSQL password (Vault KV seed)
+# FIX-GAP-GITLAB-WEBSERVICE-2026-03-24: codified after manual Vault drift
+# -----------------------------------------------------------------------------
+
+variable "gitlab_postgresql_password" {
+  description = "GitLab PostgreSQL user password (source: AWS SM staging/postgresql/gitlab-password)"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 # -----------------------------------------------------------------------------
@@ -171,9 +184,9 @@ variable "harbor_postgresql_username" {
 }
 
 variable "harbor_postgresql_host" {
-  description = "Harbor PostgreSQL host"
+  description = "Harbor PostgreSQL host (RDS endpoint address — FIX-008: no longer uses ExternalName)"
   type        = string
-  default     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Removed default postgresql-external.default.svc.cluster.local
 }
 
 variable "harbor_postgresql_port" {
@@ -268,9 +281,9 @@ variable "argocd_postgresql_username" {
 }
 
 variable "argocd_postgresql_host" {
-  description = "ArgoCD PostgreSQL host (RDS endpoint via ExternalName)"
+  description = "ArgoCD PostgreSQL host (RDS endpoint address — FIX-008: no longer uses ExternalName)"
   type        = string
-  default     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Removed default postgresql-external.default.svc.cluster.local
 }
 
 variable "argocd_postgresql_port" {

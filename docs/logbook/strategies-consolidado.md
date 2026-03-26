@@ -676,6 +676,136 @@ kubectl get ds -A | grep node-exporter
 
 ---
 
+## 2026-03-23 — Node Affinity: nodeSelector obrigatório em clusters com mixed nodegroups
+
+**Tipo:** Scheduling Architecture / Node Affinity
+
+**Contexto:** Health check pós-UP de 2026-03-23 detectou que ambos system e workloads ASGs atingiram MAX simultâneamente. Root cause: 12 workloads sem `nodeSelector` espalharam-se para system nodes (t3.medium) porque os system nodes não possuem taint — scheduler os usa como overflow (anti-pattern). Agentes PERF e TF convocados para Phase 1 (Deployments) e Phase 2 (StatefulSets).
+
+**Padrao que funcionou:**
+
+```text
+Health check detecta ASG MAX → Identificar workloads sem nodeSelector → Phase 1 (Deployments, zero disruption) → Phase 2 (StatefulSets, PVC migration) → Reduzir ASG max_size → Considerar taint CriticalAddonsOnly
+```
+
+1. Auditar pods em system nodes: `kubectl get pods -A -o wide | grep <system-node-name>`
+2. Separar Deployments (Phase 1, zero disruption) de StatefulSets (Phase 2, requer PVC care)
+3. Adicionar `nodeSelector: eks.amazonaws.com/nodegroup: workloads` nos workloads corretos
+4. Codificar nos módulos TF correspondentes → `terraform plan` → "No changes"
+5. Após Phase 2: reduzir `max_size` do system ASG → saving garantido
+6. Avaliar taint `CriticalAddonsOnly` para prevenção permanente
+
+**Artefatos:** `docs/demands/2026-03-23-gap-sched-node-affinity.md`
+
+---
+
+### Licao 21 — System nodes sem taint = overflow scheduler para workloads (anti-pattern)
+
+**Problema:** System nodes (t3.medium) sobrecarregados com 12 workloads que deveriam estar no workloads nodegroup (t3.large). Ambos ASGs em MAX simultâneamente, cluster no limite de scheduling.
+
+**Causa raiz:** System nodes não possuem taint `CriticalAddonsOnly`. Sem taint, o Kubernetes scheduler trata system nodes como nodes regulares e usa-os como overflow quando o workloads nodegroup está sob pressão ou não tem capacidade disponível. Qualquer workload sem `nodeSelector` pode ser agendado em qualquer node do cluster.
+
+**Solucao aplicada:**
+
+```text
+Phase 1 (Deployments): rolling update com nodeSelector → zero disruption
+Phase 2 (StatefulSets): scale-down → PVC migration → nodeSelector → scale-up
+Pós-Phase 2: reduzir system ASG max_size 6→4 → saving $720/ano
+```
+
+**Regra geral:** Em clusters EKS com múltiplos nodegroups, TODOS os workloads que não são componentes de sistema DEVEM ter `nodeSelector` explícito. System nodes são para: coredns, aws-node, kube-proxy, cluster-autoscaler, metrics-server, cert-manager, external-dns. Demais workloads (aplicações, observabilidade, plataforma) → workloads nodegroup.
+
+**Anti-pattern:** Não adicionar taint em system nodes na criação do cluster → workloads acumulam nos system nodes ao longo do tempo à medida que o cluster cresce → ASG system explode em capacidade desnecessária.
+
+**Diagnóstico:**
+
+```bash
+# Identificar workloads em system nodes:
+SYSTEM_NODES=$(kubectl get nodes -l eks.amazonaws.com/nodegroup=system -o name | cut -d/ -f2)
+for node in $SYSTEM_NODES; do
+  echo "=== $node ==="; kubectl get pods -A --field-selector spec.nodeName=$node | grep -v "kube-system\|Completed"
+done
+
+# Verificar workloads sem nodeSelector:
+kubectl get deployments -A -o json | jq '.items[] | select(.spec.template.spec.nodeSelector == null) | "\(.metadata.namespace)/\(.metadata.name)"'
+```
+
+---
+
+### Sessão 2026-03-23 — GAP-SCHED-002 Phase 2 + GAP-FINOPS-002
+
+**Tipo:** StatefulSet Migration / NodeSelector / FinOps
+
+**Contexto:** Continuação da sessão anterior (GAP-SCHED-001 Phase 1 concluída). Phase 2 foca nos StatefulSets — workloads com PVC ReadWriteOnce que exigem cuidado especial na migração de nodegroup. GAP-FINOPS-002 executado em sequência após Phase 2 confirmada.
+
+**Padrao que funcionou:**
+
+```text
+Phase 2 (StatefulSets): verificar AZ do PVC → rolling update com nodeSelector (WaitForFirstConsumer)
+→ Scale 0→1 para SonarQube (PVC RWO node-bound) → Vault rolling restart (KMS auto-unseal)
+→ Reduzir system ASG max_size 6→4 → TF plan "No changes"
+```
+
+**Entregas confirmadas:**
+
+| Target | De | Para | Downtime | Técnica |
+| --- | --- | --- | --- | --- |
+| loki-chunks-cache-0 | system | workloads | ~30s | rolling update (stateless) |
+| loki-write-0/1 | critical | workloads | ~2min | rolling update |
+| loki-backend-0/1 | system | workloads | ~3min | rolling update (gp3 WaitForFirstConsumer) |
+| sonarqube-sonarqube-0 | system | workloads | ~5min | scale 0→1, PVC reutilizado |
+| vault-prod (x3) | workloads (sem selector) | workloads (com selector) | ~8min | rolling restart (KMS auto-unseal) |
+
+**GAP-FINOPS-002:** system ASG max_size 6→4 aplicado — saving preventivo ~$360-720/ano.
+
+**TF ZERO DRIFT:** module.tempo, module.finops_automation, module.loki, module.backstage, module.opentelemetry_collector — todos confirmados.
+
+**Arquivos modificados:**
+
+- `modules/loki/main.tf` — nodeSelector set blocks para chunks-cache, backend, write
+- `modules/sonarqube/values.yaml.tpl` — nodeSelector workloads
+- `modules/vault/variables.tf` — variável node_selector (map, default {})
+- `modules/vault/main.tf` — node_selector no templatefile()
+- `modules/vault/values.yaml.tpl` — bloco condicional nodeSelector
+- `environments/prod/main.tf` — node_selector = {"eks.amazonaws.com/nodegroup" = "workloads"}
+- `environments/staging/node-groups.tf` — max_size 6→4
+
+**Artefatos:** `docs/demands/2026-03-23-gap-sched-phase2-finops.md`
+
+---
+
+### Licao 22 — gp3 WaitForFirstConsumer: zone-pinned, nao node-pinned
+
+**Problema:** Receio de que PVC ReadWriteOnce com StorageClass `gp3` e `WaitForFirstConsumer` ficasse vinculado ao node antigo após mudança de `nodeSelector` no StatefulSet.
+
+**Causa raiz (conceito incorreto):** `WaitForFirstConsumer` significa que o PVC aguarda o primeiro pod ser agendado para escolher a AZ do volume EBS. Após criado, o PVC fica **zone-pinned** (vinculado à AZ onde o EBS foi provisionado), mas **não node-pinned**. Qualquer node na mesma AZ pode montar o volume.
+
+**Solucao aplicada:**
+
+```text
+gp3 WaitForFirstConsumer + StatefulSet com novo nodeSelector:
+→ PVC permanece na AZ original (zone-pinned)
+→ Novo pod é agendado em workloads node na mesma AZ
+→ Volume EBS montado no novo node sem necessidade de deletar PVC
+→ ZERO data loss, sem recriação de PVC
+```
+
+**Regra geral:** Para migrar StatefulSets com PVC `gp3 WaitForFirstConsumer` entre nodegroups:
+
+1. Confirmar que o workloads nodegroup possui nodes na mesma AZ do PVC
+2. Atualizar `nodeSelector` no StatefulSet spec (via .tf ou patch direto)
+3. Fazer rolling update ou scale 0→1
+4. O scheduler coloca o pod em um node workloads da mesma AZ — PVC monta normalmente
+5. Não é necessário deletar PVC
+
+**Excecao:** PVC `ReadWriteOnce` com StorageClass usando `VolumeBindingMode: Immediate` — nesses casos o PVC pode estar vinculado a uma AZ específica antes mesmo de qualquer pod ser agendado. Verificar com `kubectl get pvc -o yaml | grep storageClassName`.
+
+**Anti-pattern:** Deletar PVC para "liberar" o volume antes de mudar nodeSelector — causa data loss desnecessário e downtime maior.
+
+**TF note:** `module.loki_staging` é o target correto no TF state (não `module.loki`) quando múltiplos environments usam o mesmo módulo.
+
+---
+
 ## 2026-03-11 — Auditoria Pós-Entrega + Planejamento S6
 
 **Auditoria S0→S5:** 34 GAPs identificados, 30 corrigidos em paralelo.
@@ -686,3 +816,138 @@ deploy Backstage (Vault bootstrap + Keycloak client + Helm), GitLab Group Token,
 repo backstage-catalog.
 
 **Ação:** Resolver desbloqueadores do Backstage para iniciar S6-A.
+
+---
+
+## 2026-03-23 (Sessão 2) — Varredura FinOps & Arquitetura | 20 GAPs | Remediação TF
+
+**Tipo:** Security Audit + FinOps Review + IaC Remediation
+
+**Contexto:** Varredura completa de boas práticas com 5 agentes especialistas em paralelo. 20 GAPs identificados cobrindo segregação staging/prod, segurança em trânsito, FinOps e resiliência.
+
+**GAPs Identificados por Prioridade:**
+
+**P0 (Críticos — remediados nesta sessão):**
+
+- GAP-ARCH-003: NetworkPolicy staging→prod comentada (staging com egress livre para data-services-prod)
+- GAP-ARCH-001: Loki IRSA compartilhada staging/prod (role staging acessa S3 prod)
+- GAP-VAULT-TOKEN-001: vault_root_token expirado (bloqueia TODO terraform plan — ação manual)
+
+**P1 (Remediados nesta sessão):**
+
+- GAP-VAULT-KMS-S3-001: Colisão nomes KMS alias + S3 bucket (cluster_name sem env discriminador)
+- GAP-ARCH-006: Vault module default storage_class gp2 (alterado para gp3)
+- GAP-ARCH-007: Harbor staging em gp2 (alterado para gp3)
+- GAP-PROM-ADM-001: admission webhook ErrImagePull (image override para registry.k8s.io via ECR k8s/)
+- GAP-KYVERNO-GHCR-001: Kyverno redireciona GHCR→ECR mas pull-through GHCR desabilitado
+- GAP-ARCH-014: Loki S3 tag hardcoded Environment=production (fix var.environment)
+
+**P2 (Remediados nesta sessão):**
+
+- GAP-ARCH-012: node_group_common_tags CostCenter divergente (Engineering→development)
+- GAP-ARCH-013: Node groups em 2 subnets hardcoded (migrado para var.private_subnet_ids)
+- GAP-ARCH-015: Keycloak prod sem backup de realm (keycloak-backup.tf criado)
+- GAP-ARCH-017: FinOps Automation system max_size=6 desalinhado com ASG max=4 (corrigido para 4)
+- GAP-LOKI-PROD-TF-001: loki prod não-TF (prod/loki.tf criado, import pendente)
+
+**Pendentes (próxima sessão):**
+
+- GAP-ARCH-002: Vault prod IAM role sem prefixo env (renomeação brownfield — risky)
+- GAP-ARCH-004: DynamoDB lock table compartilhada staging/prod
+- GAP-ARCH-005: GitLab shared no state prod
+- GAP-ARCH-008/009/010: TLS em Keycloak prod, GitLab, ESO→Vault (ACM certs pendentes)
+- GAP-ARCH-011: ClusterSecretStore sem namespace isolation
+- GAP-ARCH-016: VPA sem ciclo de aplicação (R$ 8.712/ano pendente)
+- GAP-ARCH-018: VPN Site-to-Site comentada
+- GAP-ARCH-019/020: vault_config localhost + OIDC desabilitado
+
+**Lições Aprendidas:**
+
+### Lição 26 — Colisão de recursos AWS em módulos multi-ambiente no mesmo cluster
+
+**Problema:** Módulos que usam apenas `var.cluster_name` como discriminador de nomes geram recursos AWS com nomes idênticos quando staging e prod compartilham o mesmo EKS cluster (`k8s-platform-prod`).
+
+**Causa raiz:** KMS alias e S3 bucket usavam apenas cluster_name → `alias/vault-unseal-k8s-platform-prod` gerado igual em staging e prod states.
+
+**Solução:** Sempre adicionar `var.environment` como prefixo/sufixo nos nomes de recursos AWS críticos (KMS, S3, IAM roles, DynamoDB). Padrão: `${var.environment}-${var.cluster_name}-<recurso>`.
+
+**Regra geral:** Qualquer módulo que possa ser instanciado múltiplas vezes no mesmo cluster DEVE ter `var.environment` nos nomes de recursos AWS.
+
+---
+
+### Lição 27 — Kyverno MutatingPolicy deve estar alinhada com ECR pull-through rules
+
+**Problema:** Kyverno redireciona `ghcr.io/*` → ECR prefix `ghcr/`, mas `enable_ghcr = false` significa que a pull-through rule não existe no ECR. Resultado: ErrImagePull em toda imagem ghcr.io no cluster.
+
+**Causa raiz:** Kyverno e ECR pull-through foram configurados em momentos diferentes sem garantia de consistência entre eles.
+
+**Solução:** Qualquer mudança em `enable_ghcr/enable_quay/enable_ecr_public` DEVE ser acompanhada de revisão da Kyverno policy correspondente. Manter as rules sincronizadas.
+
+**Regra geral:** As regras Kyverno de redirect e as pull-through rules ECR são um par inseparável — alterar um requer revisar o outro.
+
+---
+
+### Lição 28 — vault_root_token bloqueia TODO o terraform plan (sem workaround -target)
+
+**Problema:** vault_root_token expirado bloqueia qualquer `terraform plan/apply` em staging e prod, mesmo com `-target` em módulos não-Vault.
+
+**Causa raiz:** O provider Vault no root level (`staging/main.tf`) é inicializado no início de qualquer plan, independente de quais módulos estão no target.
+
+**Solução:** Sempre manter o vault_root_token válido antes de iniciar qualquer sessão de terraform. Recomendação: migrar para token com policy `terraform-operator` (TTL=24h renovável) em vez de root token.
+
+**Regra geral:** vault_root_token expirado = bloqueio total de operações TF. Refresh é pré-requisito de qualquer sessão.
+
+---
+
+## 2026-03-23 (Sessão Noite) — GAP-RABBITMQ-NS-001 RESOLVIDO | Migração Namespace Prod
+
+**Tipo:** StatefulSet Migration / Namespace Remediation / IaC
+
+**Contexto:** RabbitMQ prod estava em namespace `data-services` (ADR-048 não-compliant, NetworkPolicy isolada, 1 réplica sem HA). Migração completa para `prod-data-rabbitmq` com HA (3 réplicas), gp3, e NetworkPolicy segregada por ambiente.
+
+**[2026-03-23 NOITE] GAP-RABBITMQ-NS-001 — RESOLVIDO**
+
+- Migração: namespace `data-services` → `prod-data-rabbitmq` (ADR-048 compliant)
+- PV antigo gp2/5Gi: deletado. PV novo gp3/10Gi: Bound
+- Réplicas: 1→3 (GAP-RABBITMQ-REPLICAS-001 resolvido pelo terraform apply)
+- NetworkPolicy deny-access-from-staging: aplicada em prod-data-rabbitmq
+- GAP-KYVERNO-RABBITMQ-001: `prod-data-rabbitmq` adicionado na inject-corporate-labels policy
+- Kyverno import: ClusterPolicy sob gestão IaC (kyverno-corporate-labels.tf)
+- Zero drift: terraform plan "No changes" (module.rabbitmq_prod + netpols)
+
+**Status final (kubectl get rabbitmqcluster -A):**
+
+```text
+NAMESPACE           NAME                         ALLREPLICASREADY   RECONCILESUCCESS   AGE
+prod-data-rabbitmq  k8s-platform-prod-rabbitmq   True               True               ~1h
+```
+
+**Pods:** 3/3 Running (server-0, server-1, server-2) | PVC gp3/10Gi Bound | Namespace data-services: removido (zero recursos remanescentes)
+
+**Artefatos:** `environments/prod/main.tf` (module.rabbitmq_prod), `kyverno-corporate-labels.tf`, `MIGRATION-rabbitmq-state.sh`
+
+---
+
+### Lição 34 — Kyverno inject policy com lista hardcoded de namespaces causa loop de reconciliação no RabbitMQ Operator
+
+**Problema:** RabbitMQ Operator entrou em loop de reconciliação (RECONCILESUCCESS=False) por ~9 minutos após criação do RabbitmqCluster em namespace `prod-data-rabbitmq`.
+
+**Causa raiz:** A ClusterPolicy `inject-corporate-labels` tinha lista hardcoded de namespaces no campo `match`. O novo namespace `prod-data-rabbitmq` não estava na lista → Kyverno rejeitava os patches do Operator → spec.override em divergência → loop de reconciliação.
+
+**Solução:** Adicionar o novo namespace na policy de injeção ANTES de criar o RabbitmqCluster. Sequência correta: atualizar ClusterPolicy → aplicar → depois criar o cluster.
+
+**Regra geral:** Sempre adicionar novos namespaces na policy de injeção Kyverno ANTES de criar recursos no namespace. Qualquer recurso criado antes da policy estar atualizada gera janela de reconciliação com loop de ~5-10 min.
+
+---
+
+### GAP-REDIS-NS-002 (DETECTADO em 2026-03-23 Noite)
+
+**Problema:** NetworkPolicy para namespace `data-services-prod` (Redis prod) está bloqueada por Kyverno. O namespace não é ADR-048 compliant — deveria ser `prod-data-services` ou `prod-data-redis`.
+
+**Causa raiz:** module.redis_prod foi deployado com `namespace = "data-services-prod"` antes da convenção ADR-048 ser estabelecida.
+
+**Ação requerida:** Corrigir module.redis_prod com namespace ADR-048 compliant ANTES de aplicar a NetworkPolicy de isolamento. Requer plan destrutivo para o Redis StatefulSet.
+
+**Prioridade:** P1 — Redis operacional, mas sem NetworkPolicy de isolamento staging/prod.
+
+---

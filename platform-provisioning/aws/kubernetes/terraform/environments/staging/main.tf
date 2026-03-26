@@ -63,6 +63,7 @@ locals {
     DataClassification = "Internal"
     LGPD               = "Synthetic" # No PII in staging
     CostCenter         = "development"
+    Team               = "platform"
   })
 }
 
@@ -232,6 +233,7 @@ module "redis_staging" {
   source = "../../modules/redis"
 
   cluster_name         = local.cluster_name
+  namespace            = "staging-data-infrastructure" # ADR-048: actual cluster namespace (fix: default "data-services" was invalid)
   replicas             = var.redis_replicas # 1
   pvc_size             = var.redis_pvc_size # 5Gi
   storage_class        = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
@@ -253,7 +255,7 @@ module "rabbitmq_staging" {
   source = "../../modules/rabbitmq"
 
   cluster_name  = local.cluster_name
-  namespace     = "data-services"       # Fixed: was using default "default"
+  namespace     = "staging-data-infrastructure" # Corrigido: data-services inexistente → namespace real (2026-03-24)
   replicas      = var.rabbitmq_replicas # 1
   pvc_size      = var.rabbitmq_pvc_size # 5Gi
   storage_class = "gp3"                 # Using gp3 (20% cheaper, 3000 IOPS default)
@@ -287,6 +289,10 @@ module "s3_buckets_staging" {
 
   # TASK-004: Enable FCT proposals bucket
   enable_fct_proposals = true
+
+  # DEC-2026-03-24: GitLab bucket desabilitado no staging — bucket compartilhado gerenciado pelo prod state
+  # O bucket k8s-platform-gitlab-artifacts-891377105802 é single-instance, gerenciado pelo module.s3_buckets_prod
+  enable_gitlab_artifacts = false
 }
 
 #------------------------------------------------------------------------------
@@ -336,76 +342,23 @@ resource "kubernetes_secret" "gitlab_postgresql_password" {
 }
 
 #------------------------------------------------------------------------------
-# GITLAB - STAGING (Migrated from envs/marco3)
-# Using centralized module from ../../modules/gitlab
-# Integrated with staging data services (PostgreSQL, Redis, S3)
+# GITLAB - STAGING (REMOVIDO DEC-2026-03-24)
+# GitLab CE é instância shared gerenciada em environments/prod (module "gitlab")
+# Namespace real: staging-platform-gitlab (gerenciado pelo prod state)
+# Ver: docs/context/decisions.md DEC-2026-03-24-GITLAB
+#
+# module "gitlab_staging" REMOVIDO (DEC-2026-03-24)
+# State rm executado — todos os recursos ghost removidos do staging state
+# IAM Role k8s-platform-prod-gitlab-sa-role → gerenciada exclusivamente no prod state
+# S3 gitlab_artifacts → gerenciado exclusivamente no prod state (module.s3_buckets_prod)
 #------------------------------------------------------------------------------
 
-module "gitlab_staging" {
-  source = "../../modules/gitlab"
-
-  depends_on = [
-    module.postgresql_staging,
-    module.redis_staging,
-    module.s3_buckets_staging,
-    kubernetes_secret.gitlab_postgresql_password
-  ]
-
-  # Cluster info
-  cluster_name   = local.cluster_name
-  aws_account_id = var.aws_account_id
-  aws_region     = var.aws_region
-  namespace      = "gitlab-staging"
-  environment    = local.environment
-
-  # GitLab configuration
-  gitlab_edition         = "ce"
-  gitlab_version         = "9.9.1" # INFRA-001: COMPLETO 2026-03-03 (9/9 steps — v18.9.1, Rev 36)
-  gitlab_replicas        = 1       # Cost-optimized for staging
-  gitlab_runner_replicas = 1       # Cost-optimized for staging
-
-  # TLS configuration (ADR-021 Phase 1: disabled)
-  enable_tls  = false
-  domain_name = "staging.internal"
-
-  # PostgreSQL (external - RDS via module)
-  postgresql_host            = module.postgresql_staging.rds_address
-  postgresql_port            = 5432
-  postgresql_database        = "gitlab"
-  postgresql_username        = "gitlab_user"
-  postgresql_password_secret = kubernetes_secret.gitlab_postgresql_password.metadata[0].name
-
-  # Redis (external - Spotahome Redis Operator)
-  redis_host            = "${module.redis_staging.redis_master_service}.${module.redis_staging.namespace}.svc.cluster.local"
-  redis_port            = module.redis_staging.redis_port
-  redis_password_secret = module.redis_staging.redis_password_secret_name
-
-  # S3 (IRSA)
-  s3_artifacts_bucket = module.s3_buckets_staging.gitlab_artifacts_bucket_name
-  s3_uploads_bucket   = module.s3_buckets_staging.gitlab_artifacts_bucket_name # Same bucket, different prefixes
-  s3_policy_arn       = module.s3_buckets_staging.gitlab_s3_policy_arn
-
-  # Monitoring
-  enable_monitoring = true
-
-  # Authentication (OIDC with Keycloak)
-  enable_oidc        = true
-  ingress_group_name = "gitlab-staging"
-
-  # Node scheduling (AGENTE-TF-EQUALIZATION 2026-03-06)
-  # Route app components (webservice/sidekiq/shell/exporter/migrations) to workload nodes (t3.large)
-  # This prevents saturation of system nodes (t3.medium, 92% memory usage observed 2026-03-06)
-  # node-type label is set on all EKS node groups (system/workloads/critical)
-  workload_node_selector = {
-    "node-type" = "workloads"
-  }
-
-  # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
-  ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
-
-  # Tags
-  common_tags = local.common_tags
-}
+# module "gitlab_staging" {
+#   source = "../../modules/gitlab"
+#   # REMOVIDO: DEC-2026-03-24 — GitLab CE é instância shared gerenciada em environments/prod
+#   # O namespace real é staging-platform-gitlab, gerenciado pelo module.gitlab no prod state.
+#   # Todos os recursos foram removidos do staging state via terraform state rm.
+# }
 
 #------------------------------------------------------------------------------
 # GITLAB CI/CD — Runner Credentials (GAP-005)
@@ -423,7 +376,7 @@ resource "kubernetes_manifest" "gitlab_ci_credentials_eso" {
     kind       = "ExternalSecret"
     metadata = {
       name      = "gitlab-ci-credentials"
-      namespace = "gitlab-staging"
+      namespace = "staging-platform-gitlab" # DEC-2026-03-24: corrigido de gitlab-staging (namespace real)
     }
     spec = {
       refreshInterval = "1h"
@@ -479,7 +432,7 @@ resource "kubernetes_manifest" "gitlab_ci_credentials_eso" {
     force_conflicts = true
   }
 
-  depends_on = [module.gitlab_staging]
+  # DEC-2026-03-24: depends_on [module.gitlab_staging] removido — módulo deletado do staging state
 }
 
 resource "null_resource" "gitlab_runner_envfrom" {
@@ -506,7 +459,7 @@ resource "null_resource" "gitlab_runner_envfrom" {
 # Fix 2026-03-02: Updated namespace from gitlab-staging → staging-platform-gitlab (DEC-074 Wave 6)
 # Fix GAP-NODE-PRESSURE (2026-03-16): Reduced cpu/memory requests + concurrent 10→4 to relieve scheduler pressure
 resource "null_resource" "gitlab_runner_namespace_fix" {
-  depends_on = [module.gitlab_staging]
+  # DEC-2026-03-24: depends_on [module.gitlab_staging] removido — módulo deletado do staging state
 
   triggers = {
     executor_namespace = "staging-platform-gitlab"
@@ -611,7 +564,7 @@ resource "kubernetes_manifest" "gitlab_runner_role_least_privilege" {
     force_conflicts = true
   }
 
-  depends_on = [module.gitlab_staging]
+  # DEC-2026-03-24: depends_on [module.gitlab_staging] removido — módulo deletado do staging state
 }
 
 #------------------------------------------------------------------------------
@@ -657,11 +610,11 @@ module "vault_staging" {
     "arn:aws:acm:us-east-1:891377105802:certificate/3bfc603d-3a90-4663-b363-28f5122b7dbb", # *.hml.alvocard.com.br
   ]
 
-  # IAM name override: role was created manually on 2026-02-04 without the env prefix.
+  # IAM name override: real AWS role name is VaultIRSA-staging-k8s-platform-prod.
   # Override prevents destroy+recreate (which would break auto-unseal during replace window).
-  # The trust policy OIDC sub condition will be corrected in-place to staging-security-vault.
+  # Without the "staging-" prefix TF would plan a destructive replace against the wrong name.
   # If a prod module is added later, omit this override to get the standard ADR-050 naming.
-  iam_name_override = "VaultIRSA-${local.cluster_name}"
+  iam_name_override = "VaultIRSA-staging-${local.cluster_name}"
 
   # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
   ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
@@ -700,9 +653,11 @@ module "vault_config_staging" {
   eso_service_account = "external-secrets"
 
   # Keycloak PostgreSQL credentials
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
+  # to RDS endpoint directly (Vault KV host value must match Keycloak Helm postgresql_host)
   keycloak_postgresql_password = var.keycloak_postgresql_password
   keycloak_postgresql_username = "keycloak_user"
-  keycloak_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  keycloak_postgresql_host     = module.postgresql_staging.rds_address
   keycloak_postgresql_port     = "5432"
   keycloak_postgresql_database = "keycloak"
 
@@ -721,24 +676,34 @@ module "vault_config_staging" {
   grafana_admin_password = var.grafana_admin_password
 
   # SonarQube PostgreSQL — resolve TODO sonarqube/main.tf (P0-B ESO gap, 2026-02-19)
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
   sonarqube_postgresql_password = var.sonarqube_postgresql_password
   sonarqube_postgresql_username = "sonarqube_user"
-  sonarqube_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  sonarqube_postgresql_host     = module.postgresql_staging.rds_address
   sonarqube_postgresql_port     = "5432"
   sonarqube_postgresql_database = "sonarqube"
 
+  # GitLab PostgreSQL — FIX-GAP-GITLAB-WEBSERVICE-2026-03-24
+  # Vault path: secret/gitlab/postgresql-password
+  # ESO ExternalSecret: gitlab-postgresql-password (staging-platform-gitlab)
+  # Password source: AWS SM staging/postgresql/gitlab-password (rotated outside TF 2026-02-09)
+  # Set via: TF_VAR_gitlab_postgresql_password (sensitive)
+  gitlab_postgresql_password = var.gitlab_postgresql_password
+
   # Harbor PostgreSQL — migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
   harbor_postgresql_password = var.harbor_postgresql_password
   harbor_postgresql_username = "harbor_user"
-  harbor_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  harbor_postgresql_host     = module.postgresql_staging.rds_address
   harbor_postgresql_port     = "5432"
   harbor_postgresql_database = "harbor"
 
   # ArgoCD PostgreSQL — V-002 remediation (2026-02-20)
   # Vault KV: secret/argocd/postgresql → ESO ExternalSecret: argocd-postgresql-credentials
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
   argocd_postgresql_password = var.argocd_postgresql_password
   argocd_postgresql_username = "argocd_user"
-  argocd_postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  argocd_postgresql_host     = module.postgresql_staging.rds_address
   argocd_postgresql_port     = "5432"
   argocd_postgresql_database = "argocd"
 
@@ -809,7 +774,8 @@ module "harbor_staging" {
 
   # PostgreSQL (shared RDS) — password migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
   # Vault KV: secret/harbor/postgresql (vault-config/main.tf)
-  postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
+  postgresql_host     = module.postgresql_staging.rds_address
   postgresql_port     = 5432
   postgresql_database = "harbor"
   postgresql_username = "harbor_user"
@@ -821,7 +787,7 @@ module "harbor_staging" {
   redis_password_secret = module.redis_staging.redis_password_secret_name
 
   # Options
-  storage_class     = "gp2"
+  storage_class     = "gp3" # GAP-ARCH-007: migrado gp2→gp3 (2026-03-23) — PVC existente precisa migration se chart não suportar SC change in-place
   enable_trivy      = false # DISABLED: chart não aplica storageClass em volumeClaimTemplate
   enable_monitoring = true
   common_tags       = local.common_tags
@@ -926,7 +892,11 @@ module "keycloak_staging" {
   replicas               = 1       # Staging: 1 replica accepted. PROD: set to 2
 
   # PostgreSQL (external - RDS via postgresql_staging module)
-  postgresql_host     = "postgresql-external.default.svc.cluster.local"
+  # FIX-008 (2026-03-25): Migrated from postgresql-external.default.svc.cluster.local
+  # to RDS endpoint directly. ExternalName Service in default namespace violated
+  # namespace isolation (was not TF-managed, created manually). Prod already uses
+  # module.postgresql_prod.rds_address. Aligns staging with prod pattern.
+  postgresql_host     = module.postgresql_staging.rds_address
   postgresql_port     = 5432
   postgresql_database = "keycloak"
   postgresql_username = "keycloak_user"
@@ -1198,6 +1168,9 @@ module "kube_prometheus_stack_staging" {
 
   # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
   ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
+
+  # Alertmanager webhook — Slack/Teams/PagerDuty (vazio = sem AlertmanagerConfig criado)
+  alertmanager_webhook_url = var.alertmanager_webhook_url
 }
 
 #------------------------------------------------------------------------------
@@ -1392,6 +1365,32 @@ module "finops_automation_staging" {
   enable_scaling_protection  = true
   suspend_autoscaler_on_stop = true # GAP-1 fix (2026-03-12): explícito — impede re-escala nos weekends
 
+  # GAP-ARCH-017 (P2): Align node_groups_config with node-groups.tf (2026-03-23)
+  # system.max_size reduced 6→4 (GAP-FINOPS-002: 2 idle t3.medium eliminated after StatefulSet migration)
+  # Overrides module default (still shows max=6) — node-groups.tf is source of truth for ASG config
+  node_groups_config = {
+    system = {
+      min_size     = 2
+      desired_size = 3 # startup target; autoscaler manages live desired
+      max_size     = 4 # aligned with node-groups.tf (reduced from 6 on 2026-03-23)
+    }
+    workloads = {
+      min_size     = 0  # allows scale-to-zero on shutdown
+      desired_size = 2  # startup baseline; autoscaler scales up as needed
+      max_size     = 9  # aligned with node-groups.tf
+    }
+    critical = {
+      min_size     = 2
+      desired_size = 2
+      max_size     = 4 # unchanged — correct
+    }
+  }
+
+  # GAP-IMAGE-001 (2026-03-25): ECR mirror publico para o CronJob linkerd-cni-token-renewal.
+  # Imagem original 'bitnami/kubectl:1.28' (DockerHub) causava pull failure no cluster.
+  # Patch manual aplicado em 2026-03-25; codificado aqui para zero drift.
+  cni_renewer_image = "public.ecr.aws/bitnami/kubectl:1.28"
+
   # Tags
   tags = local.common_tags
 }
@@ -1415,60 +1414,120 @@ resource "aws_sns_topic_subscription" "finops_email" {
 
 #------------------------------------------------------------------------------
 # NETWORK POLICIES (Cross-Environment Isolation)
-# STAGING apps can ONLY access STAGING data services
-# TODO: Enable after creating app-staging namespace
+# GAP-ARCH-003 (P0): Staging namespaces CANNOT access data-services-prod
+# Activated 2026-03-23 — covers all staging-* namespaces (not just app-staging)
+# Egress DENY-by-default: policyTypes=Egress → any destination not listed = DENY
 #------------------------------------------------------------------------------
 
-# resource "kubectl_manifest" "netpol_deny_prod_access" {
-#   yaml_body = <<-YAML
-#     apiVersion: networking.k8s.io/v1
-#     kind: NetworkPolicy
-#     metadata:
-#       name: deny-access-to-prod-dataservices
-#       namespace: app-staging
-#     spec:
-#       podSelector: {}
-#       policyTypes:
-#         - Egress
-#       egress:
-#         # Allow STAGING dataservices ONLY
-#         - to:
-#           - namespaceSelector:
-#               matchLabels:
-#                 environment: staging
-#           ports:
-#             - protocol: TCP
-#               port: 5432  # PostgreSQL
-#             - protocol: TCP
-#               port: 6379  # Redis
-#             - protocol: TCP
-#               port: 5672  # RabbitMQ
-#
-#         # Allow DNS resolution
-#         - to:
-#           - namespaceSelector:
-#               matchLabels:
-#                 name: kube-system
-#           ports:
-#             - protocol: UDP
-#               port: 53
-#
-#         # Allow internet access (for package downloads, etc)
-#         - to:
-#           - namespaceSelector: {}
-#           ports:
-#             - protocol: TCP
-#               port: 443
-#             - protocol: TCP
-#               port: 80
-#   YAML
-#
-#   depends_on = [
-#     module.postgresql_staging,
-#     module.redis_staging,
-#     module.rabbitmq_staging
-#   ]
-# }
+# NetworkPolicy applied to staging-system namespace
+# Blocks egress to data-services-prod; allows DNS + intra-cluster + internet
+resource "kubectl_manifest" "netpol_deny_staging_to_prod_system" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: deny-egress-to-prod-data-services
+      namespace: staging-system
+      labels:
+        managed-by: terraform
+        gap: GAP-ARCH-003
+    spec:
+      podSelector: {}
+      policyTypes:
+        - Egress
+      egress:
+        # Allow DNS (CoreDNS in kube-system)
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        # Allow access to STAGING data services only
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  environment: staging
+          ports:
+            - protocol: TCP
+              port: 5432  # PostgreSQL
+            - protocol: TCP
+              port: 6379  # Redis
+            - protocol: TCP
+              port: 5672  # RabbitMQ AMQP
+            - protocol: TCP
+              port: 15672 # RabbitMQ Management
+        # Allow intra-cluster (kube-apiserver, metrics, webhooks)
+        - to:
+            - namespaceSelector: {}
+          ports:
+            - protocol: TCP
+              port: 443
+            - protocol: TCP
+              port: 8443
+            - protocol: TCP
+              port: 80
+        # NOTE: data-services-prod (PostgreSQL:5432, Redis:6379, RabbitMQ:5672)
+        # is IMPLICITLY DENIED — no egress rule allows access to that namespace.
+  YAML
+
+  depends_on = [
+    module.postgresql_staging,
+    module.redis_staging,
+    module.rabbitmq_staging
+  ]
+}
+
+# NetworkPolicy applied to staging-apps namespace (created on-demand by workloads)
+resource "kubectl_manifest" "netpol_deny_staging_to_prod_apps" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: deny-egress-to-prod-data-services
+      namespace: staging-apps
+      labels:
+        managed-by: terraform
+        gap: GAP-ARCH-003
+    spec:
+      podSelector: {}
+      policyTypes:
+        - Egress
+      egress:
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  environment: staging
+          ports:
+            - protocol: TCP
+              port: 5432
+            - protocol: TCP
+              port: 6379
+            - protocol: TCP
+              port: 5672
+            - protocol: TCP
+              port: 15672
+        - to:
+            - namespaceSelector: {}
+          ports:
+            - protocol: TCP
+              port: 443
+            - protocol: TCP
+              port: 8443
+            - protocol: TCP
+              port: 80
+  YAML
+
+  depends_on = [
+    module.postgresql_staging,
+    module.redis_staging,
+    module.rabbitmq_staging
+  ]
+}
 
 #------------------------------------------------------------------------------
 # OBSERVABILITY INTEGRATION (Hybrid - Shared Prometheus with Labels)
@@ -1834,7 +1893,7 @@ module "weekly_finops_report" {
   aws_region          = var.aws_region
   schedule_expression = "cron(0 12 ? * MON *)" # Weekly Monday at 9am BRT (12pm UTC)
   alert_email         = var.finops_alert_email
-  log_retention_days  = 30 # Keep weekly reports for 1 month
+  log_retention_days  = 14 # Mesa Técnica CloudWatch 2026-03-24: reduzido 30→14d
 
   common_tags = merge(local.common_tags, {
     Purpose     = "FinOps weekly comprehensive report"
@@ -2751,6 +2810,19 @@ module "linkerd" {
   # Habilitado quando namespaces ipaas/integration forem criados:
   #   proxy_inject_namespaces = ["staging-integration-ipaas", "staging-integration-workers"]
   proxy_inject_namespaces = []
+
+  # --- Tolerations para system nodes (GAP-TOLERATION-001, 2026-03-25) ---
+  # System nodes possuem taint 'node-type=system:NoSchedule'.
+  # Patch manual aplicado em 2026-03-25 para destination, identity, proxy-injector.
+  # Codificado aqui para zero drift — evita reversao no proximo helm upgrade.
+  control_plane_tolerations = [
+    {
+      key      = "node-type"
+      operator = "Equal"
+      value    = "system"
+      effect   = "NoSchedule"
+    }
+  ]
 }
 
 #------------------------------------------------------------------------------
@@ -2807,7 +2879,7 @@ module "backstage_staging" {
 
   # PostgreSQL RDS (shared — backstage database)
   # ATENCAO: usar RDS endpoint direto e user 'backstage' (como configurado no RDS)
-  # Host alternativo via ExternalName: postgresql-external.default.svc.cluster.local
+  # FIX-008 (2026-03-25): postgresql-external.default ExternalName deprecated — use RDS endpoint
   backstage_db_host     = "k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com"
   backstage_db_user     = "backstage"
   backstage_db_password = var.backstage_db_password
@@ -2877,5 +2949,117 @@ module "finops_cost_exporter" {
     # NOTE: owner/managed_by removed — default_tags already sets Owner/ManagedBy (AWS is case-insensitive)
     # Adding lowercase variants causes "Duplicate tag keys" error
     domain = "finops"
+  }
+}
+
+# =============================================================================
+# YACE — Yet Another CloudWatch Exporter (WAF observability)
+# Deployed manually 2026-03-03 (Revision 1-3). Codified here 2026-03-23 (GAP-SCHED-001).
+# authType=default → uses node instance profile (CloudWatchReadForYACE IAM policy on EKS node role)
+# nodeSelector added 2026-03-23: GAP-SCHED-001 — force to workloads nodegroup (was on system nodes)
+# Import: terraform import helm_release.yace staging-observability-monitoring/yace
+# =============================================================================
+
+resource "helm_release" "yace" {
+  name             = "yace"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "prometheus-yet-another-cloudwatch-exporter"
+  version          = "0.42.0"
+  namespace        = "staging-observability-monitoring"
+  create_namespace = false
+
+  values = [<<-YAML
+    nameOverride: yace
+    fullnameOverride: yace
+    replicaCount: 1
+
+    aws:
+      region: us-east-1
+
+    config: |-
+      apiVersion: v1alpha1
+      discovery:
+        exportedTagsOnMetrics:
+          AWS/WAFV2:
+            - WebACLName
+            - Region
+            - Name
+        jobs:
+          - type: AWS/WAFV2
+            regions:
+              - us-east-1
+            metrics:
+              - name: BlockedRequests
+                statistics:
+                  - Sum
+                period: 300
+                length: 900
+              - name: AllowedRequests
+                statistics:
+                  - Sum
+                period: 300
+                length: 900
+              - name: CountedRequests
+                statistics:
+                  - Sum
+                period: 300
+                length: 900
+
+    # GAP-SCHED-001 (2026-03-23): force to workloads nodegroup (was landing on system nodes)
+    nodeSelector:
+      eks.amazonaws.com/nodegroup: workloads
+
+    tolerations:
+      - key: node-type
+        operator: Equal
+        value: system
+        effect: NoSchedule
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    service:
+      type: ClusterIP
+      port: 80
+      annotations:
+        app.kubernetes.io/part-of: observability
+
+    serviceAccount:
+      create: true
+      name: yace
+      labels:
+        app.kubernetes.io/part-of: observability
+        domain: operations
+        environment: staging
+        owner: platform-team
+
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
+
+    deployment:
+      labels:
+        app.kubernetes.io/part-of: observability
+        domain: operations
+        environment: staging
+        owner: platform-team
+
+    podLabels:
+      app.kubernetes.io/part-of: observability
+      domain: operations
+      environment: staging
+      owner: platform-team
+  YAML
+  ]
+
+  lifecycle {
+    # Prevent accidental upgrades on the standalone release — version bumps require review
+    ignore_changes = [version]
   }
 }

@@ -1,0 +1,17 @@
+================================================================================
+                    VPA SAVINGS ANALYSIS REPORT
+================================================================================
+
+Generated: 2026-03-24 18:09:18 -03
+Cluster: arn:aws:eks:us-east-1:891377105802:cluster/k8s-platform-prod
+
+Pricing Assumptions:
+  - CPU Cost:    $0.0416 per vCPU/hour (us-east-1 t3)
+  - Memory Cost: $0.00456 per GB/hour (us-east-1 t3)
+  - Exchange Rate: 1 USD = 6.0 BRL
+
+================================================================================
+
+WORKLOAD                  NAMESPACE                   CPU %     MEMORY %   SAVINGS/YR       BRL/YR
+------------------------- -------------------- ------------ ------------ ------------ ------------
+harbor-core               harbor-system               80.0%        80.0% $     47.04 R$    282.25

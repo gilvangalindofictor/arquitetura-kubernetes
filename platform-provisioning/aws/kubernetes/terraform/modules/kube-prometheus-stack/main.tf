@@ -194,8 +194,11 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.prometheus_retention
   }
 
-  # Resources — increased 2026-03-20: OOMKilled (18 restarts) with 63 ServiceMonitors + 14 nodes + 5.3G WAL
-  # Previous: requests 100m/512Mi, limits 500m/2Gi → OOM at ~1.3Gi usage, CPU throttled at 500m
+  # Resources — 2026-03-23 right-size para system node (t3.medium, 3.3Gi allocatable):
+  # - 2026-03-20: aumentado para 500m/3Gi request após OOMKilled com 63 ServiceMonitors
+  # - 2026-03-23: reduzido request memory 3Gi→2Gi para caber no system us-east-1a (headroom: 540Mi)
+  # - CPU request: 500m (live Helm), limit: 1 (live Helm). TF alinhado com live values.
+  # NOTE: lifecycle.ignore_changes=all → este set block é IaC source-of-truth; apply requer helm upgrade manual
   set {
     name  = "prometheus.prometheusSpec.resources.requests.cpu"
     value = "500m"
@@ -203,12 +206,12 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "prometheus.prometheusSpec.resources.requests.memory"
-    value = "3Gi"
+    value = "2Gi"
   }
 
   set {
     name  = "prometheus.prometheusSpec.resources.limits.cpu"
-    value = "1000m"
+    value = "1"
   }
 
   set {
@@ -216,7 +219,48 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "6Gi"
   }
 
-  # nodeSelector removido: pods podem escalar em qualquer node disponível
+  # GAP-PROM-LIVENESS-001 (2026-03-23): probe tolerante para TSDB compaction e node instabilidade.
+  # Probe anterior: timeout=3s period=5s failureThreshold=6 → mata em 30s (muito curto para TSDB compaction).
+  # Fix aplicado via kubectl patch prometheus CR spec.containers[name=prometheus].livenessProbe.
+  # ATENÇÃO: lifecycle.ignore_changes=all → este bloco é IaC source-of-truth; não propaga automaticamente via TF apply.
+  set {
+    name  = "prometheus.prometheusSpec.containers[0].name"
+    value = "prometheus"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.containers[0].livenessProbe.initialDelaySeconds"
+    value = "60"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.containers[0].livenessProbe.periodSeconds"
+    value = "15"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.containers[0].livenessProbe.failureThreshold"
+    value = "10"
+  }
+
+  set {
+    name  = "prometheus.prometheusSpec.containers[0].livenessProbe.timeoutSeconds"
+    value = "10"
+  }
+
+  # GAP-SCHED-003 RESOLVED (2026-03-23): Prometheus movido para system node us-east-1a.
+  # Histórico:
+  #   - Tentativa inicial: system nodes. Inviável com 3Gi request (t3.medium ~3.3Gi allocatable).
+  #   - Fix: memory request reduzido de 3Gi → 2Gi (uso real <<500Mi). Agora cabe no system us-east-1a.
+  #   - Solução final: eks.amazonaws.com/nodegroup=system + PV zone-pinned us-east-1a = MATCH.
+  #   - nodeSelector aplicado via kubectl patch Prometheus CRD (helm upgrade evitado por hook timeout).
+  # ATENÇÃO: lifecycle.ignore_changes=all neste helm_release — nodeSelector gerenciado via CRD patch ou helm upgrade manual.
+
+  # nodeSelector: Prometheus no nodegroup system (GAP-SCHED-003 fix 2026-03-23)
+  set {
+    name  = "prometheus.prometheusSpec.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "system"
+  }
 
   # Tolerations
   set {
@@ -718,6 +762,31 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "observability"
   }
 
+  # Fase A3 (2026-03-23): Toleration explícita para system nodes com taint node-type=system:NoSchedule
+  # node-exporter é DaemonSet e DEVE rodar em TODOS os nodes (system + workloads + critical).
+  # Nota: o chart já injeta operator=Exists como default (tolera qualquer NoSchedule),
+  # mas codificamos aqui como source-of-truth para auditabilidade (ADR-041 pattern).
+  # lifecycle.ignore_changes=all → aplicar via: helm upgrade kube-prometheus-stack -n <ns> --reuse-values
+  set {
+    name  = "prometheus-node-exporter.tolerations[0].key"
+    value = "node-type"
+  }
+
+  set {
+    name  = "prometheus-node-exporter.tolerations[0].operator"
+    value = "Equal"
+  }
+
+  set {
+    name  = "prometheus-node-exporter.tolerations[0].value"
+    value = "system"
+  }
+
+  set {
+    name  = "prometheus-node-exporter.tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
   # -----------------------------------------------------------------------------
   # Kube State Metrics
   # -----------------------------------------------------------------------------
@@ -846,6 +915,64 @@ resource "helm_release" "kube_prometheus_stack" {
     }
   }
 
+  # GAP-PROM-ADM-001 (2026-03-23): Override admission webhook certgen image
+  # Default image: ghcr.io/jkroepke/kube-webhook-certgen:1.7.7
+  # Problem: enable_ghcr=false → no ECR pull-through for GHCR → Kyverno redirects ghcr.io → ECR ghcr/ → ErrImagePull
+  # Fix: use registry.k8s.io/ingress-nginx/kube-webhook-certgen via ECR k8s/ pull-through (active)
+  # NOTE: lifecycle.ignore_changes=all → this change is source-of-truth but requires manual helm upgrade to take effect:
+  #   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  #     -n staging-observability-monitoring --reuse-values \  # CUIDADO: usar -f values.yaml explícito
+  #     --set prometheusOperator.admissionWebhooks.patch.image.registry=<ecr> \
+  #     --set prometheusOperator.admissionWebhooks.patch.image.repository=k8s/ingress-nginx/kube-webhook-certgen \
+  #     --set prometheusOperator.admissionWebhooks.patch.image.tag=v1.3.0
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.patch.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.patch.image.repository"
+      value = "k8s/ingress-nginx/kube-webhook-certgen"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.patch.image.tag"
+      value = "v1.3.0"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.deployment.image.registry"
+      value = var.ecr_registry
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.deployment.image.repository"
+      value = "k8s/ingress-nginx/kube-webhook-certgen"
+    }
+  }
+
+  dynamic "set" {
+    for_each = var.ecr_registry != "" ? [1] : []
+    content {
+      name  = "prometheusOperator.admissionWebhooks.deployment.image.tag"
+      value = "v1.3.0"
+    }
+  }
+
   depends_on = [kubernetes_namespace.monitoring]
 
   lifecycle {
@@ -878,7 +1005,7 @@ resource "kubectl_manifest" "grafana_admin_externalsecret" {
     spec = {
       refreshInterval = "1h"
       secretStoreRef = {
-        name = "vault-backend"
+        name = var.secret_store_name
         kind = "ClusterSecretStore"
       }
       target = {
@@ -961,7 +1088,7 @@ resource "kubectl_manifest" "grafana_oidc_externalsecret" {
     spec = {
       refreshInterval = "1h"
       secretStoreRef = {
-        name = "vault-backend"
+        name = var.secret_store_name
         kind = "ClusterSecretStore"
       }
       target = {

@@ -285,8 +285,15 @@ gitlab:
       periodSeconds: 5
 
   # Toolbox (disabled for staging - no automated backups needed)
+  # GAP-SCHED-001: nodeSelector pre-configured for when toolbox is re-enabled
   toolbox:
     enabled: false
+    %{~ if length(workload_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in workload_node_selector ~}
+      ${k}: ${v}
+      %{~ endfor ~}
+    %{~ endif ~}
     backups:
       objectStorage:
         config:
@@ -294,10 +301,29 @@ gitlab:
           key: connection
         backend: s3
 
+# GitLab KAS (Kubernetes Agent Server)
+# GAP-SCHED-001: route to workload nodes (t3.large) — free system nodes (t3.medium)
+# Label eks.amazonaws.com/nodegroup=workloads confirmed on workloads node group (2026-03-23)
+gitlab-kas:
+  %{~ if length(workload_node_selector) > 0 ~}
+  nodeSelector:
+    %{~ for k, v in workload_node_selector ~}
+    ${k}: ${v}
+    %{~ endfor ~}
+  %{~ endif ~}
+
 # GitLab Runner (CI/CD)
 gitlab-runner:
   install: true
   replicas: ${runner_replicas}
+
+  # GAP-SCHED-001: route to workload nodes (t3.large) — free system nodes (t3.medium)
+  %{~ if length(workload_node_selector) > 0 ~}
+  nodeSelector:
+    %{~ for k, v in workload_node_selector ~}
+    ${k}: ${v}
+    %{~ endfor ~}
+  %{~ endif ~}
 
   # Use internal Kubernetes DNS — namespace is staging-platform-gitlab (DEC-074 migration)
   # ADR-021 Fase 1: No external domain, use service DNS

@@ -6,6 +6,22 @@
 # Migration: SpotaHome -> OT-Container-Kit (2026-02-13)
 # =============================================================================
 
+# =============================================================================
+# STATE MIGRATION: count refactor for helm_release + time_sleep (2026-03-24)
+# helm_release.redis_operator and time_sleep.wait_for_crds converted to count.
+# Existing staging state (index-less) is migrated via moved{} to index [0].
+# kubernetes_namespace.redis_operator stays WITHOUT count (always created).
+# =============================================================================
+moved {
+  from = helm_release.redis_operator
+  to   = helm_release.redis_operator[0]
+}
+
+moved {
+  from = time_sleep.wait_for_crds
+  to   = time_sleep.wait_for_crds[0]
+}
+
 terraform {
   required_providers {
     helm = {
@@ -42,6 +58,9 @@ resource "random_password" "redis" {
 }
 
 resource "kubernetes_namespace" "redis_operator" {
+  # Always created for environment isolation (ADR-048 namespace convention).
+  # When install_operator=false, namespace is managed but operator Helm release is skipped
+  # (operator already exists cluster-wide in staging-data-redis-operator).
   metadata {
     name = var.operator_namespace
 
@@ -98,6 +117,9 @@ resource "kubernetes_secret" "redis_password" {
 # =============================================================================
 
 resource "helm_release" "redis_operator" {
+  # Only install when install_operator=true. When false, operator already exists cluster-wide.
+  count = var.install_operator ? 1 : 0
+
   name       = "redis-operator"
   namespace  = kubernetes_namespace.redis_operator.metadata[0].name
   chart      = "/home/gilvangalindo/.cache/helm/repository/redis-operator-0.23.0.tgz"
@@ -159,7 +181,9 @@ resource "helm_release" "redis_operator" {
 }
 
 # Wait for CRDs to be fully registered
+# When install_operator=false, CRDs already exist (shared from staging operator) — sleep skipped.
 resource "time_sleep" "wait_for_crds" {
+  count      = var.install_operator ? 1 : 0
   depends_on = [helm_release.redis_operator]
 
   create_duration = "30s"
@@ -171,7 +195,7 @@ resource "time_sleep" "wait_for_crds" {
 
 resource "kubectl_manifest" "redis" {
   depends_on = [
-    time_sleep.wait_for_crds,
+    time_sleep.wait_for_crds,  # count=0 when install_operator=false (CRDs already exist)
     kubernetes_secret.redis_password
   ]
 

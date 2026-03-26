@@ -79,7 +79,7 @@ variable "redis_password_secret" {
 
 variable "storage_class" {
   type    = string
-  default = "gp2"
+  default = "gp3" # GAP-HARBOR-PVC-001: updated default to gp3 (2026-03-23) — 20% cheaper, 3000 IOPS baseline
 }
 
 variable "enable_trivy" {
@@ -139,6 +139,14 @@ variable "oidc_admin_group" {
   description = "OIDC group mapped to Harbor admin role"
   type        = string
   default     = "harbor-admins"
+}
+
+# GAP-SEC-ESO-001 (FIX-006): CSS name parametrizado para isolar staging/prod.
+# Default "vault-backend" mantém backward compatibility. Para prod: "vault-backend-prod".
+variable "secret_store_name" {
+  description = "ClusterSecretStore name for ExternalSecret references. Use module.external_secrets.cluster_secret_store_name output."
+  type        = string
+  default     = "vault-backend"
 }
 
 # ECR Pull-Through Cache

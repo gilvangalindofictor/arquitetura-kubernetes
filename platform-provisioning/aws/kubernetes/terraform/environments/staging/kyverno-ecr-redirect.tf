@@ -268,6 +268,14 @@ resource "kubectl_manifest" "kyverno_redirect_public_registries_to_ecr" {
                         image: "{{ regex_replace_all('^quay\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/quay/$1') }}"
 
         # ---- REGRA 7: ghcr.io/* -> ECR (containers) ---------------------------
+        # DEPENDENCIA: enable_ghcr=false (main.tf) significa que NAO ha pull-through
+        #   rule para GHCR no ECR. Esta regra redireciona ghcr.io → ECR ghcr/ prefix,
+        #   mas sem a pull-through rule o pull falha (ErrImagePull).
+        # GAP-KYVERNO-GHCR-001 (2026-03-23): A excecao para ghcr.io/jkroepke/kube-webhook-certgen
+        #   esta codificada em kubectl_manifest.kyverno_exception_prom_admission_certgen abaixo.
+        #   Essa imagem e redirecionada para registry.k8s.io/ingress-nginx/kube-webhook-certgen
+        #   via ECR pull-through k8s/ (ativo) pelo fix GAP-PROM-ADM-001 no modulo kube-prometheus-stack.
+        # NOTA: Quando enable_ghcr=true, remover o PolicyException abaixo (pull-through GHCR estara ativo).
         - name: redirect-ghcr-containers
           match:
             any:
@@ -303,6 +311,7 @@ resource "kubectl_manifest" "kyverno_redirect_public_registries_to_ecr" {
                         image: "{{ regex_replace_all('^ghcr\\.io/(.+)$', element.image, '891377105802.dkr.ecr.us-east-1.amazonaws.com/ghcr/$1') }}"
 
         # ---- REGRA 8: ghcr.io/* -> ECR (initContainers) -----------------------
+        # Mesma dependencia que REGRA 7 — ver comentario acima (GAP-KYVERNO-GHCR-001).
         - name: redirect-ghcr-initcontainers
           match:
             any:
@@ -512,6 +521,76 @@ resource "kubectl_manifest" "kyverno_redirect_public_registries_to_ecr" {
   lifecycle {
     ignore_changes = [
       # Kyverno controller pode adicionar annotations/labels de status
+      yaml_body,
+    ]
+  }
+}
+
+################################################################################
+# GAP-KYVERNO-GHCR-001 (2026-03-23): PolicyException — certgen admission webhook
+################################################################################
+# Problema: enable_ghcr=false → sem ECR pull-through para GHCR. As regras 7/8
+#   acima redirecionam ghcr.io/* → ECR ghcr/ prefix, mas o prefix nao existe
+#   no ECR → ErrImagePull no Job do admission webhook do kube-prometheus-stack.
+#
+# Solucao: PolicyException exclui ghcr.io/jkroepke/kube-webhook-certgen das
+#   regras de redirect GHCR. O modulo kube-prometheus-stack (GAP-PROM-ADM-001)
+#   sobrescreve a imagem para registry.k8s.io/ingress-nginx/kube-webhook-certgen,
+#   que cai na REGRA 9/10 (k8s/ pull-through — ativo) automaticamente.
+#
+# Ciclo de vida:
+#   - enable_ghcr=false: esta excecao DEVE existir
+#   - enable_ghcr=true:  remover este recurso (pull-through GHCR estara ativo)
+#
+# Ref: GAP-PROM-ADM-001 (modules/kube-prometheus-stack/main.tf)
+################################################################################
+
+resource "kubectl_manifest" "kyverno_exception_prom_admission_certgen" {
+  yaml_body = <<-YAML
+    apiVersion: kyverno.io/v2
+    kind: PolicyException
+    metadata:
+      name: exception-prom-admission-certgen-ghcr
+      namespace: staging-observability-monitoring
+      labels:
+        app.kubernetes.io/managed-by: terraform
+        governance.platform/gap: GAP-KYVERNO-GHCR-001
+      annotations:
+        policies.kyverno.io/title: Exception — kube-webhook-certgen GHCR redirect
+        policies.kyverno.io/description: >-
+          Exclui ghcr.io/jkroepke/kube-webhook-certgen das regras de redirect GHCR
+          (redirect-ghcr-containers / redirect-ghcr-initcontainers) enquanto
+          enable_ghcr=false. A imagem e substituida pelo override GAP-PROM-ADM-001
+          (registry.k8s.io/ingress-nginx/kube-webhook-certgen via ECR k8s/ ativo).
+          Remover quando enable_ghcr=true.
+    spec:
+      exceptions:
+        - policyName: redirect-public-registries-to-ecr
+          ruleNames:
+            - redirect-ghcr-containers
+            - redirect-ghcr-initcontainers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - staging-observability-monitoring
+              selector:
+                matchExpressions:
+                  - key: batch.kubernetes.io/job-name
+                    operator: Exists
+              images:
+                containers:
+                  - "ghcr.io/jkroepke/kube-webhook-certgen*"
+                initContainers:
+                  - "ghcr.io/jkroepke/kube-webhook-certgen*"
+  YAML
+
+  depends_on = [kubectl_manifest.kyverno_redirect_public_registries_to_ecr]
+
+  lifecycle {
+    ignore_changes = [
       yaml_body,
     ]
   }

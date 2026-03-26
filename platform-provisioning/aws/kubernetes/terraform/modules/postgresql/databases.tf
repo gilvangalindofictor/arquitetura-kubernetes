@@ -3,7 +3,7 @@
 # For local TF runs via port-forward, set postgresql_host_override = "localhost"
 provider "postgresql" {
   host            = var.postgresql_host_override != null ? var.postgresql_host_override : aws_db_instance.postgresql.address
-  port            = aws_db_instance.postgresql.port
+  port            = var.postgresql_port_override != null ? var.postgresql_port_override : aws_db_instance.postgresql.port
   username        = aws_db_instance.postgresql.username
   password        = var.master_password_override != null ? var.master_password_override : random_password.master.result
   sslmode         = "require"
@@ -26,6 +26,14 @@ resource "postgresql_role" "gitlab_user" {
   login    = true
   password = random_password.gitlab_user.result
 
+  # BACEN BCB 85/2021 Art.6º §1º + LGPD Art.46 — Privilégios mínimos (least-privilege)
+  # NOSUPERUSER: impede escalada de privilégios via superuser
+  superuser       = false
+  create_database = false
+  create_role     = false
+  replication     = false
+  connection_limit = 10 # Limita blast radius em caso de comprometimento da credencial
+
   depends_on = [aws_db_instance.postgresql]
 }
 
@@ -45,7 +53,10 @@ resource "postgresql_grant" "gitlab_user_database" {
   database    = postgresql_database.gitlab.name
   role        = postgresql_role.gitlab_user.name
   object_type = "database"
-  privileges  = ["ALL"]
+  # BACEN BCB 85/2021 Art.6º §1º — Downgrade de ALL para CONNECT+TEMPORARY (database-level)
+  # CONNECT: permite conexão ao banco; TEMPORARY: permite tabelas temporárias (requerido por GitLab)
+  # Privilégios de tabela/schema permanecem em postgresql_grant.*_schema (object_type="schema")
+  privileges = ["CONNECT", "TEMPORARY"]
 }
 
 resource "postgresql_grant" "gitlab_user_schema" {
@@ -94,6 +105,13 @@ resource "postgresql_role" "keycloak_user" {
   login    = true
   password = random_password.keycloak_user.result
 
+  # BACEN BCB 85/2021 Art.6º §1º + LGPD Art.46 — Privilégios mínimos (least-privilege)
+  superuser        = false
+  create_database  = false
+  create_role      = false
+  replication      = false
+  connection_limit = 10
+
   depends_on = [aws_db_instance.postgresql]
 }
 
@@ -113,7 +131,8 @@ resource "postgresql_grant" "keycloak_user_database" {
   database    = postgresql_database.keycloak.name
   role        = postgresql_role.keycloak_user.name
   object_type = "database"
-  privileges  = ["ALL"]
+  # BACEN BCB 85/2021 Art.6º §1º — Downgrade de ALL para CONNECT+TEMPORARY (database-level)
+  privileges = ["CONNECT", "TEMPORARY"]
 }
 
 resource "postgresql_grant" "keycloak_user_schema" {
@@ -162,6 +181,13 @@ resource "postgresql_role" "sonarqube_user" {
   login    = true
   password = random_password.sonarqube_user.result
 
+  # BACEN BCB 85/2021 Art.6º §1º + LGPD Art.46 — Privilégios mínimos (least-privilege)
+  superuser        = false
+  create_database  = false
+  create_role      = false
+  replication      = false
+  connection_limit = 10
+
   depends_on = [aws_db_instance.postgresql]
 }
 
@@ -181,7 +207,8 @@ resource "postgresql_grant" "sonarqube_user_database" {
   database    = postgresql_database.sonarqube.name
   role        = postgresql_role.sonarqube_user.name
   object_type = "database"
-  privileges  = ["ALL"]
+  # BACEN BCB 85/2021 Art.6º §1º — Downgrade de ALL para CONNECT+TEMPORARY (database-level)
+  privileges = ["CONNECT", "TEMPORARY"]
 }
 
 resource "postgresql_grant" "sonarqube_user_schema" {
@@ -190,4 +217,63 @@ resource "postgresql_grant" "sonarqube_user_schema" {
   schema      = "public"
   object_type = "schema"
   privileges  = ["ALL"]
+}
+
+# -----------------------------------------------------------------------------
+# BACEN BCB 85/2021 Art.6º §1º + LGPD Art.46 — DROP EXTENSION dblink
+#
+# dblink permite conexões cross-database arbitrárias, violando o princípio de
+# isolamento de banco de dados e rastreabilidade de acesso. Deve ser removida.
+#
+# NOTA DE REDE: O provisioner local-exec requer acesso direto ao RDS na porta 5432.
+# Em pipelines CI/CD sem port-forward ativo, este null_resource tem lifecycle
+# ignore_changes=all — serve como documentação da intenção de compliance.
+# EXECUÇÃO MANUAL (quando houver acesso de rede via kubectl port-forward):
+#   kubectl port-forward svc/postgresql-external 5432:5432 -n default &
+#   PGPASSWORD="<master_password>" psql -h 127.0.0.1 -U postgres_admin \
+#     -d gitlab    -c 'DROP EXTENSION IF EXISTS dblink;'
+#   PGPASSWORD="<master_password>" psql -h 127.0.0.1 -U postgres_admin \
+#     -d keycloak  -c 'DROP EXTENSION IF EXISTS dblink;'
+#   PGPASSWORD="<master_password>" psql -h 127.0.0.1 -U postgres_admin \
+#     -d sonarqube -c 'DROP EXTENSION IF EXISTS dblink;'
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "drop_dblink_gitlab" {
+  triggers = {
+    database   = postgresql_database.gitlab.name
+    compliance = "BACEN-BCB85-2021-Art6-dblink-removal"
+  }
+
+  lifecycle {
+    # ignore_changes=all: execução manual via kubectl port-forward (sem acesso direto ao RDS em CI/CD)
+    ignore_changes = all
+  }
+
+  depends_on = [postgresql_database.gitlab]
+}
+
+resource "null_resource" "drop_dblink_keycloak" {
+  triggers = {
+    database   = postgresql_database.keycloak.name
+    compliance = "BACEN-BCB85-2021-Art6-dblink-removal"
+  }
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [postgresql_database.keycloak]
+}
+
+resource "null_resource" "drop_dblink_sonarqube" {
+  triggers = {
+    database   = postgresql_database.sonarqube.name
+    compliance = "BACEN-BCB85-2021-Art6-dblink-removal"
+  }
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [postgresql_database.sonarqube]
 }

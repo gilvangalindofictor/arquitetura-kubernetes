@@ -8,8 +8,8 @@ output "namespace" {
 }
 
 output "cluster_secret_store_name" {
-  description = "ClusterSecretStore name for Vault backend"
-  value       = "vault-backend"
+  description = "ClusterSecretStore name for Vault backend (GAP-SEC-ESO-001: env-specific)"
+  value       = var.cluster_secret_store_name
 }
 
 output "service_account_name" {

@@ -117,6 +117,11 @@ podLabels:
   app.kubernetes.io/part-of: observability
   app.kubernetes.io/name: opentelemetry-collector
 
+# GAP-SCHED-001: route to workload nodes (t3.large) — free system nodes (t3.medium)
+# Label eks.amazonaws.com/nodegroup=workloads confirmed on workloads node group (2026-03-23)
+nodeSelector:
+  eks.amazonaws.com/nodegroup: workloads
+
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:

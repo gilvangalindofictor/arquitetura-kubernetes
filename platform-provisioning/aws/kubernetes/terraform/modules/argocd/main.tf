@@ -71,7 +71,7 @@ resource "kubectl_manifest" "argocd_postgresql_externalsecret" {
     spec:
       refreshInterval: 1h
       secretStoreRef:
-        name: vault-backend
+        name: ${var.secret_store_name}
         kind: ClusterSecretStore
       target:
         name: argocd-postgresql-credentials
@@ -133,7 +133,7 @@ resource "kubectl_manifest" "argocd_oidc_externalsecret" {
     spec:
       refreshInterval: 1h
       secretStoreRef:
-        name: vault-backend
+        name: ${var.secret_store_name}
         kind: ClusterSecretStore
       target:
         name: argocd-oidc-credentials

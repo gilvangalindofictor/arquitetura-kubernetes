@@ -73,9 +73,9 @@ resource "kubectl_manifest" "vault_cluster_secret_store" {
     apiVersion: external-secrets.io/v1beta1
     kind: ClusterSecretStore
     metadata:
-      name: vault-backend
+      name: ${var.cluster_secret_store_name}
       labels:
-        app.kubernetes.io/name: vault-backend
+        app.kubernetes.io/name: ${var.cluster_secret_store_name}
         app.kubernetes.io/instance: ${var.cluster_name}-vault
     spec:
       provider:

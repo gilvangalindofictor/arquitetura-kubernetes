@@ -129,6 +129,14 @@ variable "sonarqube_postgresql_password" {
   default     = ""
 }
 
+# GitLab PostgreSQL — FIX-GAP-GITLAB-WEBSERVICE-2026-03-24
+variable "gitlab_postgresql_password" {
+  description = "GitLab PostgreSQL user password (source: AWS SM staging/postgresql/gitlab-password; rotated outside TF 2026-02-09)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # Harbor PostgreSQL — migrado de AWS SM para Vault KV (P1 ESO gap, 2026-02-19)
 variable "harbor_postgresql_password" {
   description = "Harbor PostgreSQL user password (migrated from AWS SM staging/postgresql/gitlab-password to Vault KV secret/harbor/postgresql)"
@@ -403,4 +411,15 @@ variable "docker_hub_access_token" {
   type        = string
   sensitive   = true
   default     = ""
+}
+
+#------------------------------------------------------------------------------
+# Alertmanager Webhook — Slack / Teams / PagerDuty
+#------------------------------------------------------------------------------
+
+variable "alertmanager_webhook_url" {
+  description = "URL do webhook para Alertmanager (Slack/Teams/PagerDuty). Vazio = sem notificações. Definir via TF_VAR_alertmanager_webhook_url."
+  type        = string
+  default     = ""
+  sensitive   = true
 }

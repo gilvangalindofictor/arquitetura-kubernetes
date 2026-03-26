@@ -50,7 +50,8 @@ variable "replicas" {
 variable "storage_class" {
   description = "Storage class for Vault PVCs"
   type        = string
-  default     = "gp2"
+  # GAP-ARCH-006: default migrado gp2→gp3 (2026-03-23) — gp3 é 20% mais barato e sem burst IOPS
+  default = "gp3"
 }
 
 variable "pvc_size" {
@@ -136,6 +137,16 @@ variable "iam_name_override" {
   description = "Override IAM role/policy name. If empty, uses VaultIRSA-<environment>-<cluster_name>. Use for clusters where the role was created manually without the env prefix (avoid destroy+recreate)."
   type        = string
   default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Node Placement
+# -----------------------------------------------------------------------------
+
+variable "node_selector" {
+  description = "nodeSelector labels for Vault server pods (e.g. { \"eks.amazonaws.com/nodegroup\" = \"workloads\" }). Empty map = no nodeSelector."
+  type        = map(string)
+  default     = {}
 }
 
 # -----------------------------------------------------------------------------

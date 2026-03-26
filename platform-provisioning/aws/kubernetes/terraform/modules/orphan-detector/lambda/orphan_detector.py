@@ -2,6 +2,14 @@
 """
 AWS Orphan Resource Detector
 Scans for orphaned resources (EBS volumes, Elastic IPs, Snapshots) and sends alerts.
+
+CSI Filter (added 2026-03-24):
+  Volumes managed by the EBS CSI driver are excluded from orphan detection.
+  A volume is considered CSI-managed if it has ANY of the following tags:
+    - kubernetes.io/created-for/pvc/name  (set by EBS CSI on PVC provision)
+    - CSIVolumeName                        (set by EBS CSI driver)
+    - ebs.csi.aws.com/cluster             (set by EBS CSI driver)
+  Additionally, volumes in 'in-use' state are always excluded (already attached).
 """
 
 import boto3
@@ -14,8 +22,34 @@ from typing import List, Dict, Any
 ORPHAN_AGE_DAYS = 7
 REGION = os.environ.get('REGION', 'us-east-1')
 
+# Tags that identify volumes managed by the EBS CSI driver.
+# Any volume carrying at least one of these tags is NOT an orphan.
+CSI_MANAGED_TAG_KEYS = {
+    'kubernetes.io/created-for/pvc/name',
+    'CSIVolumeName',
+    'ebs.csi.aws.com/cluster',
+}
+
+
+def is_csi_managed(volume: Dict[str, Any]) -> bool:
+    """Return True if the volume is managed by the EBS CSI driver.
+
+    Checks:
+      1. State == 'in-use'  → already attached, never orphan.
+      2. Any CSI tag key is present in the volume Tags.
+    """
+    if volume.get('State') == 'in-use':
+        return True
+
+    tag_keys = {t['Key'] for t in volume.get('Tags', [])}
+    if tag_keys & CSI_MANAGED_TAG_KEYS:
+        return True
+
+    return False
+
+
 def get_orphan_ebs_volumes() -> List[Dict[str, Any]]:
-    """Find EBS volumes in 'available' state for >7 days."""
+    """Find EBS volumes in 'available' state for >7 days, excluding CSI-managed volumes."""
     ec2 = boto3.client('ec2', region_name=REGION)
     orphans = []
 
@@ -27,6 +61,11 @@ def get_orphan_ebs_volumes() -> List[Dict[str, Any]]:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=ORPHAN_AGE_DAYS)
 
         for volume in response['Volumes']:
+            # Skip volumes managed by EBS CSI driver (false-positive prevention)
+            if is_csi_managed(volume):
+                print(f"  [CSI-SKIP] {volume['VolumeId']} — EBS CSI managed volume, skipping")
+                continue
+
             create_time = volume['CreateTime']
             age_days = (datetime.now(timezone.utc) - create_time).days
 

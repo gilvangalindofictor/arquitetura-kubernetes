@@ -131,7 +131,7 @@ resource "kubernetes_manifest" "secret_rotator_external_secret" {
     spec = {
       refreshInterval = "1h"
       secretStoreRef = {
-        name = "vault-backend"
+        name = var.secret_store_name
         kind = "ClusterSecretStore"
       }
       target = {
@@ -169,7 +169,7 @@ resource "kubernetes_manifest" "secret_rotator_rds_admin" {
     spec = {
       refreshInterval = "1h"
       secretStoreRef = {
-        name = "vault-backend"
+        name = var.secret_store_name
         kind = "ClusterSecretStore"
       }
       target = {

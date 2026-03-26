@@ -90,6 +90,14 @@ variable "acm_certificate_arn" {
   type        = string
 }
 
+# GAP-SEC-ESO-001 (2026-03-23): CSS name parametrizado para isolar staging/prod.
+# Default "vault-backend" mantém backward compatibility. Para prod: "vault-backend-prod".
+variable "secret_store_name" {
+  description = "ClusterSecretStore name for ExternalSecret references. Use module.external_secrets.cluster_secret_store_name output."
+  type        = string
+  default     = "vault-backend"
+}
+
 # ECR Pull-Through Cache
 variable "ecr_registry" {
   description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."

@@ -263,21 +263,56 @@ def lambda_handler(event, context):
             time.sleep(120)
 
         # ------------------------------------------------------------------
-        # STEP 4b: Rollout restart Linkerd control plane.
-        # Fix 2026-03-18: After a stop/start cycle, Linkerd destination and
-        # proxy-injector pods enter CrashLoopBackOff because the proxy
-        # sidecar can't reconnect to identity/destination after nodes were
-        # terminated. A rollout restart creates fresh pods that start clean.
-        # This MUST run after system nodes are ready (step 4) so the new
-        # pods have nodes to schedule on.
+        # STEP 4a: Rollout restart linkerd-cni DaemonSet.
+        #
+        # Fix 2026-03-23 (GAP-FINOPS-CNI-01): After a stop/start cycle longer
+        # than 24h (weekends, holidays), the linkerd-cni ServiceAccount token
+        # on the host kubeconfig expires. The repair-controller (v1.3.0) has a
+        # known bug preventing automatic token renewal.
+        # Symptom: "Failed to create pod sandbox: linkerd-cni Unauthorized"
+        # Cascade: CNI Unauthorized → linkerd Init:0/1 → CA offline → 57+ pods Pending
+        # Fix: Rollout restart regenerates host kubeconfig with a fresh 24h token.
+        # Always runs — cost ~60s, benefit: prevents full cluster cascade on startup.
         # ------------------------------------------------------------------
-        _seq(results, 'step_4b_rollout_restart_linkerd', 'starting')
+        _seq(results, 'step_4a_rollout_restart_linkerd_cni', 'starting')
         try:
-            _rollout_restart_linkerd()
-            _seq(results, 'step_4b_rollout_restart_linkerd', 'done')
+            _rollout_restart_linkerd_cni()
+            _seq(results, 'step_4a_rollout_restart_linkerd_cni', 'done')
         except Exception as exc:
-            logger.warning(f"[LINKERD] Rollout restart failed (non-blocking): {exc}")
-            _seq(results, 'step_4b_rollout_restart_linkerd', 'WARNING')
+            logger.warning(f"[LINKERD-CNI] Rollout restart failed (non-blocking): {exc}")
+            _seq(results, 'step_4a_rollout_restart_linkerd_cni', 'WARNING')
+
+        # ------------------------------------------------------------------
+        # STEP 4b: Clean up CrashLoopBackOff pods + Rollout restart Linkerd.
+        #
+        # Fix GAP-FINOPS-02: Before the rollout restart, delete any Linkerd
+        # pods stuck in CrashLoopBackOff. On t3.medium nodes (~17 pods/node),
+        # these sick pods occupy scheduling slots. The rollout restart creates
+        # new pods (new ReplicaSet) that need free slots to be scheduled.
+        # Without cleanup, new pods stay Pending → step_5 times out → DEGRADED.
+        #
+        # Sequence:
+        #   4b-i.  Delete CrashLoopBackOff pods in 'linkerd' namespace
+        #   4b-ii. Wait 5s for kubelet to release resources
+        #   4b-iii.Rollout restart Linkerd (identity first, then dependents)
+        # ------------------------------------------------------------------
+        _seq(results, 'step_4b_cleanup_and_rollout_restart_linkerd', 'starting')
+        try:
+            deleted_pods = _delete_crashloopbackoff_pods(LINKERD_NAMESPACE)
+            results['health_check']['linkerd_cleanup'] = {
+                'deleted_pods': deleted_pods,
+                'count': len(deleted_pods),
+            }
+
+            if deleted_pods:
+                logger.info(f"[LINKERD] Waiting 5s for resource release after deleting {len(deleted_pods)} pod(s)")
+                time.sleep(5)
+
+            _rollout_restart_linkerd()
+            _seq(results, 'step_4b_cleanup_and_rollout_restart_linkerd', 'done')
+        except Exception as exc:
+            logger.warning(f"[LINKERD] Cleanup + rollout restart failed (non-blocking): {exc}")
+            _seq(results, 'step_4b_cleanup_and_rollout_restart_linkerd', 'WARNING')
 
         # ------------------------------------------------------------------
         # STEP 5: Verify Linkerd control plane is Running.
@@ -871,6 +906,109 @@ def _k8s_patch(path: str, body: dict, content_type: str = 'application/strategic
             pass
 
 
+def _k8s_delete(path: str) -> dict:
+    """
+    Perform a DELETE request against the K8s API server.
+
+    Args:
+        path: API path, e.g. '/api/v1/namespaces/linkerd/pods/linkerd-destination-xxx'
+
+    Returns: Parsed JSON response dict.
+
+    Raises:
+        _K8sApiError: on HTTP error, SSL error, or connection failure.
+    """
+    endpoint, ca_data = _get_cluster_endpoint()
+    token = _get_k8s_token()
+
+    url = f"{endpoint.rstrip('/')}{path}"
+
+    import tempfile
+    ca_bytes = base64.b64decode(ca_data)
+    with tempfile.NamedTemporaryFile(suffix='.crt', delete=False) as f:
+        f.write(ca_bytes)
+        ca_file = f.name
+
+    try:
+        ctx = ssl.create_default_context(cafile=ca_file)
+        req = urllib.request.Request(
+            url,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Accept':        'application/json',
+            },
+            method='DELETE',
+        )
+        with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raise _K8sApiError(f"HTTP {exc.code} {exc.reason} — {path}") from exc
+    finally:
+        try:
+            os.unlink(ca_file)
+        except Exception:
+            pass
+
+
+def _delete_crashloopbackoff_pods(namespace: str) -> list:
+    """
+    Delete pods in CrashLoopBackOff or error states to free scheduling slots.
+
+    Fix GAP-FINOPS-02: On t3.medium nodes (max ~17 pods/node), pods stuck in
+    CrashLoopBackOff occupy scheduling slots. When a rollout restart creates
+    new pods (new ReplicaSet), the scheduler cannot place them because the old
+    CrashLoopBackOff pods still consume IP/slot capacity. Deleting the sick
+    pods first frees slots so the new pods from the rollout can be scheduled.
+    """
+    deleted = []
+    try:
+        path = f"/api/v1/namespaces/{namespace}/pods"
+        data = _k8s_get(path)
+
+        for item in data.get('items', []):
+            pod_name = item['metadata']['name']
+            phase = item.get('status', {}).get('phase', 'Unknown')
+
+            is_failed = phase == 'Failed'
+
+            is_crashloop = False
+            container_statuses = item.get('status', {}).get('containerStatuses', [])
+            init_container_statuses = item.get('status', {}).get('initContainerStatuses', [])
+
+            for cs in container_statuses + init_container_statuses:
+                waiting = cs.get('state', {}).get('waiting', {})
+                reason = waiting.get('reason', '')
+                if reason in ('CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull'):
+                    is_crashloop = True
+                    break
+
+            if is_failed or is_crashloop:
+                try:
+                    delete_path = f"/api/v1/namespaces/{namespace}/pods/{pod_name}"
+                    _k8s_delete(delete_path)
+                    deleted.append(pod_name)
+                    logger.info(
+                        f"[CLEANUP] Deleted unhealthy pod {namespace}/{pod_name} "
+                        f"(phase={phase}, crashloop={is_crashloop})"
+                    )
+                except _K8sApiError as exc:
+                    logger.warning(
+                        f"[CLEANUP] Failed to delete pod {namespace}/{pod_name}: {exc}"
+                    )
+
+    except _K8sApiError as exc:
+        logger.warning(f"[CLEANUP] Failed to list pods in {namespace}: {exc}")
+    except Exception as exc:
+        logger.warning(f"[CLEANUP] Unexpected error cleaning {namespace}: {exc}")
+
+    if deleted:
+        logger.info(f"[CLEANUP] Deleted {len(deleted)} unhealthy pod(s) in {namespace}: {deleted}")
+    else:
+        logger.info(f"[CLEANUP] No unhealthy pods found in {namespace}")
+
+    return deleted
+
+
 def _wait_identity_ready(timeout_sec: int = 120):
     """
     Wait for linkerd-identity Deployment to have at least 1 Ready pod.
@@ -953,6 +1091,62 @@ def _rollout_restart_linkerd():
         except _K8sApiError as exc:
             logger.warning(f"[LINKERD] Rollout restart {deploy} failed: {exc}")
             # Non-blocking — continue with other deployments
+
+
+def _rollout_restart_linkerd_cni():
+    """
+    Rollout restart linkerd-cni DaemonSet via K8s API.
+
+    Fix 2026-03-23 (GAP-FINOPS-CNI-01): The linkerd-cni DaemonSet writes a
+    kubeconfig to each node host filesystem using the pod ServiceAccount token
+    (TTL: 24h auto-mounted projected token). The repair-controller (v1.3.0) has
+    a known bug that prevents automatic token renewal when the token expires.
+
+    After a stop/start cycle > 24h (weekends, feriados), the host kubeconfig
+    has an expired token, causing CNI Unauthorized errors and a full cascade:
+      CNI Unauthorized → linkerd Init:0/1 → CA offline → 57+ pods Pending
+                       → vault-prod offline → prod services degraded
+
+    This function forces a rollout restart (same mechanism as kubectl rollout
+    restart) by setting the restartedAt annotation on the DaemonSet pod template.
+    All CNI pods are recreated rolling (maxUnavailable=1), each writing a fresh
+    token to the host kubeconfig. Should always run before Step 4b (Linkerd
+    control plane restart) to ensure CNI is functional before identity/destination
+    try to initialize.
+
+    RBAC requirement (kubectl-manifests.tf finops-health-checker ClusterRole):
+      - apiGroups: ["apps"]
+        resources: ["daemonsets"]
+        verbs: ["get", "patch"]
+    """
+    CNI_NAMESPACE = 'linkerd-cni'
+    CNI_DAEMONSET = 'linkerd-cni'
+    CNI_ROLLOUT_WAIT_SEC = 60  # Allow rolling update to progress on all nodes
+
+    now = datetime.now(timezone.utc).isoformat()
+    patch_body = {
+        'spec': {
+            'template': {
+                'metadata': {
+                    'annotations': {
+                        'kubectl.kubernetes.io/restartedAt': now,
+                    }
+                }
+            }
+        }
+    }
+
+    path = f'/apis/apps/v1/namespaces/{CNI_NAMESPACE}/daemonsets/{CNI_DAEMONSET}'
+    _k8s_patch(path, patch_body)
+    logger.info(f"[LINKERD-CNI] Rollout restart patch applied to {CNI_DAEMONSET}")
+
+    # Wait for rolling update to progress before proceeding to Linkerd control plane.
+    # Full DaemonSet rollout status polling is not implemented here — the 60s wait
+    # allows the first pods to be updated (maxUnavailable=1, ~5-8s per node).
+    # Linkerd control plane restart (Step 4b) provides additional convergence time.
+    logger.info(f"[LINKERD-CNI] Waiting {CNI_ROLLOUT_WAIT_SEC}s for DaemonSet rolling update...")
+    time.sleep(CNI_ROLLOUT_WAIT_SEC)
+    logger.info("[LINKERD-CNI] DaemonSet rollout wait complete — proceeding to Step 4b")
 
 
 def _list_pods(namespace: str, label_selector: str = None) -> list:

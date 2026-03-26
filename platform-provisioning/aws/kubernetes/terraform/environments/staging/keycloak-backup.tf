@@ -184,7 +184,8 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
 }
 
 # -----------------------------------------------------------------------------
-# CronJob - Daily Keycloak Backup (02:00 UTC / 23:00 BRT)
+# CronJob - Daily Keycloak Backup (11:30 UTC / 08:30 BRT)
+# GAP-KEYCLOAK-SCHED: was 02:00 UTC — cluster offline on weekends until 10:30 UTC
 # -----------------------------------------------------------------------------
 
 resource "kubernetes_manifest" "keycloak_backup_cronjob" {
@@ -206,8 +207,10 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
     }
 
     spec = {
-      # Run daily at 02:00 UTC (23:00 BRT previous day)
-      schedule                   = "0 2 * * *"
+      # GAP-KEYCLOAK-SCHED (2026-03-21): moved from 02:00 UTC to 11:30 UTC
+      # Cluster shuts down Fri 23:00 UTC and only starts Mon 10:30 UTC (or manually).
+      # 02:00 UTC Saturday always failed (cluster stopped). 11:30 UTC = safely after 10:30 UTC startup.
+      schedule                   = "30 11 * * *"
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3
       concurrencyPolicy          = "Forbid"

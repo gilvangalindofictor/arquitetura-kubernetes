@@ -678,3 +678,25 @@ spec:
 **Próximos ADRs Relacionados**:
 - ADR-063: Secrets Management Lifecycle
 - ADR-064: Configuration Management Patterns
+
+---
+
+## Revisão 2026-03-24 — Topologia 2 Clusters Independentes
+
+**Decisão**: Adotar 2 clusters RabbitMQ independentes (staging + prod) em vez da estratégia de VHosts compartilhados.
+
+**Referência**: DEC-2026-03-24-RABBITMQ
+
+**Justificativas:**
+
+- **Blast radius**: falha em um cluster não afeta o outro ambiente
+- **BACEN BCB 85/2021**: isolamento de ambientes de produção e não-produção é requisito de conformidade
+- **Ciclo de vida independente**: upgrades e manutenções em staging não requerem janela de manutenção em prod
+- **Rollback simplificado**: cada cluster possui seu próprio estado sem dependência cruzada
+
+**Estratégia descartada**: VHosts compartilhados (virtual hosts por ambiente em um único cluster) — descartada por não atender aos requisitos de isolamento BACEN.
+
+**Clusters aprovados**:
+
+- `staging-data-infrastructure` → namespace: `staging-data-infrastructure`
+- `prod-data-rabbitmq` → namespace: `prod-data-infrastructure`

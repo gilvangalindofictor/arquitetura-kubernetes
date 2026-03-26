@@ -1,6 +1,6 @@
 # =============================================================================
 # GitLab Module - Marco 3 Fase 2
-# Helm Chart: gitlab/gitlab 8.7.0 (GitLab CE)
+# Helm Chart: gitlab/gitlab 9.10.0 (GitLab CE) — upgraded 2026-03-24 (v18.10.0)
 # IRSA: IAM Role for S3 access (artifacts + uploads)
 # ADR-021: No-Domain Phase 1 Strategy (HTTP-only ALB)
 # =============================================================================
@@ -75,6 +75,14 @@ resource "kubernetes_secret" "gitlab_root_password" {
   }
 
   type = "Opaque"
+
+  lifecycle {
+    # ESO (External Secrets Operator) gerencia este secret em producao:
+    # - adiciona labels/annotations proprias
+    # - sobrescreve 'data' com a senha real do Vault/Secrets Manager
+    # ignore_changes evita drift em loop entre TF e ESO.
+    ignore_changes = [metadata[0].labels, metadata[0].annotations, data]
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -274,7 +282,7 @@ resource "kubectl_manifest" "gitlab_service_monitor" {
 
     metadata = {
       name      = "gitlab"
-      namespace = "monitoring"
+      namespace = var.monitoring_namespace
 
       labels = {
         prometheus = "kube-prometheus-stack"

@@ -61,3 +61,11 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+# GAP-SEC-ESO-001 (FIX-006): CSS name parametrizado para isolar staging/prod.
+# Default "vault-backend" mantém backward compatibility. Para prod: "vault-backend-prod".
+variable "secret_store_name" {
+  description = "ClusterSecretStore name for ExternalSecret references. Use module.external_secrets.cluster_secret_store_name output."
+  type        = string
+  default     = "vault-backend"
+}

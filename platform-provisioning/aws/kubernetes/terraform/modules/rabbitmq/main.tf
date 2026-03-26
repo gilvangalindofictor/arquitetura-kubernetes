@@ -52,13 +52,16 @@ terraform {
 # SOLUÇÃO: Usar operator oficial do RabbitMQ via kubectl
 # DATA: 2026-02-02
 #
+# GAP-TF-012 (2026-03-23): trigger fixo "latest" nunca mudava → null_resource nunca re-executava após create inicial.
+# Corrigido para versão semântica "2.11.0" (cluster-operator v2.11.0, atual em 2026-03-23).
+# Para forçar reinstalação: alterar operator_version para nova versão (ex: "2.12.0").
 resource "null_resource" "rabbitmq_operator" {
   triggers = {
-    operator_version = "latest" # Muda para forçar reinstalação
+    operator_version = "2.11.0" # Versão do cluster-operator. Alterar para forçar reinstalação.
   }
 
   provisioner "local-exec" {
-    command = "kubectl get namespace rabbitmq-system >/dev/null 2>&1 && echo 'RabbitMQ Operator já instalado' || (kubectl apply -f 'https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml' && kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rabbitmq-cluster-operator -n rabbitmq-system --timeout=120s)"
+    command = "kubectl get namespace rabbitmq-system >/dev/null 2>&1 && echo 'RabbitMQ Operator já instalado' || (kubectl apply -f 'https://github.com/rabbitmq/cluster-operator/releases/download/v${self.triggers.operator_version}/cluster-operator.yml' && kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rabbitmq-cluster-operator -n rabbitmq-system --timeout=120s)"
   }
 }
 #
@@ -163,11 +166,11 @@ resource "kubernetes_manifest" "rabbitmq_cluster" {
       }
 
       rabbitmq = {
+        # SEC-001: rabbitmq_shovel + rabbitmq_federation removidos (2026-03-24)
+        # Conformidade: BACEN BCB 85/2021 Art.4º §2º — plugins de movimento lateral proibidos
         additionalPlugins = [
           "rabbitmq_management",
-          "rabbitmq_prometheus",
-          "rabbitmq_shovel",
-          "rabbitmq_federation"
+          "rabbitmq_prometheus"
         ]
 
         additionalConfig = <<-EOT
@@ -267,6 +270,13 @@ resource "kubernetes_service" "rabbitmq_management_internal" {
     }
 
     session_affinity = "ClientIP"
+  }
+
+  # Kyverno inject-corporate-labels policy adds runtime labels (domain, environment, owner,
+  # app.kubernetes.io/part-of) that are not part of this TF definition.
+  # ignore_changes prevents perpetual drift from Kyverno-managed labels.
+  lifecycle {
+    ignore_changes = [metadata[0].labels]
   }
 
   depends_on = [

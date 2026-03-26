@@ -131,3 +131,64 @@ variable "tags" {
     ManagedBy   = "terraform"
   }
 }
+
+# -----------------------------------------------------------------------------
+# Multi-environment IRSA (Trust Policy) — additional service accounts
+# -----------------------------------------------------------------------------
+
+variable "additional_irsa_service_accounts" {
+  description = <<-EOT
+    Lista de service accounts adicionais que podem assumir a IAM Role via IRSA.
+    Usado para permitir que SAs de outros namespaces (ex: prod) acessem os mesmos
+    recursos S3. Formato: "namespace:service_account_name".
+    Exemplo: ["prod-observability-monitoring:tempo-prod"]
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+# -----------------------------------------------------------------------------
+# Multi-environment S3 — additional bucket ARNs
+# -----------------------------------------------------------------------------
+
+variable "additional_s3_bucket_arns" {
+  description = <<-EOT
+    Lista de ARNs de buckets S3 adicionais que a IAM Policy deve permitir acesso.
+    Usado quando Tempo em prod utiliza bucket separado mas a mesma IAM Role.
+    Exemplo: ["arn:aws:s3:::k8s-platform-tempo-prod-891377105802"]
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+# -----------------------------------------------------------------------------
+# ECR Pull-Through Cache
+# -----------------------------------------------------------------------------
+
+variable "ecr_registry" {
+  description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Corporate Labels (ADR-048 — Kyverno Compliance)
+# -----------------------------------------------------------------------------
+
+variable "corporate_label_domain" {
+  description = "ADR-048 label 'domain' — valores: platform, integration, data, operations, shared-services, security, governance"
+  type        = string
+  default     = "operations"
+}
+
+variable "corporate_label_environment" {
+  description = "ADR-048 label 'environment' — valores: dev, staging, prod"
+  type        = string
+  default     = "staging"
+}
+
+variable "corporate_label_owner" {
+  description = "ADR-048 label 'owner' — deve terminar com '-team' (ex: platform-team)"
+  type        = string
+  default     = "platform-team"
+}

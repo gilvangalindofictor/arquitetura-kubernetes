@@ -147,3 +147,32 @@ variable "ecr_registry" {
   type        = string
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Multi-environment IRSA (Trust Policy) — additional service accounts
+# -----------------------------------------------------------------------------
+
+variable "additional_irsa_service_accounts" {
+  description = <<-EOT
+    Lista de service accounts adicionais que podem assumir a IAM Role via IRSA.
+    Usado para permitir que SAs de outros namespaces (ex: prod) acessem os mesmos
+    recursos S3. Formato: "namespace:service_account_name".
+    Exemplo: ["prod-observability-monitoring:loki-prod"]
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+# -----------------------------------------------------------------------------
+# Multi-environment S3 — additional bucket ARNs
+# -----------------------------------------------------------------------------
+
+variable "additional_s3_bucket_arns" {
+  description = <<-EOT
+    Lista de ARNs de buckets S3 adicionais que a IAM Policy deve permitir acesso.
+    Usado quando Loki em prod utiliza bucket separado mas a mesma IAM Role.
+    Exemplo: ["arn:aws:s3:::k8s-platform-loki-prod-891377105802"]
+  EOT
+  type        = list(string)
+  default     = []
+}

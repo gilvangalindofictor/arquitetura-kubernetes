@@ -13,9 +13,8 @@
 # Logging: dedicated S3 bucket created by the module (aws-waf-logs-k8s-platform-prod-production)
 # Cost estimate: ~$10-13/month (WAF WebACL + 5 rules + requests).
 #
-# NOTE: environment = "production" (not "prod") — required by WAF module validation.
-# Module accepts: ["staging", "production"]. local.environment = "prod" is used
-# for other modules; WAF uses "production" to satisfy the validation constraint.
+# NOTE: environment = "production" — required by WAF module validation.
+# Module accepts: ["staging", "production"]. Uses local.environment_tag ("production").
 #
 # Reference: GAP-010 — iPaaS public endpoint WAF protection (P0 critical)
 #------------------------------------------------------------------------------
@@ -24,8 +23,7 @@ module "waf_prod" {
   source = "../../modules/waf"
 
   # Identity
-  # NOTE: environment must be "production" — module validation: contains(["staging", "production"], ...)
-  environment  = "production"
+  environment  = local.environment_tag # "production" — matches WAF module validation
   cluster_name = local.cluster_name
   common_tags  = local.common_tags
 

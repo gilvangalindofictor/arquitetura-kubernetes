@@ -21,7 +21,12 @@ terraform {
 # GitLab Artifacts Bucket
 # -----------------------------------------------------------------------------
 
+# DEC-2026-03-24: gitlab_artifacts resources are now conditional via enable_gitlab_artifacts.
+# Staging sets enable_gitlab_artifacts = false (bucket is shared, managed by prod state).
+# Prod keeps default = true (single source of truth).
+
 resource "aws_s3_bucket" "gitlab_artifacts" {
+  count  = var.enable_gitlab_artifacts ? 1 : 0
   bucket = "k8s-platform-gitlab-artifacts-${var.aws_account_id}"
 
   tags = merge(var.common_tags, {
@@ -32,7 +37,8 @@ resource "aws_s3_bucket" "gitlab_artifacts" {
 }
 
 resource "aws_s3_bucket_versioning" "gitlab_artifacts" {
-  bucket = aws_s3_bucket.gitlab_artifacts.id
+  count  = var.enable_gitlab_artifacts ? 1 : 0
+  bucket = aws_s3_bucket.gitlab_artifacts[0].id
 
   versioning_configuration {
     status = "Enabled"
@@ -40,7 +46,8 @@ resource "aws_s3_bucket_versioning" "gitlab_artifacts" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "gitlab_artifacts" {
-  bucket = aws_s3_bucket.gitlab_artifacts.id
+  count  = var.enable_gitlab_artifacts ? 1 : 0
+  bucket = aws_s3_bucket.gitlab_artifacts[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -51,7 +58,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "gitlab_artifacts"
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "gitlab_artifacts" {
-  bucket = aws_s3_bucket.gitlab_artifacts.id
+  count  = var.enable_gitlab_artifacts ? 1 : 0
+  bucket = aws_s3_bucket.gitlab_artifacts[0].id
 
   # Rule 1: Intelligent-Tiering for active artifacts (auto-optimize costs)
   rule {
@@ -95,7 +103,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "gitlab_artifacts" {
 }
 
 resource "aws_s3_bucket_public_access_block" "gitlab_artifacts" {
-  bucket = aws_s3_bucket.gitlab_artifacts.id
+  count  = var.enable_gitlab_artifacts ? 1 : 0
+  bucket = aws_s3_bucket.gitlab_artifacts[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -105,7 +114,8 @@ resource "aws_s3_bucket_public_access_block" "gitlab_artifacts" {
 
 # Intelligent-Tiering Configuration (Archive Access tiers)
 resource "aws_s3_bucket_intelligent_tiering_configuration" "gitlab_artifacts" {
-  bucket = aws_s3_bucket.gitlab_artifacts.id
+  count  = var.enable_gitlab_artifacts ? 1 : 0
+  bucket = aws_s3_bucket.gitlab_artifacts[0].id
   name   = "EntireBucket"
 
   tiering {
@@ -304,6 +314,8 @@ resource "aws_s3_bucket_public_access_block" "keycloak_backups" {
 # -----------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "gitlab_s3" {
+  count = var.enable_gitlab_artifacts ? 1 : 0
+
   statement {
     sid    = "AllowGitLabS3Access"
     effect = "Allow"
@@ -319,16 +331,17 @@ data "aws_iam_policy_document" "gitlab_s3" {
     ]
 
     resources = [
-      aws_s3_bucket.gitlab_artifacts.arn,
-      "${aws_s3_bucket.gitlab_artifacts.arn}/*"
+      aws_s3_bucket.gitlab_artifacts[0].arn,
+      "${aws_s3_bucket.gitlab_artifacts[0].arn}/*"
     ]
   }
 }
 
 resource "aws_iam_policy" "gitlab_s3" {
+  count       = var.enable_gitlab_artifacts ? 1 : 0
   name_prefix = "${var.cluster_name}-gitlab-s3-"
   description = "IAM policy for GitLab to access S3 artifacts bucket"
-  policy      = data.aws_iam_policy_document.gitlab_s3.json
+  policy      = data.aws_iam_policy_document.gitlab_s3[0].json
 
   tags = merge(var.common_tags, {
     Service = "GitLab"
@@ -606,7 +619,7 @@ resource "aws_s3_bucket" "backstage_techdocs" {
 
   tags = merge(var.common_tags, {
     Name    = "Backstage TechDocs"
-    Purpose = "TechDocs static HTML storage (Backstage IDP)"
+    Purpose = "TechDocs static HTML storage - Backstage IDP"
     Service = "Backstage"
     ADR     = "ADR-055"
   })

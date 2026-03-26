@@ -207,6 +207,31 @@ variable "control_plane_node_selector" {
   default     = { "eks.amazonaws.com/nodegroup" = "system" }
 }
 
+variable "control_plane_tolerations" {
+  description = <<-EOT
+    Lista de tolerations para pods do Linkerd control plane.
+    Necessario quando system nodes possuem taints (ex: node-type=system:NoSchedule).
+
+    GAP-TOLERATION-001 (2026-03-25): patch manual aplicado para tolerar taint
+    'node-type=system:NoSchedule' nos nodes system. Codificado aqui para zero drift.
+
+    Formato de cada objeto:
+      key      = "node-type"
+      operator = "Equal"
+      value    = "system"
+      effect   = "NoSchedule"
+
+    Deixar vazio ([]) se os system nodes nao possuem taints adicionais.
+  EOT
+  type = list(object({
+    key      = string
+    operator = string
+    value    = optional(string, "")
+    effect   = optional(string, "NoSchedule")
+  }))
+  default = []
+}
+
 variable "enable_pod_disruption_budget" {
   description = <<-EOT
     Habilita criacao de PodDisruptionBudgets para os componentes do control plane

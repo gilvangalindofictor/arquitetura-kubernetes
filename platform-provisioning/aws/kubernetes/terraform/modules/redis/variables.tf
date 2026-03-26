@@ -11,7 +11,7 @@ variable "cluster_name" {
 variable "namespace" {
   description = "Kubernetes namespace for Redis deployment"
   type        = string
-  default     = "data-services"
+  default     = "staging-data-infrastructure" # ADR-048: corrected from invalid "data-services" (fix 2026-03-24)
 }
 
 variable "operator_namespace" {
@@ -59,4 +59,10 @@ variable "tolerations" {
     value    = optional(string)
   }))
   default = []
+}
+
+variable "install_operator" {
+  description = "Whether to install the Redis Operator via Helm. Set to false when operator is already installed cluster-wide (e.g. shared from staging). CRDs must already exist."
+  type        = bool
+  default     = true
 }

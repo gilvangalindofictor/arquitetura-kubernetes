@@ -178,6 +178,12 @@ variable "enable_monitoring" {
   default     = true
 }
 
+variable "monitoring_namespace" {
+  description = "Namespace where Prometheus/kube-prometheus-stack is installed. Default 'monitoring' (staging). Use 'prod-observability-monitoring' for prod."
+  type        = string
+  default     = "monitoring"
+}
+
 # =============================================================================
 # Node Scheduling
 # =============================================================================

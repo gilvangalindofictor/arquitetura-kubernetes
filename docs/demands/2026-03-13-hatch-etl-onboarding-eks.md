@@ -157,7 +157,7 @@ bash /home/gilvangalindo/projects/Arquitetura/Kubernetes/docs/plan/backstage/cat
 | GAP-IMAGE-01 | Imagem | `etl-core:initial` é imagem Python base sem código — container termina com Exit Code 0 | P0 | ABERTO |
 | GAP-DNS-01 | Rede | DNS `hatch-etl-rds.staging.internal` não resolve no cluster — usar FQDN RDS direto | P1 | ABERTO |
 | GAP-SG-01 | Rede | Security Group pode estar bloqueando porta 5432 do CIDR EKS pods ao RDS | P1 | ABERTO |
-| GAP-WORKLOAD-01 | Arquitetura | etl-core deveria ser CronJob (schedule: `0 2 * * *`), não Deployment — cronjob-etl-extraction.yaml existe no repo mas não deployado | P1 | ABERTO |
+| GAP-WORKLOAD-01 | Arquitetura | etl-core deveria ser CronJob (schedule: `0 2 * * *`), não Deployment — cronjob-etl-extraction.yaml existe no repo mas não deployado | P1 | IaC CRIADO (2026-03-21) — `k8s/base/cronjob-etl-extraction.yaml` adicionado + referenciado no kustomization base e overlay staging. CronJob permanece `suspend: true` até imagem real estar disponível. Deployment hatch-etl mantido (serve API/worker). Pendente: push ao GitLab develop + ArgoCD sync |
 | GAP-DEPLOY-01 | Deploy | 7 serviços não deployados: api-gateway, worker, poller, anexos-service, web, dashboard, prometheus-exporter — YAMLs existem em k8s/base/ | P2 | ABERTO |
 
 ---

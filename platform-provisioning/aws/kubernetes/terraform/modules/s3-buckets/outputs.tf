@@ -3,24 +3,25 @@
 # =============================================================================
 
 # GitLab Artifacts Bucket
+# DEC-2026-03-24: conditional on enable_gitlab_artifacts (false in staging, true in prod)
 output "gitlab_artifacts_bucket_name" {
   description = "GitLab artifacts S3 bucket name"
-  value       = aws_s3_bucket.gitlab_artifacts.id
+  value       = var.enable_gitlab_artifacts ? aws_s3_bucket.gitlab_artifacts[0].id : ""
 }
 
 output "gitlab_artifacts_bucket_arn" {
   description = "GitLab artifacts S3 bucket ARN"
-  value       = aws_s3_bucket.gitlab_artifacts.arn
+  value       = var.enable_gitlab_artifacts ? aws_s3_bucket.gitlab_artifacts[0].arn : ""
 }
 
 output "gitlab_artifacts_bucket_region" {
   description = "GitLab artifacts S3 bucket region"
-  value       = aws_s3_bucket.gitlab_artifacts.region
+  value       = var.enable_gitlab_artifacts ? aws_s3_bucket.gitlab_artifacts[0].region : ""
 }
 
 output "gitlab_s3_policy_arn" {
   description = "IAM policy ARN for GitLab S3 access (IRSA)"
-  value       = aws_iam_policy.gitlab_s3.arn
+  value       = var.enable_gitlab_artifacts ? aws_iam_policy.gitlab_s3[0].arn : ""
 }
 
 # Harbor Images Bucket
@@ -69,12 +70,14 @@ output "keycloak_backup_s3_policy_arn" {
 output "buckets_summary" {
   description = "Summary of all S3 buckets created"
   value = merge(
-    {
+    var.enable_gitlab_artifacts ? {
       gitlab_artifacts = {
-        name   = aws_s3_bucket.gitlab_artifacts.id
-        arn    = aws_s3_bucket.gitlab_artifacts.arn
-        region = aws_s3_bucket.gitlab_artifacts.region
+        name   = aws_s3_bucket.gitlab_artifacts[0].id
+        arn    = aws_s3_bucket.gitlab_artifacts[0].arn
+        region = aws_s3_bucket.gitlab_artifacts[0].region
       }
+    } : {},
+    {
       harbor_images = {
         name   = aws_s3_bucket.harbor_images.id
         arn    = aws_s3_bucket.harbor_images.arn

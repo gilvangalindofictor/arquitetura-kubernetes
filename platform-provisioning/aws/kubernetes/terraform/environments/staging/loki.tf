@@ -20,8 +20,8 @@ module "loki_staging" {
   source = "../../modules/loki"
 
   # Cluster e regiao
-  cluster_name = local.cluster_name  # k8s-platform-prod
-  region       = var.aws_region      # us-east-1
+  cluster_name = local.cluster_name # k8s-platform-prod
+  region       = var.aws_region     # us-east-1
 
   # Namespace onde o Loki esta deployado (helm rev 18)
   namespace = "staging-observability-monitoring"
@@ -62,4 +62,18 @@ module "loki_staging" {
   # Drift reconciliado 2026-03-06: valor ja estava ativo no cluster desde
   # importacao em 2026-03-05. terraform plan confirma "No changes".
   # chunks_cache_allocated_memory omitido pois usa o default do modulo (1024).
+
+  # Multi-environment IRSA — prod SA adicionado manualmente 2026-03-21 para resolver
+  # CrashLoopBackOff do loki-prod no namespace prod-observability-monitoring.
+  # Codificado aqui para eliminar drift na trust policy do LokiS3Role.
+  additional_irsa_service_accounts = [
+    "prod-observability-monitoring:loki-prod"
+  ]
+
+  # Multi-environment S3 — bucket prod adicionado manualmente 2026-03-21 para permitir
+  # que Loki-prod grave logs no bucket dedicado prod.
+  # Codificado aqui para eliminar drift na LokiS3Policy.
+  additional_s3_bucket_arns = [
+    "arn:aws:s3:::k8s-platform-loki-prod-891377105802"
+  ]
 }

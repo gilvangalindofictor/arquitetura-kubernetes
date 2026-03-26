@@ -146,6 +146,34 @@ resource "aws_db_instance" "replica" {
 }
 
 # =============================================================================
+# CloudWatch Log Groups — RDS Replica (Mesa Técnica CloudWatch 2026-03-24)
+# Gerencia retenção dos log groups criados automaticamente pelo AWS para a replica.
+# Sem este resource, AWS cria com Never Expire → drift de custo crescente.
+# =============================================================================
+
+resource "aws_cloudwatch_log_group" "rds_postgresql" {
+  name              = "/aws/rds/instance/${aws_db_instance.replica.identifier}/postgresql"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.replica.identifier}/postgresql"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "rds_upgrade" {
+  name              = "/aws/rds/instance/${aws_db_instance.replica.identifier}/upgrade"
+  retention_in_days = var.log_retention_days
+
+  tags = merge(local.common_tags, {
+    Name      = "/aws/rds/instance/${aws_db_instance.replica.identifier}/upgrade"
+    Component = "rds-logs"
+    ManagedBy = "terraform"
+  })
+}
+
+# =============================================================================
 # IAM — Enhanced Monitoring role for replica
 # =============================================================================
 
