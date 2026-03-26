@@ -41,6 +41,8 @@ resource "kubernetes_namespace" "external_secrets" {
 # -----------------------------------------------------------------------------
 
 resource "helm_release" "external_secrets" {
+  count = var.deploy_operator ? 1 : 0
+
   name       = "external-secrets"
   repository = "https://charts.external-secrets.io"
   chart      = "external-secrets"

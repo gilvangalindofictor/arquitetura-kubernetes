@@ -139,6 +139,19 @@ variable "iam_name_override" {
   default     = ""
 }
 
+# KMS/S3 naming override (brownfield: recursos criados antes do GAP-VAULT-KMS-S3-001 sem env prefix)
+variable "kms_alias_name_override" {
+  description = "Override KMS alias name. If empty, uses alias/vault-unseal-<environment>-<cluster_name>. Use for brownfield clusters created without env prefix to avoid destroy+recreate."
+  type        = string
+  default     = ""
+}
+
+variable "s3_bucket_name_override" {
+  description = "Override S3 bucket name. If empty, uses <environment>-<cluster_name>-vault-snapshots-<account_id>. Use for brownfield clusters created without env prefix to avoid destroy+recreate."
+  type        = string
+  default     = ""
+}
+
 # -----------------------------------------------------------------------------
 # Node Placement
 # -----------------------------------------------------------------------------

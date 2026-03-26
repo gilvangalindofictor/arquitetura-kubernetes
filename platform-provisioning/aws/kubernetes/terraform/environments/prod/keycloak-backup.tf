@@ -69,6 +69,11 @@ resource "kubernetes_service_account" "keycloak_backup" {
       "app.kubernetes.io/instance" = "keycloak-backup-${local.environment}"
     })
   }
+
+  lifecycle {
+    # Ignore label drift from Kyverno policy mutations (e.g. adds lowercase app.kubernetes.io/part-of, domain, environment, owner)
+    ignore_changes = [metadata[0].labels]
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -83,6 +88,11 @@ resource "kubernetes_config_map" "keycloak_backup_script" {
     labels = merge(local.common_tags, {
       "app.kubernetes.io/name" = "keycloak-backup"
     })
+  }
+
+  lifecycle {
+    # Ignore label drift from Kyverno policy mutations (e.g. adds lowercase app.kubernetes.io/part-of, domain, environment, owner)
+    ignore_changes = [metadata[0].labels]
   }
 
   data = {

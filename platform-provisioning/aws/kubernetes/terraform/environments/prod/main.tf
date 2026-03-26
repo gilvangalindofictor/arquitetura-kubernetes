@@ -469,7 +469,7 @@ resource "kubectl_manifest" "servicemonitor_gitlab" {
     kind: ServiceMonitor
     metadata:
       name: gitlab
-      namespace: prod-platform-gitlab  # P0-08: DEC-074 namespace convention
+      namespace: staging-platform-gitlab  # DEC-074: GitLab é shared, namespace real no cluster
       labels:
         app: gitlab
         environment: shared
@@ -511,6 +511,11 @@ module "vault_prod" {
   enable_monitoring = true
   iam_name_override = "VaultIRSA-k8s-platform-prod"   # Brownfield: role pre-exists without env prefix (avoid destroy+recreate)
 
+  # GAP-VAULT-KMS-S3-001 (2026-03-27): brownfield override — recursos criados antes do prefixo env
+  # Evita destroy+recreate do KMS alias (vault auto-unseal) e S3 bucket (snapshots críticos)
+  kms_alias_name_override = "alias/vault-unseal-k8s-platform-prod"
+  s3_bucket_name_override = "k8s-platform-prod-vault-snapshots-891377105802"
+
   # GAP-SCHED-002 Phase 2: pin vault-prod-0/1/2 to workload nodes (already running there — codifying intent)
   node_selector = {
     "eks.amazonaws.com/nodegroup" = "workloads"
@@ -535,6 +540,10 @@ module "external_secrets_prod" {
   monitoring_namespace      = "prod-observability-monitoring"
   enable_monitoring         = true
   cluster_secret_store_name = "vault-backend-prod" # GAP-SEC-ESO-001: CSS isolado (não compartilha com staging vault-backend)
+
+  # GAP-ESO-MULTI-INSTANCE: ESO é cluster-wide — instalado no staging (staging-security-externalsecrets).
+  # Prod apenas precisa do ClusterSecretStore vault-backend-prod, sem instalar o operator novamente.
+  deploy_operator = false
 
   common_tags = local.common_tags
 }
@@ -893,9 +902,10 @@ resource "helm_release" "harbor_prod" {
     # GAP-TRIVY-DNS (2026-03-24): removed `values` from ignore_changes so that
     # redis.external.addr and other values are managed by TF going forward.
     # Redis addr corrected: data-services → prod-data-infrastructure.
-    ignore_changes = [
-      version,
-    ]
+    # WSL2-DNS-2026-03-26: ignore_changes all — helm provider requires index.yaml
+    # fetch on upgrade which fails with WSL2 DNS intermittent issues.
+    # Harbor is stable (8/8 Running, rev 7) — no upgrade needed this sprint.
+    ignore_changes = all
   }
 }
 
@@ -1103,6 +1113,7 @@ module "keycloak_prod" {
   namespace      = "prod-platform-keycloak"
 
   keycloak_chart_version = "7.1.7"
+  helm_chart_local_path  = "/home/gilvangalindo/.cache/helm/repository/keycloakx-7.1.7.tgz" # WSL2 DNS workaround
   replicas               = 2
 
   postgresql_host     = module.postgresql_prod.rds_address

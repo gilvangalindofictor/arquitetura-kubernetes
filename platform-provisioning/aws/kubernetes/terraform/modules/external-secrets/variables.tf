@@ -69,3 +69,12 @@ variable "ecr_registry" {
   type        = string
   default     = ""
 }
+
+# GAP-ESO-MULTI-INSTANCE: ESO é cluster-wide — apenas uma instância por cluster.
+# Para ambientes adicionais (ex: prod), usar deploy_operator=false para criar apenas
+# o ClusterSecretStore sem tentar instalar o Helm chart novamente.
+variable "deploy_operator" {
+  description = "Whether to deploy the ESO Helm release. Set to false when ESO is already deployed in another namespace (e.g. staging) since ESO is cluster-scoped."
+  type        = bool
+  default     = true
+}

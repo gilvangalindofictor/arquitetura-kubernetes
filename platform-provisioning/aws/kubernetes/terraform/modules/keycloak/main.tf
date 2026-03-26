@@ -169,9 +169,9 @@ resource "kubernetes_namespace" "keycloak" {
 
 resource "helm_release" "keycloak" {
   name       = "keycloak"
-  repository = "https://codecentric.github.io/helm-charts"
-  chart      = "keycloakx"
-  version    = var.keycloak_chart_version
+  repository = var.helm_chart_local_path != "" ? null : "https://codecentric.github.io/helm-charts"
+  chart      = var.helm_chart_local_path != "" ? var.helm_chart_local_path : "keycloakx"
+  version    = var.helm_chart_local_path != "" ? null : var.keycloak_chart_version
   namespace  = kubernetes_namespace.keycloak.metadata[0].name
 
   values = [templatefile("${path.module}/values.yaml.tpl", {

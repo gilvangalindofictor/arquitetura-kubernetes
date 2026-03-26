@@ -40,7 +40,7 @@ resource "aws_kms_key" "vault_unseal" {
 
 # GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
 resource "aws_kms_alias" "vault_unseal" {
-  name          = "alias/vault-unseal-${var.environment}-${var.cluster_name}"
+  name          = coalesce(var.kms_alias_name_override, "alias/vault-unseal-${var.environment}-${var.cluster_name}")
   target_key_id = aws_kms_key.vault_unseal.key_id
 }
 
@@ -50,7 +50,7 @@ resource "aws_kms_alias" "vault_unseal" {
 
 # GAP-VAULT-KMS-S3-001 (2026-03-23): var.environment discriminador — evita colisao staging/prod
 resource "aws_s3_bucket" "vault_snapshots" {
-  bucket = "${var.environment}-${var.cluster_name}-vault-snapshots-${var.aws_account_id}"
+  bucket = coalesce(var.s3_bucket_name_override, "${var.environment}-${var.cluster_name}-vault-snapshots-${var.aws_account_id}")
 
   tags = merge(var.common_tags, {
     Name                     = "${var.cluster_name}-vault-snapshots"

@@ -26,6 +26,15 @@ variable "keycloak_chart_version" {
   default     = "7.1.7"
 }
 
+# WSL2 DNS workaround: set helm_chart_local_path to use a local .tgz instead of remote repository.
+# Example: "/home/user/.cache/helm/repository/keycloakx-7.1.7.tgz"
+# When set, helm_repository is ignored (set to null in the resource).
+variable "helm_chart_local_path" {
+  description = "Optional: local path to chart .tgz file. Overrides remote repository (WSL2 DNS workaround)."
+  type        = string
+  default     = ""
+}
+
 variable "replicas" {
   description = "Number of Keycloak replicas (HA)"
   type        = number
