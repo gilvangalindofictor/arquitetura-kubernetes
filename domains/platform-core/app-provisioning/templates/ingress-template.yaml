@@ -1,26 +1,21 @@
 ---
-# Ingress Template — Platform Standard (AWS ALB)
-# Ref: GAP-PLAT-TEMPL-01 | 2026-03-18
-# Usage: sed -e 's/${APP_NAME}/meu-app/g' \
-#             -e 's/${NAMESPACE}/staging-data-meu-app/g' \
-#             -e 's/${HOST}/meu-app.staging.internal/g' \
-#             -e 's/${INGRESS_GROUP}/data-internal/g' \
-#             -e 's/${PORT}/8080/g' \
-#             ingress-template.yaml | kubectl apply -f -
-# Placeholders: APP_NAME, HOST, INGRESS_GROUP, PORT, NAMESPACE
+# Ingress Template -- Platform Standard (AWS ALB)
+# Ref: GAP-PLAT-TEMPL-01 | 2026-03-18 | Updated 2026-03-27
+# Usage: provision-ingress.sh renders this template via sed substitution.
+# Placeholders: APP_NAME, HOST, INGRESS_GROUP, PORT, NAMESPACE,
+#               HEALTH_CHECK_PATH, CERTIFICATE_ARN, ENV, DOMAIN, PATH_PREFIX
 #
 # Seguranca imutavel (nao alterar sem aprovacao de plataforma):
-#   - scheme: internal           — NUNCA internet-facing sem revisao de seguranca
-#   - ssl-redirect: 443          — redirecionar HTTP para HTTPS obrigatoriamente
-#   - ssl-policy: TLS 1.3        — ELBSecurityPolicy-TLS13-1-2-2021-06
-#   - target-type: ip            — modo IP para pods com CNI (ex: VPC CNI)
+#   - scheme: internal           -- NUNCA internet-facing sem revisao de seguranca
+#   - ssl-redirect: 443          -- redirecionar HTTP para HTTPS obrigatoriamente
+#   - ssl-policy: TLS 1.3        -- ELBSecurityPolicy-TLS13-1-2-2021-06
+#   - target-type: ip            -- modo IP para pods com CNI (ex: VPC CNI)
 #
 # Notas de configuracao:
 #   - INGRESS_GROUP: compartilha o ALB entre multiplos Ingress do mesmo grupo (economia de custo)
-#                    ex: "data-internal", "platform-internal"
 #   - PORT: porta numerica do Service K8s do app (ex: 8080, 8001, 3000)
-#   - HOST: dominio interno (ex: meu-app.staging.internal) — requer entrada no DNS interno ou /etc/hosts
-#   - certificate-arn: substituir pelo ARN real do certificado ACM do ambiente
+#   - HOST: dominio interno (ex: meu-app.staging.internal) -- External-DNS cria DNS automaticamente
+#   - CERTIFICATE_ARN: ARN(s) do certificado ACM wildcard do ambiente (injetado pelo script)
 #   - WAF: descomentar anotacao wafv2-acl-arn apos provisionar via platform-waf-config ConfigMap
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -35,15 +30,15 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
-    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-path: ${HEALTH_CHECK_PATH}
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
-    # certificate-arn: obter do platform-acm-config ConfigMap ou substituir pelo ARN real
-    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:<region>:<account-id>:certificate/<cert-id>
-    #
+    alb.ingress.kubernetes.io/certificate-arn: "${CERTIFICATE_ARN}"
     # WAF: adicionar apos ARN disponivel via platform-waf-config ConfigMap
     # alb.ingress.kubernetes.io/wafv2-acl-arn: <WAF_ARN>
   labels:
     app: ${APP_NAME}
+    environment: ${ENV}
+    domain: ${DOMAIN}
     managed-by: platform-provisioner
 spec:
   ingressClassName: alb
@@ -51,7 +46,7 @@ spec:
     - host: ${HOST}
       http:
         paths:
-          - path: /
+          - path: ${PATH_PREFIX}
             pathType: Prefix
             backend:
               service:

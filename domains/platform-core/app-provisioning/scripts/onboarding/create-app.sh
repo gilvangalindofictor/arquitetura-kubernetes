@@ -60,6 +60,8 @@ Fluxo:
     6. [paralelo] Provisiona database, Redis, RabbitMQ, Keycloak (se enabled)
     7. Provisiona ArgoCD AppProject (idempotente, por dominio)
     8. Cria ArgoCD Application
+    9. Provisiona Observabilidade (ServiceMonitor, PrometheusRule, Grafana)
+   10. Provisiona Ingress ALB (interno + publico, se habilitado)
 
 Ref: ADR-048, ADR-104, Mesa Tecnica P4
 EOF
@@ -280,7 +282,7 @@ main() {
     # Redis
     REDIS_ENABLED=$(manifest_get_dependency "redis" "enabled" "false")
     if [[ "$REDIS_ENABLED" == "true" ]]; then
-        REDIS_MODE=$(manifest_get_dependency "redis" "mode" "standalone")
+        REDIS_MODE=$(manifest_get_dependency "redis" "mode" "shared")
         log_info "Provisionando Redis (mode=$REDIS_MODE)..."
         bash "${PROVISIONING_DIR}/provision-redis.sh" \
             --app "$APP_NAME" \
@@ -297,12 +299,14 @@ main() {
     RABBIT_ENABLED=$(manifest_get_dependency "rabbitmq" "enabled" "false")
     if [[ "$RABBIT_ENABLED" == "true" ]]; then
         RABBIT_REPLICAS=$(manifest_get_dependency "rabbitmq" "replicas" "1")
-        log_info "Provisionando RabbitMQ (replicas=$RABBIT_REPLICAS)..."
+        RABBIT_MODE=$(manifest_get_dependency "rabbitmq" "mode" "shared")
+        log_info "Provisionando RabbitMQ (mode=$RABBIT_MODE, replicas=$RABBIT_REPLICAS)..."
         bash "${PROVISIONING_DIR}/provision-rabbitmq.sh" \
             --app "$APP_NAME" \
             --namespace "$NAMESPACE" \
             --domain "$DOMAIN" \
             --env "$ENV" \
+            --mode "$RABBIT_MODE" \
             --replicas "$RABBIT_REPLICAS" \
             $([ "$DRY_RUN" == "true" ] && echo "--dry-run") &
         PIDS+=($!)
