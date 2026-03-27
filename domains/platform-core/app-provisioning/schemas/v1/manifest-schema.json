@@ -244,8 +244,9 @@
             },
             "mode": {
               "type": "string",
-              "enum": ["sentinel", "standalone", "cluster"],
-              "description": "Modo de operacao do Redis. 'sentinel' para HA (3 nodes), 'standalone' para single node, 'cluster' para sharding."
+              "enum": ["shared", "sentinel", "standalone", "cluster"],
+              "default": "shared",
+              "description": "Modo de operacao do Redis. 'shared' usa instancia compartilhada do cluster (recomendado). 'standalone' provisiona instancia dedicada via Redis Operator. 'sentinel' para HA (3 nodes). 'cluster' para sharding."
             }
           },
           "if": {
@@ -266,10 +267,16 @@
               "type": "boolean",
               "description": "Habilita provisionamento de RabbitMQ para a aplicacao."
             },
+            "mode": {
+              "type": "string",
+              "enum": ["shared", "dedicated"],
+              "default": "shared",
+              "description": "Modo de operacao. 'shared' cria vhost+user dedicado no RabbitMQ compartilhado (recomendado). 'dedicated' provisiona instancia exclusiva via Operator."
+            },
             "replicas": {
               "type": "integer",
               "minimum": 1,
-              "description": "Numero de replicas do RabbitMQ. Minimo 1."
+              "description": "Numero de replicas do RabbitMQ. Usado apenas em modo dedicated. Minimo 1."
             },
             "vhosts": {
               "type": "array",
@@ -277,14 +284,14 @@
                 "type": "string",
                 "pattern": "^[a-z0-9/][a-z0-9/_-]*$"
               },
-              "description": "Lista de virtual hosts a serem criados no RabbitMQ."
+              "description": "Lista de virtual hosts adicionais a serem criados. O vhost principal ({domain}.{app}) e criado automaticamente."
             }
           },
           "if": {
             "properties": { "enabled": { "const": true } }
           },
           "then": {
-            "required": ["enabled", "replicas", "vhosts"]
+            "required": ["enabled"]
           }
         },
 
