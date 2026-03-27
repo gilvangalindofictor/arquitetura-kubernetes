@@ -39,11 +39,15 @@ module "tempo_staging" {
   ingester_pvc_size  = "10Gi"
   compactor_pvc_size = "10Gi"
 
-  # Replicacao: 2 replicas (FinOps staging)
-  distributor_replicas = 2
-  ingester_replicas    = 2
-  querier_replicas     = 2
-  compactor_replicas   = 1
+  # FinOps right-sizing (2026-03-27): staging replicas aligned with prod single-pod baseline.
+  # Prod has distributor=1, querier=1, gateway=1, query-frontend=1, ingester=3.
+  # Staging gets min=1 for all except ingester=2 (replication factor).
+  distributor_replicas    = 1
+  ingester_replicas       = 2
+  querier_replicas        = 1
+  compactor_replicas      = 1
+  gateway_replicas        = 1
+  query_frontend_replicas = 1
 
   # Retencao: 7 dias (ADR-020 FinOps default)
   retention_days    = 7

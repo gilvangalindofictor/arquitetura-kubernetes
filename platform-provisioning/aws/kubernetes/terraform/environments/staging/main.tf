@@ -68,7 +68,7 @@ locals {
 }
 
 provider "aws" {
-  region  = var.aws_region
+  region = var.aws_region
   # profile = "k8s-platform-prod" # TEMP: Same account 891377105802, staging profile não configurado # COMMENTED-SSO-WORKAROUND
 
   default_tags {
@@ -78,8 +78,8 @@ provider "aws" {
 
 # Provider for sa-east-1 (LGPD compliance - FCT proposals bucket TASK-004)
 provider "aws" {
-  alias   = "sa_east_1"
-  region  = "sa-east-1"
+  alias  = "sa_east_1"
+  region = "sa-east-1"
   # profile = "k8s-platform-staging" # COMMENTED-SSO-WORKAROUND
 
   default_tags {
@@ -92,8 +92,8 @@ provider "aws" {
 #   - module.velero_dr_staging  (replica S3 bucket)
 #   - module.rds_replica_staging (RDS read replica)
 provider "aws" {
-  alias   = "us-west-2"
-  region  = "us-west-2"
+  alias  = "us-west-2"
+  region = "us-west-2"
   # profile = "k8s-platform-prod" # TEMP: k8s-platform-staging SSO expirado (mesma conta 891377105802) # COMMENTED-SSO-WORKAROUND
 
   default_tags {
@@ -172,9 +172,9 @@ data "aws_subnet" "private" {
 data "terraform_remote_state" "marco1" {
   backend = "s3"
   config = {
-    bucket  = var.state_bucket
-    key     = "marco1/terraform.tfstate"
-    region  = var.aws_region
+    bucket = var.state_bucket
+    key    = "marco1/terraform.tfstate"
+    region = var.aws_region
     # profile = "k8s-platform-staging" # COMMENTED-SSO-WORKAROUND
   }
 }
@@ -234,9 +234,9 @@ module "redis_staging" {
 
   cluster_name         = local.cluster_name
   namespace            = "staging-data-infrastructure" # ADR-048: actual cluster namespace (fix: default "data-services" was invalid)
-  replicas             = var.redis_replicas # 1
-  pvc_size             = var.redis_pvc_size # 5Gi
-  storage_class        = "gp3"              # Using gp3 (20% cheaper, 3000 IOPS default)
+  replicas             = var.redis_replicas            # 1
+  pvc_size             = var.redis_pvc_size            # 5Gi
+  storage_class        = "gp3"                         # Using gp3 (20% cheaper, 3000 IOPS default)
   common_tags          = local.common_tags
   monitoring_namespace = "staging-observability-monitoring"
   operator_namespace   = "staging-data-redis-operator" # ADR-048 Kyverno namespace convention
@@ -256,9 +256,9 @@ module "rabbitmq_staging" {
 
   cluster_name  = local.cluster_name
   namespace     = "staging-data-infrastructure" # Corrigido: data-services inexistente → namespace real (2026-03-24)
-  replicas      = var.rabbitmq_replicas # 1
-  pvc_size      = var.rabbitmq_pvc_size # 5Gi
-  storage_class = "gp3"                 # Using gp3 (20% cheaper, 3000 IOPS default)
+  replicas      = var.rabbitmq_replicas         # 1
+  pvc_size      = var.rabbitmq_pvc_size         # 5Gi
+  storage_class = "gp3"                         # Using gp3 (20% cheaper, 3000 IOPS default)
   common_tags   = local.common_tags
 
   # ALB Ingress for Management UI
@@ -590,6 +590,9 @@ module "vault_staging" {
   enable_monitoring   = true
   common_tags         = local.common_tags
 
+  # Preserve existing S3 bucket name (pre-GAP-VAULT-KMS-S3-001 naming convention)
+  s3_bucket_name_override = "k8s-platform-prod-vault-snapshots-891377105802"
+
   # Tolerate critical workload nodes (ADR-041 Option D)
   tolerations = [{
     key      = "workload"
@@ -636,6 +639,15 @@ module "external_secrets_staging" {
 
   # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
   ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
+
+  # D59 (2026-03-27): System node scheduling — shared services must survive FinOps shutdown
+  node_selector = { "eks.amazonaws.com/nodegroup" = "system" }
+  system_tolerations = [{
+    key      = "node-type"
+    operator = "Equal"
+    value    = "system"
+    effect   = "NoSchedule"
+  }]
 }
 
 # Vault Post-Deployment Configuration
@@ -662,7 +674,7 @@ module "vault_config_staging" {
   keycloak_postgresql_database = "keycloak"
 
   # Vault OIDC SSO via Keycloak (Vault UI + CLI login)
-  oidc_enabled             = true
+  oidc_enabled             = false  # TEMP: disabled to bypass OIDC discovery URL unreachable from WSL (re-enable after apply)
   keycloak_oidc_url        = "http://keycloak.staging.internal/auth/realms/platform"
   vault_oidc_client_id     = "vault"
   vault_oidc_client_secret = var.vault_oidc_client_secret
@@ -787,7 +799,7 @@ module "harbor_staging" {
   redis_password_secret = module.redis_staging.redis_password_secret_name
 
   # Options
-  storage_class     = "gp3" # GAP-ARCH-007: migrado gp2→gp3 (2026-03-23) — PVC existente precisa migration se chart não suportar SC change in-place
+  storage_class     = "gp2" # Revertido para gp2: PVC existente e imutavel. Migrar para gp3 requer delete+recreate PVC (GAP-HARBOR-PVC-GP3)
   enable_trivy      = false # DISABLED: chart não aplica storageClass em volumeClaimTemplate
   enable_monitoring = true
   common_tags       = local.common_tags
@@ -906,6 +918,7 @@ module "keycloak_staging" {
 
   # ACM certificate for ALB HTTPS ingress (CLEANUP-S6A 2026-03-12)
   acm_certificate_arn = "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a"
+  ingress_group_name  = "platform-staging" # GAP-HEALTH-002: codify ALB group (was cluster-only annotation)
 
   # ECR Pull-Through Cache (GAP-SEC-REGISTRY-03)
   ecr_registry = module.ecr_pull_through_cache.ecr_registry_prefix
@@ -937,7 +950,7 @@ module "argocd_staging" {
 
   # ArgoCD configuration
   argocd_chart_version = "5.51.6"
-  replicas             = 2 # HA for critical GitOps service
+  replicas             = 1 # FinOps right-sizing: staging does not need HA — prod has 1 replica (2026-03-27)
 
   # Keycloak OIDC integration
   keycloak_url       = "http://keycloak.staging.internal/auth"
@@ -1161,6 +1174,17 @@ module "kube_prometheus_stack_staging" {
   grafana_keycloak_client_id = "grafana"
   # grafana_keycloak_client_secret removido — agora via ESO (Vault: secret/grafana/oidc)
 
+  # GAP-HEALTH-001 (2026-03-26): Prometheus movido de system (t3.medium 3.3GiB) para workloads (t3.large 8GiB).
+  # Root cause: Prometheus staging consumindo ~2.7GiB em node com 3.3GiB allocatable = 99% memory, OOM risk.
+  # PV zone-pinned us-east-1a (Licao 22): scheduler resolve automaticamente.
+  # Retention reduzido 15d->7d: staging nao precisa de 15d de metricas — reduz TSDB size e memory footprint.
+  # Memory request 2Gi->2560Mi: alinhado com uso real (~2.7Gi) para scheduling honesto.
+  # Memory limit 6Gi->4Gi: cap para prevenir crescimento descontrolado em staging.
+  prometheus_node_group     = "workloads"
+  prometheus_retention      = "7d"
+  prometheus_memory_request = "2560Mi"
+  prometheus_memory_limit   = "4Gi"
+
   # Corporate Labels (ADR-048) — Re-enabled 2026-03-02 (variables confirmed in module variables.tf)
   domain      = "operations"
   owner       = "platform-team"
@@ -1375,9 +1399,9 @@ module "finops_automation_staging" {
       max_size     = 4 # aligned with node-groups.tf (reduced from 6 on 2026-03-23)
     }
     workloads = {
-      min_size     = 0  # allows scale-to-zero on shutdown
-      desired_size = 2  # startup baseline; autoscaler scales up as needed
-      max_size     = 9  # aligned with node-groups.tf
+      min_size     = 0 # allows scale-to-zero on shutdown
+      desired_size = 2 # startup baseline; autoscaler scales up as needed
+      max_size     = 9 # aligned with node-groups.tf
     }
     critical = {
       min_size     = 2
@@ -1419,115 +1443,10 @@ resource "aws_sns_topic_subscription" "finops_email" {
 # Egress DENY-by-default: policyTypes=Egress → any destination not listed = DENY
 #------------------------------------------------------------------------------
 
-# NetworkPolicy applied to staging-system namespace
-# Blocks egress to data-services-prod; allows DNS + intra-cluster + internet
-resource "kubectl_manifest" "netpol_deny_staging_to_prod_system" {
-  yaml_body = <<-YAML
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: deny-egress-to-prod-data-services
-      namespace: staging-system
-      labels:
-        managed-by: terraform
-        gap: GAP-ARCH-003
-    spec:
-      podSelector: {}
-      policyTypes:
-        - Egress
-      egress:
-        # Allow DNS (CoreDNS in kube-system)
-        - ports:
-            - port: 53
-              protocol: UDP
-            - port: 53
-              protocol: TCP
-        # Allow access to STAGING data services only
-        - to:
-            - namespaceSelector:
-                matchLabels:
-                  environment: staging
-          ports:
-            - protocol: TCP
-              port: 5432  # PostgreSQL
-            - protocol: TCP
-              port: 6379  # Redis
-            - protocol: TCP
-              port: 5672  # RabbitMQ AMQP
-            - protocol: TCP
-              port: 15672 # RabbitMQ Management
-        # Allow intra-cluster (kube-apiserver, metrics, webhooks)
-        - to:
-            - namespaceSelector: {}
-          ports:
-            - protocol: TCP
-              port: 443
-            - protocol: TCP
-              port: 8443
-            - protocol: TCP
-              port: 80
-        # NOTE: data-services-prod (PostgreSQL:5432, Redis:6379, RabbitMQ:5672)
-        # is IMPLICITLY DENIED — no egress rule allows access to that namespace.
-  YAML
-
-  depends_on = [
-    module.postgresql_staging,
-    module.redis_staging,
-    module.rabbitmq_staging
-  ]
-}
-
-# NetworkPolicy applied to staging-apps namespace (created on-demand by workloads)
-resource "kubectl_manifest" "netpol_deny_staging_to_prod_apps" {
-  yaml_body = <<-YAML
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: deny-egress-to-prod-data-services
-      namespace: staging-apps
-      labels:
-        managed-by: terraform
-        gap: GAP-ARCH-003
-    spec:
-      podSelector: {}
-      policyTypes:
-        - Egress
-      egress:
-        - ports:
-            - port: 53
-              protocol: UDP
-            - port: 53
-              protocol: TCP
-        - to:
-            - namespaceSelector:
-                matchLabels:
-                  environment: staging
-          ports:
-            - protocol: TCP
-              port: 5432
-            - protocol: TCP
-              port: 6379
-            - protocol: TCP
-              port: 5672
-            - protocol: TCP
-              port: 15672
-        - to:
-            - namespaceSelector: {}
-          ports:
-            - protocol: TCP
-              port: 443
-            - protocol: TCP
-              port: 8443
-            - protocol: TCP
-              port: 80
-  YAML
-
-  depends_on = [
-    module.postgresql_staging,
-    module.redis_staging,
-    module.rabbitmq_staging
-  ]
-}
+# DISABLED: namespaces staging-system and staging-apps do not exist
+# (ADR-048 convention uses staging-{domain}-{product})
+# TODO: Refactor GAP-ARCH-003 to target actual staging-* namespaces
+# Original resources: netpol_deny_staging_to_prod_system, netpol_deny_staging_to_prod_apps
 
 #------------------------------------------------------------------------------
 # OBSERVABILITY INTEGRATION (Hybrid - Shared Prometheus with Labels)
@@ -1575,8 +1494,8 @@ module "opentelemetry_collector_staging" {
   namespace               = "staging-observability-monitoring"
   observability_namespace = "staging-observability-monitoring"
 
-  # HA configuration (Performance Specialist requirement)
-  replicas = 2
+  # FinOps right-sizing: staging replicas 2->1 — prod has 1 replica (2026-03-27)
+  replicas = 1
 
   # Resources (cost-optimized para staging, aprovado por FinOps)
   resources = {
@@ -1594,8 +1513,9 @@ module "opentelemetry_collector_staging" {
   memory_limiter_limit_mib = 400
 
   # HPA (Performance Specialist requirement — previne trace drop em burst)
+  # FinOps right-sizing: min_replicas 2->1 — staging baseline single pod, HPA scales up if needed (2026-03-27)
   enable_hpa             = true
-  hpa_min_replicas       = 2
+  hpa_min_replicas       = 1
   hpa_max_replicas       = 5
   hpa_target_cpu_percent = 70
 
@@ -1849,9 +1769,9 @@ module "ecr_pull_through_cache" {
   enable_ghcr        = false # GHCR requires GitHub PAT — images pulled directly from ghcr.io (no rate-limit)
 
   # Docker Hub — autenticado (resolve 429 rate limit definitivamente)
-  enable_docker_hub        = true
-  docker_hub_username      = var.docker_hub_username
-  docker_hub_access_token  = var.docker_hub_access_token
+  enable_docker_hub       = true
+  docker_hub_username     = var.docker_hub_username
+  docker_hub_access_token = var.docker_hub_access_token
 }
 
 #------------------------------------------------------------------------------
@@ -1932,7 +1852,7 @@ resource "kubernetes_config_map_v1" "coredns_split_horizon" {
           rewrite name harbor.staging.internal harbor-core.harbor-system.svc.cluster.local
           rewrite name sonarqube.staging.internal sonarqube.sonarqube.svc.cluster.local
           rewrite name vault.staging.internal vault.vault-system.svc.cluster.local
-          rewrite name rabbitmq.staging.internal rabbitmq.data-services.svc.cluster.local
+          rewrite name rabbitmq.staging.internal k8s-platform-prod-rabbitmq.staging-data-infrastructure.svc.cluster.local
           kubernetes cluster.local in-addr.arpa ip6.arpa {
               pods insecure
               fallthrough in-addr.arpa ip6.arpa
@@ -2300,7 +2220,7 @@ resource "kubectl_manifest" "vpa_rabbitmq" {
     kind: VerticalPodAutoscaler
     metadata:
       name: rabbitmq
-      namespace: data-services
+      namespace: staging-data-infrastructure
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -2330,7 +2250,7 @@ resource "kubectl_manifest" "vpa_redis" {
     kind: VerticalPodAutoscaler
     metadata:
       name: redis
-      namespace: data-services
+      namespace: staging-data-infrastructure
       labels:
         app.kubernetes.io/managed-by: terraform
         finops/component: vpa-recommendation
@@ -2642,9 +2562,12 @@ data "aws_lb" "gitlab_alb" {
   name = "k8s-gitlabstaging-da5a4e8c6d"
 }
 
-data "aws_lb" "keycloak_alb" {
-  name = "k8s-stagingp-keycloak-0dbafff841"
-}
+# COMMENTED: Keycloak uses shared platform-staging ALB group (no dedicated ALB)
+# Keycloak ingress is in group.name=platform-staging, not its own ALB.
+# Re-enable when/if Keycloak gets its own ingress group.
+# data "aws_lb" "keycloak_alb" {
+#   name = "k8s-stagingp-keycloak-0dbafff841"
+# }
 
 module "waf_staging" {
   source = "../../modules/waf"
@@ -2659,9 +2582,10 @@ module "waf_staging" {
 
   # Additional ALBs — GitLab and Keycloak (created by AWS LBC, looked up via data source)
   # Previously associated via AWS CLI (2026-03-18), codified here for zero drift.
+  # NOTE: Keycloak ALB removed — Keycloak shares platform-staging ALB group
   additional_alb_arns = {
-    gitlab   = data.aws_lb.gitlab_alb.arn
-    keycloak = data.aws_lb.keycloak_alb.arn
+    gitlab = data.aws_lb.gitlab_alb.arn
+    # keycloak = data.aws_lb.keycloak_alb.arn  # ALB does not exist (shared group)
   }
 
   # Rate limiting
@@ -2671,14 +2595,24 @@ module "waf_staging" {
   enable_geo_blocking = var.waf_enable_geo_blocking
   blocked_countries   = var.waf_blocked_countries
 
-  # IP allowlist — only office IPs can reach staging ALBs (default_action becomes BLOCK)
+  # IP allowlist — only allowed IPs can reach staging ALBs (default_action becomes BLOCK)
+  # Office: 201.28.188.130/32 (permanent)
+  # Home:   187.34.187.109/32 (added 2026-03-27 — remote access)
   enable_ip_allowlist = true
-  office_ip_cidrs     = ["201.28.188.130/32"]
+  office_ip_cidrs = [
+    "201.28.188.130/32", # Office IP (permanent)
+    "187.34.187.109/32", # Home IP (added 2026-03-27)
+  ]
 
   # Managed rule groups (all enabled in staging to validate before production)
   enable_owasp_common_ruleset     = true
   enable_sqli_ruleset             = true
   enable_known_bad_inputs_ruleset = true
+
+  # GAP-CONF-011: Enforce BLOCK mode on managed rules 30/40/50
+  # Previously deployed in COUNT mode (observe only). Now enforcing BLOCK.
+  # "none" = don't override rule group's native action (BLOCK)
+  managed_rules_override_action = "none"
 
   # Logging — module creates the S3 bucket (aws-waf-logs-k8s-platform-prod-staging)
   enable_logging     = true
@@ -2912,6 +2846,14 @@ module "backstage_staging" {
   # Harbor plugin
   backstage_harbor_robot_token = var.backstage_harbor_robot_token
 
+  # GAP-BACKSTAGE-PROD-INTEGRATION: Prod environment integration (2026-03-27)
+  # Backstage staging is PLATFORM-SHARED — integrates with both staging + prod
+  backstage_argocd_prod_url        = "http://argocd-prod-server.prod-platform-argocd.svc.cluster.local"
+  backstage_argocd_prod_token      = var.backstage_argocd_prod_token
+  backstage_keycloak_prod_base_url = "http://keycloak-keycloakx-http.prod-platform-keycloak.svc.cluster.local/auth"
+  backstage_keycloak_prod_realm    = "platform"
+  backstage_vault_prod_addr        = "http://vault-prod.prod-security-vault.svc.cluster.local:8200"
+
   # Tags
   common_tags = local.common_tags
 }
@@ -3062,4 +3004,1473 @@ resource "helm_release" "yace" {
     # Prevent accidental upgrades on the standalone release — version bumps require review
     ignore_changes = [version]
   }
+}
+
+# =============================================================================
+# ETL STAGING — NetworkPolicies, HPA, PDB (2026-03-26)
+# GAP-HATCH-NETPOL, GAP-HATCH-HPA, GAP-HATCH-PDB, GAP-VEMSOFT-HPA fixes
+# Pattern: replicates VemSoft ETL NetworkPolicy baseline to Hatch ETL
+# =============================================================================
+
+#------------------------------------------------------------------------------
+# Hatch ETL — NetworkPolicies (GAP-HATCH-NETPOL)
+# Replicates VemSoft pattern: default-deny-ingress + allow-same-namespace + allow-ingress-controller
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "netpol_hatch_etl_default_deny" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-ingress
+      namespace: staging-data-hatch-etl
+      labels:
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Ingress
+  YAML
+}
+
+resource "kubectl_manifest" "netpol_hatch_etl_allow_same_ns" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-same-namespace
+      namespace: staging-data-hatch-etl
+      labels:
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector: {}
+  YAML
+}
+
+resource "kubectl_manifest" "netpol_hatch_etl_allow_ingress" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-ingress-controller
+      namespace: staging-data-hatch-etl
+      labels:
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch ETL — HPA (GAP-HATCH-HPA)
+# api-gateway: min=1 max=3 cpu=70% | web: min=1 max=2 cpu=80%
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "hpa_hatch_api_gateway" {
+  yaml_body = <<-YAML
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: hatch-api-gateway
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-api-gateway
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: hatch-api-gateway
+      minReplicas: 1
+      maxReplicas: 3
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+  YAML
+}
+
+resource "kubectl_manifest" "hpa_hatch_web" {
+  yaml_body = <<-YAML
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: hatch-web
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-web
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: hatch-web
+      minReplicas: 1
+      maxReplicas: 2
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# VemSoft ETL — HPA (GAP-VEMSOFT-HPA)
+# min=1 max=2 cpu=70%
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "hpa_vemsoft_etl" {
+  yaml_body = <<-YAML
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: vemsoft-etl
+      namespace: staging-data-vemsoft-etl
+      labels:
+        app: vemsoft-etl
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: vemsoft-etl
+      minReplicas: 1
+      maxReplicas: 2
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch ETL — PDB (GAP-HATCH-PDB)
+# minAvailable=1 for api-gateway and web
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "pdb_hatch_api_gateway" {
+  yaml_body = <<-YAML
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: hatch-api-gateway
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-api-gateway
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      minAvailable: 1
+      selector:
+        matchLabels:
+          app: hatch-api-gateway
+  YAML
+}
+
+resource "kubectl_manifest" "pdb_hatch_web" {
+  yaml_body = <<-YAML
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: hatch-web
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-web
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      minAvailable: 1
+      selector:
+        matchLabels:
+          app: hatch-web
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Linkerd Injection — Namespace annotations (GAP-HATCH-LINKERD + GAP-VEMSOFT-LINKERD)
+# This Linkerd version requires annotation (not label) for proxy injection
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "ns_hatch_etl_linkerd_annotation" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: staging-data-hatch-etl
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        linkerd.io/inject: enabled
+        domain: data
+        environment: staging
+        owner: data-team
+        product: hatch-etl
+  YAML
+
+  # Namespace already exists — force server-side apply to merge annotations
+  force_new         = false
+  server_side_apply = true
+}
+
+resource "kubectl_manifest" "ns_vemsoft_etl_linkerd_annotation" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: staging-data-vemsoft-etl
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        linkerd.io/inject: enabled
+        domain: data
+        environment: staging
+        owner: data-team
+        product: vemsoft-etl
+  YAML
+
+  # Namespace already exists — force server-side apply to merge annotations
+  force_new         = false
+  server_side_apply = true
+}
+
+#------------------------------------------------------------------------------
+# VemSoft ETL — PDB (GAP-VEMSOFT-PDB)
+# minAvailable=1 — blocks voluntary eviction with replicas=1 (intentional)
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "pdb_vemsoft_etl" {
+  yaml_body = <<-YAML
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: vemsoft-etl
+      namespace: staging-data-vemsoft-etl
+      labels:
+        app: vemsoft-etl
+        domain: data
+        managed-by: platform-provisioner
+    spec:
+      minAvailable: 1
+      selector:
+        matchLabels:
+          app: vemsoft-etl
+  YAML
+}
+
+# =============================================================================
+# HATCH ETL — Deployments, Services, Ingress, Job (2026-03-26)
+# GAP-HATCH-WORKER, GAP-HATCH-DASHBOARD, GAP-HATCH-POLLER, GAP-HATCH-ANEXOS
+# GAP-HATCH-MIGRATION (P3), GAP-HATCH-PROM-EXP (P3)
+# GAP-HATCH-IMAGE-001 FIX (2026-03-26):
+#   - worker: etl-core + corrected command (deferred_worker.py, not celery)
+#   - dashboard: etl-core + corrected command (streamlit run, not python -m dashboard.app)
+#     NOTE: etl-core image uses full requirements.txt (not minimal) — includes streamlit+plotly
+#   - poller: etl-core + corrected command (polling_orchestrator.py, not poller.main)
+#   - anexos-service: use dedicated anexos-service image (own Dockerfile + CI build:anexos job)
+#   - prometheus-exporter: etl-core + corrected command (utils.prometheus_exporter, not prometheus_exporter.main)
+#   - All reusable deployments also get PYTHONPATH=/app:/app/etl for correct imports
+# =============================================================================
+
+#------------------------------------------------------------------------------
+# Hatch Worker — Async task processor (GAP-HATCH-WORKER P2)
+# Image: etl-core with deferred_worker.py command (not celery — no celery in deps)
+# No Service/Ingress — internal worker only
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "deploy_hatch_worker" {
+  wait_for_rollout = false
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hatch-worker
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-worker
+        app.kubernetes.io/name: hatch-worker
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: hatch-worker
+      template:
+        metadata:
+          labels:
+            app: hatch-worker
+            app.kubernetes.io/name: hatch-worker
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-worker
+            image: harbor.staging.internal/hatch-etl/etl-core:develop
+            imagePullPolicy: Always
+            command: ["python", "/app/scripts/deferred_worker.py"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: PYTHONPATH
+              value: "/app:/app/etl"
+            - name: WORKER_MODE
+              value: "true"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_USERNAME
+                  name: hatch-etl-api-credentials
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_PASSWORD
+                  name: hatch-etl-api-credentials
+            - name: API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_BASE_URL
+                  name: hatch-etl-api-credentials
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            - name: REDIS_HOST
+              value: redis.staging-data-infrastructure.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_PASSWORD
+                  name: hatch-etl-secrets
+            - name: OTEL_SERVICE_NAME
+              value: hatch-worker
+            - name: OTEL_SERVICE_VERSION
+              value: "1.0.0"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.staging-observability-monitoring.svc.cluster.local:4317
+            - name: OTEL_PROPAGATORS
+              value: tracecontext,baggage
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=staging,service.namespace=staging-data-hatch-etl
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /app/logs
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            livenessProbe:
+              exec:
+                command: ["/bin/sh", "-c", "kill -0 1"]
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              failureThreshold: 5
+            readinessProbe:
+              exec:
+                command: ["/bin/sh", "-c", "kill -0 1"]
+              initialDelaySeconds: 15
+              periodSeconds: 15
+              failureThreshold: 3
+          volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: logs
+            emptyDir: {}
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch Dashboard — Web monitoring UI (GAP-HATCH-DASHBOARD P2)
+# Streamlit dashboard on port 8501 + Service + Ingress
+# etl-core image built with full requirements.txt includes streamlit+plotly
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "deploy_hatch_dashboard" {
+  wait_for_rollout = false
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hatch-dashboard
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-dashboard
+        app.kubernetes.io/name: hatch-dashboard
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: hatch-dashboard
+      template:
+        metadata:
+          labels:
+            app: hatch-dashboard
+            app.kubernetes.io/name: hatch-dashboard
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-dashboard
+            image: harbor.staging.internal/hatch-etl/etl-core:develop
+            imagePullPolicy: Always
+            command: ["streamlit", "run", "/app/scripts/dashboard.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: PYTHONPATH
+              value: "/app:/app/etl"
+            - name: DASHBOARD_MODE
+              value: "true"
+            - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+              value: "false"
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            - name: REDIS_HOST
+              value: redis.staging-data-infrastructure.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_PASSWORD
+                  name: hatch-etl-secrets
+            - name: OTEL_SERVICE_NAME
+              value: hatch-dashboard
+            - name: OTEL_SERVICE_VERSION
+              value: "1.0.0"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.staging-observability-monitoring.svc.cluster.local:4317
+            - name: OTEL_PROPAGATORS
+              value: tracecontext,baggage
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=staging,service.namespace=staging-data-hatch-etl
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            ports:
+            - containerPort: 8501
+              name: http
+              protocol: TCP
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: streamlit-cache
+              mountPath: /home/appuser/.streamlit
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+            livenessProbe:
+              httpGet:
+                path: /_stcore/health
+                port: 8501
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              failureThreshold: 5
+            readinessProbe:
+              httpGet:
+                path: /_stcore/health
+                port: 8501
+              initialDelaySeconds: 15
+              periodSeconds: 15
+              failureThreshold: 3
+          volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: streamlit-cache
+            emptyDir: {}
+  YAML
+}
+
+resource "kubectl_manifest" "svc_hatch_dashboard" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: hatch-dashboard
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-dashboard
+        app.kubernetes.io/name: hatch-dashboard
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      type: ClusterIP
+      ports:
+      - port: 8501
+        targetPort: 8501
+        protocol: TCP
+        name: http
+      selector:
+        app: hatch-dashboard
+  YAML
+}
+
+resource "kubectl_manifest" "ingress_hatch_dashboard" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: hatch-dashboard
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-dashboard
+        app.kubernetes.io/name: hatch-dashboard
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+      annotations:
+        kubernetes.io/ingress.class: alb
+        alb.ingress.kubernetes.io/scheme: internal
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/group.name: data-internal
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+        alb.ingress.kubernetes.io/ssl-redirect: "443"
+        alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:891377105802:certificate/6aa5140b-e1ba-4005-a703-d9f5850bc16a,arn:aws:acm:us-east-1:891377105802:certificate/3bfc603d-3a90-4663-b363-28f5122b7dbb"
+        alb.ingress.kubernetes.io/backend-protocol: HTTP
+        alb.ingress.kubernetes.io/healthcheck-path: /_stcore/health
+    spec:
+      ingressClassName: alb
+      rules:
+      - host: hatch-dashboard.staging.internal
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hatch-dashboard
+                port:
+                  number: 8501
+      - host: hatch-dashboard.hml.alvocard.com.br
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hatch-dashboard
+                port:
+                  number: 8501
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch Poller — Periodic API polling (GAP-HATCH-POLLER P2)
+# Image: etl-core with polling_orchestrator.py command
+# No Service/Ingress — internal polling worker
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "deploy_hatch_poller" {
+  wait_for_rollout = false
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hatch-poller
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-poller
+        app.kubernetes.io/name: hatch-poller
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: hatch-poller
+      template:
+        metadata:
+          labels:
+            app: hatch-poller
+            app.kubernetes.io/name: hatch-poller
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-poller
+            image: harbor.staging.internal/hatch-etl/etl-core:develop
+            imagePullPolicy: Always
+            command: ["python", "/app/etl/polling_orchestrator.py"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: PYTHONPATH
+              value: "/app:/app/etl"
+            - name: POLLER_MODE
+              value: "true"
+            - name: POLL_INTERVAL_SECONDS
+              value: "300"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_USERNAME
+                  name: hatch-etl-api-credentials
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_PASSWORD
+                  name: hatch-etl-api-credentials
+            - name: API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_BASE_URL
+                  name: hatch-etl-api-credentials
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            - name: REDIS_HOST
+              value: redis.staging-data-infrastructure.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_PASSWORD
+                  name: hatch-etl-secrets
+            - name: OTEL_SERVICE_NAME
+              value: hatch-poller
+            - name: OTEL_SERVICE_VERSION
+              value: "1.0.0"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.staging-observability-monitoring.svc.cluster.local:4317
+            - name: OTEL_PROPAGATORS
+              value: tracecontext,baggage
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=staging,service.namespace=staging-data-hatch-etl
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /app/logs
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+            livenessProbe:
+              exec:
+                command: ["/bin/sh", "-c", "kill -0 1"]
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              failureThreshold: 5
+            readinessProbe:
+              exec:
+                command: ["/bin/sh", "-c", "kill -0 1"]
+              initialDelaySeconds: 15
+              periodSeconds: 15
+              failureThreshold: 3
+          volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: logs
+            emptyDir: {}
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch Anexos Service — FastAPI attachment microservice (GAP-HATCH-ANEXOS P2)
+# Image: dedicated anexos-service image (own Dockerfile + CI build:anexos job)
+# Port 8002 + Service (no Ingress — internal only via api-gateway)
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "deploy_hatch_anexos_service" {
+  wait_for_rollout = false
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hatch-anexos-service
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-anexos-service
+        app.kubernetes.io/name: hatch-anexos-service
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: hatch-anexos-service
+      template:
+        metadata:
+          labels:
+            app: hatch-anexos-service
+            app.kubernetes.io/name: hatch-anexos-service
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-anexos-service
+            image: harbor.staging.internal/hatch-etl/anexos-service:develop
+            imagePullPolicy: Always
+            command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            - name: REDIS_HOST
+              value: redis.staging-data-infrastructure.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_PASSWORD
+                  name: hatch-etl-secrets
+            - name: OTEL_SERVICE_NAME
+              value: hatch-anexos-service
+            - name: OTEL_SERVICE_VERSION
+              value: "1.0.0"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.staging-observability-monitoring.svc.cluster.local:4317
+            - name: OTEL_PROPAGATORS
+              value: tracecontext,baggage
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=staging,service.namespace=staging-data-hatch-etl
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            ports:
+            - containerPort: 8002
+              name: http
+              protocol: TCP
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 300m
+                memory: 256Mi
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8002
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8002
+              initialDelaySeconds: 10
+              periodSeconds: 15
+              failureThreshold: 3
+          volumes:
+          - name: tmp
+            emptyDir: {}
+  YAML
+}
+
+resource "kubectl_manifest" "svc_hatch_anexos_service" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: hatch-anexos-service
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-anexos-service
+        app.kubernetes.io/name: hatch-anexos-service
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      type: ClusterIP
+      ports:
+      - port: 8002
+        targetPort: 8002
+        protocol: TCP
+        name: http
+      selector:
+        app: hatch-anexos-service
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch Migration Runner — Job (GAP-HATCH-MIGRATION P3)
+# Alembic migration job — runs once, TTL cleanup after 24h
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "job_hatch_migration_runner" {
+  wait_for_rollout = false
+  force_new        = true  # Jobs are immutable — recreate on change
+  yaml_body = <<-YAML
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: hatch-migration-runner
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-migration-runner
+        app.kubernetes.io/name: hatch-migration-runner
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: hatch-migration-runner
+            app.kubernetes.io/name: hatch-migration-runner
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-migration-runner
+            image: harbor.staging.internal/hatch-etl/etl-core:develop
+            imagePullPolicy: Always
+            command: ["alembic", "upgrade", "head"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          volumes:
+          - name: tmp
+            emptyDir: {}
+  YAML
+}
+
+#------------------------------------------------------------------------------
+# Hatch Prometheus Exporter — Metrics exporter (GAP-HATCH-PROM-EXP P3)
+# Port 9090 /metrics — Prometheus scraping
+#------------------------------------------------------------------------------
+
+resource "kubectl_manifest" "deploy_hatch_prometheus_exporter" {
+  wait_for_rollout = false
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: hatch-prometheus-exporter
+      namespace: staging-data-hatch-etl
+      labels:
+        app: hatch-prometheus-exporter
+        app.kubernetes.io/name: hatch-prometheus-exporter
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: hatch-prometheus-exporter
+      template:
+        metadata:
+          labels:
+            app: hatch-prometheus-exporter
+            app.kubernetes.io/name: hatch-prometheus-exporter
+            app.kubernetes.io/part-of: hatch-etl
+            domain: data
+            environment: staging
+            owner: data-team
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9090"
+            prometheus.io/path: "/metrics"
+        spec:
+          imagePullSecrets:
+          - name: harbor-registry-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: hatch-prometheus-exporter
+            image: harbor.staging.internal/hatch-etl/etl-core:develop
+            imagePullPolicy: Always
+            command: ["python", "-m", "etl.utils.prometheus_exporter", "--port", "9090", "--addr", "0.0.0.0"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
+            env:
+            - name: PYTHONPATH
+              value: "/app:/app/etl"
+            - name: METRICS_PORT
+              value: "9090"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_USERNAME
+                  name: hatch-etl-api-credentials
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_PASSWORD
+                  name: hatch-etl-api-credentials
+            - name: API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: HATCH_API_BASE_URL
+                  name: hatch-etl-api-credentials
+            - name: DB_USER
+              value: hatch_etl_user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_PASSWORD
+                  name: hatch-db-credentials
+            - name: DB_HOST
+              value: k8s-platform-prod-postgresql.cw9kqksocqv1.us-east-1.rds.amazonaws.com
+            - name: DB_NAME
+              value: hatch_etl
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: require
+            - name: PGSSLMODE
+              value: require
+            - name: REDIS_HOST
+              value: redis.staging-data-infrastructure.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_PASSWORD
+                  name: hatch-etl-secrets
+            - name: OTEL_SERVICE_NAME
+              value: hatch-prometheus-exporter
+            - name: OTEL_SERVICE_VERSION
+              value: "1.0.0"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.staging-observability-monitoring.svc.cluster.local:4317
+            - name: OTEL_PROPAGATORS
+              value: tracecontext,baggage
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=staging,service.namespace=staging-data-hatch-etl
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            ports:
+            - containerPort: 9090
+              name: metrics
+              protocol: TCP
+            volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /app/logs
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+            livenessProbe:
+              httpGet:
+                path: /metrics
+                port: 9090
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /metrics
+                port: 9090
+              initialDelaySeconds: 10
+              periodSeconds: 15
+              failureThreshold: 3
+          volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: logs
+            emptyDir: {}
+  YAML
+}
+
+# =============================================================================
+# HATCH ETL — ExternalSecrets (GAP-HATCH-EXTRA-ES) — IaC codification
+# These 6 ExternalSecrets are managed by Terraform (not ArgoCD).
+# They provide secrets to the hatch-etl and hatch-api-gateway deployments.
+# harbor-registry-secret-sync: Harbor imagePullSecret (CRITICAL)
+# hatch-etl-api-credentials: Hatch API auth (CRITICAL — used by hatch-etl)
+# hatch-etl-db-credentials: DB password + URL (CRITICAL — used by hatch-etl + api-gw)
+# hatch-etl-keycloak-credentials: Keycloak auth (future use)
+# hatch-etl-redis-credentials: Redis connection (future use)
+# hatch-etl-secrets: Combined DB+Redis+Keycloak (CRITICAL — envFrom in hatch-etl)
+# =============================================================================
+
+resource "kubectl_manifest" "es_hatch_harbor_registry" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: harbor-registry-secret-sync
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: harbor-registry-secret
+        creationPolicy: Merge
+        deletionPolicy: Retain
+        template:
+          type: kubernetes.io/dockerconfigjson
+          engineVersion: v2
+          mergePolicy: Replace
+          data:
+            .dockerconfigjson: |
+              {"auths":{"harbor.staging.internal":{"auth":"{{ printf "%s:%s" .robotName .robotToken | b64enc }}"}}}
+      data:
+      - secretKey: robotName
+        remoteRef:
+          key: secret/staging/hatch-etl/harbor-ci
+          property: robot-name
+      - secretKey: robotToken
+        remoteRef:
+          key: secret/staging/hatch-etl/harbor-ci
+          property: robot-token
+  YAML
+}
+
+resource "kubectl_manifest" "es_hatch_etl_api_credentials" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: hatch-etl-api-credentials
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: hatch-etl-api-credentials
+        creationPolicy: Owner
+        deletionPolicy: Retain
+      data:
+      - secretKey: HATCH_API_USERNAME
+        remoteRef:
+          key: secret/staging/hatch-etl/hatch
+          property: api_username
+      - secretKey: HATCH_API_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/hatch
+          property: api_password
+      - secretKey: HATCH_API_BASE_URL
+        remoteRef:
+          key: secret/staging/hatch-etl/hatch
+          property: api_base_url
+  YAML
+}
+
+resource "kubectl_manifest" "es_hatch_etl_db_credentials" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: hatch-etl-db-credentials
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: hatch-db-credentials
+        creationPolicy: Owner
+        deletionPolicy: Retain
+      data:
+      - secretKey: DATABASE_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/database
+          property: password
+      - secretKey: DATABASE_URL
+        remoteRef:
+          key: secret/staging/hatch-etl/database
+          property: url
+  YAML
+}
+
+resource "kubectl_manifest" "es_hatch_etl_keycloak_credentials" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: hatch-etl-keycloak-credentials
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: hatch-etl-keycloak-credentials
+        creationPolicy: Owner
+        deletionPolicy: Retain
+      data:
+      - secretKey: KEYCLOAK_CLIENT_SECRET
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: client_secret
+      - secretKey: KEYCLOAK_CLIENT_ID
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: client_id
+      - secretKey: KEYCLOAK_REALM
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: realm
+      - secretKey: KEYCLOAK_ADMIN_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: admin_password
+  YAML
+}
+
+resource "kubectl_manifest" "es_hatch_etl_redis_credentials" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: hatch-etl-redis-credentials
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: hatch-etl-redis-credentials
+        creationPolicy: Owner
+        deletionPolicy: Retain
+      data:
+      - secretKey: REDIS_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: password
+      - secretKey: REDIS_URL
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: url
+      - secretKey: REDIS_SENTINEL_MASTER
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: sentinel_master
+      - secretKey: REDIS_SENTINEL_HOSTS
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: sentinel_hosts
+  YAML
+}
+
+resource "kubectl_manifest" "es_hatch_etl_secrets" {
+  yaml_body = <<-YAML
+    apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: hatch-etl-secrets
+      namespace: staging-data-hatch-etl
+      labels:
+        app.kubernetes.io/name: hatch-etl
+        app.kubernetes.io/part-of: hatch-etl
+        domain: data
+        environment: staging
+        owner: data-team
+        managed-by: platform-provisioner
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: vault-backend
+      target:
+        name: hatch-etl-secrets
+        creationPolicy: Owner
+        deletionPolicy: Retain
+      data:
+      - secretKey: DATABASE_URL
+        remoteRef:
+          key: secret/staging/hatch-etl/database
+          property: url
+      - secretKey: DATABASE_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/database
+          property: password
+      - secretKey: REDIS_URL
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: url
+      - secretKey: REDIS_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/redis
+          property: password
+      - secretKey: KEYCLOAK_CLIENT_SECRET
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: client_secret
+      - secretKey: KEYCLOAK_ADMIN_PASSWORD
+        remoteRef:
+          key: secret/staging/hatch-etl/keycloak
+          property: admin_password
+  YAML
 }

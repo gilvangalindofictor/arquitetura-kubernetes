@@ -133,7 +133,7 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
   tags = merge(local.common_tags, {
     Name    = "ebs-csi-driver-addon"
-    GAP     = "GAP-SCHED-003,GAP-FINOPS-SCHED-001"
+    GAP     = "GAP-SCHED-003 GAP-FINOPS-SCHED-001"
     Purpose = "controller-workloads-preferred-scheduling-finops-resilience"
   })
 }

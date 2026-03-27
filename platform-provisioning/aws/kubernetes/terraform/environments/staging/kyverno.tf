@@ -55,6 +55,11 @@ resource "helm_release" "kyverno" {
   # -----------------------------------------------------------------------------
 
   # admissionController — CRÍTICO: webhooks de validação/mutação (ECR redirect policy)
+  # D59 (2026-03-27): nodeSelector + tolerations para system nodes
+  set {
+    name  = "admissionController.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "system"
+  }
   set {
     name  = "admissionController.tolerations[0].key"
     value = "node-type"
@@ -74,6 +79,10 @@ resource "helm_release" "kyverno" {
 
   # backgroundController — policy scan em background
   set {
+    name  = "backgroundController.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "system"
+  }
+  set {
     name  = "backgroundController.tolerations[0].key"
     value = "node-type"
   }
@@ -92,6 +101,10 @@ resource "helm_release" "kyverno" {
 
   # cleanupController — cleanup policies
   set {
+    name  = "cleanupController.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "system"
+  }
+  set {
     name  = "cleanupController.tolerations[0].key"
     value = "node-type"
   }
@@ -109,6 +122,10 @@ resource "helm_release" "kyverno" {
   }
 
   # reportsController — policy reports
+  set {
+    name  = "reportsController.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
+    value = "system"
+  }
   set {
     name  = "reportsController.tolerations[0].key"
     value = "node-type"

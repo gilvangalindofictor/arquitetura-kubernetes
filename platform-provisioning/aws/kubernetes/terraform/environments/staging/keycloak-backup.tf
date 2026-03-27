@@ -211,6 +211,8 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
       # Cluster shuts down Fri 23:00 UTC and only starts Mon 10:30 UTC (or manually).
       # 02:00 UTC Saturday always failed (cluster stopped). 11:30 UTC = safely after 10:30 UTC startup.
       schedule                   = "30 11 * * *"
+      # FIX HEALTH-005 (2026-03-26): prevent missed schedule from being dropped.
+      startingDeadlineSeconds    = 600
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3
       concurrencyPolicy          = "Forbid"
@@ -246,7 +248,8 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
               containers = [
                 {
                   name            = "backup"
-                  image           = "python:3.11-alpine"
+                  # Use ECR Pull-Through Cache to avoid Kyverno mutation inconsistency
+                  image           = "891377105802.dkr.ecr.us-east-1.amazonaws.com/docker-hub/library/python:3.11-alpine"
                   imagePullPolicy = "IfNotPresent"
                   command         = ["/bin/sh", "-c", "apk add --no-cache curl jq tar gzip aws-cli && /bin/sh /scripts/backup.sh"]
 

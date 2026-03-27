@@ -323,6 +323,14 @@ variable "backstage_harbor_robot_token" {
   default     = ""
 }
 
+# GAP-BACKSTAGE-PROD-INTEGRATION: ArgoCD prod API token (2026-03-27)
+variable "backstage_argocd_prod_token" {
+  description = "ArgoCD prod API token for Backstage multi-instance plugin (backstage account, read-only)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # -----------------------------------------------------------------------------
 # Hatch ETL — Vault KV secret provisioning
 # GAP-TF-01/02: hatch_etl_enabled=true applied (2026-03-13)
@@ -352,7 +360,7 @@ variable "hatch_etl_db_name" {
 variable "hatch_etl_redis_host" {
   description = "Hatch ETL Redis host"
   type        = string
-  default     = "redis.data-services.svc.cluster.local"
+  default     = "redis.staging-data-infrastructure.svc.cluster.local"
 }
 
 variable "hatch_etl_redis_password" {
