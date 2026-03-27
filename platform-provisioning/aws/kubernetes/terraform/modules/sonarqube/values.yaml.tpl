@@ -13,6 +13,12 @@ image:
   tag: 10.3.0-community
   pullPolicy: IfNotPresent
 
+# Disable privileged init container (incompatible with PSA baseline:latest)
+# SonarQube init-sysctl sets vm.max_map_count=524288, but requires privileged=true
+# EKS nodes already have adequate defaults; disable to comply with PodSecurity
+initSysctl:
+  enabled: false
+
 # PostgreSQL Configuration (external RDS)
 postgresql:
   enabled: false  # Using external PostgreSQL
@@ -97,7 +103,7 @@ plugins:
 %{ if saml_enabled || gitlab_oauth_enabled ~}
 sonarProperties:
   # Server base URL (MUST be external hostname — browser redirect pattern, ADR-grafana-sso)
-  sonar.core.serverBaseURL: "http://sonarqube.staging.internal"
+  sonar.core.serverBaseURL: "http://${domain}"
 %{ if saml_enabled ~}
   # SAML 2.0 Authentication (Keycloak)
   # https://docs.sonarsource.com/sonarqube-community-build/instance-administration/authentication/saml/overview
@@ -126,10 +132,12 @@ sonarProperties:
   sonar.auth.gitlab.groupsSyncEnabled: "${gitlab_groups_sync}"
 %{ endif ~}
 
+%{ if saml_enabled ~}
 # K8s Secret with additional sonar.properties injected by concat-properties init container
-# Keys merged: SAML SP cert+key (secret/sonarqube/saml) + GitLab applicationId+secret (secret/sonarqube/gitlab)
+# Keys merged: SAML SP cert+key (secret/sonarqube/saml)
 # ESO ExternalSecret: sonarqube-sp-saml (ns: sonarqube)
 sonarSecretProperties: "${saml_sp_secret_name}"
+%{ endif ~}
 %{ else ~}
 # Authentication: using default local users
 # To enable SAML SSO: set saml_enabled = true

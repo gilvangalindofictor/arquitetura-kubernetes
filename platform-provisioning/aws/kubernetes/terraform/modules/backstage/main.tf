@@ -49,10 +49,8 @@ resource "kubernetes_namespace" "backstage" {
       "app.kubernetes.io/component"  = "developer-portal"
       "app.kubernetes.io/part-of"    = "platform-core"
       "app.kubernetes.io/managed-by" = "terraform"
-      # Labels do namespace original (implantado manualmente)
-      "environment" = "staging"
-      "domain"      = "platform"
-      "product"     = "backstage"
+      "domain"                       = "platform"
+      "product"                      = "backstage"
     })
 
     annotations = {
@@ -243,10 +241,15 @@ resource "kubernetes_pod_disruption_budget_v1" "backstage_pdb" {
 # -----------------------------------------------------------------------------
 # Vault Policy: backstage-policy
 # Acesso a secrets do backstage + scaffolder capabilities (ADR-055)
-# Vault path: secret/staging/backstage/*
-# NOTA (MEDIO-1): create/update em secret/data/staging/+/* para Scaffolder
+# Vault path: secret/<env>/backstage/* (parameterized via vault_secret_prefix)
+# NOTA (MEDIO-1): create/update em secret/data/<env>/+/* para Scaffolder
 # RFC #32600: action customizada catalog:vault:write-namespace
 # -----------------------------------------------------------------------------
+
+locals {
+  # Extract environment name from vault_secret_prefix (e.g. "staging/backstage" -> "staging")
+  vault_env = split("/", var.vault_secret_prefix)[0]
+}
 
 resource "vault_policy" "backstage" {
   name = "backstage-policy"
@@ -264,13 +267,13 @@ resource "vault_policy" "backstage" {
     }
 
     # Listar secrets por app (UI list-only — não expõe valores)
-    path "secret/metadata/staging/+/*" {
+    path "secret/metadata/${local.vault_env}/+/*" {
       capabilities = ["list"]
     }
 
     # Scaffolder: criar namespace de nova app no Vault KV v2
     # Usado pela action customizada catalog:vault:write-namespace (MEDIO-1)
-    path "secret/data/staging/+/*" {
+    path "secret/data/${local.vault_env}/+/*" {
       capabilities = ["create", "update"]
     }
 
@@ -290,7 +293,7 @@ resource "vault_policy" "backstage" {
 
 # -----------------------------------------------------------------------------
 # Vault Kubernetes Auth Role: backstage
-# Vincula ServiceAccount backstage/staging-platform-backstage à policy
+# Vincula ServiceAccount backstage/<namespace> à policy
 # TTL: 1h (menor exposição em caso de comprometimento do token)
 # -----------------------------------------------------------------------------
 
@@ -311,14 +314,14 @@ resource "vault_kubernetes_auth_backend_role" "backstage" {
 # -----------------------------------------------------------------------------
 # Vault KV v2 Secrets: estrutura (sem valores hardcoded)
 # Os valores SENSÍVEIS são fornecidos via variáveis Terraform (sensitive=true)
-# Vault paths: secret/staging/backstage/{database,keycloak,gitlab,argocd,
+# Vault paths: secret/<env>/backstage/{database,keycloak,gitlab,argocd,
 #              sonarqube,vault,eks,session}
 # -----------------------------------------------------------------------------
 
 # Database (PostgreSQL RDS)
 resource "vault_kv_secret_v2" "backstage_database" {
   mount = "secret"
-  name  = "staging/backstage/database"
+  name  = "${var.vault_secret_prefix}/database"
 
   data_json = jsonencode({
     postgres-host     = var.backstage_db_host
@@ -341,7 +344,7 @@ resource "vault_kv_secret_v2" "backstage_database" {
 # Keycloak OIDC (ADR-046)
 resource "vault_kv_secret_v2" "backstage_keycloak" {
   mount = "secret"
-  name  = "staging/backstage/keycloak"
+  name  = "${var.vault_secret_prefix}/keycloak"
 
   data_json = jsonencode({
     client-id     = var.backstage_keycloak_client_id
@@ -362,7 +365,7 @@ resource "vault_kv_secret_v2" "backstage_keycloak" {
 # GitLab integration token (Group Access Token — ALTO-2)
 resource "vault_kv_secret_v2" "backstage_gitlab" {
   mount = "secret"
-  name  = "staging/backstage/gitlab"
+  name  = "${var.vault_secret_prefix}/gitlab"
 
   data_json = jsonencode({
     token = var.backstage_gitlab_token
@@ -382,7 +385,7 @@ resource "vault_kv_secret_v2" "backstage_gitlab" {
 # ArgoCD plugin credentials
 resource "vault_kv_secret_v2" "backstage_argocd" {
   mount = "secret"
-  name  = "staging/backstage/argocd"
+  name  = "${var.vault_secret_prefix}/argocd"
 
   data_json = jsonencode({
     url   = var.backstage_argocd_url
@@ -403,7 +406,7 @@ resource "vault_kv_secret_v2" "backstage_argocd" {
 # SonarQube plugin credentials
 resource "vault_kv_secret_v2" "backstage_sonarqube" {
   mount = "secret"
-  name  = "staging/backstage/sonarqube"
+  name  = "${var.vault_secret_prefix}/sonarqube"
 
   data_json = jsonencode({
     url   = var.backstage_sonarqube_url
@@ -424,7 +427,7 @@ resource "vault_kv_secret_v2" "backstage_sonarqube" {
 # Vault plugin address (endereço interno do cluster)
 resource "vault_kv_secret_v2" "backstage_vault" {
   mount = "secret"
-  name  = "staging/backstage/vault"
+  name  = "${var.vault_secret_prefix}/vault"
 
   data_json = jsonencode({
     addr = var.backstage_vault_addr
@@ -444,7 +447,7 @@ resource "vault_kv_secret_v2" "backstage_vault" {
 # EKS Cluster URL (Kubernetes plugin)
 resource "vault_kv_secret_v2" "backstage_eks" {
   mount = "secret"
-  name  = "staging/backstage/eks"
+  name  = "${var.vault_secret_prefix}/eks"
 
   data_json = jsonencode({
     cluster-url = var.backstage_eks_cluster_url
@@ -464,7 +467,7 @@ resource "vault_kv_secret_v2" "backstage_eks" {
 # Session secret (autenticação Backstage)
 resource "vault_kv_secret_v2" "backstage_session" {
   mount = "secret"
-  name  = "staging/backstage/session"
+  name  = "${var.vault_secret_prefix}/session"
 
   data_json = jsonencode({
     auth-session-secret = var.backstage_auth_session_secret
@@ -481,10 +484,81 @@ resource "vault_kv_secret_v2" "backstage_session" {
   }
 }
 
+# -----------------------------------------------------------------------------
+# GAP-BACKSTAGE-PROD-INTEGRATION: Vault KV secrets for prod endpoints
+# Stored under staging/backstage/* (Backstage runs in staging, reads from staging Vault)
+# Added: 2026-03-27
+# -----------------------------------------------------------------------------
+
+# ArgoCD prod credentials (multi-instance plugin)
+resource "vault_kv_secret_v2" "backstage_argocd_prod" {
+  mount = "secret"
+  name  = "${var.vault_secret_prefix}/argocd-prod"
+
+  data_json = jsonencode({
+    url   = var.backstage_argocd_prod_url
+    token = var.backstage_argocd_prod_token
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "backstage"
+      cluster    = var.cluster_name
+      adr        = "ADR-055"
+      gap        = "GAP-BACKSTAGE-PROD-INTEGRATION"
+    }
+  }
+}
+
+# Keycloak prod endpoint (catalog keycloakOrg provider)
+resource "vault_kv_secret_v2" "backstage_keycloak_prod" {
+  mount = "secret"
+  name  = "${var.vault_secret_prefix}/keycloak-prod"
+
+  data_json = jsonencode({
+    base-url = var.backstage_keycloak_prod_base_url
+    realm    = var.backstage_keycloak_prod_realm
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "backstage"
+      cluster    = var.cluster_name
+      adr        = "ADR-055"
+      gap        = "GAP-BACKSTAGE-PROD-INTEGRATION"
+    }
+  }
+}
+
+# Vault prod endpoint
+resource "vault_kv_secret_v2" "backstage_vault_prod" {
+  mount = "secret"
+  name  = "${var.vault_secret_prefix}/vault-prod"
+
+  data_json = jsonencode({
+    addr = var.backstage_vault_prod_addr
+  })
+
+  custom_metadata {
+    max_versions = 5
+    data = {
+      managed_by = "terraform"
+      service    = "backstage"
+      cluster    = var.cluster_name
+      adr        = "ADR-055"
+      gap        = "GAP-BACKSTAGE-PROD-INTEGRATION"
+    }
+  }
+}
+
 # Harbor registry credentials (Harbor plugin + Scaffolder M2)
 resource "vault_kv_secret_v2" "backstage_harbor" {
   mount = "secret"
-  name  = "staging/backstage/harbor"
+  name  = "${var.vault_secret_prefix}/harbor"
 
   data_json = jsonencode({
     url          = var.backstage_harbor_url
@@ -521,6 +595,9 @@ resource "kubectl_manifest" "backstage_externalsecret" {
     vault_kv_secret_v2.backstage_eks,
     vault_kv_secret_v2.backstage_session,
     vault_kv_secret_v2.backstage_harbor,
+    vault_kv_secret_v2.backstage_argocd_prod,
+    vault_kv_secret_v2.backstage_keycloak_prod,
+    vault_kv_secret_v2.backstage_vault_prod,
   ]
 
   yaml_body = <<-YAML
@@ -534,7 +611,7 @@ resource "kubectl_manifest" "backstage_externalsecret" {
         app.kubernetes.io/instance: ${var.cluster_name}-backstage
         app.kubernetes.io/managed-by: terraform
       annotations:
-        description: "Backstage IDP credentials synced from Vault KV v2 (ADR-055)"
+        description: "Backstage IDP credentials synced from Vault KV v2 (ADR-055) — staging + prod integration"
     spec:
       refreshInterval: 1h
       secretStoreRef:
@@ -553,71 +630,94 @@ resource "kubectl_manifest" "backstage_externalsecret" {
         # ── PostgreSQL (RDS) ──────────────────────────────────────────────────
         - secretKey: postgres-host
           remoteRef:
-            key: secret/staging/backstage/database
+            key: secret/${var.vault_secret_prefix}/database
             property: postgres-host
         - secretKey: postgres-user
           remoteRef:
-            key: secret/staging/backstage/database
+            key: secret/${var.vault_secret_prefix}/database
             property: postgres-user
         - secretKey: postgres-password
           remoteRef:
-            key: secret/staging/backstage/database
+            key: secret/${var.vault_secret_prefix}/database
             property: postgres-password
-        # ── Keycloak OIDC ─────────────────────────────────────────────────────
+        # ── Keycloak OIDC (staging) ───────────────────────────────────────────
         - secretKey: keycloak-client-id
           remoteRef:
-            key: secret/staging/backstage/keycloak
+            key: secret/${var.vault_secret_prefix}/keycloak
             property: client-id
         - secretKey: keycloak-client-secret
           remoteRef:
-            key: secret/staging/backstage/keycloak
+            key: secret/${var.vault_secret_prefix}/keycloak
             property: client-secret
         # ── GitLab ────────────────────────────────────────────────────────────
         - secretKey: gitlab-token
           remoteRef:
-            key: secret/staging/backstage/gitlab
+            key: secret/${var.vault_secret_prefix}/gitlab
             property: token
-        # ── Vault addr (plugin) ───────────────────────────────────────────────
+        # ── Vault addr (staging plugin) ───────────────────────────────────────
         - secretKey: vault-addr
           remoteRef:
-            key: secret/staging/backstage/vault
+            key: secret/${var.vault_secret_prefix}/vault
             property: addr
-        # ── ArgoCD ───────────────────────────────────────────────────────────
+        # ── ArgoCD staging ────────────────────────────────────────────────────
         - secretKey: argocd-url
           remoteRef:
-            key: secret/staging/backstage/argocd
+            key: secret/${var.vault_secret_prefix}/argocd
             property: url
         - secretKey: argocd-token
           remoteRef:
-            key: secret/staging/backstage/argocd
+            key: secret/${var.vault_secret_prefix}/argocd
             property: token
+        # ── ArgoCD PROD (GAP-BACKSTAGE-PROD-INTEGRATION) ─────────────────────
+        - secretKey: argocd-prod-url
+          remoteRef:
+            key: secret/${var.vault_secret_prefix}/argocd-prod
+            property: url
+        - secretKey: argocd-prod-token
+          remoteRef:
+            key: secret/${var.vault_secret_prefix}/argocd-prod
+            property: token
+        # ── Keycloak PROD (GAP-BACKSTAGE-PROD-INTEGRATION) ───────────────────
+        - secretKey: keycloak-prod-base-url
+          remoteRef:
+            key: secret/${var.vault_secret_prefix}/keycloak-prod
+            property: base-url
+        - secretKey: keycloak-prod-realm
+          remoteRef:
+            key: secret/${var.vault_secret_prefix}/keycloak-prod
+            property: realm
+        # ── Vault PROD (GAP-BACKSTAGE-PROD-INTEGRATION) ─────────────────────
+        - secretKey: vault-prod-addr
+          remoteRef:
+            key: secret/${var.vault_secret_prefix}/vault-prod
+            property: addr
         # ── SonarQube ─────────────────────────────────────────────────────────
         - secretKey: sonarqube-url
           remoteRef:
-            key: secret/staging/backstage/sonarqube
+            key: secret/${var.vault_secret_prefix}/sonarqube
             property: url
         - secretKey: sonarqube-token
           remoteRef:
-            key: secret/staging/backstage/sonarqube
+            key: secret/${var.vault_secret_prefix}/sonarqube
             property: token
         # ── EKS Cluster URL (plugin Kubernetes) ───────────────────────────────
         - secretKey: eks-cluster-url
           remoteRef:
-            key: secret/staging/backstage/eks
+            key: secret/${var.vault_secret_prefix}/eks
             property: cluster-url
         # ── Session Secret ────────────────────────────────────────────────────
         - secretKey: auth-session-secret
           remoteRef:
-            key: secret/staging/backstage/session
+            key: secret/${var.vault_secret_prefix}/session
             property: auth-session-secret
         # ── Harbor ────────────────────────────────────────────────────────────
         - secretKey: harbor-url
           remoteRef:
-            key: secret/staging/backstage/harbor
+            key: secret/${var.vault_secret_prefix}/harbor
             property: url
         - secretKey: harbor-robot-token
           remoteRef:
-            key: secret/staging/backstage/harbor
+            key: secret/${var.vault_secret_prefix}/harbor
             property: robot-token
   YAML
 }
@@ -792,6 +892,76 @@ resource "kubectl_manifest" "argocd_scaffolder_rolebinding" {
       - kind: ServiceAccount
         name: backstage-scaffolder
         namespace: staging-platform-argocd
+  YAML
+}
+
+# -----------------------------------------------------------------------------
+# GAP-BACKSTAGE-PROD-INTEGRATION: ArgoCD prod — backstage-reader SA + RBAC
+# Read-only access to ArgoCD prod Applications for Backstage plugin
+# Added: 2026-03-27
+# -----------------------------------------------------------------------------
+
+resource "kubectl_manifest" "argocd_prod_reader_sa" {
+  depends_on = [kubernetes_namespace.backstage]
+
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: backstage-reader
+      namespace: prod-platform-argocd
+      labels:
+        app.kubernetes.io/name: backstage
+        app.kubernetes.io/component: reader
+        app.kubernetes.io/managed-by: terraform
+        purpose: backstage-prod-integration
+  YAML
+}
+
+resource "kubectl_manifest" "argocd_prod_reader_role" {
+  depends_on = [kubectl_manifest.argocd_prod_reader_sa]
+
+  yaml_body = <<-YAML
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: backstage-reader
+      namespace: prod-platform-argocd
+      labels:
+        app.kubernetes.io/name: backstage
+        app.kubernetes.io/component: reader
+        app.kubernetes.io/managed-by: terraform
+    rules:
+      - apiGroups: ["argoproj.io"]
+        resources: ["applications", "appprojects"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["get", "list", "watch"]
+  YAML
+}
+
+resource "kubectl_manifest" "argocd_prod_reader_rolebinding" {
+  depends_on = [kubectl_manifest.argocd_prod_reader_role]
+
+  yaml_body = <<-YAML
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: backstage-reader
+      namespace: prod-platform-argocd
+      labels:
+        app.kubernetes.io/name: backstage
+        app.kubernetes.io/component: reader
+        app.kubernetes.io/managed-by: terraform
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: backstage-reader
+    subjects:
+      - kind: ServiceAccount
+        name: backstage-reader
+        namespace: prod-platform-argocd
   YAML
 }
 

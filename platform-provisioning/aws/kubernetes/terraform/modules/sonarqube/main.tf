@@ -38,6 +38,10 @@ resource "kubernetes_namespace" "sonarqube" {
       "app.kubernetes.io/managed-by" = "terraform"
     }
   }
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations]
+  }
 }
 
 # -----------------------------------------------------------------------------

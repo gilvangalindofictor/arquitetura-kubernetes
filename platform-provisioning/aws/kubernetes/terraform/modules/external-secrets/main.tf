@@ -56,6 +56,8 @@ resource "helm_release" "external_secrets" {
     environment          = var.environment
     monitoring_namespace = var.monitoring_namespace
     ecr_registry         = var.ecr_registry
+    node_selector        = var.node_selector
+    system_tolerations   = var.system_tolerations
   })]
 
   timeout = 300   # 5 minutes

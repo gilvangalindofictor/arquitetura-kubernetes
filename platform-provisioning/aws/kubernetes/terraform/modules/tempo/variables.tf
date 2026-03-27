@@ -106,6 +106,18 @@ variable "compactor_replicas" {
   default     = 1
 }
 
+variable "gateway_replicas" {
+  description = "Número de replicas do Tempo Gateway"
+  type        = number
+  default     = 2
+}
+
+variable "query_frontend_replicas" {
+  description = "Número de replicas do Tempo Query Frontend"
+  type        = number
+  default     = 2
+}
+
 # -----------------------------------------------------------------------------
 # Security Configuration
 # -----------------------------------------------------------------------------

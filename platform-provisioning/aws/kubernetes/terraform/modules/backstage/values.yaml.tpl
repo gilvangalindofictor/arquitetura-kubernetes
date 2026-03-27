@@ -158,7 +158,8 @@ backstage:
         # Keycloak EntityProvider — sync de Users e Groups
         # GAP-S6A-16: plugin-catalog-backend-module-keycloak
         keycloakOrg:
-          default:
+          # Staging Keycloak — Users + Groups do realm platform
+          staging:
             baseUrl: http://${keycloak_host}/auth
             loginRealm: platform
             realm: platform
@@ -169,9 +170,23 @@ backstage:
                 minutes: 30
               timeout:
                 minutes: 3
+          # GAP-BACKSTAGE-PROD-INTEGRATION: Keycloak prod — Users + Groups
+          production:
+            baseUrl: $${KEYCLOAK_PROD_BASE_URL}
+            loginRealm: $${KEYCLOAK_PROD_REALM}
+            realm: $${KEYCLOAK_PROD_REALM}
+            clientId: $${KEYCLOAK_CLIENT_ID}
+            clientSecret: $${KEYCLOAK_CLIENT_SECRET}
+            schedule:
+              frequency:
+                minutes: 60
+              timeout:
+                minutes: 5
 
     # -------------------------------------------------------------------------
-    # Kubernetes Plugin
+    # Kubernetes Plugin — single cluster, all namespaces (staging + prod)
+    # ClusterRole backstage-kubernetes-reader provides cluster-wide read access
+    # GAP-BACKSTAGE-PROD-INTEGRATION: authProvider changed to serviceAccount
     # -------------------------------------------------------------------------
     kubernetes:
       serviceLocatorMethod:
@@ -179,10 +194,10 @@ backstage:
       clusterLocatorMethods:
         - type: config
           clusters:
-            - name: staging-eks
+            - name: eks-platform
               url: $${EKS_CLUSTER_URL}
-              authProvider: aws
-              skipTLSVerify: false
+              authProvider: serviceAccount
+              skipTLSVerify: true
               skipMetricsLookup: false
 
     # -------------------------------------------------------------------------
@@ -194,17 +209,22 @@ backstage:
       kvVersion: 2
 
     # -------------------------------------------------------------------------
-    # ArgoCD Plugin
+    # ArgoCD Plugin — MULTI-INSTANCE (GAP-BACKSTAGE-PROD-INTEGRATION)
+    # staging: ArgoCD in staging-platform-argocd
+    # production: ArgoCD in prod-platform-argocd
     # GAP-S6A-07: waitCycles ausente — timeout em clusters com muitas apps
     # -------------------------------------------------------------------------
     argocd:
-      waitCycles: 20
+      waitCycles: 25
       appLocatorMethods:
         - type: config
           instances:
             - name: staging
               url: $${ARGOCD_URL}
               token: $${ARGOCD_TOKEN}
+            - name: production
+              url: $${ARGOCD_PROD_URL}
+              token: $${ARGOCD_PROD_TOKEN}
 
     # -------------------------------------------------------------------------
     # SonarQube Plugin
@@ -342,6 +362,32 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: harbor-robot-token
+    # ── GAP-BACKSTAGE-PROD-INTEGRATION: Prod env vars (2026-03-27) ──────
+    - name: ARGOCD_PROD_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: argocd-prod-url
+    - name: ARGOCD_PROD_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: argocd-prod-token
+    - name: KEYCLOAK_PROD_BASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: keycloak-prod-base-url
+    - name: KEYCLOAK_PROD_REALM
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: keycloak-prod-realm
+    - name: VAULT_PROD_ADDR
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: vault-prod-addr
     # GAP-S6A-12: NODE_OPTIONS — sem heap limit, pod sofre OOMKill com 1536Mi
     # Com limits.memory=1536Mi, heap max = 75% = ~1100Mi
     - name: NODE_OPTIONS

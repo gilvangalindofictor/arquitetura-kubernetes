@@ -186,7 +186,7 @@ resource "postgresql_role" "sonarqube_user" {
   create_database  = false
   create_role      = false
   replication      = false
-  connection_limit = 10
+  connection_limit = 100 # Elevated from 10 (2026-03-24) — SonarQube connection pooling requires higher limit
 
   depends_on = [aws_db_instance.postgresql]
 }

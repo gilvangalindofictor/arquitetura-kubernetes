@@ -114,6 +114,15 @@ variable "environment" {
   default     = "staging"
 }
 
+# Release name override (for multi-environment in same cluster)
+# When staging and prod share the same cluster, each needs a unique release name
+# to avoid ClusterRole/ClusterRoleBinding annotation conflicts.
+variable "release_name" {
+  description = "Helm release name. Must be unique per cluster to avoid cluster-scoped resource conflicts."
+  type        = string
+  default     = "promtail"
+}
+
 # ECR Pull-Through Cache
 variable "ecr_registry" {
   description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."

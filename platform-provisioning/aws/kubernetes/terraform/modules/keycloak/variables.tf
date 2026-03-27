@@ -107,6 +107,16 @@ variable "secret_store_name" {
   default     = "vault-backend"
 }
 
+# ALB Ingress Group Name (GAP-HEALTH-002 fix 2026-03-26)
+# Shared ALB group across platform services (ArgoCD, Keycloak, etc.)
+# Required to prevent chart default host ({{ .Release.Name }}.keycloak.example.com)
+# from poisoning the entire ALB group with FailedBuildModel events.
+variable "ingress_group_name" {
+  description = "ALB Ingress group name for shared ALB (e.g., platform-staging, platform-prod)"
+  type        = string
+  default     = ""
+}
+
 # ECR Pull-Through Cache
 variable "ecr_registry" {
   description = "ECR registry prefix for pull-through cache (e.g. 891377105802.dkr.ecr.us-east-1.amazonaws.com). Empty string uses upstream registries."

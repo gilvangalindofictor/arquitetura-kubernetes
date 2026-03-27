@@ -42,6 +42,23 @@ podSecurityContext:
   runAsUser: 1000
   fsGroup: 1000
 
+# D59 (2026-03-27): System node scheduling — shared services must survive FinOps shutdown
+%{~ if length(node_selector) > 0 ~}
+nodeSelector:
+  %{~ for k, v in node_selector ~}
+  ${k}: "${v}"
+  %{~ endfor ~}
+%{~ endif ~}
+%{~ if length(system_tolerations) > 0 ~}
+tolerations:
+  %{~ for t in system_tolerations ~}
+  - key: "${t.key}"
+    operator: "${t.operator}"
+    value: "${t.value}"
+    effect: "${t.effect}"
+  %{~ endfor ~}
+%{~ endif ~}
+
 # ServiceMonitor for Prometheus
 %{ if enable_monitoring }
 serviceMonitor:
@@ -58,6 +75,21 @@ webhook:
   create: true
   port: 9443
   replicaCount: ${replicas}
+  %{~ if length(node_selector) > 0 ~}
+  nodeSelector:
+    %{~ for k, v in node_selector ~}
+    ${k}: "${v}"
+    %{~ endfor ~}
+  %{~ endif ~}
+  %{~ if length(system_tolerations) > 0 ~}
+  tolerations:
+    %{~ for t in system_tolerations ~}
+    - key: "${t.key}"
+      operator: "${t.operator}"
+      value: "${t.value}"
+      effect: "${t.effect}"
+    %{~ endfor ~}
+  %{~ endif ~}
 
   resources:
     requests:
@@ -71,6 +103,21 @@ webhook:
 certController:
   create: true
   replicaCount: ${replicas}
+  %{~ if length(node_selector) > 0 ~}
+  nodeSelector:
+    %{~ for k, v in node_selector ~}
+    ${k}: "${v}"
+    %{~ endfor ~}
+  %{~ endif ~}
+  %{~ if length(system_tolerations) > 0 ~}
+  tolerations:
+    %{~ for t in system_tolerations ~}
+    - key: "${t.key}"
+      operator: "${t.operator}"
+      value: "${t.value}"
+      effect: "${t.effect}"
+    %{~ endfor ~}
+  %{~ endif ~}
 
   resources:
     requests:

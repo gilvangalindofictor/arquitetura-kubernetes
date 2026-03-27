@@ -134,17 +134,13 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  # FinOps: reduzido de 5→2→1 log types (removido controllerManager, scheduler, api, audit)
-  # api removido em 2026-03-11: audit captura operações com contexto completo
-  # audit removido em 2026-03-21: VendedLog-Bytes $73.47/21d → projeção $104.96/mês
-  #   - audit era ~99% do volume (~7 GB/dia de ingestion a $0.50/GB)
-  #   - Kyverno reports-controller + Prometheus operator geravam bulk das entradas
-  #   - authenticator mantido: cobre eventos de autenticação (volume mínimo)
-  # Saving estimado: ~$100/mês (R$ 7.200/ano) — 2026-03-21
-  # ATENÇÃO: Adicionar tipos (api, audit, controllerManager, scheduler) custa ~$75/mês/tipo/dia
-  # Apenas 'authenticator' habilitado é suficiente. Não habilitar outros sem aprovação formal.
-  # Mesa Técnica CloudWatch 2026-03-24: custo normalizado em $3-5/mês com essa configuração.
-  enabled_cluster_log_types = ["authenticator"]
+  # GAP-CONF-003 (P1) 2026-03-26: Habilitar todos os 5 log types para compliance de segurança.
+  # Histórico FinOps: reduzido de 5→1 em 2026-03-21 (saving $100/mês).
+  # Decisão Security 2026-03-26: compliance BACEN exige audit log completo.
+  # Custo estimado: ~$100-150/mês adicional (CloudWatch VendedLog-Bytes).
+  # MITIGAÇÃO DE CUSTO: Configurar CloudWatch Log Group retention=30d + log filter para reduzir volume.
+  # Mesa Técnica CloudWatch 2026-03-24: referência de baseline $3-5/mês com só authenticator.
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   tags = {
     Name      = "${var.project_name}-cluster"

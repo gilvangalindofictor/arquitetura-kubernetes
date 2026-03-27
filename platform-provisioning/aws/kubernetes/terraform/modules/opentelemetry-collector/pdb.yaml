@@ -7,7 +7,9 @@ metadata:
     app.kubernetes.io/name: opentelemetry-collector
     app.kubernetes.io/component: disruption-budget
 spec:
-  minAvailable: 1
+  # FinOps right-sizing (2026-03-27): maxUnavailable instead of minAvailable for single-replica compatibility.
+  # minAvailable=1 + 1 pod = allowedDisruptions=0 = blocks node drains.
+  maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: opentelemetry-collector

@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 
 resource "helm_release" "promtail" {
-  name       = "promtail"
+  name       = var.release_name
   repository = "https://grafana.github.io/helm-charts"
   chart      = "promtail"
   version    = var.chart_version
@@ -19,6 +19,7 @@ resource "helm_release" "promtail" {
   # O arquivo values.yaml.tpl usa as variaveis do modulo para gerar o YAML
   # ---------------------------------------------------------------------------
   values = [templatefile("${path.module}/values.yaml.tpl", {
+    release_name         = var.release_name
     loki_url             = var.loki_url
     loki_tenant_id       = var.loki_tenant_id
     extra_scrape_configs = var.extra_scrape_configs
@@ -38,7 +39,7 @@ resource "helm_release" "promtail" {
   # ---------------------------------------------------------------------------
   # Timeout generoso para DaemonSet rollout em todos os nodes
   # ---------------------------------------------------------------------------
-  timeout = 300 # 5 minutes
+  timeout = 900 # 15 minutes — DaemonSet rollout across 15 nodes needs more time
 
   # Nao recriar se apenas metadata mudar (evita disrupcao dos pods)
   recreate_pods = false

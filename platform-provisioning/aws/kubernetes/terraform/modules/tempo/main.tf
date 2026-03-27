@@ -730,7 +730,7 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "queryFrontend.replicas"
-    value = "2"
+    value = var.query_frontend_replicas
   }
 
   set {
@@ -959,7 +959,7 @@ resource "helm_release" "tempo" {
 
   set {
     name  = "gateway.replicas"
-    value = "2"
+    value = var.gateway_replicas
   }
 
   # Toleration for system nodes (ADR-042 pattern)
@@ -1010,10 +1010,14 @@ resource "helm_release" "tempo" {
   # Memcached sub-chart uses docker.io/library/memcached
   # -----------------------------------------------------------------------------
 
+  # FIX: Use global.image.registry instead of per-component tempo.image.registry.
+  # The tempo-distributed chart v1.61.3 renders images using global.image.registry,
+  # NOT tempo.image.registry. Using the wrong key caused docker.io to remain as prefix,
+  # triggering Kyverno redirect-docker-hub-org rule and creating double docker-hub/ prefix.
   dynamic "set" {
     for_each = var.ecr_registry != "" ? [1] : []
     content {
-      name  = "tempo.image.registry"
+      name  = "global.image.registry"
       value = var.ecr_registry
     }
   }
@@ -1029,28 +1033,12 @@ resource "helm_release" "tempo" {
   dynamic "set" {
     for_each = var.ecr_registry != "" ? [1] : []
     content {
-      name  = "gateway.image.registry"
-      value = var.ecr_registry
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.ecr_registry != "" ? [1] : []
-    content {
       name  = "gateway.image.repository"
       value = "docker-hub/nginxinc/nginx-unprivileged"
     }
   }
 
   # Memcached — docker.io/library/memcached → ECR docker-hub/library/memcached
-  dynamic "set" {
-    for_each = var.ecr_registry != "" ? [1] : []
-    content {
-      name  = "memcached.image.registry"
-      value = var.ecr_registry
-    }
-  }
-
   dynamic "set" {
     for_each = var.ecr_registry != "" ? [1] : []
     content {

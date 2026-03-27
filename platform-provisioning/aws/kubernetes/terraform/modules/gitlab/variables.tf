@@ -194,6 +194,25 @@ variable "workload_node_selector" {
   default     = {}
 }
 
+# D59 (2026-03-27): System node scheduling for critical GitLab components
+# webservice, sidekiq, gitaly — must survive FinOps shutdown (workloads scale to zero)
+variable "system_node_selector" {
+  description = "nodeSelector for critical GitLab components (webservice, sidekiq, gitaly) to pin them to system nodes"
+  type        = map(string)
+  default     = {}
+}
+
+variable "system_tolerations" {
+  description = "Tolerations for system node taint (node-type=system:NoSchedule)"
+  type = list(object({
+    key      = string
+    operator = string
+    value    = string
+    effect   = string
+  }))
+  default = []
+}
+
 # =============================================================================
 # Common Tags
 # =============================================================================

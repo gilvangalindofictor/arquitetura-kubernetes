@@ -204,7 +204,7 @@ resource "helm_release" "harbor" {
     kubectl_manifest.harbor_exporter_externalsecret    # IaC drift fix 2026-03-09
   ]
 
-  timeout = 600 # 10 minutes
+  timeout = 1200 # 20 minutes — Harbor has 7+ components, rolling update takes time
 }
 
 # -----------------------------------------------------------------------------

@@ -190,9 +190,20 @@ gitlab:
   webservice:
     enabled: true
     replicaCount: ${replicas}
-    # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes (t3.large)
-    # webservice consumes ~1.922 GiB — was saturating system nodes (t3.medium, 92% mem)
-    %{~ if length(workload_node_selector) > 0 ~}
+    # D59 (2026-03-27): system_node_selector overrides workload_node_selector for critical components
+    %{~ if length(system_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in system_node_selector ~}
+      ${k}: "${v}"
+      %{~ endfor ~}
+    tolerations:
+      %{~ for t in system_tolerations ~}
+      - key: "${t.key}"
+        operator: "${t.operator}"
+        value: "${t.value}"
+        effect: "${t.effect}"
+      %{~ endfor ~}
+    %{~ elif length(workload_node_selector) > 0 ~}
     nodeSelector:
       %{~ for k, v in workload_node_selector ~}
       ${k}: ${v}
@@ -225,8 +236,20 @@ gitlab:
   sidekiq:
     enabled: true
     replicaCount: 1
-    # AGENTE-TF-EQUALIZATION 2026-03-06: route to workload nodes
-    %{~ if length(workload_node_selector) > 0 ~}
+    # D59 (2026-03-27): system_node_selector overrides workload_node_selector for critical components
+    %{~ if length(system_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in system_node_selector ~}
+      ${k}: "${v}"
+      %{~ endfor ~}
+    tolerations:
+      %{~ for t in system_tolerations ~}
+      - key: "${t.key}"
+        operator: "${t.operator}"
+        value: "${t.value}"
+        effect: "${t.effect}"
+      %{~ endfor ~}
+    %{~ elif length(workload_node_selector) > 0 ~}
     nodeSelector:
       %{~ for k, v in workload_node_selector ~}
       ${k}: ${v}
@@ -266,6 +289,20 @@ gitlab:
   # Note: gitlab.gitaly.enabled moved to global.gitaly.enabled (chart v8.7.0)
   gitaly:
     replicaCount: 1
+    # D59 (2026-03-27): system_node_selector for critical components
+    %{~ if length(system_node_selector) > 0 ~}
+    nodeSelector:
+      %{~ for k, v in system_node_selector ~}
+      ${k}: "${v}"
+      %{~ endfor ~}
+    tolerations:
+      %{~ for t in system_tolerations ~}
+      - key: "${t.key}"
+        operator: "${t.operator}"
+        value: "${t.value}"
+        effect: "${t.effect}"
+      %{~ endfor ~}
+    %{~ endif ~}
 
     resources:
       requests:

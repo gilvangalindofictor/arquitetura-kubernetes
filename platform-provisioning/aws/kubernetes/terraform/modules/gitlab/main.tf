@@ -254,6 +254,10 @@ resource "helm_release" "gitlab" {
       # Routes app components to workload nodes, freeing system nodes (t3.medium)
       workload_node_selector = var.workload_node_selector
 
+      # D59 (2026-03-27): System node scheduling for critical components
+      system_node_selector = var.system_node_selector
+      system_tolerations   = var.system_tolerations
+
       # ECR Pull-Through Cache
       ecr_registry = var.ecr_registry
     })

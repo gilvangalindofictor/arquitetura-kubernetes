@@ -159,6 +159,10 @@ resource "kubernetes_namespace" "keycloak" {
       "app.kubernetes.io/managed-by" = "terraform"
     })
   }
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations]
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -187,6 +191,7 @@ resource "helm_release" "keycloak" {
     keycloak_hostname    = var.keycloak_hostname
     monitoring_namespace = var.monitoring_namespace
     ecr_registry         = var.ecr_registry
+    ingress_group_name   = var.ingress_group_name # GAP-HEALTH-002 fix (2026-03-26)
   })]
 
   depends_on = [

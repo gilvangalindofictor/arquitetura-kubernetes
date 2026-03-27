@@ -13,11 +13,15 @@ resource "kubernetes_namespace" "monitoring" {
   metadata {
     name = var.namespace
 
-    labels = {
+    labels = merge({
       "name"                         = var.namespace
       "app.kubernetes.io/name"       = "kube-prometheus-stack"
       "app.kubernetes.io/managed-by" = "terraform"
-    }
+    }, var.additional_namespace_labels)
+  }
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations]
   }
 }
 
@@ -26,7 +30,7 @@ resource "kubernetes_namespace" "monitoring" {
 # -----------------------------------------------------------------------------
 
 resource "helm_release" "kube_prometheus_stack" {
-  name       = "kube-prometheus-stack"
+  name       = var.release_name
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
   version    = var.chart_version
@@ -194,9 +198,11 @@ resource "helm_release" "kube_prometheus_stack" {
     value = var.prometheus_retention
   }
 
-  # Resources — 2026-03-23 right-size para system node (t3.medium, 3.3Gi allocatable):
+  # Resources — parametrizado GAP-HEALTH-001 (2026-03-26):
   # - 2026-03-20: aumentado para 500m/3Gi request após OOMKilled com 63 ServiceMonitors
   # - 2026-03-23: reduzido request memory 3Gi→2Gi para caber no system us-east-1a (headroom: 540Mi)
+  # - 2026-03-26: memory request/limit parametrizados via var.prometheus_memory_request/limit
+  #   Staging override: request=2560Mi, limit=4Gi (alinhado com uso real ~2.7Gi)
   # - CPU request: 500m (live Helm), limit: 1 (live Helm). TF alinhado com live values.
   # NOTE: lifecycle.ignore_changes=all → este set block é IaC source-of-truth; apply requer helm upgrade manual
   set {
@@ -206,7 +212,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "prometheus.prometheusSpec.resources.requests.memory"
-    value = "2Gi"
+    value = var.prometheus_memory_request
   }
 
   set {
@@ -216,7 +222,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
   set {
     name  = "prometheus.prometheusSpec.resources.limits.memory"
-    value = "6Gi"
+    value = var.prometheus_memory_limit
   }
 
   # GAP-PROM-LIVENESS-001 (2026-03-23): probe tolerante para TSDB compaction e node instabilidade.
@@ -256,10 +262,13 @@ resource "helm_release" "kube_prometheus_stack" {
   #   - nodeSelector aplicado via kubectl patch Prometheus CRD (helm upgrade evitado por hook timeout).
   # ATENÇÃO: lifecycle.ignore_changes=all neste helm_release — nodeSelector gerenciado via CRD patch ou helm upgrade manual.
 
-  # nodeSelector: Prometheus no nodegroup system (GAP-SCHED-003 fix 2026-03-23)
+  # nodeSelector: Prometheus node group placement (parametrizado GAP-HEALTH-001 2026-03-26)
+  # GAP-SCHED-003 (2026-03-23): originalmente pinado em system. GAP-HEALTH-001: parametrizado para
+  # permitir mover para workloads (t3.large 8GiB) quando system (t3.medium 3.3GiB) é insuficiente.
+  # PV é zone-pinned (us-east-1a), NÃO node-pinned — scheduler resolve automaticamente (Lição 22).
   set {
     name  = "prometheus.prometheusSpec.nodeSelector.eks\\.amazonaws\\.com/nodegroup"
-    value = "system"
+    value = var.prometheus_node_group
   }
 
   # Tolerations

@@ -67,6 +67,15 @@ variable "common_tags" {
   default     = {}
 }
 
+# Vault KV v2 secret path prefix (environment-scoped).
+# Default "staging/backstage" mantém backward compatibility com staging.
+# Para prod: "prod/backstage".
+variable "vault_secret_prefix" {
+  description = "Vault KV v2 secret path prefix for Backstage secrets (e.g. staging/backstage or prod/backstage)"
+  type        = string
+  default     = "staging/backstage"
+}
+
 # GAP-SEC-ESO-001 (FIX-006): CSS name parametrizado para isolar staging/prod.
 # Default "vault-backend" mantém backward compatibility. Para prod: "vault-backend-prod".
 variable "secret_store_name" {
@@ -173,4 +182,42 @@ variable "backstage_harbor_robot_token" {
   description = "Harbor robot account token for Backstage Harbor plugin (robot$backstage-puller)"
   type        = string
   sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# GAP-BACKSTAGE-PROD-INTEGRATION: Prod environment integration variables
+# Backstage staging is PLATFORM-SHARED — must integrate with both staging + prod
+# Credentials stored in Vault staging (backstage runs in staging namespace)
+# Added: 2026-03-27
+# -----------------------------------------------------------------------------
+
+variable "backstage_argocd_prod_url" {
+  description = "ArgoCD prod server URL for Backstage ArgoCD plugin (multi-instance)"
+  type        = string
+  default     = "http://argocd-prod-server.prod-platform-argocd.svc.cluster.local"
+}
+
+variable "backstage_argocd_prod_token" {
+  description = "ArgoCD prod API token for Backstage plugin (seeds Vault KV secret/staging/backstage/argocd-prod)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "backstage_keycloak_prod_base_url" {
+  description = "Keycloak prod base URL for Backstage catalog keycloakOrg provider"
+  type        = string
+  default     = "http://keycloak-keycloakx-http.prod-platform-keycloak.svc.cluster.local/auth"
+}
+
+variable "backstage_keycloak_prod_realm" {
+  description = "Keycloak prod realm name for Backstage catalog keycloakOrg provider"
+  type        = string
+  default     = "platform"
+}
+
+variable "backstage_vault_prod_addr" {
+  description = "Vault prod address for Backstage integration (internal cluster DNS)"
+  type        = string
+  default     = "http://vault-prod.prod-security-vault.svc.cluster.local:8200"
 }

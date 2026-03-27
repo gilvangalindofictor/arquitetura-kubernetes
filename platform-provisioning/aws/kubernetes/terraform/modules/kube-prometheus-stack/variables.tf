@@ -2,10 +2,22 @@
 # Variables - Kube-Prometheus-Stack Module
 # -----------------------------------------------------------------------------
 
+variable "release_name" {
+  description = "Nome do Helm release. Default: kube-prometheus-stack. Prod usa kube-prometheus-stack-prod."
+  type        = string
+  default     = "kube-prometheus-stack"
+}
+
 variable "namespace" {
   description = "Namespace Kubernetes para o stack de monitoramento"
   type        = string
   default     = "monitoring"
+}
+
+variable "additional_namespace_labels" {
+  description = "Labels adicionais a aplicar no namespace (ex: linkerd.io/inject, environment)"
+  type        = map(string)
+  default     = {}
 }
 
 variable "chart_version" {
@@ -28,6 +40,28 @@ variable "prometheus_retention" {
   description = "Tempo de retenção de métricas no Prometheus"
   type        = string
   default     = "15d"
+}
+
+# GAP-HEALTH-001 (2026-03-26): Prometheus node placement parametrizado.
+# Default "system" preserva backward compat. Staging override "workloads" para
+# mover Prometheus para t3.large (8 GiB) — t3.medium system nodes (3.3 GiB) insuficientes
+# para Prometheus com 2.7+ GiB de uso real.
+variable "prometheus_node_group" {
+  description = "EKS node group name for Prometheus scheduling (nodeSelector eks.amazonaws.com/nodegroup). Use 'workloads' for larger nodes."
+  type        = string
+  default     = "system"
+}
+
+variable "prometheus_memory_request" {
+  description = "Prometheus memory request. Should match actual usage (~2.5-3Gi with 60+ ServiceMonitors)."
+  type        = string
+  default     = "2Gi"
+}
+
+variable "prometheus_memory_limit" {
+  description = "Prometheus memory limit. Cap to prevent runaway TSDB growth."
+  type        = string
+  default     = "6Gi"
 }
 
 # -----------------------------------------------------------------------------

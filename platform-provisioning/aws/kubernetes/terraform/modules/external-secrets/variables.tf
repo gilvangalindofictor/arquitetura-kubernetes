@@ -70,6 +70,26 @@ variable "ecr_registry" {
   default     = ""
 }
 
+# D59 (2026-03-27): nodeSelector + tolerations para system nodes
+# Shared services (ESO, Kyverno, GitLab) devem rodar em system nodes para
+# sobreviver ao shutdown FinOps (workload nodes são escalados a zero).
+variable "node_selector" {
+  description = "nodeSelector for ESO pods — route to system nodes"
+  type        = map(string)
+  default     = {}
+}
+
+variable "system_tolerations" {
+  description = "Tolerations for system node taint (node-type=system:NoSchedule)"
+  type = list(object({
+    key      = string
+    operator = string
+    value    = string
+    effect   = string
+  }))
+  default = []
+}
+
 # GAP-ESO-MULTI-INSTANCE: ESO é cluster-wide — apenas uma instância por cluster.
 # Para ambientes adicionais (ex: prod), usar deploy_operator=false para criar apenas
 # o ClusterSecretStore sem tentar instalar o Helm chart novamente.

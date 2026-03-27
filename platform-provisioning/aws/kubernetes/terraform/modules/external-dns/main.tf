@@ -33,6 +33,10 @@ resource "kubernetes_namespace" "external_dns" {
       domain                         = "platform"
     }
   }
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations]
+  }
 }
 
 # --- Helm Release: External DNS (kubernetes-sigs official chart) ---

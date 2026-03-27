@@ -217,6 +217,10 @@ serviceMonitor:
 # -----------------------------------------------------------------------------
 # Ingress — AWS ALB (internet-facing) com TLS terminado no ALB via ACM
 # CLEANUP-S6A (2026-03-12): certificate-arn movido para variável TF `acm_certificate_arn`.
+# FIX-AUDIT-002 (2026-03-26): GAP-HEALTH-002/003 — Added rules + tls + group.name.
+#   Root cause: chart default host '{{ .Release.Name }}.keycloak.example.com' was used
+#   because rules were never overridden. Empty certificate-arn caused FailedBuildModel
+#   which poisoned the entire platform-prod ALB group (Harbor + ArgoCD also broken).
 # -----------------------------------------------------------------------------
 ingress:
   enabled: true
@@ -227,3 +231,14 @@ ingress:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
     alb.ingress.kubernetes.io/certificate-arn: "${acm_certificate_arn}"
+%{ if ingress_group_name != "" }
+    alb.ingress.kubernetes.io/group.name: "${ingress_group_name}"
+%{ endif }
+  rules:
+    - host: "${keycloak_hostname}"
+      paths:
+        - path: /auth/
+          pathType: Prefix
+  tls:
+    - hosts:
+        - "${keycloak_hostname}"

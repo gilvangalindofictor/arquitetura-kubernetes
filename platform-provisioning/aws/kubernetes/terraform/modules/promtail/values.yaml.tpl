@@ -1,3 +1,8 @@
+%{ if release_name != "promtail" }
+# Multi-environment: unique name for cluster-scoped resources (ClusterRole, CRB)
+fullnameOverride: ${release_name}
+%{ endif }
+
 %{ if ecr_registry != "" }
 image:
   registry: ${ecr_registry}

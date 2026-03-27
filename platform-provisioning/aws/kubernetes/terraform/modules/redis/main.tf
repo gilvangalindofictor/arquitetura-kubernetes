@@ -84,6 +84,10 @@ resource "kubernetes_namespace" "data_services" {
       "kubernetes.io/metadata.name"        = var.namespace
     })
   }
+
+  lifecycle {
+    ignore_changes = [metadata[0].annotations]
+  }
 }
 
 resource "kubernetes_secret" "redis_password" {

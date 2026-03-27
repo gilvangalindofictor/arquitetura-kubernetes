@@ -10,7 +10,11 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: ${name}-opentelemetry-collector
+    # FIX HEALTH-004 (2026-03-26): was "${name}-opentelemetry-collector" which duplicated
+    # the chart name when release_name already contains "opentelemetry-collector".
+    # Helm _helpers.tpl fullname deduplicates: if release contains chart name, fullname = release.
+    # Correct target: just ${name} (= var.release_name = "opentelemetry-collector").
+    name: ${name}
   minReplicas: ${min_replicas}
   maxReplicas: ${max_replicas}
   metrics:
