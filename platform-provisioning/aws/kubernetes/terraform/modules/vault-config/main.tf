@@ -132,40 +132,44 @@ resource "vault_jwt_auth_backend" "oidc" {
   oidc_discovery_url = var.keycloak_oidc_url
   oidc_client_id     = var.vault_oidc_client_id
   oidc_client_secret = var.vault_oidc_client_secret
-  default_role       = "reader"
+  default_role       = "reader-${var.environment}" # GAP-CONF-014 Phase 1: env-scoped role
   description        = "Keycloak OIDC SSO for ${var.cluster_name}"
 
   depends_on = [vault_mount.kv]
 }
 
-# Policy: vault-admin (platform admins — Keycloak group: vault-admins)
-# FIX-009 TODO: When implementing env isolation, change to:
-#   name   = "vault-admin-${var.environment}"
-#   policy = templatefile("${path.module}/vault_policies/vault-admin.hcl", { environment = var.environment })
-#   See vault-admin.hcl for full migration plan.
+# Policy: vault-admin-${environment} (platform admins — Keycloak group: vault-admins)
+# GAP-CONF-014 (P1) + FIX-009 Phase 1 (2026-03-26): Environment-scoped policy replaces wildcard secret/*
+# Original wildcard policy retained as vault-admin.hcl for rollback reference.
+# MIGRATION: On first apply, old "vault-admin" policy remains in Vault (orphaned).
+#   Remove manually after 48h soak: vault policy delete vault-admin
 resource "vault_policy" "vault_admin" {
   count  = var.oidc_enabled ? 1 : 0
-  name   = "vault-admin"
-  policy = file("${path.module}/vault_policies/vault-admin.hcl")
+  name   = "vault-admin-${var.environment}"
+  policy = file("${path.module}/vault_policies/vault-admin-${var.environment}.hcl")
 }
 
-# Policy: vault-reader (any authenticated Keycloak user)
-# FIX-009 TODO: When implementing env isolation, change to:
-#   name   = "vault-reader-${var.environment}"
-#   policy = templatefile("${path.module}/vault_policies/vault-reader.hcl", { environment = var.environment })
-#   See vault-reader.hcl for full migration plan.
+# Policy: vault-reader-${environment} (any authenticated Keycloak user)
+# GAP-CONF-014 (P1) + FIX-009 Phase 1 (2026-03-26): Environment-scoped reader policy
+# Original wildcard policy retained as vault-reader.hcl for rollback reference.
+# MIGRATION: On first apply, old "vault-reader" policy remains in Vault (orphaned).
+#   Remove manually after 48h soak: vault policy delete vault-reader
 resource "vault_policy" "vault_reader" {
   count  = var.oidc_enabled ? 1 : 0
-  name   = "vault-reader"
-  policy = file("${path.module}/vault_policies/vault-reader.hcl")
+  name   = "vault-reader-${var.environment}"
+  policy = file("${path.module}/vault_policies/vault-reader-${var.environment}.hcl")
 }
 
-# OIDC Role: admin (bound to Keycloak group vault-admins)
+# OIDC Role: admin-${environment} (bound to Keycloak group vault-admins)
+# GAP-CONF-014 Phase 1 (2026-03-26): Environment-scoped OIDC role
+# MIGRATION: Old "admin" role remains in Vault (orphaned).
+#   Remove manually after 48h soak: vault delete auth/oidc/role/admin
+# Phase 3 TODO: Split bound_claims.groups to "vault-admins-${environment}" (requires Keycloak group split)
 resource "vault_jwt_auth_backend_role" "admin" {
   count = var.oidc_enabled ? 1 : 0
 
   backend   = vault_jwt_auth_backend.oidc[0].path
-  role_name = "admin"
+  role_name = "admin-${var.environment}"
   role_type = "oidc"
 
   token_policies = [vault_policy.vault_admin[0].name]
@@ -177,6 +181,7 @@ resource "vault_jwt_auth_backend_role" "admin" {
   groups_claim = "groups"
 
   # Restrict to vault-admins Keycloak group
+  # Phase 3: change to "vault-admins-${var.environment}" after Keycloak group split
   bound_claims = {
     groups = "vault-admins"
   }
@@ -187,12 +192,15 @@ resource "vault_jwt_auth_backend_role" "admin" {
   ]
 }
 
-# OIDC Role: reader (any authenticated Keycloak user — no bound_claims)
+# OIDC Role: reader-${environment} (any authenticated Keycloak user — no bound_claims)
+# GAP-CONF-014 Phase 1 (2026-03-26): Environment-scoped OIDC role
+# MIGRATION: Old "reader" role remains in Vault (orphaned).
+#   Remove manually after 48h soak: vault delete auth/oidc/role/reader
 resource "vault_jwt_auth_backend_role" "reader" {
   count = var.oidc_enabled ? 1 : 0
 
   backend   = vault_jwt_auth_backend.oidc[0].path
-  role_name = "reader"
+  role_name = "reader-${var.environment}"
   role_type = "oidc"
 
   token_policies = [vault_policy.vault_reader[0].name]

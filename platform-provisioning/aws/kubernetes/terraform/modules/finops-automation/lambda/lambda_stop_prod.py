@@ -150,7 +150,9 @@ _default_excluded = (
     "linkerd,"
     "linkerd-cni,"
     "linkerd-viz,"
+    # FIX: "cert-manager" retained for legacy empty namespace; real workloads in staging-security-certmanager (2026-03-27)
     "cert-manager,"
+    "staging-security-certmanager,"
     "external-secrets-system,"
     "prod-security-externalsecrets,"
     # CRITICAL: prod-security-vault added 2026-03-24.
@@ -167,7 +169,9 @@ _default_excluded = (
     "calico-system,"
     "calico-apiserver,"
     "velero,"
-    "kyverno"
+    # FIX: "kyverno" → real namespace "staging-governance-kyverno" (2026-03-27)
+    # Original entry never matched — Lambda uses exact string match (set membership)
+    "staging-governance-kyverno"
 )
 EXCLUDED_NAMESPACES = set(
     ns.strip()

@@ -284,9 +284,16 @@ resource "aws_wafv2_web_acl" "main" {
       priority = 30
 
       override_action {
-        # "none" means: use each individual rule's configured action (BLOCK).
-        # Use "count" here during initial rollout to observe before enforcing.
-        none {}
+        # GAP-CONF-011: Controlled via var.managed_rules_override_action
+        # "none" = BLOCK mode (use rule's native action), "count" = observe only
+        dynamic "none" {
+          for_each = var.managed_rules_override_action == "none" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = var.managed_rules_override_action == "count" ? [1] : []
+          content {}
+        }
       }
 
       statement {
@@ -322,7 +329,15 @@ resource "aws_wafv2_web_acl" "main" {
       priority = 40
 
       override_action {
-        none {}
+        # GAP-CONF-011: Controlled via var.managed_rules_override_action
+        dynamic "none" {
+          for_each = var.managed_rules_override_action == "none" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = var.managed_rules_override_action == "count" ? [1] : []
+          content {}
+        }
       }
 
       statement {
@@ -354,7 +369,15 @@ resource "aws_wafv2_web_acl" "main" {
       priority = 50
 
       override_action {
-        none {}
+        # GAP-CONF-011: Controlled via var.managed_rules_override_action
+        dynamic "none" {
+          for_each = var.managed_rules_override_action == "none" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = var.managed_rules_override_action == "count" ? [1] : []
+          content {}
+        }
       }
 
       statement {

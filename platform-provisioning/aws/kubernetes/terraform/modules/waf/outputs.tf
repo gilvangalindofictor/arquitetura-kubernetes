@@ -96,23 +96,27 @@ output "waf_rules_summary" {
       priority  = 20
       countries = var.enable_geo_blocking ? var.blocked_countries : []
     }
+    managed_rules_action = var.managed_rules_override_action # "none" = BLOCK, "count" = observe
     owasp_common = {
-      enabled  = var.enable_owasp_common_ruleset
-      priority = 30
-      vendor   = "AWS"
-      rule_set = "AWSManagedRulesCommonRuleSet"
+      enabled         = var.enable_owasp_common_ruleset
+      priority        = 30
+      vendor          = "AWS"
+      rule_set        = "AWSManagedRulesCommonRuleSet"
+      override_action = var.managed_rules_override_action
     }
     sqli_protection = {
-      enabled  = var.enable_sqli_ruleset
-      priority = 40
-      vendor   = "AWS"
-      rule_set = "AWSManagedRulesSQLiRuleSet"
+      enabled         = var.enable_sqli_ruleset
+      priority        = 40
+      vendor          = "AWS"
+      rule_set        = "AWSManagedRulesSQLiRuleSet"
+      override_action = var.managed_rules_override_action
     }
     known_bad_inputs = {
-      enabled  = var.enable_known_bad_inputs_ruleset
-      priority = 50
-      vendor   = "AWS"
-      rule_set = "AWSManagedRulesKnownBadInputsRuleSet"
+      enabled         = var.enable_known_bad_inputs_ruleset
+      priority        = 50
+      vendor          = "AWS"
+      rule_set        = "AWSManagedRulesKnownBadInputsRuleSet"
+      override_action = var.managed_rules_override_action
     }
   }
 }

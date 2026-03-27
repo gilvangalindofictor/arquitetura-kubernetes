@@ -349,7 +349,7 @@ variable "hatch_etl_db_name" {
 variable "hatch_etl_redis_host" {
   description = "Hatch ETL Redis host"
   type        = string
-  default     = "redis.data-services.svc.cluster.local"
+  default     = "redis.staging-data-infrastructure.svc.cluster.local"
 }
 
 variable "hatch_etl_redis_password" {

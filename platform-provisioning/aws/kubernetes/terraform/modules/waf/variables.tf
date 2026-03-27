@@ -115,6 +115,22 @@ variable "enable_known_bad_inputs_ruleset" {
   default     = true
 }
 
+variable "managed_rules_override_action" {
+  description = <<-EOT
+    Override action for AWS Managed Rule Groups (rules 30/40/50).
+    - "none"  = BLOCK mode: use each managed rule's native action (recommended for production)
+    - "count" = COUNT mode: log matches but do not block (use during initial rollout only)
+    GAP-CONF-011: Changed default from "count" to "none" (BLOCK) for security compliance.
+  EOT
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "count"], var.managed_rules_override_action)
+    error_message = "managed_rules_override_action must be one of: none (BLOCK), count (observe only)."
+  }
+}
+
 #------------------------------------------------------------------------------
 # WAF Logging
 #------------------------------------------------------------------------------

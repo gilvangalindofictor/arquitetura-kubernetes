@@ -74,7 +74,7 @@ resource "kubectl_manifest" "calico_kube_controllers_toleration" {
     kind: Deployment
     metadata:
       name: calico-kube-controllers
-      namespace: calico-system
+      namespace: kube-system
       labels:
         app.kubernetes.io/managed-by: terraform
       annotations:
@@ -103,7 +103,7 @@ resource "kubectl_manifest" "calico_kube_controllers_toleration" {
 
   # Server-side apply: preserva campos não gerenciados por este recurso
   server_side_apply = true
-  force_conflicts   = false
+  force_conflicts   = true
 
   lifecycle {
     # Calico operator pode atualizar annotations/labels — não drift em yaml_body
