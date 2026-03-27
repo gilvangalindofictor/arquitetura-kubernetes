@@ -433,6 +433,29 @@ Para cada componente:
 
 ---
 
+## GAPs Resolvidos (2026-03-27 — Sessao GAP Resolution Specialist)
+
+| GAP | Descricao | Status | Acao |
+|-----|-----------|--------|------|
+| GAP-IPAAS-STAGING-002 | RabbitMQ VHost `ipaas` inexistente | RESOLVIDO | VHost criado em `staging-data-infrastructure` + permissoes para default admin user |
+| GAP-IPAAS-STAGING-008 | AdminUI VITE_* vars ausentes | RESOLVIDO | 6 vars armazenadas em Vault `secret/staging/ipaas/adminui` (VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID, VITE_ADMIN_BFF_URL, VITE_ADMIN_BFF_TIMEOUT_MS, VITE_ELSA_STUDIO_URL) |
+| GAP-IPAAS-STAGING-009 | Keycloak realm `ipaas` inexistente | BLOQUEADO | Keycloak admin password stale (GAP-TF-PASSWORD-DRIFT) — realm creation requer reset de senha admin |
+| GAP-IPAAS-STAGING-010 | ELSA_ENCRYPTION_KEY nao gerada | RESOLVIDO | Chave gerada (hex 32 bytes) e armazenada em Vault `secret/staging/ipaas/encryption` |
+| GAP-IPAAS-STAGING-005 | EF Core migrations nao aplicadas | DOCUMENTADO | Pre-requisito de deploy — migration-runner Job executara no primeiro deploy |
+
+### AdminUI VITE_* Environment Variables (GAP-IPAAS-STAGING-008)
+
+| Variavel | Vault Path | Valor Staging |
+|----------|-----------|---------------|
+| VITE_KEYCLOAK_URL | secret/staging/ipaas/adminui | `https://keycloak.staging.internal` |
+| VITE_KEYCLOAK_REALM | secret/staging/ipaas/adminui | `ipaas` |
+| VITE_KEYCLOAK_CLIENT_ID | secret/staging/ipaas/adminui | `ipaas-adminui` |
+| VITE_ADMIN_BFF_URL | secret/staging/ipaas/adminui | `https://ipaas-adminbff.staging.internal` |
+| VITE_ADMIN_BFF_TIMEOUT_MS | secret/staging/ipaas/adminui | `30000` |
+| VITE_ELSA_STUDIO_URL | secret/staging/ipaas/adminui | `https://elsa-studio.staging.internal` |
+
+---
+
 ## Referências
 
 - `.platform/manifest.yaml` de todos os componentes: `/home/gilvangalindo/projects/Arquitetura/iPaaS/components/*/`

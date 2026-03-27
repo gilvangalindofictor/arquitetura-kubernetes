@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-03-26
+
+[19:00] | HEALTH-AUDIT | CONCLUIDO | Health Auditor | Score 8/10 — 14 nodes Ready, 305 pods, 54/54 ESO Synced — 6 P1 encontrados: HEALTH-001 Prometheus memory (codificado move workloads), HEALTH-002/003 Keycloak prod ingress+ALB (codificado cert+host), HEALTH-004 OTel HPA (patched+IaC), HEALTH-005 KC backup nunca executou (password drift), HEALTH-006 promtail prod ausente (codificado)
+[19:30] | ETL-COMPLIANCE | CONCLUIDO | ETL Compliance Agent | Hatch ETL 62%->100% (21/21): Linkerd, 3 NetPol, 2 HPA, 2 PDB, 5 deployments, securityContext PSA — VemSoft ETL 82%->100% (11/11): Linkerd, HPA, PDB — 27 kubectl_manifest em staging/main.tf
+[20:00] | IAC-CONFORMANCE | CONCLUIDO | IaC Auditor | Score 61/100 (benchmark 82) — 27 GAPs (2P0, 13P1, 9P2, 3P3) — 26/27 CODIFICADOS (VPN bloqueado IP FortiGate) — Score projetado pos-apply ~78/100 — Arquivos: network-policies.tf, psa-labels.tf, dead-mans-switch.tf, hpa-platform.tf, pdb-platform.tf, spot-node-group.tf, grafana-dashboards.tf, sonarqube-prod.tf, nat-multi-az.tf, budget-alerts.tf, kyverno-policy-exceptions.tf, argocd-applications.tf
+[20:30] | FIX-009-PHASE1 | CODIFICADO | Security | Vault policy path isolation — 4 HCL policies em modules/vault-config/
+[20:45] | FIXES-STATUS-UPDATE | CONCLUIDO | Documentation | FIX-001 RESOLVIDO (novo root token), FIX-009 CODIFICADO Phase1, FIX-011 RESOLVIDO (max_size=5), FIX-012 RESOLVIDO (schedules *), HEALTH-005 confirmou FIX-003 password drift
+
 ## 2026-03-16
 
 [10:00] | AUDITORIA ETL-TEMPLATE | CONCLUIDA | Documentation | Deep audit 23 tarefas Backstage ETL/DATA Python — 19/23 CONCLUIDAS (F2/F3/F4 100%) — Cluster EKS UP (5/5 nodes) — Backstage 2/2 Running — Aguardam execucao: TAREFA-001 (vault), TAREFA-002 (configmap), TAREFA-004 (publish templates) — 0 GAPs tecnicos bloqueadores — Proximo: executar scripts F1 com credenciais

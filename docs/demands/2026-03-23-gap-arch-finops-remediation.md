@@ -152,14 +152,14 @@ Harbor Prod usa Redis de STAGING — falha toda noite às 20h BRT
 
 ---
 
-### BOAS PRÁTICAS CONFIRMADAS ✅
+### BOAS PRATICAS CONFIRMADAS
 
 - Tagging consistente: `common_tags` + `default_tags` provider em staging e prod
-- Storage 100% gp3 (zero gp2 residual após sessão anterior)
+- Storage 100% gp3 (zero gp2 residual apos sessao anterior)
 - FinOps Automation completo (4 EventBridge rules, circuit breaker DynamoDB)
 - S3 lifecycle policies (staging 7d, prod 30d) + ECR lifecycle (7d untagged)
 - RDS diferenciado: staging single-AZ, prod Multi-AZ
-- Replicação diferenciada: Redis/RabbitMQ staging=1, prod=3+HA
+- Replicacao diferenciada: Redis/RabbitMQ staging=1, prod=3+HA
 - ASG right-sized (system max=4, workloads max=9)
 - VPC Gateway Endpoint S3 (zero NAT cost para S3)
 - State backends separados com DynamoDB locking
@@ -167,3 +167,43 @@ Harbor Prod usa Redis de STAGING — falha toda noite às 20h BRT
 - ESO namespaces separados por ambiente
 - WAF em staging e prod ALBs com rule groups separados
 - DataClassification/LGPD tags corretas por ambiente
+
+---
+
+## ATUALIZACAO 2026-03-27 — Sessao FinOps
+
+### GAPs Resolvidos nesta Sessao
+
+| GAP | Descricao | Resolucao |
+|-----|-----------|-----------|
+| GAP-SCHED-ARGOCD | ArgoCD staging over-provisioned (11 pods) | Right-sized para 7 pods (repo-server 3->1, server 2->1) |
+| GAP-SCHED-OBS | Observability staging over-provisioned (78 pods) | Right-sized para 73 pods (Alertmanager 3->1, Tempo replicas, OTel) |
+| GAP-SONARQUBE-PROD | SonarQube deployado em prod desnecessariamente | helm uninstall executado — custo zerado |
+| GAP-BACKSTAGE-PROD | Backstage prod com ImagePullBackOff | Pods removidos — scheduling liberado |
+
+### Novos GAPs Identificados
+
+| GAP | Descricao | Prioridade | Impacto Financeiro |
+|-----|-----------|------------|-------------------|
+| GAP-EVENTBRIDGE-DISABLED | 6 shutdown rules EventBridge DISABLED — staging+prod rodam 24/7 | **P0** | **+$346.75/mes (+R$22.886/ano)** |
+| GAP-SPOT-INACTIVE | Node group workloads-spot criado (desired=0) mas nao ativado | P1 | Potencial saving $2.400-3.600/ano nao capturado |
+| GAP-EBS-GP2-RESIDUAL | 6 volumes EBS gp2 residuais (145 GiB) — devem migrar para gp3 | P3 | ~$29/ano |
+| GAP-EBS-ORPHAN | 1 volume EBS available (vol-0668032f67a8283fd, 10 GiB gp3) | P3 | $9.60/ano |
+
+### Boas Praticas Atualizadas
+
+- ~~Storage 100% gp3~~ **CORRIGIDO**: 6 volumes gp2 residuais (145 GiB) — migracao pendente
+- ~~FinOps Automation completo~~ **DEGRADADO**: 6/12 EventBridge rules DISABLED — savings nao estao sendo capturados
+- **NOVO**: NAT Gateway Multi-AZ ativo (2 NATs em 2 AZs) — resiliencia de rede melhorada
+- **NOVO**: Workloads-spot node group provisionado (mixed instances t3.large/t3a.large/m5.large/m5a.large) — ativacao pendente
+- ASG atualizado: system max=5 (era 4), workloads max=12 (era 9)
+
+### Custo Mensal Atual vs Benchmark
+
+| Metrica | Valor Atual | Benchmark Enterprise | Gap |
+|---------|-------------|---------------------|-----|
+| Custo mensal | $1,590.86 | $1,100-1,300 (com Spot+SP) | +$291-491 |
+| % EC2 On-Demand | 100% | 30-40% (com Spot+SP) | Sem commitment |
+| EventBridge savings | $0 (DISABLED) | $347/mes | -$347/mes |
+| Spot utilization | 0% | 50-70% workloads | 0% |
+| Savings Plans | Nenhum | 1yr no-upfront compute | ~$83-125/mes nao capturados |

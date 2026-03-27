@@ -1,6 +1,6 @@
 # Fixes Definitivos Pós-Remediação 2026-03-25
 
-**Data:** 2026-03-25 | **Status:** EM ANDAMENTO | **Cluster:** k8s-platform-prod
+**Data:** 2026-03-25 | **Status:** EM ANDAMENTO (atualizado 2026-03-26) | **Cluster:** k8s-platform-prod
 **Conta AWS:** 891377105802 | **Região:** us-east-1
 **Origem:** Sessão de remediação 2026-03-25 — 7 incidentes com fixes temporários/manuais
 
@@ -18,19 +18,19 @@
 
 | FIX | Descrição | Prioridade | Status | Dependências |
 |-----|-----------|------------|--------|--------------|
-| FIX-001 | Vault Prod Root Token Recovery | P0 | PENDENTE (manual) | Nenhuma |
-| FIX-002 | CSS vault-backend-prod SA staging→prod | P0 | PENDENTE | FIX-001 |
-| FIX-003 | Keycloak TF Password Drift | P1 | PENDENTE | FIX-001 |
+| FIX-001 | Vault Prod Root Token Recovery | P0 | **RESOLVIDO** (2026-03-26 — novo token VAULT_TOKEN_PROD_REDACTED via generate-root) | Nenhuma |
+| FIX-002 | CSS vault-backend-prod SA staging→prod | P0 | PENDENTE | FIX-001 ✅ |
+| FIX-003 | Keycloak TF Password Drift | P1 | PENDENTE (HEALTH-005 confirmou drift: Vault v2 != DB password) | FIX-001 ✅ |
 | FIX-004 | Harbor Prod Redis ExternalSecret | P1 | **CODIFICADO** | TF apply pendente |
 | FIX-005 | ALB IngressGroup Scheme Conflict | P1 | **CODIFICADO** | TF apply pendente |
 | FIX-006 | Module Parametrização secret_store_name | P1 | **CODIFICADO** | TF apply pendente |
 | FIX-007 | Linkerd mTLS Expansion Prod | P1 | **CODIFICADO** | TF apply + sidecar inject |
 | FIX-008 | postgresql-external Migration | P1 | **CODIFICADO** | TF apply pendente |
-| FIX-009 | Vault Policy Env Isolation | P2 | DOCUMENTADO (3 fases) | FIX-001 + migration plan |
+| FIX-009 | Vault Policy Env Isolation | P2 | **CODIFICADO Phase 1** (4 HCL policies modules/vault-config/) | FIX-001 ✅ + migration plan |
 | FIX-010 | Harbor Registry PVC gp2→gp3 | P2 | **JÁ RESOLVIDO** (2026-03-23) | N/A |
-| FIX-011 | Workload Node Capacity | P2 | DOCUMENTADO | Decisão de sizing |
-| FIX-012 | Velero Prod Backup Schedule | P2 | GAP DOCUMENTADO | Criar schedule prod |
-| FIX-013 | prod-observability-monitoring Activation | P2 | PENDENTE | FIX-001 |
+| FIX-011 | Workload Node Capacity | P2 | **RESOLVIDO** (2026-03-27 — max_size=5 AWS ASG + TF staging/node-groups.tf) | N/A |
+| FIX-012 | Velero Prod Backup Schedule | P2 | **RESOLVIDO** (schedules daily-full + hourly-incremental cobrem * todos namespaces) | N/A |
+| FIX-013 | prod-observability-monitoring Activation | P2 | **PARCIALMENTE ATIVO** (30+ pods Running, sem ArgoCD gerenciando) | Resource planning pendente |
 
 ---
 
@@ -97,15 +97,15 @@ Independentes (já codificados, prontos para TF apply):
 ### FIX-010: Harbor PVC gp3 — JÁ RESOLVIDO
 - Default `gp3` desde 2026-03-23
 
-### FIX-011: Node Capacity — DOCUMENTADO
-- 3 node groups: system (t3.medium x4), workloads (t3.large x6), critical (t3.xlarge x2)
-- workloads max_size=9, pode aumentar para 11
-- Recomendação: migrar para t3.xlarge ou aumentar min_size
+### FIX-011: Node Capacity — RESOLVIDO (2026-03-27)
+- system max_size=5 aplicado AWS ASG + TF staging/node-groups.tf L62
+- workloads max_size=12, min_size=2 (GAP-WORKLOAD-CPU-SAT fix)
+- 6 vCPU headroom confirmado
 
-### FIX-012: Velero Prod Schedule — GAP DOCUMENTADO
-- Velero gerenciado apenas em staging TF (cluster shared)
-- Prod namespaces NÃO cobertos por backup schedules
-- Necessário: criar Schedule dedicado com `prod-*` namespaces
+### FIX-012: Velero Prod Schedule — RESOLVIDO (2026-03-26)
+- schedules daily-full + hourly-incremental cobrem * (todos namespaces incluindo prod)
+- Backup retention: 720h (30 dias)
+- S3 cross-region replica ativo
 
 ---
 

@@ -32,6 +32,8 @@ A visão enterprise para Q4 2026 é uma plataforma com: resiliência Multi-AZ co
 | Automação | 6/10 | 8/10 | Lambda FinOps + CrashLoopBackOff cleanup + snapshot lifecycle + orphan detector, mas sem auto-remediation de alertas, runbooks não automatizados, sem ChatOps |
 | **TOTAL** | **56/100** | **82/100** | |
 
+> **Atualizacao 2026-03-27:** Score FinOps degradou de 4/10 para 3/10 (EventBridge shutdown rules DISABLED — 6 rules). Right-sizing melhorou de 5/10 para 6/10 (ArgoCD 11->7 pods, Observability 78->73 pods, SonarQube prod removido). Score geral permanece 56/100 (degradacao FinOps compensada por right-sizing). Custo mensal estimado atual: **$1,590.86/mes** ($19,090/ano). Ver `2026-03-27-finops-cost-summary.md` para detalhamento.
+
 ---
 
 ## ROADMAP por Quarter
@@ -51,7 +53,7 @@ A visão enterprise para Q4 2026 é uma plataforma com: resiliência Multi-AZ co
 - Backstage 2.6.3 Running 2/2, plugin S6-C montado, templates ETL/API/Service publicados no GitLab
 - ArgoCD + GitLab CI: conformidade 100%, pipeline ETL/Hatch com Vault auth dinâmico
 - Velero: backups hourly (S3 us-east-1 + replica us-west-2)
-- FinOps Lambda: shutdown scheduling staging, CrashLoopBackOff cleanup, R$30.982/ano savings realizados
+- FinOps Lambda: shutdown scheduling staging, CrashLoopBackOff cleanup, R$30.982/ano savings realizados — **ALERTA 2026-03-27: 6 shutdown rules DISABLED, savings efetivos ~R$9.944/ano**
 - VPA: módulo instalado em recommendation mode
 - OTEL Collector: gateway mode com OTLP
 - Prod Fases 1-4: namespaces criados, Vault prod HA, Redis 3-replica, RabbitMQ 3-replica quorum
@@ -62,7 +64,7 @@ A visão enterprise para Q4 2026 é uma plataforma com: resiliência Multi-AZ co
 - VPN Site-to-Site: aguardando IP FortiGate (externo)
 - GAP-WORKLOAD-01: etl-core Deployment→CronJob (P1)
 - GAP-TEMPO-IMPORT: módulo Tempo não instanciado no staging TF
-- GAP-FINOPS-ACCESS-ENTRY: EKS auth mode CONFIG_MAP (precisa API_AND_CONFIG_MAP)
+- ~~GAP-FINOPS-ACCESS-ENTRY~~: RESOLVIDO (2026-03-27) — EKS auth mode API_AND_CONFIG_MAP ativo
 - VemSoft .gitlab-ci.yml: pendente push ao GitLab
 - Backstage E2E: scaffold→deploy test não executado (TAREFA-022/023)
 - Hatch ETL: em HOLD (replicas=0, ArgoCD auto-sync OFF) — aguarda estabilização
@@ -131,8 +133,8 @@ Foco: **Excelência operacional, auto-remediação e preparação regulatória**
 
 ### INIT-002: NAT Gateway Multi-AZ
 - **Dimensão**: Resiliência / Rede
-- **Problema atual**: 1 NAT Gateway (`nat-03512e5ee0642dcf2`) em subnet única (`subnet-0b5e0cae5658ea993`). Falha desta AZ isola todos os nodes das APIs externas (ECR, AWS APIs, GitLab, Vault, etc.). Identificado no documento `2026-03-18-plano-ambiente-producao.md` como "RISCO".
-- **Solução**: Criar segundo NAT Gateway na subnet us-east-1b, atualizar route tables para failover automático. Custo adicional: ~$45/mês.
+- **Problema atual**: ~~1 NAT Gateway em subnet unica~~ **RESOLVIDO 2026-03-27**: 2 NAT Gateways ativos (`nat-03512e5ee0642dcf2` us-east-1a + `nat-08f450d59d3c868f0` us-east-1b). Multi-AZ operacional.
+- **Solucao**: ~~Criar segundo NAT Gateway~~ JA APLICADO. Custo adicional: ~$35/mes (confirmado).
 - **Impacto**: Alto — elimina SPOF de conectividade de rede
 - **Esforço**: Baixo (TF resource adicional no módulo nat-gateways)
 - **Quarter**: Q2 2026
@@ -408,9 +410,18 @@ Foco: **Excelência operacional, auto-remediação e preparação regulatória**
 
 *Valores em BRL estimados com USD/BRL=5.5 e preços EC2 us-east-1 On-Demand vs Spot/SP.*
 
-**Savings acumulados já realizados em Q1 2026**: R$30.982/ano (auditoria 2026-02-11)
+**Savings acumulados ja realizados em Q1 2026**: R$30.982/ano (auditoria 2026-02-11)
 
 **Savings totais com roadmap Q2-Q3**: R$30.982 + R$23.200-37.400 = **R$54.182-68.382/ano**
+
+> **Atualizacao 2026-03-27:**
+> - Savings adicionais realizados nesta sessao: ~$28/mes ($336/ano / R$1.848/ano) via right-sizing staging
+> - **ALERTA:** EventBridge 6 shutdown rules DISABLED — custo extra **+$346.75/mes (+$4.161/ano / R$22.886/ano)**
+> - Saldo liquido: **-$319/mes** (custo AUMENTOU vs sessao anterior)
+> - Savings totais realizados ajustados: R$30.982 - R$22.886 + R$1.848 = **R$9.944/ano** (enquanto EventBridge estiver DISABLED)
+> - **Acao urgente:** Reabilitar shutdown rules para restaurar R$22.886/ano de savings
+> - Custo mensal atual: **$1,590.86/mes** (18 nodes, 2 NATs, 7 ALBs, 1 RDS Single-AZ)
+> - Ver detalhamento completo: `2026-03-27-finops-cost-summary.md`
 
 ---
 
@@ -422,7 +433,8 @@ Foco: **Excelência operacional, auto-remediação e preparação regulatória**
 | NAT Gateway falha AZ única (INIT-002 pendente) | Baixo | Alto — cluster sem conectividade externa | INIT-002 Q2 |
 | EKS control-plane audit log ausente — incidente não rastreável | Alto | Alto — compliance e forense impossível | QW-02 imediato |
 | Velero restore nunca testado — RPO/RTO teórico apenas | Médio | Alto — DR ineficaz na prática | INIT-016 Q3 |
-| Spot interruption sem tolerations adequados (pós INIT-003) | Médio | Médio — disruption de workloads | Deve ser planejado junto com INIT-003 |
+| Spot interruption sem tolerations adequados (pos INIT-003) | Medio | Medio — disruption de workloads | Deve ser planejado junto com INIT-003 |
+| **EventBridge 6 shutdown rules DISABLED (2026-03-27)** | **Alto** | **Alto — +$347/mes custo extra, anula 74% dos savings FinOps** | **Reabilitar rules imediatamente** |
 
 ---
 
