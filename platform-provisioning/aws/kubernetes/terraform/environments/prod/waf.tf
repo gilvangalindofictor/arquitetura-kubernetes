@@ -38,14 +38,23 @@ module "waf_prod" {
   enable_geo_blocking = var.waf_enable_geo_blocking
   blocked_countries   = var.waf_blocked_countries
 
-  # IP allowlist — only office IPs can reach prod ALB (default_action becomes BLOCK)
+  # IP allowlist — only allowed IPs can reach prod ALB (default_action becomes BLOCK)
+  # Office: 201.28.188.130/32 (permanent)
+  # Home:   187.34.187.109/32 (added 2026-03-27 — remote access)
   enable_ip_allowlist = true
-  office_ip_cidrs     = ["201.28.188.130/32"]
+  office_ip_cidrs = [
+    "201.28.188.130/32", # Office IP (permanent)
+    "187.34.187.109/32", # Home IP (added 2026-03-27)
+  ]
 
   # Managed rule groups (all enabled — validated in staging before production)
   enable_owasp_common_ruleset     = true
   enable_sqli_ruleset             = true
   enable_known_bad_inputs_ruleset = true
+
+  # GAP-CONF-011: Enforce BLOCK mode on managed rules 30/40/50
+  # "none" = don't override rule group's native action (BLOCK)
+  managed_rules_override_action = "none"
 
   # Logging — module creates the S3 bucket (aws-waf-logs-k8s-platform-prod-production)
   enable_logging     = true

@@ -51,7 +51,7 @@ locals {
   #   - prod-platform-argocd: Critical platform tool for emergency hotfixes/rollbacks — moved to EXCLUDED
   finops_prod_target_namespaces = join(",", [
     "prod-platform-keycloak",
-    "prod-platform-sonarqube",
+    # ADR-050 (2026-03-27): prod-platform-sonarqube removido — SonarQube reclassificado PLATFORM-SHARED, namespace esvaziado
     # GAP-LAMBDA-002 (2026-03-26): prod-platform-backstage removido — namespace vazio, Lambda HTTP 404
     "prod-platform-harbor",
     "prod-platform-externaldns",
@@ -87,7 +87,10 @@ locals {
     "linkerd",
     "linkerd-cni",
     "linkerd-viz",
+    # FIX (2026-03-27): "cert-manager" is legacy empty namespace; real workloads in staging-security-certmanager
+    # Both retained: cert-manager (legacy guard) + staging-security-certmanager (active workloads)
     "cert-manager",
+    "staging-security-certmanager",
     "external-secrets-system",
     "prod-security-externalsecrets",
     # CRITICAL: Vault prod — KMS auto-unseal + ESO backend; scaling to 0 would break secret injection
@@ -97,7 +100,8 @@ locals {
     "calico-system",
     "calico-apiserver",
     "velero",
-    "kyverno",
+    # FIX (2026-03-27): "kyverno" never matched — real namespace is staging-governance-kyverno
+    "staging-governance-kyverno",
   ])
 
   finops_prod_common_tags = merge(local.common_tags, {

@@ -223,6 +223,10 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
       # Prod cluster is always-on — 11:30 UTC maintained for consistency with staging.
       # Production backups run every day without risk of cluster-offline failures.
       schedule                   = "30 11 * * *"
+      # FIX HEALTH-005 (2026-03-26): prevent missed schedule from being dropped.
+      # If the CronJob controller misses a schedule within this window, it still runs.
+      # 600s = 10min — generous window for controller restarts or brief API unavailability.
+      startingDeadlineSeconds    = 600
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3
       concurrencyPolicy          = "Forbid"
@@ -239,6 +243,9 @@ resource "kubernetes_manifest" "keycloak_backup_cronjob" {
         }
 
         spec = {
+          # FIX HEALTH-005 (2026-03-26): activeDeadlineSeconds prevents runaway jobs.
+          # apk install + backup + S3 upload should complete in < 15min.
+          activeDeadlineSeconds = 900
           template = {
             metadata = {
               labels = {

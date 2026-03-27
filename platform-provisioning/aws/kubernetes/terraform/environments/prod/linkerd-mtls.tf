@@ -26,16 +26,23 @@ module "linkerd_mtls_prod" {
   # Namespaces where mTLS ServerPolicy is enforced
   # Add namespaces here ONLY after verifying all pods are meshed
   mtls_namespaces = [
-    "prod-platform-argocd",       # Fase 1 — mTLS ativado 2026-03-24 (100% MESHED verificado)
-    "prod-platform-sonarqube",    # Fase 2 — mTLS ativado 2026-03-24 (100% MESHED verificado)
-    "prod-platform-harbor",       # FIX-007 — 8 pods, credentials transit (2026-03-25)
-    "prod-platform-keycloak",     # FIX-007 — 1 pod, SSO/OIDC tokens (2026-03-25)
-    "prod-data-rabbitmq",         # FIX-007 — 3 pods, AMQP message bus (2026-03-25)
-    # "prod-platform-gitlab",     # TODO: Enable after GitLab proxy injection verified
-    # "prod-security-vault",      # HOLD: Vault + Linkerd chicken-and-egg — requer planejamento especial
-    # "prod-observability-monitoring", # HOLD: 0/0 replicas — ativar scaling primeiro
-    # "prod-platform-externaldns",    # TODO: Enable after proxy injection verified (1 pod)
-    # "prod-data-infrastructure",     # TODO: Enable after proxy injection verified (1 pod)
+    "prod-platform-argocd",    # Fase 1 — mTLS ativado 2026-03-24 (100% MESHED verificado)
+    # "prod-platform-sonarqube", # DEPRECATED (ADR-050 2026-03-27): namespace esvaziado, PLATFORM-SHARED
+    "prod-platform-harbor",    # FIX-007 — 8 pods, credentials transit (2026-03-25)
+    "prod-platform-keycloak",  # FIX-007 — 1 pod, SSO/OIDC tokens (2026-03-25)
+    "prod-data-rabbitmq",      # FIX-007 — 3 pods, AMQP message bus (2026-03-25)
+    # GAP-CONF-015: 4 namespaces adicionados — Linkerd mesh expansion (2026-03-26)
+    # PRE-REQUISITO: Verificar pods meshed ANTES do apply:
+    #   linkerd viz stat deploy -n <namespace>
+    #   Se 0/N meshed → primeiro anotar namespace com linkerd.io/inject=enabled + rollout restart
+    "prod-observability-monitoring", # GAP-CONF-015 — Loki, Tempo, Prometheus, Grafana
+    "prod-platform-externaldns",     # GAP-CONF-015 — External-DNS (1 pod)
+    "prod-data-infrastructure",      # GAP-CONF-015 — Redis operator (data plane)
+    # "prod-platform-gitlab",        # REMOVED: namespace nao existe (GitLab esta em staging-platform-gitlab)
+    # "prod-security-vault",           # HOLD: Vault + Linkerd chicken-and-egg — requer planejamento especial
+    #   Vault inicia antes do Linkerd (PKI dependency), sidecar injection causa deadlock.
+    #   Requer: init-container bypass OR permissive mode policy.
+    #   Planejamento em FIX-002 (CSS SA). NÃO habilitar sem plano aprovado.
   ]
 
   # Policy: all-authenticated = only mTLS-authenticated traffic allowed

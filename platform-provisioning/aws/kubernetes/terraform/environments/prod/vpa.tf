@@ -274,41 +274,39 @@ resource "kubectl_manifest" "vpa_prod_keycloak" {
 
 # -----------------------------------------------------------------------------
 # VPA CRs — prod-platform-sonarqube
-# Savings potential: R$ 93.34/mês
-# sonarqube: 500m→100m CPU, 2Gi→1Gi MEM (currently nearly idle: 1m CPU, 3Mi MEM)
-# minAllowed: 200m CPU, 1Gi MEM (JVM/Elasticsearch startup requirement)
-# NOTE: Actual usage very low (idle prod). VPA will recommend conservative floor.
+# DEPRECATED (ADR-050 2026-03-27): SonarQube reclassificado PLATFORM-SHARED.
+# Namespace esvaziado. VPA comentado. TF apply pendente: terraform state rm.
 # -----------------------------------------------------------------------------
 
-resource "kubectl_manifest" "vpa_prod_sonarqube" {
-  yaml_body = <<-YAML
-    apiVersion: autoscaling.k8s.io/v1
-    kind: VerticalPodAutoscaler
-    metadata:
-      name: sonarqube-prod
-      namespace: prod-platform-sonarqube
-      labels:
-        app.kubernetes.io/managed-by: terraform
-        finops/component: vpa-recommendation
-        finops/env: prod
-    spec:
-      targetRef:
-        apiVersion: apps/v1
-        kind: StatefulSet
-        name: sonarqube-sonarqube
-      updatePolicy:
-        updateMode: "Off"
-      resourcePolicy:
-        containerPolicies:
-        - containerName: sonarqube
-          minAllowed:
-            cpu: 200m
-            memory: 1Gi
-          maxAllowed:
-            cpu: 2000m
-            memory: 4Gi
-  YAML
-}
+# resource "kubectl_manifest" "vpa_prod_sonarqube" {
+#   yaml_body = <<-YAML
+#     apiVersion: autoscaling.k8s.io/v1
+#     kind: VerticalPodAutoscaler
+#     metadata:
+#       name: sonarqube-prod
+#       namespace: prod-platform-sonarqube
+#       labels:
+#         app.kubernetes.io/managed-by: terraform
+#         finops/component: vpa-recommendation
+#         finops/env: prod
+#     spec:
+#       targetRef:
+#         apiVersion: apps/v1
+#         kind: StatefulSet
+#         name: sonarqube-sonarqube
+#       updatePolicy:
+#         updateMode: "Off"
+#       resourcePolicy:
+#         containerPolicies:
+#         - containerName: sonarqube
+#           minAllowed:
+#             cpu: 200m
+#             memory: 1Gi
+#           maxAllowed:
+#             cpu: 2000m
+#             memory: 4Gi
+#   YAML
+# }
 
 # -----------------------------------------------------------------------------
 # VPA CRs — prod-observability-monitoring

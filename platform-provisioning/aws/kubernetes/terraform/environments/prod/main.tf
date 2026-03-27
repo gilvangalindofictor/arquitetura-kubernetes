@@ -135,6 +135,21 @@ provider "kubectl" {
   load_config_file       = false
 }
 
+# P0-07: Vault provider — address via port-forward localhost:8200
+# Requires: kubectl port-forward svc/vault-prod-active 8200:8200 -n prod-security-vault
+provider "vault" {
+  address = "http://localhost:8200"
+  token   = var.vault_root_token
+
+  # WORKAROUND: terraform-provider-vault v3.25.0 nil pointer crash on
+  # vault_kubernetes_auth_backend_config PlanResourceChange when provider
+  # cannot cache vault version at init time via port-forward.
+  # skip_child_token avoids 403 when skip_get_vault_version is used.
+  skip_get_vault_version = true
+  vault_version_override = "1.15.4"
+  skip_child_token       = true
+}
+
 # VPC and Subnets (existing from Marco 0)
 data "aws_vpc" "existing" {
   id = var.vpc_id
@@ -179,7 +194,7 @@ module "postgresql_prod" {
   instance_class        = var.postgresql_instance_class        # db.t3.medium
   allocated_storage     = var.postgresql_allocated_storage     # 100 GB
   max_allocated_storage = var.postgresql_max_allocated_storage # 500 GB
-  multi_az              = false                                # DEC-2026-03-24: defer Multi-AZ para go-live (staging-first strategy)
+  multi_az              = true                                 # GAP-CONF-001 (P0) 2026-03-26: Multi-AZ habilitado para production-grade HA — requer janela de manutenção para apply
   deletion_protection   = true                                 # DT-004: Protect against accidental deletion in production
   environment           = "prod"                               # Secrets Manager prefix: prod/postgresql/...
   common_tags           = local.common_tags
@@ -332,6 +347,16 @@ module "gitlab" {
   # Monitoring
   enable_monitoring    = true
   monitoring_namespace = "prod-observability-monitoring"  # ADR-048: prod namespace (staging usa "monitoring")
+
+  # D59 (2026-03-27): System node scheduling for critical GitLab components
+  # webservice, sidekiq, gitaly must survive FinOps shutdown (workloads scale to zero)
+  system_node_selector = { "eks.amazonaws.com/nodegroup" = "system" }
+  system_tolerations = [{
+    key      = "node-type"
+    operator = "Equal"
+    value    = "system"
+    effect   = "NoSchedule"
+  }]
 
   # Tags
   common_tags = local.common_tags
@@ -644,11 +669,15 @@ resource "helm_release" "harbor_prod" {
     existingSecretAdminPassword: harbor-admin-credentials
     existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
 
-    externalURL: http://harbor.prod.internal
+    # GAP-CONF-013: TLS enabled — externalURL uses HTTPS (ALB terminates TLS via ACM)
+    externalURL: https://harbor.prod.internal
 
     expose:
       type: ingress
       tls:
+        # Harbor chart TLS: disabled because TLS is terminated at the ALB layer
+        # via ACM certificate. Harbor pods receive plain HTTP from ALB (backend-protocol: HTTP).
+        # This is the correct pattern for AWS ALB + ACM (no double encryption overhead).
         enabled: false
       ingress:
         className: alb
@@ -658,7 +687,11 @@ resource "helm_release" "harbor_prod" {
           alb.ingress.kubernetes.io/scheme: internal
           alb.ingress.kubernetes.io/target-type: ip
           alb.ingress.kubernetes.io/backend-protocol: HTTP
-          alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+          # GAP-CONF-013: Added HTTPS:443 listener + SSL redirect (was HTTP:80 only)
+          alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+          alb.ingress.kubernetes.io/ssl-redirect: '443'
+          # GAP-CONF-013: ACM wildcard cert *.prod.alvocard.com.br for TLS termination
+          alb.ingress.kubernetes.io/certificate-arn: ${aws_acm_certificate.prod_wildcard.arn}
           alb.ingress.kubernetes.io/healthcheck-path: /api/v2.0/health
           # FIX-005 (2026-03-25): Moved Harbor to dedicated IngressGroup.
           # Was: platform-prod (shared with ArgoCD/Keycloak which use scheme=internet-facing).
@@ -1125,8 +1158,12 @@ module "keycloak_prod" {
   monitoring_namespace = "prod-observability-monitoring"
 
   enable_monitoring   = true
-  acm_certificate_arn = "" # TODO: Add prod ACM cert ARN in Fase 5
-  secret_store_name   = module.external_secrets_prod.cluster_secret_store_name # GAP-SEC-ESO-001: vault-backend-prod
+  # FIX-AUDIT-002 (2026-03-26): GAP-HEALTH-002/003 — prod ACM wildcard cert *.prod.alvocard.com.br
+  # Was: "" (TODO placeholder from Fase 5). Empty ARN caused FailedBuildModel on the entire
+  # platform-prod ALB group, blocking Harbor prod and ArgoCD prod ingresses.
+  acm_certificate_arn  = "arn:aws:acm:us-east-1:891377105802:certificate/da133107-2ce8-4fb8-82fc-d12a346ea039"
+  ingress_group_name   = "platform-prod" # GAP-HEALTH-002: shared ALB group with ArgoCD prod
+  secret_store_name    = module.external_secrets_prod.cluster_secret_store_name # GAP-SEC-ESO-001: vault-backend-prod
 
   common_tags = local.common_tags
 }
