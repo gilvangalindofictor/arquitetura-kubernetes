@@ -1,0 +1,144 @@
+# =============================================================================
+# Build Template — Kaniko (PodSecurity baseline compliant)
+# =============================================================================
+# Replaces Docker-in-Docker builds with Kaniko for namespaces that enforce
+# PodSecurity "baseline" or "restricted" policies.
+#
+# ADVANTAGES:
+#   - No privileged mode required (PodSecurity baseline compliant)
+#   - No Docker daemon needed (no docker:dind service container)
+#   - Faster layer caching via --cache
+#   - Smaller attack surface
+#
+# TAGGING STRATEGY: Same as build-immutable.gitlab-ci.yml
+#   PRIMARY   — sha-$CI_COMMIT_SHORT_SHA (IMMUTABLE)
+#   SECONDARY — v$CI_COMMIT_TAG          (IMMUTABLE, git tags only)
+#
+# USAGE:
+#   include:
+#     - project: 'platform/templates'
+#       file: '/gitlab-ci/templates/build-kaniko.gitlab-ci.yml'
+#
+#   build:
+#     extends: .build-kaniko
+#     variables:
+#       HARBOR_PROJECT: platform-apps
+#
+# CREDENTIALS (injected via runner config environment + pod_spec envFrom):
+#   HARBOR_REGISTRY   = harbor.staging.internal
+#   HARBOR_USER       = robot$gitlab-ci
+#   HARBOR_PASSWORD   = <vault managed via ESO gitlab-ci-credentials>
+#
+# HARBOR PROTOCOL:
+#   Harbor staging uses HTTP (no TLS). Kaniko requires --insecure flags.
+#   For Harbor with TLS, remove the --insecure and --skip-tls-verify flags.
+#
+# Ref: GAP-PODSEC-DIND, GAP-HARBOR-NO-TLS
+# =============================================================================
+
+.build-kaniko:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  tags:
+    - kubernetes
+
+  variables:
+    # Target Harbor project (override in your job)
+    HARBOR_PROJECT: "microservices"
+    # Docker build context
+    DOCKER_CONTEXT: "."
+    DOCKERFILE_PATH: "Dockerfile"
+
+  before_script:
+    - |
+      echo "============================================================"
+      echo " K8s Platform — Kaniko Build (PodSecurity compliant)"
+      echo "============================================================"
+      echo " Project:     ${CI_PROJECT_PATH}"
+      echo " Commit:      ${CI_COMMIT_SHORT_SHA} (${CI_COMMIT_REF_NAME})"
+      echo " Registry:    ${HARBOR_REGISTRY}/${HARBOR_PROJECT}"
+      echo "============================================================"
+    - |
+      # Create Docker config for Harbor authentication
+      REGISTRY="${HARBOR_REGISTRY}"
+      USER="${HARBOR_USER}"
+      PASS="${HARBOR_PASSWORD}"
+      AUTH=$(printf '%s:%s' "${USER}" "${PASS}" | base64 | tr -d '\n')
+      mkdir -p /kaniko/.docker
+      echo "{\"auths\":{\"${REGISTRY}\":{\"auth\":\"${AUTH}\"}}}" > /kaniko/.docker/config.json
+      echo "Docker config created for registry: ${REGISTRY}"
+
+  script:
+    # ---- Build and push PRIMARY tag (sha-*) ----
+    - |
+      IMAGE_SHA="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${CI_PROJECT_PATH_SLUG}:sha-${CI_COMMIT_SHORT_SHA}"
+      echo ""
+      echo "--- Building and pushing PRIMARY tag (IMMUTABLE) ---"
+      echo "Tag: ${IMAGE_SHA}"
+
+      EXTRA_TAGS=""
+      # Add version tag if git tag exists
+      if [ -n "${CI_COMMIT_TAG}" ]; then
+        IMAGE_VER="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${CI_PROJECT_PATH_SLUG}:${CI_COMMIT_TAG}"
+        EXTRA_TAGS="--destination ${IMAGE_VER}"
+        echo "Also tagging: ${IMAGE_VER}"
+      fi
+
+      /kaniko/executor \
+        --context "${CI_PROJECT_DIR}/${DOCKER_CONTEXT}" \
+        --dockerfile "${CI_PROJECT_DIR}/${DOCKERFILE_PATH}" \
+        --destination "${IMAGE_SHA}" \
+        ${EXTRA_TAGS} \
+        --insecure \
+        --insecure-pull \
+        --skip-tls-verify \
+        --skip-tls-verify-pull \
+        --cache=false \
+        --snapshot-mode=redo \
+        --use-new-run \
+        --label "git.commit=${CI_COMMIT_SHA}" \
+        --label "git.ref=${CI_COMMIT_REF_NAME}" \
+        --label "git.project=${CI_PROJECT_PATH}" \
+        --label "build.pipeline=${CI_PIPELINE_ID}" \
+        --label "build.job=${CI_JOB_ID}"
+
+    - |
+      echo ""
+      echo "============================================================"
+      echo " Build Complete"
+      echo "============================================================"
+      echo " PRIMARY: ${IMAGE_SHA}"
+      if [ -n "${CI_COMMIT_TAG}" ]; then
+        echo " VERSION: ${IMAGE_VER}"
+      fi
+      echo "============================================================"
+      # Write image reference for deploy stage
+      echo "IMAGE_SHA_TAG=${IMAGE_SHA}" > build.env
+      echo "GIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA}" >> build.env
+
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+# ---------------------------------------------------------------------------
+# Convenience: staging Kaniko build (main branch only)
+# ---------------------------------------------------------------------------
+.build-kaniko-staging:
+  extends: .build-kaniko
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+    - when: never
+
+# ---------------------------------------------------------------------------
+# Convenience: release Kaniko build (git tags only)
+# ---------------------------------------------------------------------------
+.build-kaniko-release:
+  extends: .build-kaniko
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+.*$/'
+      when: on_success
+    - when: never

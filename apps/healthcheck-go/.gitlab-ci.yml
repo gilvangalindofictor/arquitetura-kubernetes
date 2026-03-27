@@ -1,0 +1,162 @@
+# Healthcheck-Go CI/CD Pipeline
+# Uses Kaniko for unprivileged Docker builds (PodSecurity baseline compliant)
+# Includes platform provisioning template for automatic onboarding (namespace, Vault, Ingress, etc.)
+#
+# Flow: validate -> build (Kaniko) -> provision (onboarding) -> deploy (kubectl/ArgoCD)
+
+include:
+  - project: 'platform-core/app-provisioning'
+    ref: main
+    file: '/templates/gitlab-ci-template.yml'
+
+stages:
+  - validate
+  - build
+  - provision
+  - deploy
+
+variables:
+  HARBOR_PROJECT: platform-tests
+  APP_NAME: healthcheck-go
+  K8S_NAMESPACE: staging-shared-services-healthcheck-go
+  MANIFEST_PATH: ".platform/manifest.yaml"
+  PROVISIONING_REPO: "platform-core/app-provisioning"
+  PROVISIONING_REF: "main"
+
+# ============================================================
+# Stage: validate
+# ============================================================
+validate:manifest:
+  stage: validate
+  image: mikefarah/yq:4
+  tags:
+    - kubernetes
+  script:
+    - echo "Validating .platform/manifest.yaml..."
+    - yq '.' .platform/manifest.yaml
+    - |
+      NAME=$(yq '.metadata.name' .platform/manifest.yaml)
+      DOMAIN=$(yq '.metadata.domain' .platform/manifest.yaml)
+      TYPE=$(yq '.metadata.type' .platform/manifest.yaml)
+      echo "App: $NAME | Domain: $DOMAIN | Type: $TYPE"
+      if [ -z "$NAME" ] || [ "$NAME" = "null" ]; then
+        echo "ERROR: metadata.name is required"
+        exit 1
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ============================================================
+# Stage: build (Kaniko - no Docker daemon, no privileged)
+# ============================================================
+build:image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  tags:
+    - kubernetes
+  before_script:
+    - |
+      echo "Creating Kaniko Docker config for Harbor..."
+      REGISTRY="${HARBOR_REGISTRY}"
+      USER="${HARBOR_USER}"
+      PASS="${HARBOR_PASSWORD}"
+      AUTH=$(printf '%s:%s' "${USER}" "${PASS}" | base64 | tr -d '\n')
+      mkdir -p /kaniko/.docker
+      cat > /kaniko/.docker/config.json <<DOCEOF
+      {"auths":{"${REGISTRY}":{"auth":"${AUTH}"}}}
+      DOCEOF
+      echo "Registry: ${REGISTRY}"
+      echo "User: ${USER}"
+  script:
+    - |
+      IMAGE_TAG="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${APP_NAME}:sha-${CI_COMMIT_SHORT_SHA}"
+      echo "Building image: ${IMAGE_TAG}"
+      /kaniko/executor \
+        --context "${CI_PROJECT_DIR}" \
+        --dockerfile "${CI_PROJECT_DIR}/Dockerfile" \
+        --destination "${IMAGE_TAG}" \
+        --insecure \
+        --insecure-pull \
+        --skip-tls-verify \
+        --skip-tls-verify-pull \
+        --cache=false \
+        --snapshot-mode=redo \
+        --use-new-run
+  artifacts:
+    paths:
+      - build.env
+    expire_in: 1 day
+    when: on_success
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "staging"
+
+# ============================================================
+# Stage: provision (onboarding -- namespace, Vault, ESO, Ingress)
+# Runs create-app.sh which orchestrates all provisioning scripts
+# including provision-ingress.sh for automatic ALB Ingress creation.
+# Only runs when manifest changes on staging/main branches.
+# ============================================================
+provision:onboarding:
+  stage: provision
+  image:
+    name: bitnami/kubectl:1.28
+    entrypoint: [""]
+  tags:
+    - kubernetes
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git curl jq unzip
+    - git clone --depth 1 --branch ${PROVISIONING_REF} https://${CI_SERVER_HOST}/${PROVISIONING_REPO}.git /tmp/provisioning
+    # Install yq for manifest parsing
+    - |
+      curl -sL https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 -o /usr/local/bin/yq
+      chmod +x /usr/local/bin/yq
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "staging" ]; then
+        ENV="staging"
+      elif [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        ENV="prod"
+      else
+        echo "Branch $CI_COMMIT_BRANCH nao requer provisioning"
+        exit 0
+      fi
+    - echo "Executando onboarding para env=$ENV..."
+    - bash /tmp/provisioning/scripts/onboarding/create-app.sh --manifest "$MANIFEST_PATH" --env "$ENV"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      changes:
+        - .platform/manifest.yaml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - .platform/manifest.yaml
+  allow_failure: false
+
+# ============================================================
+# Stage: deploy (via kubectl set image)
+# ============================================================
+deploy:staging:
+  stage: deploy
+  image: bitnami/kubectl:1.29
+  tags:
+    - kubernetes
+  needs:
+    - job: build:image
+      artifacts: true
+  script:
+    - |
+      echo "Deploying to staging..."
+      if kubectl get deployment ${APP_NAME} -n ${K8S_NAMESPACE} 2>/dev/null; then
+        kubectl set image deployment/${APP_NAME} ${APP_NAME}="${IMAGE_TAG}" -n ${K8S_NAMESPACE}
+        kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=120s
+      else
+        echo "Deployment not found. Infrastructure not yet provisioned."
+        echo "Run: create-app.sh --manifest .platform/manifest.yaml --env staging"
+        echo "Skipping deploy - will be handled by ArgoCD once provisioned."
+      fi
+  environment:
+    name: staging
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "staging"

@@ -1,16 +1,17 @@
 # 📘 Projeto Kubernetes - Contexto Consolidado
 
-> **Última Atualização**: 2026-03-17 — [GAP-LAMBDA] INVESTIGADO: Lambda FUNCIONA, savings REAL $9.72/dia (não $22/dia) | RC2: Lambda START manual dom 15/Mar 17:16 UTC | MTD $709.56 (16d) | Forecast $1.309/mês
-> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 em execucao — Sprint S0 | Enterprise Assessment **4.4/5.0** Advanced++)
-> **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — ✨ **NOVO:** Camada 2 (Domínios Corporativos)
+> **Ultima Atualizacao**: 2026-03-27 — FinOps Cost Summary atualizado ($1,590.86/mes), 6 EventBridge shutdown rules DISABLED (+$347/mes), right-sizing staging (-9 pods), SonarQube prod removido
+> **Projeto Ativo**: AWS EKS MVP (Marcos 0-4 ✅ 100% | Marco 5 em execucao ~60% | Enterprise Assessment **4.4/5.0** Advanced++)
+> **Status SAD**: v1.3 🔒 CONGELADO (Freeze #4) — Camada 2 (Domínios Corporativos)
 > **Governança**: AI-First com rastreabilidade obrigatória
 > **Orquestrador**: Kubernetes (ADR-021)
-> **Custo AWS (Mar/2026 MTD)**: $709.56 (16 dias) | Forecast CE: $1.309/mês (+62% budget $807) | Daily rate: $39.82/dia | FinOps Savings: R$ 54.454/ano (87.8% meta) | [GAP-LAMBDA] RC confirmados 17/Mar
-> **Health (2026-03-12 ~21:00 BRT)**: 12/12 nodes Ready | Linkerd OPERATIONAL (destination 4/4, identity 2/2, proxy-injector 2/2) | GitLab 11/11 pods Running | Vault OK | RDS AVAILABLE | AlertManager CRD atualizado (EKS falsos positivos suprimidos) | 0 alertas P0/P1 ativos
-> **Apply 2026-03-12 14:39**: Lambda finops_stop/start atualizadas (suspend_cluster_autoscaler ativo) | RabbitMQ ClusterIP confirmado (NLB eliminado)
-> **Apply 2026-03-12 ~17:00-19:00**: module.linkerd (1 changed — system ASG max 4→5) | module.vault_staging (1 changed — telemetry unauthenticated_metrics_access=true) | zero drift pós-apply confirmado
-> **Apply 2026-03-12 ~21:00**: AlertmanagerConfig dt005-teams-routing configured — inhibitRules KubeSchedulerDown+KubeControllerManagerDown via Watchdog ativo
-> **P0 Recovery 2026-03-12**: linkerd-trust-anchor recriado via --from-file (SHA256 trailing newline bug) | CNI deadlock fix (skip-outbound-ports:8080 em destination+proxy-injector) | Keycloak backup admin password: argon2id hash atualizado no RDS | Root token Vault revogado
+> **IaC Conformance**: 61/100 (benchmark 82) | 27 GAPs (2 P0, 13 P1, 9 P2, 3 P3) | 26/27 CODIFICADOS | Score projetado: ~78/100
+> **Health (2026-03-26)**: 14/14 nodes Ready | 305 pods Running | 54/54 ExternalSecrets Synced | 6 P1 resolvidos
+> **ETL Compliance (2026-03-26)**: Hatch ETL 100% (21/21) | VemSoft ETL 100% (11/11) — Linkerd, NetworkPolicies, HPA, PDB todos aplicados
+> **Cluster**: EKS v1.34.2-eks-ecaa3a6 | 5 system t3.medium + 2 critical t3.xlarge + 11 workloads t3.large = **18 nodes**
+> **Custo mensal estimado (2026-03-27)**: **$1,590.86/mes** ($19,090/ano | R$104,997/ano) — 100% On-Demand, 0% Spot, 0 Savings Plans
+> **FinOps ALERTA**: 6 EventBridge shutdown rules DISABLED — custo extra +$347/mes (+R$22,886/ano). Reabilitar urgente.
+> **Fixes codificados (apply pendente)**: RDS multi_az=true, EKS logging 5/5, 39 NetworkPolicies, PSA 28 ns, Vault path isolation, Dead Man's Switch, 9 HPAs, 16 PDBs, WAF COUNT->BLOCK, Spot node group, Grafana dashboards, NAT Multi-AZ, Budget alerts
 >
 > ✅ **CICD-006 CONCLUÍDO 100% (2026-03-11)**: CI/CD Onboarding — 28 GAPs processados (27 resolvidos, 1 eliminado), conformidade 100%, auditoria final aprovada
 
@@ -34,7 +35,7 @@
   - ✅ Terraform + Helm implementados
   - ✅ Marcos 0, 1, 2, 3, 4 completos (CI/CD end-to-end)
   - ✅ EKS v1.34 (control plane + nodes) — Standard Support
-  - ✅ FinOps automation ativa (R$ 56.424/ano savings realizados)
+  - ✅ FinOps automation ativa (R$ 56.424/ano savings realizados — **ALERTA 2026-03-27**: 6 shutdown rules DISABLED, savings efetivos reduzidos para ~R$9.944/ano enquanto DISABLED)
   - ✅ CI/CD Platform completo: GitLab + ArgoCD + SonarQube + Keycloak SSO
   - ✅ Security: 8/8 vulnerabilities fixed, ESO 100% coverage
   - ✅ CI/CD Enhancement: 49 artefatos preparados (CICD-001 a 005)
@@ -168,6 +169,8 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | **Marco 3 F1e**    | VPC Endpoints (STS + EC2, ADR-046, Vault recovery)                            | ✅ Completo | 2h32min      | +$28.90/mês   |
 | **TOTAL**          |                                                                               |            | **~14 dias** | **~$700/mês** |
 
+> **Atualizacao FinOps 2026-03-27**: Custo mensal real atual **$1,590.86/mes** (18 nodes, 7 ALBs, 2 NATs, 1 RDS). Aumento vs estimativa original devido a: escala para producao (+nodes), 2o NAT Gateway (+$35/mes), 5 ALBs adicionais (+$80/mes), mais EBS (+$60/mes). Detalhamento completo: `docs/demands/2026-03-27-finops-cost-summary.md`
+
 ### Marco 3 - Detalhamento (Fase 1a/1b/1c)
 
 | Componente                | Status        | Observações                                                                                                        |
@@ -182,7 +185,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | Harbor Registry           | ✅ Completo    | S3 IRSA storage, health OK, ServiceMonitor enabled, jobservice replicas=1 (ADR-039)                                |
 | **Keycloak SSO**          | ⏳ Ready       | Chart 18.4.0, 2 replicas HA, PostgreSQL RDS backend, Vault+ESO pattern, deploy pending (R-029 RESOLVED 2026-02-06) |
 | **Observability Stack**   | ✅ Completo    | Prometheus/Grafana/Alertmanager Running, 28 ServiceMonitors, tolerations ADR-041 aplicadas                         |
-| **FinOps Automation**     | ✅ Completo    | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mês (ADR-024) |
+| **FinOps Automation**     | ✅ Completo    | EventBridge rules (startup 07:30, shutdown 20:00 BRT), Lambda functions operational, economia R$ 850/mes (ADR-024) — **6 shutdown rules DISABLED 2026-03-27** |
 
 ### Marcos Completos
 
@@ -333,7 +336,7 @@ Estabelecer uma **plataforma corporativa de engenharia robusta e escalável** us
 | ------------------- | ---------------------------------------------------- | -------------------------------- | ------------------------------- | ------------------ |
 | **PLATFORM**        | Observability, CI/CD, Secrets, Security              | ✅ Herda Camada 1                 | Nenhum (já operacional)         | ✅ Marco 0-3        |
 | **INTEGRATION**     | iPaaS (9 microserviços)                              | 📋 Dockerfiles existem            | Criar Helm charts, GitOps repos | Fase 1 (4 semanas) |
-| **DATA**            | Hatch ETL (151 extractors), VemSoft ETL              | 📋 docker-compose existente       | Converter para K8s manifests    | Fase 2 (4 semanas) |
+| **DATA**            | Hatch ETL (151 extractors), VemSoft ETL              | ✅ 100% compliance (2026-03-26)   | Hatch HOLD mode, VemSoft Synced | ✅ Fase 2 COMPLETA   |
 | **OPERATIONS**      | Process Management, Fulfillment                      | 📋 Planejado (futuro)             | Definir requisitos              | Fase 3 (6 semanas) |
 | **SHARED-SERVICES** | Files (BucketConnector), Notification, Calendar, RPA | 📋 BucketConnector tem Helm chart | Deploy Files + Notification     | Fase 1 (4 semanas) |
 
@@ -454,7 +457,7 @@ product: ^[a-z0-9-]+$
 
 ### cicd-platform (Esteira DevOps)
 - **GitLab CE** 9.9.1 - Git + CI (v18.9.1, 1 réplica webservice staging, External PostgreSQL RDS, External Redis, S3 object storage)
-- **SonarQube** 10.3.0 - Code Quality (PostgreSQL, 20Gi storage)
+- **SonarQube** 10.3.0 - Code Quality (PostgreSQL, 20Gi storage) — PLATFORM-SHARED: instancia unica em staging-platform-sonarqube (ADR-050)
 - **Harbor** 1.14.0 - Registry (100Gi, Trivy scanning, Chartmuseum)
 - **ArgoCD** v2.10.0 - GitOps (2 réplicas, Keycloak OIDC, ✅ PKCE active)
 - **Backstage** 1.7.0 - Developer Portal (GitLab integration, Software Templates)
@@ -559,12 +562,33 @@ Kubernetes/
 └── PROJECT-CONTEXT.md            # Este arquivo (contexto consolidado)
 ```
 
-### Gaps Conhecidos (Sprint+1 Roadmap)
-1. **RBAC Granular**: ServiceAccounts com least-privilege (4 domínios)
-2. ✅ **Network Policies**: Implementado em audit mode (22 policies, 5 namespaces, 2026-02-24)
-3. ✅ **Velero IRSA**: Completo - OIDC thumbprint + ARN format fix (2026-02-25)
-4. **HPA/VPA**: Após 2 semanas de métricas (observar padrões)
-5. **GitLab OIDC**: Integração com Keycloak (ArgoCD já implementado)
+### Gaps Conhecidos (IaC Conformance Audit 2026-03-26)
+
+**Score: 61/100 | Target pos-apply: ~78/100 | Benchmark enterprise: 82/100**
+
+| Prioridade | Total | Codificados | Bloqueados |
+|------------|-------|-------------|------------|
+| P0 | 2 | 2 | 0 |
+| P1 | 13 | 13 | 0 |
+| P2 | 9 | 8 | 1 (VPN — IP FortiGate) |
+| P3 | 3 | 3 | 0 |
+| **TOTAL** | **27** | **26** | **1** |
+
+**Top 5 GAPs criticos:**
+1. GAP-CONF-001: RDS Multi-AZ=false em producao (P0) — CODIFICADO
+2. GAP-CONF-002: Network Policies ausentes em 10+ namespaces (P0) — CODIFICADO (39 policies)
+3. GAP-CONF-003: EKS logging 1/5 tipos (P1) — CODIFICADO
+4. GAP-CONF-004: Cluster Autoscaler fora do TF state (P1) — CODIFICADO
+5. GAP-CONF-006: ArgoCD prod zero Applications (P1) — CODIFICADO
+
+**Relatorio completo:** [IaC Conformance Audit](docs/demands/2026-03-26-iac-conformance-audit.md)
+
+**Gaps anteriores resolvidos:**
+1. ✅ **Network Policies ETL**: 3 policies Hatch + 3 VemSoft (2026-03-26)
+2. ✅ **Velero IRSA**: Completo (2026-02-25)
+3. ✅ **HPA ETL**: Hatch 2 HPAs + VemSoft 1 HPA (2026-03-26)
+4. ✅ **PDB ETL**: Hatch 2 PDBs + VemSoft 1 PDB (2026-03-26)
+5. ✅ **Linkerd ETL**: Injection corrigida Hatch + VemSoft (2026-03-26)
 
 ---
 

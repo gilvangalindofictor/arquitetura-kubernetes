@@ -1,0 +1,60 @@
+# =============================================================================
+# .platform/manifest.yaml — healthcheck-go
+# Aplicacao de healthcheck que valida conectividade com database, Redis e RabbitMQ.
+# Usado como referencia funcional para validar o fluxo de provisioning automatico.
+# =============================================================================
+
+apiVersion: platform.k8s/v1
+kind: ApplicationManifest
+metadata:
+  name: healthcheck-go
+  domain: shared-services
+  product: platform-tests
+  type: api-rest
+  owner: platform-team
+  description: "Healthcheck Go — valida conectividade com PostgreSQL, Redis e RabbitMQ no cluster."
+  tags:
+    - healthcheck
+    - platform-tests
+    - go
+
+dependencies:
+  database:
+    enabled: true
+    type: shared
+    name: healthcheck_go
+  redis:
+    enabled: true
+    mode: shared
+  rabbitmq:
+    enabled: true
+    mode: shared
+  keycloak:
+    enabled: false
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+  replicas:
+    min: 1
+    max: 2
+
+config:
+  port: 8080
+  healthCheck:
+    liveness: "/health"
+    readiness: "/health"
+  ingress:
+    enabled: false
+  env: {}
+  secretKeys: []
+
+observability:
+  metrics:
+    enabled: false
+  tracing:
+    enabled: false

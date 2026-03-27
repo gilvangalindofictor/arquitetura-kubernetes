@@ -1,15 +1,19 @@
 # Projeto Kubernetes - Plataforma Corporativa de Engenharia
 
-**Last Updated:** 2026-03-04
+**Last Updated:** 2026-03-26
 **Status:** Current
 **Owner:** Platform Team
-**Version:** 4.0 (Marco 4 Complete + CI/CD Enhancement + INFRA Upgrades)
+**Version:** 5.0 (Marco 4 Complete + CI/CD Enhancement + INFRA Upgrades + ETL Onboarding + IaC Conformance Audit)
 
-> **🎯 PROJETO ATIVO:** AWS EKS GitLab Quickstart — Enterprise Assessment 4.0/5.0 (Advanced+)
+> **🎯 PROJETO ATIVO:** AWS EKS GitLab Quickstart — Enterprise Assessment 4.4/5.0 (Advanced+)
 > **📋 VISÃO FUTURA:** Plataforma Cloud-Agnostic Completa (Fases 2-4)
 > **Metodologia**: AI-First (adaptado do projeto iPaaS)
-> **Status Atual**: Marco 4 ✅ COMPLETO | Marco 5 em planejamento (Production Readiness 10%)
-> **Última Atualização**: 2026-03-04
+> **Status Atual**: Marco 4 ✅ COMPLETO | Marco 5 em execucao (Production Readiness ~60%)
+> **IaC Conformance Score**: 61/100 (benchmark: 82/100) | Score projetado pos-apply: ~78/100
+> **ETL Compliance**: Hatch ETL 100% (21/21) | VemSoft ETL 100% (11/11)
+> **Cluster**: 14 nodes Ready | 305 pods | EKS v1.34.2
+> **Última Atualização**: 2026-03-26
+> **Audit Report**: [IaC Conformance Audit](docs/demands/2026-03-26-iac-conformance-audit.md) | [Health Audit](docs/demands/2026-03-26-health-audit-report.md) | [ETL Compliance](docs/demands/2026-03-26-etl-staging-compliance-report.md)
 
 ---
 
@@ -17,10 +21,11 @@
 
 ### 🟢 Projeto Ativo: AWS EKS GitLab — Marco 4 ✅ COMPLETO
 
-**Status:** Marco 4 ✅ 100% COMPLETO | Marco 5 🚧 em planejamento (10%)
+**Status:** Marco 4 ✅ 100% COMPLETO | Marco 5 🚧 em execucao (~60%)
 **Documento:** [aws-eks-gitlab-quickstart-REAL.md](docs/plan/quickstart/aws-eks-gitlab-quickstart-REAL.md)
-**Enterprise Assessment:** 4.0/5.0 (Advanced+) — 85% production-ready
+**Enterprise Assessment:** 4.4/5.0 (Advanced+) — IaC Conformance 61/100 (target 78 pos-apply)
 **Custo:** ~$716/mês líquido (staging) | FinOps Savings: R$ 62.425/ano
+**ETL Workloads:** Hatch ETL 100% compliance (21/21) | VemSoft ETL 100% compliance (11/11)
 
 **Objetivo:** Plataforma Kubernetes enterprise-grade na AWS com GitLab CI/CD, mTLS, WAF, DR e observabilidade completa.
 
@@ -35,7 +40,11 @@
   - iPaaS Public: GAP-010 AWS WAF v2 | GAP-011 Linkerd mTLS 18/18 proxies | GAP-012 Velero DR Phase 1
   - INFRA: GitLab v17.7→v18.9.1 (INFRA-001) | PostgreSQL 14.8→16.4 (INFRA-002)
   - Security: Kyverno ENFORCE 80/80 PASS | ESO 16/16 SecretSynced | 8/8 vulnerabilities fixed
-- 🚧 Marco 5: Production Readiness (planejamento — 8 gates, 2 em contagem)
+- 🚧 Marco 5: Production Readiness (~60%)
+  - ETL Onboarding: Hatch ETL 100% (21/21 checks) | VemSoft ETL 100% (11/11 checks) — 2026-03-26
+  - IaC Conformance Audit: 61/100 (27 GAPs: 2 P0, 13 P1, 9 P2, 3 P3) — 26/27 CODIFICADOS
+  - Health Audit: Score 8/10, 14 nodes Ready, 305 pods, 6 P1 resolvidos — 2026-03-26
+  - Score projetado pos-apply: ~78/100
 
 **Por que este é o projeto principal:**
 
