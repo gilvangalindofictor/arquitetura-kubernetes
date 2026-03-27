@@ -62,6 +62,7 @@ Fluxo:
     8. Cria ArgoCD Application
     9. Provisiona Observabilidade (ServiceMonitor, PrometheusRule, Grafana)
    10. Provisiona Ingress ALB (interno + publico, se habilitado)
+   11. Configura Branch Protection (staging + main via GitLab API)
 
 Ref: ADR-048, ADR-104, Mesa Tecnica P4
 EOF
@@ -75,7 +76,7 @@ parse_args() {
     ENV_OVERRIDE=""
     DRY_RUN=false
     SKIP_VALIDATION=false
-    TOTAL_STEPS=10
+    TOTAL_STEPS=11
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -413,6 +414,33 @@ main() {
     fi
 
     # -----------------------------------------------------------------
+    # STEP 11: Branch Protection (staging + main) — GitLab API
+    # -----------------------------------------------------------------
+    log_step 11 "$TOTAL_STEPS" "Branch Protection (staging + main)"
+
+    if [[ -x "${PROVISIONING_DIR}/provision-branch-protection.sh" ]]; then
+        BP_ARGS=(--app "$APP_NAME")
+        # Resolve GitLab project ID from CI or manifest
+        if [[ -n "${CI_PROJECT_ID:-}" ]]; then
+            BP_ARGS+=(--project-id "$CI_PROJECT_ID")
+        elif [[ -n "${GITLAB_PROJECT_NAME:-}" ]]; then
+            BP_ARGS+=(--project-name "$GITLAB_PROJECT_NAME")
+        else
+            log_warn "GITLAB_PROJECT_ID ou GITLAB_PROJECT_NAME nao definidos — tentando resolver pelo nome"
+            BP_ARGS+=(--project-name "${GITLAB_GROUP:-services}/${APP_NAME}")
+        fi
+        [[ -n "${GITLAB_URL:-}" ]] && BP_ARGS+=(--gitlab-url "$GITLAB_URL")
+        [[ -n "${GITLAB_TOKEN:-}" ]] && BP_ARGS+=(--gitlab-token "$GITLAB_TOKEN")
+        [[ "$DRY_RUN" == "true" ]] && BP_ARGS+=(--dry-run)
+
+        bash "${PROVISIONING_DIR}/provision-branch-protection.sh" "${BP_ARGS[@]}" \
+            || { log_warn "Falha ao configurar branch protection (nao-bloqueante)"; }
+        log_success "Branch protection configurada"
+    else
+        log_warn "provision-branch-protection.sh nao disponivel, pulando branch protection"
+    fi
+
+    # -----------------------------------------------------------------
     # Sumario
     # -----------------------------------------------------------------
     echo ""
@@ -434,6 +462,10 @@ main() {
         [[ -n "$svc" ]] && log_info "  - $svc"
     done
     [[ ${#SERVICES[@]} -eq 0 ]] && log_info "  (nenhum)"
+    echo ""
+    log_info "Branch protection:"
+    log_info "  - staging: push=BLOQUEADO, merge=MAINTAINERS"
+    log_info "  - main:    push=BLOQUEADO, merge=MAINTAINERS"
     echo ""
     log_info "Proximos passos:"
     log_info "  1. Verifique o namespace: kubectl get all -n $NAMESPACE"

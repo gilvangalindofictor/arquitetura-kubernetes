@@ -78,13 +78,11 @@ resource "helm_release" "cluster_autoscaler" {
     rbac:
       create: true
 
-    # ServiceAccount com IRSA — usar SA pre-existente (criado via TF kubernetes_service_account)
-    # O SA "cluster-autoscaler" ja possui a annotation IRSA correta para
-    # ClusterAutoscalerRole-k8s-platform-prod e a trust policy do IAM role
-    # referencia "system:serviceaccount:kube-system:cluster-autoscaler"
+    # ServiceAccount com IRSA — Helm cria SA "cluster-autoscaler-aws-cluster-autoscaler"
+    # Trust policy do IAM role ClusterAutoscalerRole-k8s-platform-prod atualizada para
+    # aceitar "system:serviceaccount:kube-system:cluster-autoscaler-aws-cluster-autoscaler"
     serviceAccount:
-      create: false
-      name: cluster-autoscaler
+      create: true
       annotations:
         eks.amazonaws.com/role-arn: "arn:aws:iam::${var.aws_account_id}:role/ClusterAutoscalerRole-${local.cluster_name}"
   YAML
